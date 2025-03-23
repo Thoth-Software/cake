@@ -1,0 +1,55 @@
+version: '3.9'
+
+services:
+
+  phoenix:
+    build: .
+    container_name: caque_app
+    ports:
+      - "4000:4000"
+    depends_on:
+      - db
+      - opensearch
+    environment:
+      DATABASE_URL: "postgres://postgres@db/caque_dev"
+      OPENSEARCH_URL: "http://opensearch:9200"
+    volumes:
+      - .:/app
+
+  db:
+    image: postgres:14
+    container_name: caque_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: caque_dev
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: caque_opensearch
+    environment:
+      - "discovery.type=single-node"
+      - "plugins.security.disabled=true"
+      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+
+volumes:
+  pgdata:
+  opensearch-data:
+
