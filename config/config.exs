@@ -13,7 +13,14 @@ config :caque,
 config :caque, Oban,
   repo: Caque.Repo,
   generators: [timestamp_type: :utc_datetime],
-  plugins: [Oban.Plugins.Pruner]
+  plugins: [
+    Oban.Plugins.Pruner,
+    {Oban.Plugins.Cron,
+      crontab: [
+        # Every month, e.g., first day of month at midnight
+        {"0 0 1 * *", Caque.Workers.HexDocsIngestor}
+    ]}
+  ]
 
 # Configures the endpoint
 config :caque, CaqueWeb.Endpoint,
