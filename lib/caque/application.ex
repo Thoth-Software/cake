@@ -12,6 +12,7 @@ defmodule Caque.Application do
       Caque.Repo,
       {DNSCluster, query: Application.get_env(:caque, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Caque.PubSub},
+      {Oban, Application.fetch_env!(:caque, Oban)},
       # Start the Finch HTTP client for sending emails
       {Finch, name: Caque.Finch},
       # Start a worker by calling: Caque.Worker.start_link(arg)

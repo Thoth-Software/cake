@@ -8,8 +8,12 @@
 import Config
 
 config :caque,
-  ecto_repos: [Caque.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  ecto_repos: [Caque.Repo]
+
+config :caque, Oban,
+  repo: Caque.Repo,
+  generators: [timestamp_type: :utc_datetime],
+  plugins: [Oban.Plugins.Pruner]
 
 # Configures the endpoint
 config :caque, CaqueWeb.Endpoint,
