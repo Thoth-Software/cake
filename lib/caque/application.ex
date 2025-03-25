@@ -18,8 +18,7 @@ defmodule Caque.Application do
       # Start a worker by calling: Caque.Worker.start_link(arg)
       # {Caque.Worker, arg},
       # Start to serve requests, typically the last entry
-      CaqueWeb.Endpoint,
-      {Oban, Application.fetch_env!(:caque, Oban)}
+      CaqueWeb.Endpoint
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

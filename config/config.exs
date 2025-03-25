@@ -12,7 +12,7 @@ config :caque,
 
 config :caque, Oban,
   repo: Caque.Repo,
-  generators: [timestamp_type: :utc_datetime],
+  #generators: [timestamp_type: :utc_datetime],
   plugins: [
     Oban.Plugins.Pruner,
     {Oban.Plugins.Cron,
