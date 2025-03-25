@@ -11,7 +11,13 @@ services:
       - db
       - opensearch
     environment:
-      DATABASE_URL: "postgres://postgres@db/caque_dev"
+      PGUSER: "${CAQUE_PGUSER}"
+      PGPASSWORD: "${CAQUE_PGPASSWORD}" 
+      PGDATABASE: "${CAQUE_PGDATABASE}"
+      PGHOST: "${CAQUE_PGHOST}"
+      PGPORT: "${CAQUE_PGPORT}"
+      # DATABASE_URL: 0.0.0.0:5432
+      # DATABASE_URL: "postgres://postgres@db/caque_dev"
       OPENSEARCH_URL: "http://opensearch:9200"
     volumes:
       - .:/app
@@ -20,13 +26,19 @@ services:
     image: postgres:14
     container_name: caque_db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_DB: caque_dev
+      POSTGRES_USER: "${CAQUE_PGUSER}"
+      POSTGRES_PASSWORD: "${CAQUE_PGPASSWORD}"
+      POSTGRES_DB: "${CAQUE_PGDATABASE}"
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   opensearch:
     image: opensearchproject/opensearch:latest
@@ -48,6 +60,11 @@ services:
       - "9600:9600"
     volumes:
       - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: curl -s http://localhost:9200 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:

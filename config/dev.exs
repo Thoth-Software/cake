@@ -4,11 +4,16 @@ import Config
 config :caque, Caque.Repo,
   username: "postgres",
   password: "postgres",
-  hostname: "localhost",
-  database: "caque_dev",
+  hostname: System.get_env("PGHOST", "db"),
+  database: System.get_env("PGDATABASE", "caque_dev"),
+  port: System.get_env("PGPORT", "5432") |> String.to_integer(),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
+
+config :caque, :opensearch,
+  hostname: "opensearch",
+  url: "http://opesearch:9200"
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
@@ -19,7 +24,7 @@ config :caque, Caque.Repo,
 # Binding to loopback ipv4 address prevents access from other machines.
 config :caque, CaqueWeb.Endpoint,
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 4000],
+  http: [ip: {0, 0, 0, 0}, port: 4000],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
