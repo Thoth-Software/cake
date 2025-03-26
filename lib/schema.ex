@@ -3,7 +3,7 @@ defmodule Caque.Schema do
   Enforces the use of UUIDs for primary keys and relationships.
   """
 
-  defmacro __using__(opts \\ []) do
+  defmacro __using__(_opts \\ []) do
     quote do
       use Ecto.Schema
 
