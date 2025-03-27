@@ -11,8 +11,6 @@ RUN apt-get update && \
 RUN mix local.hex --force && \
   mix local.rebar --force
 
-apt-get install -y postgresql-client inotify-tools
-
 # Create app directory and copy the Elixir projects into it.
 RUN mkdir /app
 COPY . /app
