@@ -4,7 +4,7 @@ defmodule Caque.Workers.HexDocsIngestor do
   @impl Oban.Worker
   def perform(_job) do
     ### Download HexDocs standard library docs
-    #{:ok, docs} = Caque.HexDocsDownloader.fetch_latest()
+    _ = HexDocsDownloader.download("phoenix") #needs to handle errors
 
     ### Parse docs into structured JSON or Elixir struct
     #parsed_docs = Caque.HexDocsParser.parse(docs)

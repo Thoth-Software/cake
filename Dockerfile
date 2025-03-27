@@ -2,15 +2,17 @@
 FROM elixir:latest
 
 RUN apt-get update && \
-  apt-get install -y postgresql-client
+  apt-get install -y postgresql-client && \
+  rm -rf /var/lib/apt/lists/*
+
+# Install Hex package manager.
+RUN mix local.hex --force && \
+  mix local.rebar --force
 
 # Create app directory and copy the Elixir projects into it.
 RUN mkdir /app
 COPY . /app
 WORKDIR /app
-
-# Install Hex package manager.
-RUN mix local.hex --force
 
 # Compile the project.
 RUN mix deps.get

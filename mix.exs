@@ -59,6 +59,7 @@ defmodule Caque.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
       {:oban, "~> 2.15"},
+      {:httpoison, "~> 1.8"},
       {:req, "~> 0.5.10"}
     ]
   end
