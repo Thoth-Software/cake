@@ -1,5 +1,37 @@
 # Caque 
 
+## Development
+
+To run the app, type `docker-compose up -d`.
+
+To access iex once the system is running:
+1. Open Docker Desktop
+2. Click Containers
+3. Click caque_app
+4. Click cli (on topbar)
+5. type `iex --remsh dev`.
+This should give you an iex session attached to the running Phoenix instance.
+
+To validate that Phoenix can access OpenSearch in its separate container, jack in to the cli for the Phoenic container and run `curl -X GET http://opensearch:9200`. Expected response:
+
+``` 
+{
+  "name" : "...",
+  "cluster_name" : "docker-cluster",
+  "cluster_uuid" : "...",
+  "version" : {
+    "distribution" : "opensearch",
+    "number" : "2.19.1",
+    "build_type" : "...",
+    "build_hash" : "...",
+    "build_date" : [current datetime]
+    ...
+  },
+  "tagline" : "The OpenSearch Project: https://opensearch.org/"
+}
+```
+
+
 ## 🗺 Sprint 1: Foundational Setup (Week 1)
 ### 🟩 Goal:
 Establish foundational infrastructure, automated ingestion pipeline, embedding generation, and OpenSearch indexing.

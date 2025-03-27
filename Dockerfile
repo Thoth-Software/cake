@@ -1,6 +1,8 @@
 # Use an official Elixir runtime as a parent image.
 FROM elixir:latest
 
+EXPOSE 4000
+
 RUN apt-get update && \
   apt-get install -y postgresql-client && \
   rm -rf /var/lib/apt/lists/*
@@ -8,6 +10,8 @@ RUN apt-get update && \
 # Install Hex package manager.
 RUN mix local.hex --force && \
   mix local.rebar --force
+
+  apt-get install -y postgresql-client inotify-tools
 
 # Create app directory and copy the Elixir projects into it.
 RUN mkdir /app
