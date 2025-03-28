@@ -18,7 +18,8 @@ config :caque, Oban,
     {Oban.Plugins.Cron,
       crontab: [
         # Every month, e.g., first day of month at midnight
-        {"0 0 1 * *", Caque.Workers.HexDocsIngestor}
+        #{"0 0 1 * *", Caque.Workers.UpdateHexDocs}
+        {"*/1 * * * * *", Caque.Workers.UpdateHexDocs} #every 30 seconds just to test this
     ]}
   ]
 

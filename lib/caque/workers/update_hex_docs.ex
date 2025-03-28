@@ -1,10 +1,11 @@
-defmodule Caque.Workers.HexDocsIngestor do
+defmodule Caque.Workers.UpdateHexDocs do
   use Oban.Worker, queue: :ingestion, max_attempts: 3
 
   @impl Oban.Worker
-  def perform(_job) do
+  def perform(_job) do#%Oban.job{}) do
+    IO.puts("I'm a placeholder")
     ### Download HexDocs standard library docs
-    _ = HexDocsDownloader.download("phoenix") #needs to handle errors
+    ##code to actually download shit goes here when you figure out that error
 
     ### Parse docs into structured JSON or Elixir struct
     #parsed_docs = Caque.HexDocsParser.parse(docs)
