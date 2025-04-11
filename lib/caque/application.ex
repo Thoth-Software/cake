@@ -14,6 +14,7 @@ defmodule Caque.Application do
       {Phoenix.PubSub, name: Caque.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: Caque.Finch},
+      {Caque.Documents.Cluster, name: Caque.Documents.Cluster},
       # Start a worker by calling: Caque.Worker.start_link(arg)
       # {Caque.Worker, arg},
       # Start to serve requests, typically the last entry
@@ -22,7 +23,7 @@ defmodule Caque.Application do
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Caque.Supervisor]
+    opts = [strategy: :one_for_one, max_restarts: 5, name: Caque.Supervisor]
     Supervisor.start_link(children, opts)
   end
 
