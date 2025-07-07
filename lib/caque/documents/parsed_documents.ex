@@ -22,11 +22,10 @@ defmodule Caque.Documents.ParsedDocuments do
     |> Caque.Repo.insert!(log: false)
   end
 
-  def update_parsed_doc(%ParsedDocument{} = parsed_document) do
+  def update_parsed_doc(%ParsedDocument{} = parsed_document, attrs) do
     parsed_document
-    |> ParsedDocument.changeset()
+    |> ParsedDocument.changeset(attrs)
     |> Repo.update()
-    |> dbg()
   end
 
   def by_language_and_version(language, version) do

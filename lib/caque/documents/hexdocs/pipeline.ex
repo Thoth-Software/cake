@@ -58,6 +58,7 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
     end
   end
 
+  # What the fuck does this function even return!?
   @impl true
   def persist_raw_docs(file_paths, version) do
       file_paths
@@ -72,6 +73,7 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
         {:exit, reason} -> Logger.warn("Failed: #{inspect(reason)}")
       end)
 
+      :ok
   end
 
   @impl true
