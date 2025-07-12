@@ -51,8 +51,8 @@ defmodule Caque.Documents.Pipeline do
     |> source_pipeline.persist_raw_docs(version),
          parsed_docs_stream <- source_pipeline.parse(version),
          :ok <- persist_parsed_docs(parsed_docs_stream),
-         :ok <- batch_embed(embedding_service, source_pipeline, embedding_model, version),
-         add_to_opensearch(source_pipeline.source(), version) do
+         :ok <- batch_embed(embedding_service, source_pipeline, embedding_model, version) do
+         # add_to_opensearch(source_pipeline.source(), version) do
       {:ok, source_pipeline.success_message(version)}
     else
       error -> error
