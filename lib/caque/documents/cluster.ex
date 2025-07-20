@@ -61,7 +61,7 @@ defmodule Caque.Documents.Cluster do
 
     {:ok, response} = Snap.Search.search(__MODULE__, index, query)
 
-    hits = response["hits"]["hits"]
+    hits = response.hits["hits"]
 
     Enum.map(hits, fn hit ->
       hit["_source"]

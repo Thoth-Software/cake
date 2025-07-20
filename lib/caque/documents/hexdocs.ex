@@ -61,7 +61,7 @@ defmodule Caque.Documents.Hexdocs do
   def create_hexdoc(attrs \\ %{}) do
     %Hexdoc{}
     |> Hexdoc.changeset(attrs)
-    |> Repo.insert()
+    |> Repo.insert(log: false)
   end
 
   @doc """
@@ -79,7 +79,7 @@ defmodule Caque.Documents.Hexdocs do
   def update_hexdoc(%Hexdoc{} = hexdoc, attrs) do
     hexdoc
     |> Hexdoc.changeset(attrs)
-    |> Repo.update()
+    |> Repo.update(log: false)
   end
 
   @doc """

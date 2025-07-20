@@ -101,7 +101,6 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
     %{
       module: module,
       version: version,
-      # core: core,
       url: url,
       content: content,
     }
