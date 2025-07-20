@@ -4,16 +4,22 @@ import Config
 config :caque, Caque.Repo,
   username: "postgres",
   password: "postgres",
-  hostname: System.get_env("PGHOST", "db"),
+  hostname: System.get_env("PGHOST", "localhost"),
   database: System.get_env("PGDATABASE", "caque_dev"),
   port: System.get_env("PGPORT", "5432") |> String.to_integer(),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
-config :caque, :opensearch,
-  hostname: "opensearch",
-  url: "http://opesearch:9200"
+# Config for API keys
+config :caque, Caque.Embeddings,
+  openai_key: System.get_env("OPENAI_KEY"),
+  base_url: "https://api.openai.com/v1/embeddings"
+
+config :caque, Caque.Documents.Cluster,
+  url: "http://opensearch:9200",
+  username: "admin",
+  password: System.get_env("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
 
 # For development, we disable any cache and enable
 # debugging and code reloading.

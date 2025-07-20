@@ -31,6 +31,13 @@ To validate that Phoenix can access OpenSearch in its separate container, jack i
 }
 ```
 
+**If you would rather have your iex session in a terminal outside of the docker container**, then simply run
+
+```
+docker exec -it <container_id_or_name> iex --remsh dev
+```
+
+in the desired terminal. You can get the container name by running `docker ps`,
 
 ## 🗺 Sprint 1: Foundational Setup (Week 1)
 ### 🟩 Goal:
@@ -54,9 +61,6 @@ Establish foundational infrastructure, automated ingestion pipeline, embedding g
 
 - **Pipeline Integration & Validation (6 hrs)**  
   - End-to-end pipeline testing (≥98% accuracy)
-
-- **CI/CD Setup & Basic Testing (6 hrs)**  
-  - Basic GitHub Actions pipeline for Docker builds & integration tests
 
 ### 🎯 Sprint 1 Deliverables:
 - Dockerized environment fully operational

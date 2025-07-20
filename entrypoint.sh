@@ -15,7 +15,8 @@
 # done
 
 # Run migrations, seed repo
-mix ecto.migrate
+# mix ecto.migrate
+mix ecto.reset
 mix run priv/repo/seeds.exs
 
 exec elixir --sname dev -S mix phx.server

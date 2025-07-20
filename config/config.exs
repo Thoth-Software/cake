@@ -22,6 +22,11 @@ config :caque, CaqueWeb.Endpoint,
   pubsub_server: Caque.PubSub,
   live_view: [signing_salt: "QL+aqy0T"]
 
+config :caque, Caque.Documents.Cluster,
+  url: "http://opensearch:9200",
+  username: "admin",
+  password: System.get_env("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails

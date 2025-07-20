@@ -1,0 +1,74 @@
+defmodule Caque.Embeddings do
+  @moduledoc """
+  Calls out to an external API to get embeddings.
+  Different APIs may require or return data having different shapes, so Embeddings defines bespoke functinos for each API we foresee using.
+  """
+
+  alias Caque.Documents.ParsedDocument
+
+  def embed(:openai, %ParsedDocument{text: text, title: title} = parsed_document, model) do
+    input = "#{title}\n\n#{text}"
+    [openai_key: api_key, base_url: url] = Application.get_env(:caque, __MODULE__)
+
+    Req.post(
+      url: url,
+      json: %{model: model, input: input},
+      auth: {:bearer, api_key}
+    )
+    #Later on, there should probably be multiple function heads of "embed", but extract the following to its own re-used handle_response function.
+    |> case do
+      {:ok,
+       %Req.Response{
+         status: 200,
+         body: %{"data" => data, "usage" => usage}
+       }} ->
+           # Usage here refers to token usage. We really ought to store this in the DB, maybe along with timestamps, service, embedding model used, and then the actual embedding. All that implies an Embedding struct with its own table. This, in turn, requires that we make embeddings into an association instead of a field on the ParsedDocument struct.
+        embedding =
+          data
+          |> Enum.find(fn item -> is_map(item) end)
+          |> Map.get("embedding")
+
+        attrs = %{embedding: embedding}
+
+        {:ok, %{usage: usage, parsed_document: parsed_document, attrs: attrs}}
+
+      {:ok, %Req.Response{status: code}} ->
+        {:error, "Transport layer error: #{code}"}
+
+      {:error, %{reason: reason}} ->
+        {:error, "Application layer error: #{reason}"} 
+    end
+  end
+end
+
+# SAMPLE OPENAI REQUEST
+# curl https://api.openai.com/v1/embeddings \
+#   -H "Authorization: Bearer $OPENAI_API_KEY" \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "input": "The food was delicious and the waiter...",
+#     "model": "text-embedding-ada-002",
+#     "encoding_format": "float"
+#   }'
+
+# SAMPLE OPENAI RESPONSE
+# {
+#   "object": "list",
+#   "data": [
+#     {
+#       "object": "embedding",
+#       "embedding": [
+#         0.0023064255,
+#         -0.009327292,
+#         .... (1536 floats total for ada-002)
+#         -0.0028842222,
+#       ],
+#       "index": 0
+#     }
+#   ],
+#   "model": "text-embedding-ada-002",
+#   "usage": {
+#     "prompt_tokens": 8,
+#     "total_tokens": 8
+#   }
+# }
