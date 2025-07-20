@@ -5,6 +5,8 @@ defmodule Caque.Documents.Cluster do
 
   use Snap.Cluster, otp_app: :caque
   alias Snap.Indexes
+  alias Caque.Documents.ParsedDocument
+  alias Caque.Embeddings
   require Logger
 
   def build_mapping(schema) do
@@ -72,6 +74,51 @@ defmodule Caque.Documents.Cluster do
   def all_documents() do
     query = %{query: %{match_all: %{}}}
     Snap.Search.search(__MODULE__, "docs", query)
+  end
+
+  @doc """
+  Perform a keyword search over the given `index` using the provided
+  `keywords`. The search is executed against the `Caque.Documents.Cluster`
+  cluster.
+  """
+  @spec keyword_search(String.t(), String.t()) ::
+          {:ok, map()} | {:error, any()}
+  def keyword_search(index, keywords) do
+    query = %{
+      query: %{
+        multi_match: %{
+          query: keywords,
+          fields: ["title^2", "text"]
+        }
+      }
+    }
+
+    Snap.Search.search(__MODULE__, index, query)
+  end
+
+  @doc """
+  Perform a vector search over the given `index` using `text` as the query.
+  The text is first embedded and then used for a kNN search on the
+  `embedding` field of the documents.
+  """
+  @spec vector_search(String.t(), String.t()) ::
+          {:ok, map()} | {:error, any()}
+  def vector_search(index, text) do
+    doc = %ParsedDocument{text: text, title: ""}
+
+    with {:ok, %{attrs: %{embedding: embedding}}} <-
+           Embeddings.embed(:openai, doc, "text-embedding-ada-002") do
+      query = %{
+        knn: %{
+          field: "embedding",
+          query_vector: embedding,
+          k: 10,
+          num_candidates: 50
+        }
+      }
+
+      Snap.Search.search(__MODULE__, index, query)
+    end
   end
 
   defp maybe_create_index({:error, error}), do: raise(error)
