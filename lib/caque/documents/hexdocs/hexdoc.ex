@@ -37,20 +37,21 @@ defmodule Caque.Documents.Hexdocs.Hexdoc do
 
   def doc_attrs(), do: @doc_attrs
 
-  def to_parsed_docs(%__MODULE__{content: content, url: url, module: module, language: language, core: core, source: source, version: version} = hexdoc) do
+  def to_parsed_docs({:ok, hexdoc}), do: to_parsed_docs(hexdoc)
+
+  def to_parsed_docs(%__MODULE__{content: content, url: url, module: module, version: version} = hexdoc) do
     case Code.string_to_quoted(content) do
       {:ok, {:defmodule, _, _} = ast} ->
         partial_docs = extract_from_module_ast(ast)
         Enum.map(partial_docs, fn %{text: text, title: title} ->
-        %ParsedDocument{
+        %{
           text: text,
           url: url,
           package: module,
-          language: language,
-          core: core,
+          language: @language,
           title: title,
           version: version,
-          source: source
+          source: @source
         }
         end)
       {:ok, other} ->

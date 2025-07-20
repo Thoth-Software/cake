@@ -8,24 +8,25 @@ defmodule Caque.Documents.ParsedDocuments do
   alias Caque.Documents.ParsedDocument
 
   def create_parsed_docs!({:ok, parsed_docs_list}) do
+    dbg(parsed_docs_list)
     Task.async_stream(
       parsed_docs_list,
       max_concurrency: 10,
       timeout: 5_000
     )
-    |> Enum.each(&create_parsed_doc!/1)
+    |> Stream.map(&create_parsed_doc!/1)
   end
 
-  def create_parsed_doc!(%ParsedDocument{} = parsed_document) do
-    parsed_document
-    |> ParsedDocument.changeset()
-    |> Caque.Repo.insert!(log: false)
+  def create_parsed_doc!(attrs) do
+   %ParsedDocument{} 
+    |> ParsedDocument.changeset(attrs)
+    |> Caque.Repo.insert!(on_replace: :replace_all)
   end
 
-  def update_parsed_doc(%ParsedDocument{} = parsed_document, attrs) do
+  def update_parsed_doc!(%ParsedDocument{} = parsed_document, attrs) do
     parsed_document
     |> ParsedDocument.changeset(attrs)
-    |> Repo.update()
+    |> Repo.update!()
   end
 
   def by_language_and_version(language, version) do

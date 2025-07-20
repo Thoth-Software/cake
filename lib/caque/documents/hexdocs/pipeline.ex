@@ -9,6 +9,7 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
   alias Caque.Documents.Hexdocs.Downloads
 
   @behaviour Caque.Documents.Pipeline
+  import Caque.Documents.Pipeline, only: [detuple: 1]
   @type version :: Caque.Documents.Pipeline.version()
 
   @impl true
@@ -62,41 +63,31 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
   @impl true
   def persist_raw_docs(file_paths, version) do
       file_paths
-      |> Task.async_stream(&to_hexdoc(&1, version),
+      |> Task.async_stream(&to_hexdoc_attrs(&1, version),
         max_concurrency: 4,
         timeout: :infinity
       )
-      #This is godawful. We need to deep-six this call to Caque.Repo.Insert in favor of an actual context function with an actual changeset.
-      #Not newing up a new struct from scratch like some kind of idiot.
-      |> Enum.map(fn
-        {:ok, struct} -> Caque.Repo.insert(struct, log: false)
-        {:exit, reason} -> Logger.warn("Failed: #{inspect(reason)}")
-      end)
-
-      :ok
+      |> detuple()
+      |> Task.async_stream(&Caque.Documents.Hexdocs.create_hexdoc/1)
+      |> detuple()
   end
 
   @impl true
-  def parse(version) do
-    version
-    |> Hexdocs.hexdocs_by_version()
+  def parse(raw_docs_stream) do
+    raw_docs_stream
     |> Task.async_stream(
       &Hexdoc.to_parsed_docs/1,
       max_concurrency: 4,
       timeout: 30_000
     )
-    |> Stream.flat_map(fn tuple ->
-      case tuple do
-      {:ok, parsed_docs} -> parsed_docs
-      {:error, _} -> []
-        end
-    end)
+      |> detuple()
+    |> Stream.flat_map(fn item -> item end)
   end
 
   @impl true
   def source(), do: Hexdoc.doc_attrs().source
 
-  def to_hexdoc(path, version) do
+  def to_hexdoc_attrs(path, version) do
     url_suffix =
       path
       |> String.split("/")
@@ -107,12 +98,12 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
 
     content = File.read!(path)
 
-    %Caque.Documents.Hexdocs.Hexdoc{
+    %{
       module: module,
       version: version,
       # core: core,
       url: url,
-      content: content
+      content: content,
     }
   end
 

@@ -45,14 +45,18 @@ defmodule Caque.Documents.Pipeline do
     version = Enum.join([major, minor, patch], ".")
 
     with {:ok, file_paths} <- source_pipeline.download(version),
-         :ok <- file_paths
-    |> hd()
-    |> then(&[&1])
-    |> source_pipeline.persist_raw_docs(version),
-         parsed_docs_stream <- source_pipeline.parse(version),
-         :ok <- persist_parsed_docs(parsed_docs_stream),
-         :ok <- batch_embed(embedding_service, source_pipeline, embedding_model, version),
-         :ok <- add_to_opensearch(source_pipeline.source(), version) do
+         raw_docs_stream <- source_pipeline.persist_raw_docs(file_paths, version),
+         parsed_docs_attrs_stream <- source_pipeline.parse(raw_docs_stream),
+         persisted_parsed_docs_stream <- persist_parsed_docs(parsed_docs_attrs_stream),
+         docs_with_embeddings_stream <-
+           batch_embed(
+             persisted_parsed_docs_stream,
+             embedding_service,
+             source_pipeline,
+             embedding_model
+           ),
+         opensearch_docs_stream <- add_to_opensearch(docs_with_embeddings_stream),
+         :ok <- Stream.run(opensearch_docs_stream) do
       {:ok, source_pipeline.success_message(version)}
     else
       error -> error
@@ -60,33 +64,42 @@ defmodule Caque.Documents.Pipeline do
   end
 
   # There seems to be a flaw here. If we use the context function to get all the parsed documents for a given source and version, then we are NOT getting those docs one at a time after their embeddings have been added. Interdasting...
-  def add_to_opensearch(source, version) do
-    ParsedDocuments.by_source_and_version(source, version)
+  def add_to_opensearch(docs_with_embeddings_stream) do
+    docs_with_embeddings_stream
     |> Task.async_stream(
       &Snap.Document.update(@cluster, @index, %{doc: &1, doc_as_upsert: true}, &1.id),
       max_concurrency: 5,
       timeout: 5_000,
       on_timeout: :kill_task
     )
-    |> Enum.each(&handle_opensearch_response/1)
+    |> Stream.map(&handle_opensearch_response/1)
+    |> detuple()
   end
 
   # NOTE: We need to put together moduledocs for these instead of comments
   # The {:exit, element} tuple is emitted when the process spawned by task.asyn_stream dies
-  defp handle_opensearch_response({:exit, element}), do: Logger.warning("Failed to insert document #{element.id}. Process died")
+  defp handle_opensearch_response({:exit, element}),
+    do: Logger.warning("Failed to insert document #{element.id}. Process died")
 
-  defp handle_opensearch_response({:ok, task_response}), do: handle_opensearch_response(task_response)
+  defp handle_opensearch_response({:ok, task_response}),
+    do: handle_opensearch_response(task_response)
 
-  defp handle_opensearch_response({:error, changeset}), do: Logger.warning("Could not insert document. Changeset: #{inspect(changeset)}")
+  defp handle_opensearch_response({:error, changeset}),
+    do: Logger.warning("Could not insert document. Changeset: #{inspect(changeset)}")
 
-  defp handle_opensearch_response(%{"_id" => id}), do: Logger.info("Document #{id} created in #{@index}")
+  defp handle_opensearch_response(%{"_id" => id}),
+    do: Logger.info("Document #{id} created in #{@index}")
 
   # Caque.Documents.Pipeline.batch_embed(:openai, Caque.Documents.Hexdocs.Pipeline, "text-embedding-ada-002", "1.18.3")
   # Need some way of passing parsed docs out one at a time to be persisted to Opensearch
   # What do we use besides Enum.each if we want this to return parsed docs?
-  def batch_embed(embedding_service, source_pipeline, embedding_model, version) do
-    source_pipeline.source()
-    |> ParsedDocuments.by_source_and_version(version)
+  def batch_embed(
+        persisted_parsed_docs_stream,
+        embedding_service,
+        source_pipeline,
+        embedding_model
+      ) do
+    persisted_parsed_docs_stream
     |> Task.async_stream(
       &Caque.Embeddings.embed(embedding_service, &1, embedding_model),
       max_concurrency: 5,
@@ -94,29 +107,32 @@ defmodule Caque.Documents.Pipeline do
       on_timeout: :kill_task,
       zip_input_on_exit: true
     )
+    |> detuple()
     |> Task.async_stream(
       &handle_response/1,
       max_concurrency: 5,
       timeout: 5_000,
       on_timeout: :kill_task
     )
+    |> detuple()
+
     # Need a case function here to log errors and pop the kernel out of :ok tuples.
-    |> Stream.run()
   end
 
   defp handle_response({:exit, {input, reason}}) do
     Logger.warning("EMBEDDING FAILED\n\nReason: #{reason}\n\n input: #{input.title}")
-    |> dbg()
   end
 
   defp handle_response({_, {:error, error}}), do: Logger.warning(error)
 
-  defp handle_response({_, {_, %{parsed_document: parsed_document, attrs: attrs}}}), do: ParsedDocuments.update_parsed_doc(parsed_document, attrs)
+  defp handle_response({_, %{parsed_document: parsed_document, attrs: attrs}}),
+    do: ParsedDocuments.update_parsed_doc!(parsed_document, attrs)
 
-  defp persist_parsed_docs(parsed_doc_stream) do
-    Task.async_stream(parsed_doc_stream, &ParsedDocuments.create_parsed_doc!/1)
-    |> Stream.run()
-  end
+  defp persist_parsed_docs(parsed_doc_stream),
+    do:
+      parsed_doc_stream
+      |> Task.async_stream(&ParsedDocuments.create_parsed_doc!/1)
+      |> detuple()
 
   # defp persist_to_opensearch(parsed_doc_stream, cluster_name, index_name) do
   #   Task.async_stream(parsed_doc_stream, fn doc ->
@@ -125,4 +141,13 @@ defmodule Caque.Documents.Pipeline do
   #   end)
   #   |> Stream.run()
   # end
+
+  def detuple(stream_enumerable) do
+    stream_enumerable
+    |> Stream.filter(fn
+      {:ok, _} -> true
+      _ -> false
+    end)
+    |> Stream.map(fn {:ok, value} -> value end)
+  end
 end
