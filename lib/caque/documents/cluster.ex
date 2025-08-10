@@ -10,8 +10,7 @@ defmodule Caque.Documents.Cluster do
   require Logger
 
   def build_mapping(schema) do
-    vector_properties = %{
-      embedding: %{
+      embedding = %{
         type: "knn_vector",
         dimension: 1536,
         method: %{
@@ -20,21 +19,23 @@ defmodule Caque.Documents.Cluster do
           engine: "nmslib"
         }
       }
-    }
+    
 
     text_properties =
       schema.__schema__(:fields)
       |> Enum.reduce(%{}, fn field, acc ->
         case field do
           :text -> Map.merge(%{text: %{type: "text"}}, acc)
+          :embedding -> Map.merge(%{embedding: embedding}, acc)
           keyword -> Map.merge(%{keyword => %{type: "keyword"}}, acc)
         end
       end)
 
     %{
       settings: %{"index.knn" => true},
-      mappings: %{properties: Map.merge(vector_properties, text_properties)}
+      mappings: %{properties: text_properties}
     }
+    |> dbg()
   end
 
   def init(config) do
@@ -70,7 +71,7 @@ defmodule Caque.Documents.Cluster do
     end)
   end
 
-# In this code snippet, we define a module `MyApp.Elasticsearch` that uses the `Snap.Elasticsearch` library. We then define a function `get_all_docs` that queries the Elasticsearch index named "docs" and retrieves all documents. The function constructs a query that matches all documents in the index and sets the size to 1000 to retrieve a large number of documents. It then extracts the source data from each hit in the response and returns a list of all documents.
+  # In this code snippet, we define a module `MyApp.Elasticsearch` that uses the `Snap.Elasticsearch` library. We then define a function `get_all_docs` that queries the Elasticsearch index named "docs" and retrieves all documents. The function constructs a query that matches all documents in the index and sets the size to 1000 to retrieve a large number of documents. It then extracts the source data from each hit in the response and returns a list of all documents.
   def all_documents() do
     query = %{query: %{match_all: %{}}}
     Snap.Search.search(__MODULE__, "docs", query)
@@ -96,30 +97,55 @@ defmodule Caque.Documents.Cluster do
     Snap.Search.search(__MODULE__, index, query)
   end
 
+  def a_keyword_search() do
+    query = %{
+      query: %{
+        match: %{
+          text: "task"
+        }
+      }
+    }
+
+    Snap.Search.search(__MODULE__, "docs", query)
+  end
+
+
   @doc """
   Perform a vector search over the given `index` using `text` as the query.
   The text is first embedded and then used for a kNN search on the
   `embedding` field of the documents.
   """
-  @spec vector_search(String.t(), String.t()) ::
-          {:ok, map()} | {:error, any()}
-  def vector_search(index, text) do
-    doc = %ParsedDocument{text: text, title: ""}
+@spec vector_search(String.t(), String.t()) :: {:ok, map()} | {:error, any()}
+def vector_search(index, text) do
+  doc = %ParsedDocument{text: text, title: ""}
 
-    with {:ok, %{attrs: %{embedding: embedding}}} <-
-           Embeddings.embed(:openai, doc, "text-embedding-ada-002") do
-      query = %{
+  with {:ok, %{attrs: %{embedding: embedding}}} <-
+         Embeddings.embed(:openai, doc, "text-embedding-ada-002") do
+
+    query = %{
+      size: 10,                                  # usually same as k
+      query: %{
         knn: %{
-          field: "embedding",
-          query_vector: embedding,
-          k: 10,
-          num_candidates: 50
+          embedding: %{
+            vector: embedding,                   # MUST be a list of floats
+            k: 10
+            # optional tuning for HNSW; remove or adjust as needed
+            # rescore: true | %{oversample_factor: 8.0}  # optional
+          }
         }
       }
+    }
 
-      Snap.Search.search(__MODULE__, index, query)
-    end
+    Snap.Search.search(__MODULE__, index, query)
   end
+end
+
+def hits_text({:ok, %Snap.SearchResponse{hits: hits}}) do
+  hits
+  |> Enum.map(fn hit ->
+    hit.source["text"]
+  end)
+end
 
   defp maybe_create_index({:error, error}), do: raise(error)
 
