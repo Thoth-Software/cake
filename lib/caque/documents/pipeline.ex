@@ -123,6 +123,10 @@ defmodule Caque.Documents.Pipeline do
     Logger.warning("EMBEDDING FAILED\n\nReason: #{reason}\n\n input: #{input.title}")
   end
 
+  defp handle_response({:error, error}) do
+    Logger.warning("ERROR: #{inspect(error)}")
+  end
+
   defp handle_response({_, {:error, error}}), do: Logger.warning(error)
 
   defp handle_response({_, %{parsed_document: parsed_document, attrs: attrs}}),

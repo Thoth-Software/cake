@@ -9,17 +9,18 @@ defmodule Caque.Documents.Cluster do
   alias Caque.Embeddings
   require Logger
 
+  @automatic_workflow_path "/_plugins/_flow_framework/workflow?use_case=conversational_search_with_llm_deploy&provision=true"
+
   def build_mapping(schema) do
-      embedding = %{
-        type: "knn_vector",
-        dimension: 1536,
-        method: %{
-          name: "hnsw",
-          space_type: "cosinesimil",
-          engine: "nmslib"
-        }
+    embedding = %{
+      type: "knn_vector",
+      dimension: 1536,
+      method: %{
+        name: "hnsw",
+        space_type: "cosinesimil",
+        engine: "nmslib"
       }
-    
+    }
 
     text_properties =
       schema.__schema__(:fields)
@@ -35,12 +36,27 @@ defmodule Caque.Documents.Cluster do
       settings: %{"index.knn" => true},
       mappings: %{properties: text_properties}
     }
-    |> dbg()
+  end
+
+  def start_convo(), do: start_convo(%{automatic: true})
+
+  def start_convo(params) do
+    case GenServer.start_link(Caque.Conversation, params) do
+      {:ok, pid} -> pid
+      error_tuple -> error_tuple
+    end
   end
 
   def init(config) do
-    Task.start_link(fn -> create_indexes_unless_exist(nil) end)
-    {:ok, config}
+    # Defer index creation to handle_continue to avoid blocking init.
+    # This allows the cluster to start quickly and register its name
+    # before attempting to create indexes.
+    {:ok, config, {:continue, :create_indexes}}
+  end
+
+  def handle_continue(:create_indexes, config) do
+    {:ok, task_pid} = Task.start_link(fn -> create_indexes_unless_exist(nil) end)
+    {:noreply, Map.put(config, :index_creation_task, task_pid)}
   end
 
   def create_indexes_unless_exist(nil) do
@@ -51,12 +67,14 @@ defmodule Caque.Documents.Cluster do
     |> create_indexes_unless_exist()
   end
 
-  def create_indexes_unless_exist(_) do
+  def create_indexes_unless_exist(pid) when is_pid(pid) do
     __MODULE__
     |> Indexes.list()
     |> maybe_create_index()
     |> ensure_index_exists()
   end
+
+  def enable_conversational_search(), do: nil
 
   def get_all_docs do
     index = "docs"
@@ -76,6 +94,16 @@ defmodule Caque.Documents.Cluster do
     query = %{query: %{match_all: %{}}}
     Snap.Search.search(__MODULE__, "docs", query)
   end
+
+  # Food for thought: bespoke search functions for different clusters, or generalized search functions?
+  # Answer: search functions ought to live on a given cluster, yes. But keep in
+  # mind that clusters go to generic document types. Right now we have only one,
+  # ParsedDoc, which implies only one set of search functions. However, if we
+  # begin to have more than one generic, then we'll need search functions keyed
+  # to that generic.
+  #
+  # Note that this also indicates searchability as a salient constraint on the
+  # design of generic doc schemas.
 
   @doc """
   Perform a keyword search over the given `index` using the provided
@@ -109,43 +137,43 @@ defmodule Caque.Documents.Cluster do
     Snap.Search.search(__MODULE__, "docs", query)
   end
 
-
   @doc """
   Perform a vector search over the given `index` using `text` as the query.
   The text is first embedded and then used for a kNN search on the
   `embedding` field of the documents.
   """
-@spec vector_search(String.t(), String.t()) :: {:ok, map()} | {:error, any()}
-def vector_search(index, text) do
-  doc = %ParsedDocument{text: text, title: ""}
+  @spec vector_search(String.t(), String.t()) :: {:ok, map()} | {:error, any()}
+  def vector_search(index, text) do
+    doc = %ParsedDocument{text: text, title: ""}
 
-  with {:ok, %{attrs: %{embedding: embedding}}} <-
-         Embeddings.embed(:openai, doc, "text-embedding-ada-002") do
-
-    query = %{
-      size: 10,                                  # usually same as k
-      query: %{
-        knn: %{
-          embedding: %{
-            vector: embedding,                   # MUST be a list of floats
-            k: 10
-            # optional tuning for HNSW; remove or adjust as needed
-            # rescore: true | %{oversample_factor: 8.0}  # optional
+    with {:ok, %{attrs: %{embedding: embedding}}} <-
+           Embeddings.embed(:openai, doc, "text-embedding-ada-002") do
+      query = %{
+        # usually same as k
+        size: 10,
+        query: %{
+          knn: %{
+            embedding: %{
+              # MUST be a list of floats
+              vector: embedding,
+              k: 10
+              # optional tuning for HNSW; remove or adjust as needed
+              # rescore: true | %{oversample_factor: 8.0}  # optional
+            }
           }
         }
       }
-    }
 
-    Snap.Search.search(__MODULE__, index, query)
+      Snap.Search.search(__MODULE__, index, query)
+    end
   end
-end
 
-def hits_text({:ok, %Snap.SearchResponse{hits: hits}}) do
-  hits
-  |> Enum.map(fn hit ->
-    hit.source["text"]
-  end)
-end
+  def hits_text({:ok, %Snap.SearchResponse{hits: hits}}) do
+    hits
+    |> Enum.map(fn hit ->
+      hit.source["text"]
+    end)
+  end
 
   defp maybe_create_index({:error, error}), do: raise(error)
 

@@ -10,7 +10,6 @@ defmodule Caque.Schema do
   # Most likely, we will define submodules, Caque.Schema.SubModule, each of which `use`s Caque.Schema and then defines whatever callbacks it defines
   # Caque.Schema will have attributes common to all schemas
 
-
   defmacro __using__(_opts \\ []) do
     quote do
       use Ecto.Schema
