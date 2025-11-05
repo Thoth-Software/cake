@@ -1,7 +1,9 @@
 defmodule Caque.Conversation do
   use GenServer
 
-  @workflow_path "/_plugins/_flow_framework/workflow?use_case=conversational_search_with_llm_deploy&provision=true"
+  alias Caque.Documents.ParsedDocument
+  alias Caque.Embeddings
+  require Logger
 
   # Eventually, Caque.Documents.Cluster will be replaced by something
   # configurable. The idea there is to make this conversation module be agnostic
@@ -13,99 +15,72 @@ defmodule Caque.Conversation do
   # GenServer.start(Caque.Conversation, %{automatic: true})
   @impl true
   def init(%{automatic: true} = params) do
-    # We defer all HTTP requests and blocking operations to handle_continue/2
-    # because init/1 must return quickly to avoid blocking the supervision tree.
-    # Performing network calls, polling, or other slow operations here would
-    # prevent the GenServer from starting and could hang the entire application
-    # startup sequence.
-    {:ok, %{params: params}, {:continue, :setup}}
+    {:ok, %{params: params, search_results: [], message_history: [], errors: []}}
   end
-
-  @impl true
-  def handle_continue(:setup, %{params: params} = state) do
-    openai_key = Application.get_env(:caque, Caque.Embeddings)[:openai_key]
-
-    # Create workflow
-    workflow_payload = %{"create_connector.credential.key" => openai_key}
-
-    {:ok, %{"workflow_id" => workflow_id}} =
-      Snap.post(Caque.Documents.Cluster, @workflow_path, workflow_payload)
-
-    # Poll workflow status until COMPLETED
-    poll_until_completed(workflow_id)
-
-    # Get workflow resources to extract the search pipeline name
-    {:ok, workflow_status} = Snap.get(Caque.Documents.Cluster, "/_plugins/_flow_framework/workflow/#{workflow_id}/_status")
-    dbg(workflow_status)
-    search_pipeline = extract_search_pipeline(workflow_status)
-
-    # Create conversation memory
-    memory_path = "/_plugins/_ml/memory/"
-    memory_payload = %{"name" => "hexdocs convo"}
-    {:ok, %{"memory_id" => memory_id}} = Snap.post(Caque.Documents.Cluster, memory_path, memory_payload)
-
-    {:noreply, Map.merge(state, %{
-      workflow_id: workflow_id,
-      memory_id: memory_id,
-      search_pipeline: search_pipeline,
-      params: params
-    })}
-  end
-
-  def get_messages(memory_id) do
-    message_path = "/_plugins/_ml/memory/#{memory_id}/messages"
-    Snap.get(Caque.Documents.Cluster, message_path)
-    |> dbg()
-  end
-
-
-# Snap.Search.search(cluster, index_or_alias, query, params \\ [], headers \\ [], opts \\ [])
 
   # {:ok, pid} = GenServer.start_link(Caque.Conversation, %{automatic: true})
   # GenServer.cast(pid, {:question, "What Elixir function starts a process?"})
   @impl true
-  def handle_cast({:question, question}, %{memory_id: memory_id} = state) do
-    # Send question to OpenSearch conversational RAG endpoint
-    message_path = "/_plugins/_ml/memory/#{memory_id}/messages"
-    message_payload = %{"input" => question}
+  def handle_cast({:question, question}, %{search_results: []} = state) do
+    embedding_model = "text-embedding-ada-002"
+    completion_model = "gpt-5"
+    doc = %ParsedDocument{text: question, title: ""}
 
-    response = Snap.post(Caque.Documents.Cluster, message_path, message_payload)
-    |> dbg()
+    convo_state =
+      with {:ok, %{attrs: %{embedding: embedding}}} <-
+             Embeddings.embed(:openai, doc, embedding_model),
+           {:ok, %{hits: hits}} <- Caque.Documents.Cluster.vector_search("docs", embedding),
+           {:ok, %{completion: completion}} <-
+             Caque.Completions.complete(:openai, hits, question, completion_model) do
+               %{search_results: hits, message_history: [question, completion]}
+               else
+                 {:error, error} -> %{errors: %{errors: [error | state.errors]}}
+      end
 
-    case response do
-      {:ok, _} ->
-        IO.inspect(response, label: "Conversation response")
 
-      {:error, error} ->
-        IO.inspect(error, label: "Conversation error")
-    end
+    {:noreply, Map.merge(state, convo_state)}
+  end
 
+  @impl true
+  def handle_cast({:question, question}, %{search_results: search_results, message_history: message_history} = state) do
+    completion_model = "gpt-5"
+
+    convo_state =
+      with {:ok, %{completion: completion}} <- Caque.Completions.complete(:openai, search_results, question, completion_model) do
+               %{search_results: search_results, message_history: message_history ++ [question, completion]}
+               else
+                 {:error, error} -> %{errors: [error | state.errors]}
+      end
+
+
+    {:noreply, Map.merge(state, convo_state)}
+  end
+
+  @impl true
+  def handle_cast(_msg, state) do
     dbg(state)
     {:noreply, state}
   end
 
-  defp poll_until_completed(workflow_id) do
-    status_path = "/_plugins/_flow_framework/workflow/#{workflow_id}/_status"
-    case Snap.get(Caque.Documents.Cluster, status_path) do
-      {:ok, %{"state" => "COMPLETED"}} ->
-        :ok
+  @impl true
+  def handle_call(:search_results, {from, _}, %{search_results: %{hits: hits}} = state) do
+    Logger.info("WHOOP MAH NAME IS CHICKA CHICKA #{inspect(from)}")
 
-      {:ok, %{"state" => _other_state}} ->
-        Process.sleep(1000)
-        poll_until_completed(workflow_id)
+    search_results =
+    Enum.map(hits, fn %{source: source} ->
+      Map.take(source, ["language", "package", "source", "title", "text", "url", "version"])
+    end)
 
-      {:error, reason} ->
-        raise "#{inspect(reason)}"
+    {:reply, search_results, state}
+  end
+
+  def print_hierarchy(map, prefix \\ []) do
+    for {key, value} <- map do
+      IO.puts("#{Enum.join(prefix, ".")}#{key}")
+
+      if is_map(value) do
+        print_hierarchy(value, prefix ++ [key])
+      end
     end
   end
-
-  defp extract_search_pipeline(%{"resources_created" => resources}) do
-    resources
-    |> Enum.find_value(fn
-      %{"resource_id" => pipeline_id, "resource_type" => "pipeline_id"} -> pipeline_id
-      _ -> nil
-    end)
-  end
-
-  defp extract_search_pipeline(_), do: nil
 end

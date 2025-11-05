@@ -48,16 +48,21 @@ defmodule Caque.Documents.Cluster do
   end
 
   def init(config) do
-    # Defer index creation to handle_continue to avoid blocking init.
-    # This allows the cluster to start quickly and register its name
-    # before attempting to create indexes.
-    {:ok, config, {:continue, :create_indexes}}
+    Task.start_link(fn -> create_indexes_unless_exist(nil) end)
+    {:ok, config}
   end
 
-  def handle_continue(:create_indexes, config) do
-    {:ok, task_pid} = Task.start_link(fn -> create_indexes_unless_exist(nil) end)
-    {:noreply, Map.put(config, :index_creation_task, task_pid)}
-  end
+  # def init(config) do
+  #   # Defer index creation to handle_continue to avoid blocking init.
+  #   # This allows the cluster to start quickly and register its name
+  #   # before attempting to create indexes.
+  #   {:ok, config, {:continue, :create_indexes}}
+  # end
+
+  # def handle_continue(:create_indexes, config) do
+  #   {:ok, task_pid} = Task.start_link(fn -> create_indexes_unless_exist(nil) end)
+  #   {:noreply, Map.put(config, :index_creation_task, task_pid)}
+  # end
 
   def create_indexes_unless_exist(nil) do
     Logger.debug("Document cluster not running yet.\n\nWaiting to create indexes...")
@@ -138,16 +143,12 @@ defmodule Caque.Documents.Cluster do
   end
 
   @doc """
-  Perform a vector search over the given `index` using `text` as the query.
-  The text is first embedded and then used for a kNN search on the
+  Perform a vector search over the given `index` using `embedding` for a kNN search on the
   `embedding` field of the documents.
   """
-  @spec vector_search(String.t(), String.t()) :: {:ok, map()} | {:error, any()}
-  def vector_search(index, text) do
-    doc = %ParsedDocument{text: text, title: ""}
+  @spec vector_search(String.t(), List.t()) :: {:ok, map()} | {:error, any()}
+  def vector_search(index, embedding) do
 
-    with {:ok, %{attrs: %{embedding: embedding}}} <-
-           Embeddings.embed(:openai, doc, "text-embedding-ada-002") do
       query = %{
         # usually same as k
         size: 10,
@@ -165,7 +166,6 @@ defmodule Caque.Documents.Cluster do
       }
 
       Snap.Search.search(__MODULE__, index, query)
-    end
   end
 
   def hits_text({:ok, %Snap.SearchResponse{hits: hits}}) do
