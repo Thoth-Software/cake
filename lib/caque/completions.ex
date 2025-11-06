@@ -66,10 +66,10 @@ defmodule Caque.Completions do
         {:ok, %{completion: completion, usage: usage}}
 
       {:ok, %Req.Response{status: code, body: body}} ->
-        {:error, "Transport layer error: #{code}, body: #{inspect(body)}"}
+        {:error, "#{__MODULE__} Transport layer error: #{code}, body: #{inspect(body)}"}
 
       {:error, %{reason: reason}} ->
-        {:error, "Application layer error: #{reason}"}
+        {:error, "#{__MODULE__} Application layer error: #{reason}"}
     end
   end
 end
