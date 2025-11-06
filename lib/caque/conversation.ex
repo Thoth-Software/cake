@@ -34,6 +34,7 @@ defmodule Caque.Conversation do
              Caque.Completions.complete(:openai, hits, question, completion_model) do
                %{search_results: hits, message_history: [question, completion]}
                else
+                   # Fix this because the error variable here contains a whole-ass error tuple anyway. Right now one of these functions (I think it's vector_search/2 in Documents.Cluster) is responsible for that. Fix ya shit.
                  {:error, error} -> %{errors: %{errors: [error | state.errors]}}
       end
 
@@ -72,6 +73,13 @@ defmodule Caque.Conversation do
     end)
 
     {:reply, search_results, state}
+  end
+
+  @impl true
+  def handle_call(:search_results, {from, _}, %{search_results: []} = state) do
+    Logger.info("AWWW HELL NAH NO SEARCH RESULTS YET DAWG")
+
+    {:reply, [], state}
   end
 
   def print_hierarchy(map, prefix \\ []) do
