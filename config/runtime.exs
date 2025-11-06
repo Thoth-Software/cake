@@ -31,9 +31,9 @@ if config_env() == :prod do
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   # Config for completions
-  config :caque, Caque.Completions,
-    openai_key: System.get_env("OPENAI_KEY"),
-    base_url: "https://api.openai.com/v1/engines/davinci/completions"
+  # config :caque, Caque.Completions,
+  #   openai_key: System.get_env("OPENAI_KEY"),
+  #   completion_url: "https://api.openai.com/v1/engines/davinci/completions"
 
   # Config for API keys
   config :caque, Caque.Embeddings,
@@ -46,7 +46,8 @@ if config_env() == :prod do
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
 
-  # The secret key base is used to sign/encrypt cookies and other secrets.
+  
+# The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want
   # to check this value into version control, so we use an environment
