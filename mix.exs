@@ -60,7 +60,8 @@ defmodule Caque.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
       {:req, "~> 0.5.10"},
-      {:snap, "~> 0.12.1"}
+      {:snap, "~> 0.12.1"},
+      {:mox, "~> 1.2.0"}
     ]
   end
 
