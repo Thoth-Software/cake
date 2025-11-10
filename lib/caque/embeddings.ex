@@ -6,6 +6,7 @@ defmodule Caque.Embeddings do
 
   alias Caque.Documents.ParsedDocument
 
+  #This needs a spec defining the different error tuples it can return
   def embed(:openai, %ParsedDocument{text: text, title: title} = parsed_document, model) do
     input = "#{title}\n\n#{text}"
     [openai_key: api_key, base_url: url] = Application.get_env(:caque, __MODULE__)
@@ -15,14 +16,14 @@ defmodule Caque.Embeddings do
       json: %{model: model, input: input},
       auth: {:bearer, api_key}
     )
-    #Later on, there should probably be multiple function heads of "embed", but extract the following to its own re-used handle_response function.
+    # Later on, there should probably be multiple function heads of "embed", but extract the following to its own re-used handle_response function.
     |> case do
       {:ok,
        %Req.Response{
          status: 200,
          body: %{"data" => data, "usage" => usage}
        }} ->
-           # Usage here refers to token usage. We really ought to store this in the DB, maybe along with timestamps, service, embedding model used, and then the actual embedding. All that implies an Embedding struct with its own table. This, in turn, requires that we make embeddings into an association instead of a field on the ParsedDocument struct.
+        # Usage here refers to token usage. We really ought to store this in the DB, maybe along with timestamps, service, embedding model used, and then the actual embedding. All that implies an Embedding struct with its own table. This, in turn, requires that we make embeddings into an association instead of a field on the ParsedDocument struct.
         embedding =
           data
           |> Enum.find(fn item -> is_map(item) end)
@@ -33,10 +34,10 @@ defmodule Caque.Embeddings do
         {:ok, %{usage: usage, parsed_document: parsed_document, attrs: attrs}}
 
       {:ok, %Req.Response{status: code}} ->
-        {:error, "Transport layer error: #{code}"}
+        {:error, "#{__MODULE__}  Transport layer error: #{code}"}
 
       {:error, %{reason: reason}} ->
-        {:error, "Application layer error: #{reason}"} 
+        {:error, "#{__MODULE__}  Application layer error: #{reason}"}
     end
   end
 end

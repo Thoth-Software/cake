@@ -21,7 +21,13 @@ defmodule Caque.HexdocsTest do
     end
 
     test "create_hexdoc/1 with valid data creates a hexdoc" do
-      valid_attrs = %{module: "some module", version: "some version", core: true, url: "some url", content: "some content"}
+      valid_attrs = %{
+        module: "some module",
+        version: "some version",
+        core: true,
+        url: "some url",
+        content: "some content"
+      }
 
       assert {:ok, %Hexdoc{} = hexdoc} = Hexdocs.create_hexdoc(valid_attrs)
       assert hexdoc.module == "some module"
@@ -37,7 +43,14 @@ defmodule Caque.HexdocsTest do
 
     test "update_hexdoc/2 with valid data updates the hexdoc" do
       hexdoc = hexdoc_fixture()
-      update_attrs = %{module: "some updated module", version: "some updated version", core: false, url: "some updated url", content: "some updated content"}
+
+      update_attrs = %{
+        module: "some updated module",
+        version: "some updated version",
+        core: false,
+        url: "some updated url",
+        content: "some updated content"
+      }
 
       assert {:ok, %Hexdoc{} = hexdoc} = Hexdocs.update_hexdoc(hexdoc, update_attrs)
       assert hexdoc.module == "some updated module"

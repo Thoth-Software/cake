@@ -62,14 +62,14 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
   # What the fuck does this function even return!?
   @impl true
   def persist_raw_docs(file_paths, version) do
-      file_paths
-      |> Task.async_stream(&to_hexdoc_attrs(&1, version),
-        max_concurrency: 4,
-        timeout: :infinity
-      )
-      |> detuple()
-      |> Task.async_stream(&Caque.Documents.Hexdocs.create_hexdoc/1)
-      |> detuple()
+    file_paths
+    |> Task.async_stream(&to_hexdoc_attrs(&1, version),
+      max_concurrency: 4,
+      timeout: :infinity
+    )
+    |> detuple()
+    |> Task.async_stream(&Caque.Documents.Hexdocs.create_hexdoc/1)
+    |> detuple()
   end
 
   @impl true
@@ -80,7 +80,7 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
       max_concurrency: 4,
       timeout: 30_000
     )
-      |> detuple()
+    |> detuple()
     |> Stream.flat_map(fn item -> item end)
   end
 
@@ -102,7 +102,7 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
       module: module,
       version: version,
       url: url,
-      content: content,
+      content: content
     }
   end
 

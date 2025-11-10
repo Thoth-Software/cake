@@ -39,21 +39,25 @@ defmodule Caque.Documents.Hexdocs.Hexdoc do
 
   def to_parsed_docs({:ok, hexdoc}), do: to_parsed_docs(hexdoc)
 
-  def to_parsed_docs(%__MODULE__{content: content, url: url, module: module, version: version} = hexdoc) do
+  def to_parsed_docs(
+        %__MODULE__{content: content, url: url, module: module, version: version} = hexdoc
+      ) do
     case Code.string_to_quoted(content) do
       {:ok, {:defmodule, _, _} = ast} ->
         partial_docs = extract_from_module_ast(ast)
+
         Enum.map(partial_docs, fn %{text: text, title: title} ->
-        %{
-          text: text,
-          url: url,
-          package: module,
-          language: @language,
-          title: title,
-          version: version,
-          source: @source
-        }
+          %{
+            text: text,
+            url: url,
+            package: module,
+            language: @language,
+            title: title,
+            version: version,
+            source: @source
+          }
         end)
+
       {:ok, other} ->
         # IO.warn("Skipping non-module AST: #{inspect(other)}")
         []
@@ -111,10 +115,12 @@ defmodule Caque.Documents.Hexdocs.Hexdoc do
 
   defp extract_doc(doc) when is_binary(doc), do: doc
   defp extract_doc([doc]), do: extract_doc(doc)
+
   defp extract_doc(doc) when is_list(doc) do
     Enum.map_join(doc, fn {atom, string} ->
       "#{atom}: #{string}\n"
     end) <> "\n"
   end
+
   defp extract_doc(_), do: nil
 end
