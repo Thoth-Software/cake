@@ -2,7 +2,6 @@ defmodule Caque.Documents.Hexdocs.Hexdoc do
   use Caque.Schema
   import Ecto.Query, warn: false
   import Ecto.Changeset
-  alias Caque.Documents.ParsedDocument
 
   @source "hexdocs"
   @language "elixir"
@@ -35,12 +34,10 @@ defmodule Caque.Documents.Hexdocs.Hexdoc do
       where: h.version == ^version
   end
 
-  def doc_attrs(), do: @doc_attrs
-
   def to_parsed_docs({:ok, hexdoc}), do: to_parsed_docs(hexdoc)
 
   def to_parsed_docs(
-        %__MODULE__{content: content, url: url, module: module, version: version} = hexdoc
+        %__MODULE__{content: content, url: url, module: module, version: version} = _hexdoc
       ) do
     case Code.string_to_quoted(content) do
       {:ok, {:defmodule, _, _} = ast} ->
@@ -58,11 +55,11 @@ defmodule Caque.Documents.Hexdocs.Hexdoc do
           }
         end)
 
-      {:ok, other} ->
+      {:ok, _other} ->
         # IO.warn("Skipping non-module AST: #{inspect(other)}")
         []
 
-      {:error, err} ->
+      {:error, _err} ->
         # IO.warn("Could not parse #{content}: #{inspect(err)}")
         []
     end

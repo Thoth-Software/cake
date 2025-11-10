@@ -1,7 +1,7 @@
 defmodule Caque.HexdocsFixtures do
   @moduledoc """
   This module defines test helpers for creating
-  entities via the `Caque.Hexdocs` context.
+  entities via the `Caque.Documents.Hexdocs` context.
   """
 
   @doc """
@@ -17,7 +17,7 @@ defmodule Caque.HexdocsFixtures do
         url: "some url",
         version: "some version"
       })
-      |> Caque.Hexdocs.create_hexdoc()
+      |> Caque.Documents.Hexdocs.create_hexdoc()
 
     hexdoc
   end

@@ -5,11 +5,7 @@ defmodule Caque.Documents.Cluster do
 
   use Snap.Cluster, otp_app: :caque
   alias Snap.Indexes
-  alias Caque.Documents.ParsedDocument
-  alias Caque.Embeddings
   require Logger
-
-  @automatic_workflow_path "/_plugins/_flow_framework/workflow?use_case=conversational_search_with_llm_deploy&provision=true"
 
   def build_mapping(schema) do
     embedding = %{

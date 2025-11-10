@@ -99,4 +99,9 @@ defmodule Caque.Documents.ParsedDocument do
     from h in query,
       where: h.source == ^source
   end
+
+  @impl true
+  def doc_attrs do
+    %{}
+  end
 end

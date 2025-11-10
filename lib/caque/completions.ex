@@ -17,7 +17,7 @@ defmodule Caque.Completions do
     - {:ok, %{completion: text, usage: usage_info}}
     - {:error, reason}
   """
-  def complete(:anthropic, context_docs, question, model) do
+  def complete(:anthropic, _context_docs, _question, _model) do
     # TODO: Implement Anthropic Messages API call
     # - Munge context_docs into system/user messages
     # - Call Anthropic API
@@ -30,7 +30,7 @@ defmodule Caque.Completions do
         # Format context documents into a system message
     context_text =
     context_docs
-    |> Enum.map(fn %{source: %{"package" => package, "source" => source, "text" => text, "title" => title}} -> "From #{package}, this function is #{title} \n \n #{text}"  end)
+    |> Enum.map(fn %{source: %{"package" => package, "source" => _source, "text" => text, "title" => title}} -> "From #{package}, this function is #{title} \n \n #{text}"  end)
     |> Enum.join()
             
 
