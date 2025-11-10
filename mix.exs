@@ -61,7 +61,8 @@ defmodule Caque.MixProject do
       {:bandit, "~> 1.5"},
       {:req, "~> 0.5.10"},
       {:snap, "~> 0.12.1"},
-      {:mox, "~> 1.2.0"}
+      {:mox, "~> 1.2.0"},
+      {:oban, "~> 2.0"}
     ]
   end
 

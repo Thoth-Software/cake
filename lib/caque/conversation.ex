@@ -76,7 +76,7 @@ defmodule Caque.Conversation do
   end
 
   @impl true
-  def handle_call(:search_results, {from, _}, %{search_results: []} = state) do
+  def handle_call(:search_results, {_from, _}, %{search_results: []} = state) do
     Logger.info("AWWW HELL NAH NO SEARCH RESULTS YET DAWG")
 
     {:reply, [], state}

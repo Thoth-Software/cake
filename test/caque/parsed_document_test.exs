@@ -1,94 +1,96 @@
 defmodule Caque.ParsedDocumentTest do
   use Caque.DataCase
 
-  alias Caque.ParsedDocument
+  alias Caque.Documents.ParsedDocuments
 
   describe "parsed_documents" do
-    alias Caque.ParsedDocument.ParsedDocuments
+    alias Caque.Documents.ParsedDocument
 
     import Caque.ParsedDocumentFixtures
 
-    @invalid_attrs %{function: nil, module: nil, version: nil, core: nil, url: nil, contenet: nil}
+    @invalid_attrs %{source: nil, version: nil, package: nil, url: nil}
 
     test "list_parsed_documents/0 returns all parsed_documents" do
       parsed_documents = parsed_documents_fixture()
-      assert ParsedDocument.list_parsed_documents() == [parsed_documents]
+      assert ParsedDocuments.list_parsed_documents() == [parsed_documents]
     end
 
     test "get_parsed_documents!/1 returns the parsed_documents with given id" do
       parsed_documents = parsed_documents_fixture()
-      assert ParsedDocument.get_parsed_documents!(parsed_documents.id) == parsed_documents
+      assert ParsedDocuments.get_parsed_document!(parsed_documents.id) == parsed_documents
     end
 
     test "create_parsed_documents/1 with valid data creates a parsed_documents" do
       valid_attrs = %{
-        function: "some function",
-        module: "some module",
+        title: "some title",
+        package: "some package",
         version: "some version",
         core: true,
         url: "some url",
-        contenet: "some contenet"
+        text: "some text",
+        source: "some source"
       }
 
-      assert {:ok, %ParsedDocuments{} = parsed_documents} =
-               ParsedDocument.create_parsed_documents(valid_attrs)
+      assert {:ok, %ParsedDocument{} = parsed_documents} =
+               ParsedDocuments.create_parsed_document(valid_attrs)
 
-      assert parsed_documents.function == "some function"
-      assert parsed_documents.module == "some module"
+      assert parsed_documents.title == "some title"
+      assert parsed_documents.package == "some package"
       assert parsed_documents.version == "some version"
       assert parsed_documents.core == true
       assert parsed_documents.url == "some url"
-      assert parsed_documents.contenet == "some contenet"
+      assert parsed_documents.text == "some text"
+      assert parsed_documents.source == "some source"
     end
 
     test "create_parsed_documents/1 with invalid data returns error changeset" do
-      assert {:error, %Ecto.Changeset{}} = ParsedDocument.create_parsed_documents(@invalid_attrs)
+      assert {:error, %Ecto.Changeset{}} = ParsedDocuments.create_parsed_document(@invalid_attrs)
     end
 
     test "update_parsed_documents/2 with valid data updates the parsed_documents" do
       parsed_documents = parsed_documents_fixture()
 
       update_attrs = %{
-        function: "some updated function",
-        module: "some updated module",
+        title: "some updated title",
+        package: "some updated package",
         version: "some updated version",
         core: false,
         url: "some updated url",
-        contenet: "some updated contenet"
+        text: "some updated text"
       }
 
-      assert {:ok, %ParsedDocuments{} = parsed_documents} =
-               ParsedDocument.update_parsed_documents(parsed_documents, update_attrs)
+      assert {:ok, %ParsedDocument{} = parsed_documents} =
+               ParsedDocuments.update_parsed_document(parsed_documents, update_attrs)
 
-      assert parsed_documents.function == "some updated function"
-      assert parsed_documents.module == "some updated module"
+      assert parsed_documents.title == "some updated title"
+      assert parsed_documents.package == "some updated package"
       assert parsed_documents.version == "some updated version"
       assert parsed_documents.core == false
       assert parsed_documents.url == "some updated url"
-      assert parsed_documents.contenet == "some updated contenet"
+      assert parsed_documents.text == "some updated text"
     end
 
     test "update_parsed_documents/2 with invalid data returns error changeset" do
       parsed_documents = parsed_documents_fixture()
 
       assert {:error, %Ecto.Changeset{}} =
-               ParsedDocument.update_parsed_documents(parsed_documents, @invalid_attrs)
+               ParsedDocuments.update_parsed_document(parsed_documents, @invalid_attrs)
 
-      assert parsed_documents == ParsedDocument.get_parsed_documents!(parsed_documents.id)
+      assert parsed_documents == ParsedDocuments.get_parsed_document!(parsed_documents.id)
     end
 
     test "delete_parsed_documents/1 deletes the parsed_documents" do
       parsed_documents = parsed_documents_fixture()
-      assert {:ok, %ParsedDocuments{}} = ParsedDocument.delete_parsed_documents(parsed_documents)
+      assert {:ok, %ParsedDocument{}} = ParsedDocuments.delete_parsed_document(parsed_documents)
 
       assert_raise Ecto.NoResultsError, fn ->
-        ParsedDocument.get_parsed_documents!(parsed_documents.id)
+        ParsedDocuments.get_parsed_document!(parsed_documents.id)
       end
     end
 
     test "change_parsed_documents/1 returns a parsed_documents changeset" do
       parsed_documents = parsed_documents_fixture()
-      assert %Ecto.Changeset{} = ParsedDocument.change_parsed_documents(parsed_documents)
+      assert %Ecto.Changeset{} = ParsedDocuments.change_parsed_document(parsed_documents)
     end
   end
 end

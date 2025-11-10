@@ -1,10 +1,10 @@
 defmodule Caque.HexdocsTest do
   use Caque.DataCase
 
-  alias Caque.Hexdocs
+  alias Caque.Documents.Hexdocs
 
   describe "hexdocs" do
-    alias Caque.Hexdocs.Hexdoc
+    alias Caque.Documents.Hexdocs.Hexdoc
 
     import Caque.HexdocsFixtures
 
