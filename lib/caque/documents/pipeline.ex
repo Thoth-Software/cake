@@ -65,15 +65,28 @@ defmodule Caque.Documents.Pipeline do
 
   # There seems to be a flaw here. If we use the context function to get all the parsed documents for a given source and version, then we are NOT getting those docs one at a time after their embeddings have been added. Interdasting...
   def add_to_opensearch(docs_with_embeddings_stream) do
-    docs_with_embeddings_stream
-    |> Task.async_stream(
-      &Snap.Document.update(@cluster, @index, %{doc: &1, doc_as_upsert: true}, &1.id),
-      max_concurrency: 5,
-      timeout: 5_000,
-      on_timeout: :kill_task
-    )
-    |> Stream.map(&handle_opensearch_response/1)
-    |> detuple()
+    if skip_opensearch?() do
+      # In test mode, just pass through the documents without calling OpenSearch
+      docs_with_embeddings_stream
+      |> Stream.map(fn doc ->
+        Logger.debug("Skipping OpenSearch insert for document #{doc.id} (test mode)")
+        doc
+      end)
+    else
+      docs_with_embeddings_stream
+      |> Task.async_stream(
+        &Snap.Document.update(@cluster, @index, %{doc: &1, doc_as_upsert: true}, &1.id),
+        max_concurrency: 5,
+        timeout: 5_000,
+        on_timeout: :kill_task
+      )
+      |> Stream.map(&handle_opensearch_response/1)
+      |> detuple()
+    end
+  end
+
+  defp skip_opensearch? do
+    Application.get_env(:caque, :skip_opensearch, false)
   end
 
   # NOTE: We need to put together moduledocs for these instead of comments
@@ -96,12 +109,14 @@ defmodule Caque.Documents.Pipeline do
   def batch_embed(
         persisted_parsed_docs_stream,
         embedding_service,
-        source_pipeline,
+        _source_pipeline,
         embedding_model
       ) do
+    embeddings_module = embeddings_module()
+
     persisted_parsed_docs_stream
     |> Task.async_stream(
-      &Caque.Embeddings.embed(embedding_service, &1, embedding_model),
+      &embeddings_module.embed(embedding_service, &1, embedding_model),
       max_concurrency: 5,
       timeout: 5_000,
       on_timeout: :kill_task,
@@ -117,6 +132,10 @@ defmodule Caque.Documents.Pipeline do
     |> detuple()
 
     # Need a case function here to log errors and pop the kernel out of :ok tuples.
+  end
+
+  defp embeddings_module do
+    Application.get_env(:caque, :embeddings_module, Caque.Embeddings)
   end
 
   defp handle_response({:exit, {input, reason}}) do

@@ -1,7 +1,7 @@
 defmodule Caque.ParsedDocumentFixtures do
   @moduledoc """
   This module defines test helpers for creating
-  entities via the `Caque.ParsedDocument` context.
+  entities via the `Caque.Documents.ParsedDocuments` context.
   """
 
   @doc """
@@ -11,14 +11,15 @@ defmodule Caque.ParsedDocumentFixtures do
     {:ok, parsed_documents} =
       attrs
       |> Enum.into(%{
-        contenet: "some contenet",
+        text: "some text",
         core: true,
-        function: "some function",
-        module: "some module",
+        title: "some title",
+        package: "some package",
         url: "some url",
-        version: "some version"
+        version: "some version",
+        source: "some source"
       })
-      |> Caque.ParsedDocument.create_parsed_documents()
+      |> Caque.Documents.ParsedDocuments.create_parsed_document()
 
     parsed_documents
   end

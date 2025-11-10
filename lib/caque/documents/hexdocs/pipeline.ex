@@ -4,9 +4,7 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
   """
 
   require Logger
-  alias Caque.Documents.Hexdocs
   alias Caque.Documents.Hexdocs.Hexdoc
-  alias Caque.Documents.Hexdocs.Downloads
 
   @behaviour Caque.Documents.Pipeline
   import Caque.Documents.Pipeline, only: [detuple: 1]
@@ -25,6 +23,7 @@ defmodule Caque.Documents.Hexdocs.Pipeline do
     :whee!
   end
 
+  @impl true
   def download(version) do
     File.rm_rf!(@dir)
     File.mkdir_p(@dir)

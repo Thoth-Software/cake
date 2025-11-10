@@ -35,6 +35,12 @@ config :caque, Caque.Documents.Cluster,
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
 config :caque, Caque.Mailer, adapter: Swoosh.Adapters.Local
+ 
+# config/config.exs
+config :caque, Oban,
+  engine: Oban.Engines.Basic,
+  queues: [default: 10],
+  repo: Caque.Repo
 
 # Configure esbuild (the version is required)
 config :esbuild,

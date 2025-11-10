@@ -7,6 +7,51 @@ defmodule Caque.Documents.ParsedDocuments do
   alias Caque.Repo
   alias Caque.Documents.ParsedDocument
 
+  @doc """
+  Returns the list of parsed documents.
+  """
+  def list_parsed_documents do
+    Repo.all(ParsedDocument)
+  end
+
+  @doc """
+  Gets a single parsed document.
+  Raises `Ecto.NoResultsError` if the document does not exist.
+  """
+  def get_parsed_document!(id), do: Repo.get!(ParsedDocument, id)
+
+  @doc """
+  Creates a parsed document.
+  """
+  def create_parsed_document(attrs \\ %{}) do
+    %ParsedDocument{}
+    |> ParsedDocument.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a parsed document.
+  """
+  def update_parsed_document(%ParsedDocument{} = parsed_document, attrs) do
+    parsed_document
+    |> ParsedDocument.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a parsed document.
+  """
+  def delete_parsed_document(%ParsedDocument{} = parsed_document) do
+    Repo.delete(parsed_document)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking parsed document changes.
+  """
+  def change_parsed_document(%ParsedDocument{} = parsed_document, attrs \\ %{}) do
+    ParsedDocument.changeset(parsed_document, attrs)
+  end
+
   def create_parsed_docs!({:ok, parsed_docs_list}) do
     dbg(parsed_docs_list)
 

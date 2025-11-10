@@ -4,9 +4,12 @@ defmodule Caque.Embeddings do
   Different APIs may require or return data having different shapes, so Embeddings defines bespoke functinos for each API we foresee using.
   """
 
+  @behaviour Caque.Embeddings.Behaviour
+
   alias Caque.Documents.ParsedDocument
 
   #This needs a spec defining the different error tuples it can return
+  @impl true
   def embed(:openai, %ParsedDocument{text: text, title: title} = parsed_document, model) do
     input = "#{title}\n\n#{text}"
     [openai_key: api_key, base_url: url] = Application.get_env(:caque, __MODULE__)

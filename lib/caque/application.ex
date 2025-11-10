@@ -10,6 +10,7 @@ defmodule Caque.Application do
     children = [
       CaqueWeb.Telemetry,
       Caque.Repo,
+      {Oban, Application.fetch_env!(:caque, Oban)},
       {DNSCluster, query: Application.get_env(:caque, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Caque.PubSub},
       # Start the Finch HTTP client for sending emails
