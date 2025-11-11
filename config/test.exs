@@ -40,6 +40,4 @@ config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
 # config/test.exs
-config :caque, Oban,
-  repo: Caque.Repo,
-  testing: :manual
+config :caque, Oban, testing: :manual

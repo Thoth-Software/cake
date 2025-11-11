@@ -1,5 +1,7 @@
 defmodule Caque.Jobs.DocumentIngestionJob do
   @moduledoc """
+  Generic Oban job for ingesting documentation from any source.
+
   This job runs the complete pipeline for downloading, parsing, embedding,
   and indexing documentation from any source that implements the
   `Caque.Documents.Pipeline` behaviour.
@@ -114,46 +116,17 @@ defmodule Caque.Jobs.DocumentIngestionJob do
       ...> })
       {:ok, %Oban.Job{}}
   """
-  def enqueue(%{source_pipeline: source_pipeline} = args) when is_atom(source_pipeline) and not is_boolean(source_pipeline) do
-    # Convert module atom to string and convert embedding_service atom to string
-    normalized_args =
-      args
-      |> Map.put(:source_pipeline, module_to_string(source_pipeline))
-      |> normalize_embedding_service()
-
-    case new(normalized_args) |> Caque.Repo.insert() do
-      {:ok, job} ->
-        # Reload from database to ensure args are properly deserialized
-        {:ok, Caque.Repo.get(Oban.Job, job.id)}
-
-      error ->
-        error
-    end
+  def enqueue(%{source_pipeline: source_pipeline} = args) when is_atom(source_pipeline) do
+    args
+    |> Map.put(:source_pipeline, module_to_string(source_pipeline))
+    |> enqueue()
   end
 
-  def enqueue(args) when is_map(args) do
-    # Normalize embedding_service if it's an atom
-    normalized_args = normalize_embedding_service(args)
-
-    case new(normalized_args) |> Caque.Repo.insert() do
-      {:ok, job} ->
-        # Reload from database to ensure args are properly deserialized
-        {:ok, Caque.Repo.get(Oban.Job, job.id)}
-
-      error ->
-        error
-    end
-  end
-
-  # Helper to convert embedding_service from atom to string if needed
-  defp normalize_embedding_service(args) do
-    case Map.get(args, :embedding_service) || Map.get(args, "embedding_service") do
-      service when is_atom(service) and not is_nil(service) ->
-        Map.put(args, :embedding_service, Atom.to_string(service))
-
-      _ ->
-        args
-    end
+  def enqueue(args) do
+    args
+    |> stringify_keys()
+    |> new()
+    |> Oban.insert()
   end
 
   @doc """
@@ -196,4 +169,25 @@ defmodule Caque.Jobs.DocumentIngestionJob do
     |> Atom.to_string()
     |> String.replace_prefix("Elixir.", "")
   end
+
+  # Recursively converts all atom keys and atom values to strings for Oban job args
+  defp stringify_keys(map) when is_map(map) do
+    map
+    |> Enum.map(fn {k, v} ->
+      key = if is_atom(k), do: Atom.to_string(k), else: k
+      value = stringify_keys(v)
+      {key, value}
+    end)
+    |> Map.new()
+  end
+
+  defp stringify_keys(list) when is_list(list) do
+    Enum.map(list, &stringify_keys/1)
+  end
+
+  defp stringify_keys(value) when is_atom(value) and not is_nil(value) and not is_boolean(value) do
+    Atom.to_string(value)
+  end
+
+  defp stringify_keys(value), do: value
 end
