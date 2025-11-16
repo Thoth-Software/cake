@@ -34,9 +34,10 @@
   - [C. Most Relevant to Scaling CAQue](#c-most-relevant-to-scaling-caqueue)
   - [D. Competitive Advantages](#d-potential-competitive-advantages-to-seize-early)
 
-#RAG Enhancements
+# RAG Enhancements
 
 ## 1. Retrieval (because naive vector search is mid)
+[Back to table of contents](#table-of-contents)
 
 #### What this class is  
 This covers how you *select candidate chunks* from the corpus before the LLM sees anything. If retrieval sucks, nothing downstream fixes it. Hybrid search, re-ranking, and query expansion are three levers to boost recall *and* precision beyond “cosine similarity on a single embedding.”
@@ -156,6 +157,7 @@ Automatically expand or rewrite a user query into richer representations: paraph
 ---
 
 ## 2. Chunking
+[Back to table of contents](#table-of-contents)
 
 #### What this class is  
 Chunking is how you cut raw docs into embedding units. The literature is loud now: **chunking strategy can easily swing recall by ~5–10 percentage points** for real RAG tasks.
@@ -254,6 +256,7 @@ Store **multiple embeddings per chunk**, each capturing a different aspect: raw 
 ---
 
 ## 3. Context Assembly
+[Back to table of contents](#table-of-contents)
 
 #### What this class is  
 You’ve got a set of retrieved chunks. Now you decide **what to send to the LLM** and **how**. Context assembly is about:  
@@ -349,6 +352,7 @@ For CAQue:
 ---
 
 ## 4. Augmented Generation, not Raw Generation
+[Back to table of contents](#table-of-contents)
 
 #### What this class is  
 Instead of “throw context at LLM and say ‘answer this’”, you structure the **reasoning process**:
@@ -422,6 +426,7 @@ For CAQue: Make the pipeline modular enough to plug in a “planner” stage lat
 ---
 
 ## 5. Guardrails Against LLM Bullshit
+[Back to table of contents](#table-of-contents)
 
 #### What this class is  
 Preventing or detecting hallucinations / unfaithful answers, especially in enterprise settings where “sounds plausible” but wrong can cost real money.
@@ -493,6 +498,7 @@ For CAQue:
 ---
 
 ## 6. Domain Adaptation / Structured Retrieval
+[Back to table of contents](#table-of-contents)
 
 #### What this class is  
 Moving beyond “documents as bags of words” to use **schemas, graphs, domain structure**:
@@ -596,6 +602,7 @@ For CAQue:
 ---
 
 ## 7. Conversational Memory / Localised Thread State
+[Back to table of contents](#table-of-contents)
 
 #### What this class is  
 Multi-turn RAG: keeping track of what’s been said, what’s retrieved before, what the user cares about over time.
@@ -690,6 +697,7 @@ For CAQue:
 ---
 
 ## 8. Evaluation & Feedback Loops
+[Back to table of contents](#table-of-contents)
 
 #### What this class is  
 You cannot treat this as an afterthought. Real RAG deployment = constant **measurement**:  
