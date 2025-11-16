@@ -1,42 +1,49 @@
-- [1. Retrieval](#retrieval)  
-  - [1.1 Hybrid Search](#hybrid-search)  
-  - [1.2 Re-ranking Pipelines](#re-ranking)  
-  - [1.3 Query Expansion](#query-expansion)  
-- [2. Chunking](#chunking)  
-  - [2.1 Semantic Chunking](#semantic-chunking)  
-  - [2.2 Overlapping Windows](#overlapping-windows)  
-  - [2.3 Multi-Representation Chunks](#multi-representation-chunks)  
-- [3. Context Assembly](#context-assembly)  
-  - [3.1 Deduplication & Consolidation](#deduplication)  
-  - [3.2 Section-Aware Assembly](#section-aware)  
-  - [3.3 Role-Based Context Windows](#roles)  
-- [4. Augmented Generation](#augmented-generation)  
-  - [4.1 Contextual Reasoning Chains](#contextual-reasoning-chains)  
-  - [4.2 Retrieval-Augmented Planning](#retrieval-planning)  
-- [5. Guardrails & Faithfulness](#guardrails)  
-  - [5.1 Faithfulness Checks](#faithfulness-checks)  
-  - [5.2 Citation Mode](#citations)  
-- [6. Domain/Structured Retrieval](#domain-retrieval)  
-  - [6.1 Schema-Aware Retrieval](#schema-aware)  
-  - [6.2 Graph-Augmented Retrieval](#graph-augmented)  
-  - [6.3 Logit Bias](#logit-bias)  
-- [7. Conversational Memory](#memory)  
-  - [7.1 Short-Term Memory Embeddings](#short-term-memory)  
-  - [7.2 Long-Term Memory](#long-term-memory)  
-  - [7.3 Multi-Turn Reference Disambiguation](#reference-disambiguation)  
-- [8. Evaluation & Feedback](#evaluation)  
-  - [8.1 Synthetic Query Testing](#synthetic-eval)  
-  - [8.2 Drift Detection](#drift-detection)  
-- [CAQue Recommendations](#recommendations)  
+# Table of Contents
+- [1. Retrieval](#1-retrieval-because-naive-vector-search-is-mid)
+  - [1.1 Hybrid Search](#11-hybrid-search)
+  - [1.2 Re-ranking Pipelines](#12-re-ranking)
+  - [1.3 Query Expansion](#13-query-expansion)
+- [2. Chunking](#2-chunking)
+  - [2.1 Semantic Chunking](#21-semantic-chunking)
+  - [2.2 Overlapping Windows](#22-overlapping-windows)
+  - [2.3 Multi-Representation Chunks](#23-multi-representation-chunks)
+- [3. Context Assembly](#3-context-assembly)
+  - [3.1 Deduplication & Consolidation](#31-deduplication--consolidation)
+  - [3.2 Section-Aware Assembly](#32-section-aware-assembly)
+  - [3.3 Role-Based Context Windows](#33-role-based-context-windows)
+- [4. Augmented Generation](#4-augmented-generation)
+  - [4.1 Contextual Reasoning Chains](#41-contextual-reasoning-chains)
+  - [4.2 Retrieval-Augmented Planning](#42-retrieval-augmented-planning)
+- [5. Guardrails & Faithfulness](#5-guardrails--faithfulness)
+  - [5.1 Faithfulness Checks](#51-faithfulness-checks)
+  - [5.2 Citation Mode](#52-citation-mode)
+- [6. Domain/Structured Retrieval](#6-domainstructured-retrieval)
+  - [6.1 Schema-Aware Retrieval](#61-schema-aware-retrieval)
+  - [6.2 Graph-Augmented Retrieval](#62-graph-augmented-retrieval)
+  - [6.3 Logit Bias](#63-logit-bias)
+- [7. Conversational Memory](#7-conversational-memory)
+  - [7.1 Short-Term Memory Embeddings](#71-short-term-memory-embeddings)
+  - [7.2 Long-Term Memory](#72-long-term-memory)
+  - [7.3 Multi-Turn Reference Disambiguation](#73-multi-turn-reference-disambiguation)
+- [8. Evaluation & Feedback](#8-evaluation--feedback-loops)
+  - [8.1 Synthetic Query Testing](#81-synthetic-queries-for-recall-testing)
+  - [8.2 Drift Detection](#82-drift-detection-for-content-updates)
+- [CAQue Recommendations](#recommendations-for-caqueue)
+  - [A. Immediate Priorities](#a-immediate-priorities-next-mvp-iterations)
+  - [B. Changes to the MVP Design](#b-changes-to-the-mvp-design)
+  - [C. Most Relevant to Scaling CAQue](#c-most-relevant-to-scaling-caqueue)
+  - [D. Competitive Advantages](#d-potential-competitive-advantages-to-seize-early)
 
-# 1. Retrieval (because naive vector search is mid)
+#RAG Enhancements
 
-### What this class is  
+## 1. Retrieval (because naive vector search is mid)
+
+#### What this class is  
 This covers how you *select candidate chunks* from the corpus before the LLM sees anything. If retrieval sucks, nothing downstream fixes it. Hybrid search, re-ranking, and query expansion are three levers to boost recall *and* precision beyond “cosine similarity on a single embedding.”
 
 In real RAG systems, retrieval is often 70–80% of the quality story. :contentReference[oaicite:0]{index=0}
 
-### Relevance to CAQue  
+#### Relevance to CAQue  
 CAQue is meant to be a **framework**, not just a toy app. That means your retrieval layer has to be:
 - **Configurable** (per-tenant / per-domain retrieval recipes)  
 - **Composable** (query → retrieve → re-rank → post-filter)  
@@ -46,7 +53,7 @@ Hybrid, reranking, and query expansion should be **first-class pipeline stages**
 
 ---
 
-### 1.1 Hybrid Search  
+#### 1.1 Hybrid Search  
 **What it is**  
 Combine **sparse** (BM25 / neural sparse) and **dense** (embeddings) retrieval into one ranked list. Either via score fusion (e.g., weighted sum) or multi-stage (BM25 → dense filter or vice-versa). :contentReference[oaicite:1]{index=1}  
 
@@ -84,7 +91,7 @@ Combine **sparse** (BM25 / neural sparse) and **dense** (embeddings) retrieval i
 
 ---
 
-### 1.2 Re-ranking Pipelines  
+#### 1.2 Re-ranking Pipelines  
 **What it is**  
 Two-stage retrieval: first get a big candidate pool (e.g. top-50 or top-100 chunks), then score each candidate more precisely with a **cross encoder** or LLM-as-reranker, producing a much better top-5.
 
@@ -115,7 +122,7 @@ Two-stage retrieval: first get a big candidate pool (e.g. top-50 or top-100 chun
 
 ---
 
-### 1.3 Query Expansion  
+#### 1.3 Query Expansion  
 **What it is**  
 Automatically expand or rewrite a user query into richer representations: paraphrases, related terms, or synthetic “ideal answers” whose content you then retrieve against. Includes HyDE-style (“generate a hypothetical answer, embed that”) and LLM-based query expansion variants.
 
@@ -148,12 +155,12 @@ Automatically expand or rewrite a user query into richer representations: paraph
 
 ---
 
-# 2. Chunking
+## 2. Chunking
 
-### What this class is  
+#### What this class is  
 Chunking is how you cut raw docs into embedding units. The literature is loud now: **chunking strategy can easily swing recall by ~5–10 percentage points** for real RAG tasks.
 
-### Relevance to CAQue  
+#### Relevance to CAQue  
 CAQue as a framework should treat **chunkers as pluggable strategies** with:
 - Defaults (recursive char, semantic, metadata-aware)  
 - Domain-specific presets (PDF reports vs tickets vs code)  
@@ -161,7 +168,7 @@ CAQue as a framework should treat **chunkers as pluggable strategies** with:
 
 ---
 
-### 2.1 Semantic Chunking  
+#### 2.1 Semantic Chunking  
 **What it is**  
 Use document structure and semantics (headings, paragraphs, list boundaries, LLM segmenters) instead of dumb “every 512 chars.”
 
@@ -190,7 +197,7 @@ Use document structure and semantics (headings, paragraphs, list boundaries, LLM
 
 ---
 
-### 2.2 Overlapping Windows  
+#### 2.2 Overlapping Windows  
 **What it is**  
 Allow chunks to overlap so that boundary regions appear in multiple chunks (e.g., 1k tokens with 200-token overlap).
 
@@ -217,7 +224,7 @@ For CAQue:
 
 ---
 
-### 2.3 Multi-Representation Chunks  
+#### 2.3 Multi-Representation Chunks  
 **What it is**  
 Store **multiple embeddings per chunk**, each capturing a different aspect: raw text, summary, entities, maybe separate embeddings for title vs body. Sometimes called **multi-vector embeddings**.
 
@@ -246,23 +253,23 @@ Store **multiple embeddings per chunk**, each capturing a different aspect: raw 
 
 ---
 
-# 3. Context Assembly
+## 3. Context Assembly
 
-### What this class is  
+#### What this class is  
 You’ve got a set of retrieved chunks. Now you decide **what to send to the LLM** and **how**. Context assembly is about:  
 - Removing duplicates  
 - Grouping related chunks  
 - Annotating their roles  
 This is hugely impactful for **hallucinations and coherence**, especially on long contexts.
 
-### Relevance to CAQue  
+#### Relevance to CAQue  
 Most frameworks treat this as an afterthought. You can make it a **first-class pipeline stage**:  
 - A “context builder” that’s pluggable per tenant.  
 - Built-in strategies: simple top-k, grouped by document, grouped by section/role, etc.
 
 ---
 
-### 3.1 Deduplication and Consolidation  
+#### 3.1 Deduplication and Consolidation  
 **What it is**  
 - **Deduplication**: removing near-identical chunks (same text, or high cosine sim).  
 - **Consolidation**: merging multiple related chunks into concise summaries *before* sending to the LLM.
@@ -290,7 +297,7 @@ For CAQue:
 
 ---
 
-### 3.2 Section-aware Assembly  
+#### 3.2 Section-aware Assembly  
 **What it is**  
 Group chunks by document sections (e.g., “Section 3: Billing Disputes”) or conceptual “sections” (background, constraints, examples), and feed this structured context to the LLM.
 
@@ -316,7 +323,7 @@ For CAQue:
 
 ---
 
-### 3.3 Context Windows with Roles  
+#### 3.3 Context Windows with Roles  
 **What it is**  
 Assign roles to chunks: **facts**, **definitions**, **constraints**, **examples**, **user history**, etc., and instruct the LLM how to use them (e.g., “prioritise constraints over examples when conflicts occur”).
 
@@ -341,15 +348,15 @@ For CAQue:
 
 ---
 
-# 4. Augmented Generation, not Raw Generation
+## 4. Augmented Generation, not Raw Generation
 
-### What this class is  
+#### What this class is  
 Instead of “throw context at LLM and say ‘answer this’”, you structure the **reasoning process**:
 - Retrieve → reason over evidence → then answer.
 - Sometimes with explicit intermediate steps (plans, chains, scratch-pads).  
 This reduces hallucinations and makes explanations more grounded.
 
-### Relevance to CAQue  
+#### Relevance to CAQue  
 You want CAQue to be more than “LangChain in Elixir.” Generation pipeline templates are a key differentiator:
 - “Strict QA”
 - “Summarise across docs”
@@ -359,7 +366,7 @@ All of them should be **procedural templates** for reasoning, not just prompts.
 
 ---
 
-### 4.1 Contextual Reasoning Chains  
+#### 4.1 Contextual Reasoning Chains  
 **What it is**  
 LLM explicitly generates **intermediate reasoning steps** over the retrieved evidence:  
 1. Extract key facts from each chunk.  
@@ -388,7 +395,7 @@ For CAQue:
 
 ---
 
-### 4.2 Retrieval-augmented Planning  
+#### 4.2 Retrieval-augmented Planning  
 **What it is**  
 LLM first **plans the steps** required to answer (including what to retrieve), then executes those steps, often with multiple retrieval iterations.
 
@@ -414,12 +421,12 @@ For CAQue: Make the pipeline modular enough to plug in a “planner” stage lat
 
 ---
 
-# 5. Guardrails Against LLM Bullshit
+## 5. Guardrails Against LLM Bullshit
 
-### What this class is  
+#### What this class is  
 Preventing or detecting hallucinations / unfaithful answers, especially in enterprise settings where “sounds plausible” but wrong can cost real money.
 
-### Relevance to CAQue  
+#### Relevance to CAQue  
 If you want enterprise adoption, you *must* have a **trust story**:
 - Faithfulness checks  
 - Citation quality  
@@ -427,7 +434,7 @@ If you want enterprise adoption, you *must* have a **trust story**:
 
 ---
 
-### 5.1 Faithfulness Checks  
+#### 5.1 Faithfulness Checks  
 **What it is**  
 Post-hoc or in-loop checks that the answer is **supported by retrieved context**:  
 - NLI-style models (entailment).  
@@ -457,7 +464,7 @@ For CAQue:
 
 ---
 
-### 5.2 “Show your citations” mode  
+#### 5.2 “Show your citations” mode  
 **What it is**  
 Force the model to output **inline citations** tied to the retrieved chunks (e.g., [1], [2]) and map to doc IDs / URLs.
 
@@ -485,19 +492,19 @@ For CAQue:
 
 ---
 
-# 6. Domain Adaptation / Structured Retrieval
+## 6. Domain Adaptation / Structured Retrieval
 
-### What this class is  
+#### What this class is  
 Moving beyond “documents as bags of words” to use **schemas, graphs, domain structure**:
 - Tables, APIs, CRM objects, product hierarchies  
 - Knowledge graphs  
 
-### Relevance to CAQue  
+#### Relevance to CAQue  
 This is where you can start morphing from “RAG framework” to “RAG substrate for enterprise systems.” Enterprises *already* have schemas and graphs; you need to plug into them.
 
 ---
 
-### 6.1 Schema-Aware Retrieval  
+#### 6.1 Schema-Aware Retrieval  
 **What it is**  
 Use domain schemas (tables, JSON, code, API descriptions) to:
 - Retrieve structured records, not just text.  
@@ -526,7 +533,7 @@ For CAQue:
 
 ---
 
-### 6.2 Graph-augmented Retrieval  
+#### 6.2 Graph-augmented Retrieval  
 **What it is**  
 Use a **knowledge graph** (or graph derived from text) to:  
 - Expand retrieval via neighbours  
@@ -560,7 +567,7 @@ For CAQue:
 
 ---
 
-### 6.3 Logit Bias for Domain Terms  
+#### 6.3 Logit Bias for Domain Terms  
 **What it is**  
 Use logit bias / vocabulary steering so that the LLM:
 - Prefers domain-specific terms present in context.  
@@ -588,17 +595,17 @@ For CAQue:
 
 ---
 
-# 7. Conversational Memory / Localised Thread State
+## 7. Conversational Memory / Localised Thread State
 
-### What this class is  
+#### What this class is  
 Multi-turn RAG: keeping track of what’s been said, what’s retrieved before, what the user cares about over time.
 
-### Relevance to CAQue  
+#### Relevance to CAQue  
 You already think like a distributed-systems engineer. Treat a conversation as a **stateful process**, not stateless Q/A. This is a natural place for CAQue to overperform.
 
 ---
 
-### 7.1 Short-term memory embeddings (conversation-aware retrieval)  
+#### 7.1 Short-term memory embeddings (conversation-aware retrieval)  
 **What it is**  
 Embed conversation turns and use them:  
 - As additional retrieval signals (“the user and I have been talking about VPN, not HR”)  
@@ -626,7 +633,7 @@ For CAQue:
 
 ---
 
-### 7.2 Long-term memory (summaries, facts, commitments)  
+#### 7.2 Long-term memory (summaries, facts, commitments)  
 **What it is**  
 Persist distilled facts about the user or ongoing task:  
 - User prefs, company-specific decisions, “we agreed X last week”  
@@ -654,7 +661,7 @@ For CAQue:
 
 ---
 
-### 7.3 Multi-turn reference disambiguation  
+#### 7.3 Multi-turn reference disambiguation  
 **What it is**  
 Resolve pronouns and shorthand:  
 - “That policy” → which one?  
@@ -682,20 +689,20 @@ For CAQue:
 
 ---
 
-# 8. Evaluation & Feedback Loops
+## 8. Evaluation & Feedback Loops
 
-### What this class is  
+#### What this class is  
 You cannot treat this as an afterthought. Real RAG deployment = constant **measurement**:  
 - Retrieval quality  
 - Generation faithfulness  
 - Drift over time  
 
-### Relevance to CAQue  
+#### Relevance to CAQue  
 A major differentiator for CAQue can be **first-class RAG evaluation tooling**, instead of “you figure it out with LangChain / random dashboards.”
 
 ---
 
-### 8.1 Synthetic Queries for Recall Testing  
+#### 8.1 Synthetic Queries for Recall Testing  
 **What it is**  
 Use LLMs to generate synthetic:  
 - queries  
@@ -728,7 +735,7 @@ For CAQue:
 
 ---
 
-### 8.2 “Drift detection” for content updates  
+#### 8.2 “Drift detection” for content updates  
 **What it is**  
 Monitor changes over time:  
 - **Data drift** – new docs, updated policies  
@@ -762,9 +769,9 @@ For CAQue:
 
 ---
 
-# Recommendations for CAQue
+## Recommendations for CAQue
 
-## A. Immediate Priorities (next MVP iterations)  
+### A. Immediate Priorities (next MVP iterations)  
 1. **Lock in Retrieval as a configurable pipeline**  
    - Implement **hybrid retrieval** in OpenSearch: BM25 + dense or neural sparse + dense.  
    - Add a **simple reranker**: start with a small cross encoder.  
@@ -795,21 +802,21 @@ For CAQue:
 
 ---
 
-## B. Changes to the MVP Design  
+### B. Changes to the MVP Design  
 - **Make pipelines first-class**: retrieval/generation as structured Elixir pipelines.  
 - **Design document schema for multi-representation**: allow multiple vector fields, rich metadata.  
 - **Split memory from KB**: keep conversation memory in a separate index/store from main corpus.  
 
 ---
 
-## C. Most Relevant to Scaling CAQue  
+### C. Most Relevant to Scaling CAQue  
 - **Configurable Retrieval Recipes**: Each customer gets a slightly different recipe (hybrid weights, chunking strategy, reranking depth).  
 - **Evaluation & Monitoring Built-In**: CAQue ships with synthetic eval, faithfulness scoring, drift dashboards.  
 - **Hooks for Structure (Schemas, Graphs)**: Allow ingestion of SQL/NoSQL tables + graphs as retrieval sources.  
 
 ---
 
-## D. Potential Competitive Advantages to Seize Early  
+### D. Potential Competitive Advantages to Seize Early  
 1. **Multi-Representation Chunking as First-Class Feature** – Most tools treat chunks as single vector; you offer multiple embeddings per chunk with schema and weighting.  
 2. **Built-in Chunking Evaluation Lab** – Let customers test multiple chunking configs and see metrics side-by-side.  
 3. **Conversation-Aware Enterprise RAG** – Built-in short & long term memory and multi-turn tracking, not just single Q/A.  
@@ -817,7 +824,7 @@ For CAQue:
 
 ---
 
-## Reality Check / Obstacles  
+### Reality Check / Obstacles  
 - **Risk 1 – Overengineering early**: You have the brain to chase LevelRAG/graphs and Gaussian QE spaces. The danger is building “RAG research lab of your dreams” instead of a sellable v1.  
   - *Mitigation*: Ship **Hybrid + Rerank + Semantic chunking + Citations + Basic eval** first; everything else is **Phase 2**.  
 - **Risk 2 – Self-punishment loops via perfectionism**: If you catch yourself thinking “it’s not worth launching unless it’s state-of-the-art across all eight dimensions,” that’s the sabotage talking, not the engineer.  
