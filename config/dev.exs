@@ -11,6 +11,11 @@ config :caque, Caque.Repo,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
+  # Config for responses
+  config :caque, Caque.Responses,
+    openai_key: System.get_env("OPENAI_KEY"),
+    response_url: "https://api.openai.com/v1/responses"
+
   # Config for completions
   config :caque, Caque.Completions,
     openai_key: System.get_env("OPENAI_KEY"),
