@@ -30,11 +30,6 @@ if config_env() == :prod do
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  # Config for completions
-  # config :caque, Caque.Completions,
-  #   openai_key: System.get_env("OPENAI_KEY"),
-  #   completion_url: "https://api.openai.com/v1/engines/davinci/completions"
-
   # Config for API keys
   config :caque, Caque.Embeddings,
     openai_key: System.get_env("OPENAI_KEY"),

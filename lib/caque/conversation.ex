@@ -23,36 +23,42 @@ defmodule Caque.Conversation do
   @impl true
   def handle_cast({:question, question}, %{search_results: []} = state) do
     embedding_model = "text-embedding-ada-002"
-    completion_model = "gpt-5"
+    response_model = "gpt-5"
     doc = %ParsedDocument{text: question, title: ""}
 
-    convo_state =
       with {:ok, %{attrs: %{embedding: embedding}}} <-
              Embeddings.embed(:openai, doc, embedding_model),
            {:ok, %{hits: hits}} <- Caque.Documents.Cluster.vector_search("docs", embedding),
-           {:ok, %{completion: completion}} <-
-             Caque.Completions.complete(:openai, hits, question, completion_model) do
-               %{search_results: hits, message_history: [question, completion]}
-               else
-                   # Fix this because the error variable here contains a whole-ass error tuple anyway. Right now one of these functions (I think it's vector_search/2 in Documents.Cluster) is responsible for that. Fix ya shit.
-                 {:error, error} -> %{errors: %{errors: [error | state.errors]}}
+           {:ok, %{response: response}} <-
+             Caque.Responses.query_llm(:openai, hits, question, response_model) do
+        convo_state = %{search_results: hits, message_history: [question, response]}
+
+        {:noreply, Map.merge(state, convo_state)}
+      else
+        # Fix this because the error variable here contains a whole-ass error tuple anyway. Right now one of these functions (I think it's vector_search/2 in Documents.Cluster) is responsible for that. Fix ya shit.
+        {:error, error} ->
+          errors = %{errors: [error | state.errors]}
+          {:noreply, Map.merge(state, errors)}
       end
-
-
-    {:noreply, Map.merge(state, convo_state)}
   end
 
   @impl true
-  def handle_cast({:question, question}, %{search_results: search_results, message_history: message_history} = state) do
-    completion_model = "gpt-5"
+  def handle_cast(
+        {:question, question},
+        %{search_results: search_results, message_history: message_history} = state
+      ) do
+    response_model = "gpt-5"
 
     convo_state =
-      with {:ok, %{completion: completion}} <- Caque.Completions.complete(:openai, search_results, question, completion_model) do
-               %{search_results: search_results, message_history: message_history ++ [question, completion]}
-               else
-                 {:error, error} -> %{errors: [error | state.errors]}
+      with {:ok, %{response: response}} <-
+             Caque.Responses.query_llm(:openai, search_results, question, response_model) do
+        %{
+          search_results: search_results,
+          message_history: message_history ++ [question, response]
+        }
+      else
+        {:error, error} -> %{errors: [error | state.errors]}
       end
-
 
     {:noreply, Map.merge(state, convo_state)}
   end
@@ -68,9 +74,9 @@ defmodule Caque.Conversation do
     Logger.info("WHOOP MAH NAME IS CHICKA CHICKA #{inspect(from)}")
 
     search_results =
-    Enum.map(hits, fn %{source: source} ->
-      Map.take(source, ["language", "package", "source", "title", "text", "url", "version"])
-    end)
+      Enum.map(hits, fn %{source: source} ->
+        Map.take(source, ["language", "package", "source", "title", "text", "url", "version"])
+      end)
 
     {:reply, search_results, state}
   end
