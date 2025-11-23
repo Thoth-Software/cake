@@ -16,11 +16,6 @@ config :caque, Caque.Repo,
     openai_key: System.get_env("OPENAI_KEY"),
     response_url: "https://api.openai.com/v1/responses"
 
-  # Config for completions
-  config :caque, Caque.Completions,
-    openai_key: System.get_env("OPENAI_KEY"),
-    completion_url: "https://api.openai.com/v1/chat/completions"
-
 # Config for API keys
 config :caque, Caque.Embeddings,
   openai_key: System.get_env("OPENAI_KEY"),
