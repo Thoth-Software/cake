@@ -126,42 +126,29 @@ defmodule Caque.Documents.Cluster do
     Snap.Search.search(__MODULE__, index, query)
   end
 
-  def a_keyword_search() do
-    query = %{
-      query: %{
-        match: %{
-          text: "task"
-        }
-      }
-    }
-
-    Snap.Search.search(__MODULE__, "docs", query)
-  end
-
   @doc """
   Perform a vector search over the given `index` using `embedding` for a kNN search on the
   `embedding` field of the documents.
   """
   @spec vector_search(String.t(), List.t()) :: {:ok, map()} | {:error, any()}
   def vector_search(index, embedding) do
-
-      query = %{
-        # usually same as k
-        size: 10,
-        query: %{
-          knn: %{
-            embedding: %{
-              # MUST be a list of floats
-              vector: embedding,
-              k: 10
-              # optional tuning for HNSW; remove or adjust as needed
-              # rescore: true | %{oversample_factor: 8.0}  # optional
-            }
+    query = %{
+      # usually same as k
+      size: 10,
+      query: %{
+        knn: %{
+          embedding: %{
+            # MUST be a list of floats
+            vector: embedding,
+            k: 10
+            # optional tuning for HNSW; remove or adjust as needed
+            # rescore: true | %{oversample_factor: 8.0}  # optional
           }
         }
       }
+    }
 
-      Snap.Search.search(__MODULE__, index, query)
+    Snap.Search.search(__MODULE__, index, query)
   end
 
   def hits_text({:ok, %Snap.SearchResponse{hits: hits}}) do
