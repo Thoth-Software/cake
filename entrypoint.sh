@@ -1,22 +1,40 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -e
 
-# entrypoint.sh
+# Ensure we’re in the app directory (WORKDIR should already be /app, but be explicit)
+cd /app
 
-#!/bin/bash
-# Docker entrypoint script.
+# --- Optional: wait for OpenSearch (keeps your earlier race condition dead) ---
+OPENSEARCH_URL="${OPENSEARCH_URL:-http://opensearch:9200}"
 
-# Wait until Postgres is ready.
-# while ! pg_isready -q -h $CAQUE_PGHOST -p $CAQUE_PGPORT -U $CAQUE_PGUSER
-# while ! pg_isready -q -h $PGHOST -p $PGPORT -U $PGUSER
-# do
-#   echo "$(date) - waiting for database to start"
-#   echo "PGHOST: $PGHOST PGPORT: $PGPORT  PGUSER: $PGUSER"
-#   sleep 2
-# done
+echo "Waiting for OpenSearch at: $OPENSEARCH_URL"
+attempt=1
+while true; do
+  if curl -s "$OPENSEARCH_URL/_cluster/health" \
+    | grep -E '"status":"(yellow|green)"' > /dev/null 2>&1; then
+    echo "OpenSearch is up (cluster health yellow/green)."
+    break
+  fi
 
-# Run migrations, seed repo
-# mix ecto.migrate
-mix ecto.reset
+  echo "OpenSearch not ready yet (attempt $attempt). Sleeping..."
+  attempt=$((attempt + 1))
+  sleep 3
+done
+
+# --- Make sure deps/lock are in sync inside the container ---
+echo "Running mix deps.get..."
+mix deps.get
+
+# --- DB bootstrapping (dev-only destructive reset) ---
+# echo "Resetting DB..."
+# mix ecto.reset
+
+echo "Running migrations..."
+mix ecto.migrate
+
+echo "Seeding DB..."
 mix run priv/repo/seeds.exs
 
+echo "Starting Phoenix..."
 exec elixir --sname dev -S mix phx.server
+
