@@ -1,5 +1,5 @@
 # Use an official Elixir runtime as a parent image.
-FROM elixir:latest
+FROM elixir:1.14
 
 ARG USER_ID=1000
 ARG GROUP_ID=1000
@@ -19,6 +19,7 @@ WORKDIR /app
 
 # Install Hex package manager and compile
 RUN mix local.hex --force
+RUN mix deps.get
 RUN mix do compile
 
 # Expose Phoenix port
