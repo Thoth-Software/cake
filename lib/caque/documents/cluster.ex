@@ -14,7 +14,7 @@ defmodule Caque.Documents.Cluster do
       method: %{
         name: "hnsw",
         space_type: "cosinesimil",
-        engine: "nmslib"
+        engine: "faiss"
       }
     }
 
