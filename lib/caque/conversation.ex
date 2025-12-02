@@ -64,7 +64,9 @@ defmodule Caque.Conversation do
   # embedding_model = "text-embedding-ada-002"
   # response_model = "gpt-5"
   # provider = :openai
-  # Caque.Conversation.start_link(%{caller: Caque.Documents.Cluster, embedder: "text-embedding-ada-002", llm: "gpt-5", provider: :openai, index: "docs"})
+  # 
+  # {:ok, pid} = Caque.Conversation.start_link(%{caller: Caque.Documents.Cluster, embedder: "text-embedding-ada-002", llm: "gpt-5", provider: :openai, index: "docs"})
+  # Caque.Conversation.ask(pid, "How to find remainders in Elixir?")
   @impl true
   def handle_cast(
         {:question, question},
@@ -82,7 +84,8 @@ defmodule Caque.Conversation do
 
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Embeddings.embed(provider, doc, embedding_model),
-         {:ok, %{hits: hits}} <- caller.vector_search(index, embedding),
+         # {:ok, %{hits: hits}} <- caller.vector_search(index, embedding),
+         {:ok, %{hits: hits}} <- caller.hybrid_search(index, question, embedding),
          {:ok, %{response: response}} <-
            Caque.Responses.query_llm(:openai, hits, question, response_model) do
       convo_state = %{search_results: hits, message_history: [question, response]}

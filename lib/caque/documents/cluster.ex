@@ -77,19 +77,6 @@ defmodule Caque.Documents.Cluster do
 
   def enable_conversational_search(), do: nil
 
-  def get_all_docs do
-    index = "docs"
-    query = %{"query" => %{"match_all" => %{}}, "size" => 1000}
-
-    {:ok, response} = Snap.Search.search(__MODULE__, index, query)
-
-    hits = response.hits["hits"]
-
-    Enum.map(hits, fn hit ->
-      hit["_source"]
-    end)
-  end
-
   # In this code snippet, we define a module `MyApp.Elasticsearch` that uses the `Snap.Elasticsearch` library. We then define a function `get_all_docs` that queries the Elasticsearch index named "docs" and retrieves all documents. The function constructs a query that matches all documents in the index and sets the size to 1000 to retrieve a large number of documents. It then extracts the source data from each hit in the response and returns a list of all documents.
   def all_documents() do
     query = %{query: %{match_all: %{}}}
@@ -147,6 +134,59 @@ defmodule Caque.Documents.Cluster do
         }
       }
     }
+
+    Snap.Search.search(__MODULE__, index, query)
+  end
+
+  @doc """
+  Perform a hybrid search over the given `index` using both `keywords` and `embedding`.
+  Combines keyword-based text matching with vector similarity search to leverage
+  both lexical and semantic search capabilities.
+
+  The `keyword_weight` parameter controls the balance between keyword and vector search
+  (default: 0.5, equal weight). Higher values favor keyword search, lower values favor vector search.
+
+  In the future, we'll want to adjust weighting based on query and domain. For
+  example, if a query for programming language docs contains exact function
+  names, then we'll adjust the weighting to favor keyword search.
+  """
+  @spec hybrid_search(String.t(), String.t(), List.t(), float()) ::
+          {:ok, map()} | {:error, any()}
+  def hybrid_search(index, keywords, embedding, keyword_weight \\ 0.5) do
+    # you can keep vector_weight around for later if you do fancy scoring
+    # vector_weight = 1.0 - keyword_weight
+
+    query = %{
+      size: 10,
+      query: %{
+        bool: %{
+          must: [
+            # k-NN is the “core” query
+            %{
+              knn: %{
+                embedding: %{
+                  vector: embedding,
+                  k: 10
+                }
+              }
+            }
+          ],
+          # lexical query as a “should” clause that boosts docs
+          should: [
+            %{
+              multi_match: %{
+                query: keywords,
+                fields: ["title^2", "text"],
+                boost: keyword_weight
+              }
+            }
+          ]
+          # no minimum_should_match – knn must match, text is optional but boosts score
+        }
+      }
+    }
+
+    IO.inspect(Jason.encode!(query), structs: false)
 
     Snap.Search.search(__MODULE__, index, query)
   end
