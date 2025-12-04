@@ -18,7 +18,7 @@ while true; do
 
   echo "OpenSearch not ready yet (attempt $attempt). Sleeping..."
   attempt=$((attempt + 1))
-  sleep 3
+  sleep 5
 done
 
 # --- Make sure deps/lock are in sync inside the container ---
