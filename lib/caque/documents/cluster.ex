@@ -1,6 +1,10 @@
 defmodule Caque.Documents.Cluster do
   @moduledoc """
   This maps to the cluster of indexes containing technical documents (for now, just one index)
+
+  Eventyually, we'll need to define a Caque cluster behavior - possibly an
+  extension of the Snap cluster behavior - that defines certain callbacks, e.g.
+  the search function.
   """
 
   use Snap.Cluster, otp_app: :caque
@@ -93,14 +97,12 @@ defmodule Caque.Documents.Cluster do
   # Note that this also indicates searchability as a salient constraint on the
   # design of generic doc schemas.
 
-  @doc """
-  Perform a keyword search over the given `index` using the provided
-  `keywords`. The search is executed against the `Caque.Documents.Cluster`
-  cluster.
-  """
-  @spec keyword_search(String.t(), String.t()) ::
-          {:ok, map()} | {:error, any()}
-  def keyword_search(index, keywords) do
+  @spec search(:keyword | :vector | :hybrid, String.t(), %{
+          keywords: List.t(),
+          embedding: List.t(),
+          keyword_weight: Float.t()
+        }) :: {:ok, map()} | {:error, any()}
+  def search(:keyword, index, %{keywords: keywords}) do
     query = %{
       query: %{
         multi_match: %{
@@ -113,12 +115,7 @@ defmodule Caque.Documents.Cluster do
     Snap.Search.search(__MODULE__, index, query)
   end
 
-  @doc """
-  Perform a vector search over the given `index` using `embedding` for a kNN search on the
-  `embedding` field of the documents.
-  """
-  @spec vector_search(String.t(), List.t()) :: {:ok, map()} | {:error, any()}
-  def vector_search(index, embedding) do
+  def search(:vector, index, %{embedding: embedding}) do
     query = %{
       # usually same as k
       size: 10,
@@ -138,21 +135,11 @@ defmodule Caque.Documents.Cluster do
     Snap.Search.search(__MODULE__, index, query)
   end
 
-  @doc """
-  Perform a hybrid search over the given `index` using both `keywords` and `embedding`.
-  Combines keyword-based text matching with vector similarity search to leverage
-  both lexical and semantic search capabilities.
-
-  The `keyword_weight` parameter controls the balance between keyword and vector search
-  (default: 0.5, equal weight). Higher values favor keyword search, lower values favor vector search.
-
-  In the future, we'll want to adjust weighting based on query and domain. For
-  example, if a query for programming language docs contains exact function
-  names, then we'll adjust the weighting to favor keyword search.
-  """
-  @spec hybrid_search(String.t(), String.t(), List.t(), float()) ::
-          {:ok, map()} | {:error, any()}
-  def hybrid_search(index, keywords, embedding, keyword_weight \\ 0.5) do
+  def search(:hybrid, index, %{
+        keywords: keywords,
+        embedding: embedding,
+        keyword_weight: keyword_weight
+      }) do
     # you can keep vector_weight around for later if you do fancy scoring
     # vector_weight = 1.0 - keyword_weight
 
@@ -185,8 +172,6 @@ defmodule Caque.Documents.Cluster do
         }
       }
     }
-
-    IO.inspect(Jason.encode!(query), structs: false)
 
     Snap.Search.search(__MODULE__, index, query)
   end

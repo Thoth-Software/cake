@@ -32,51 +32,57 @@ defmodule Caque.Conversation do
   # if it really wants to
   #
   # Eventually, the start_link clause will expect a `Conversation` struct. For now, just a map is fine. 
+  # caller: params.caller,
+  # embedder: params.embedder,
+  # index: params.index,
+  # llm: params.llm,
+  # provider: params.provider,
+  # search_type: params.search_type
 
-  def start_link(params \\ %{}) do
-    GenServer.start_link(__MODULE__, params)
+  def start_link(caller, embedder, index, response_model, provider, search_type) do
+    params = %{
+      caller: caller,
+      embedder: embedder,
+      index: index,
+      response_model: response_model,
+      provider: provider,
+      search_type: search_type
+    }
+
+    state = %{
+      params: params,
+      search_results: [],
+      message_history: [],
+      errors: []
+    }
+
+    GenServer.start_link(__MODULE__, state)
   end
 
+  @impl true
+  def init(state) do
+    {:ok, state}
+  end
+
+  # {:ok, pid} = Caque.Conversation.start_link(Caque.Documents.Cluster,"text-embedding-ada-002", "docs", "gpt-5", :openai, :hybrid)
+  # Caque.Conversation.ask(pid, "Which Elixir function would I use to spin up a short-lived process to do a job and then die?")
   def ask(pid, question) do
     GenServer.cast(pid, {:question, question})
   end
 
-  # Callbacks
-  # GenServer.start(Caque.Conversation, %{})
-  @impl true
-  def init(params) do
-    {:ok,
-     %{
-       params: params,
-       search_results: [],
-       message_history: [],
-       errors: [],
-       caller: params.caller,
-       embedder: params.embedder,
-       index: params.index,
-       llm: params.llm,
-       provider: params.provider
-     }}
-  end
-
-  # {:ok, pid} = GenServer.start_link(Caque.Conversation, %{automatic: true})
-  # GenServer.cast(pid, {:question, "What Elixir function starts a process?"})
-  # embedding_model = "text-embedding-ada-002"
-  # response_model = "gpt-5"
-  # provider = :openai
-  # 
-  # {:ok, pid} = Caque.Conversation.start_link(%{caller: Caque.Documents.Cluster, embedder: "text-embedding-ada-002", llm: "gpt-5", provider: :openai, index: "docs"})
-  # Caque.Conversation.ask(pid, "How to find remainders in Elixir?")
   @impl true
   def handle_cast(
         {:question, question},
         %{
-          caller: caller,
-          embedder: embedding_model,
-          index: index,
-          llm: response_model,
-          provider: provider,
-          search_results: []
+          search_results: [],
+          params: %{
+            caller: caller,
+            embedder: embedding_model,
+            index: index,
+            response_model: response_model,
+            provider: provider,
+            search_type: search_type
+          }
         } =
           state
       ) do
@@ -84,8 +90,7 @@ defmodule Caque.Conversation do
 
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Embeddings.embed(provider, doc, embedding_model),
-         # {:ok, %{hits: hits}} <- caller.vector_search(index, embedding),
-         {:ok, %{hits: hits}} <- caller.hybrid_search(index, question, embedding),
+         {:ok, %{hits: hits}} <- caller.search(search_type, index, %{keywords: question, embedding: embedding, keyword_weight: 0.5}),
          {:ok, %{response: response}} <-
            Caque.Responses.query_llm(:openai, hits, question, response_model) do
       convo_state = %{search_results: hits, message_history: [question, response]}
@@ -102,10 +107,12 @@ defmodule Caque.Conversation do
   @impl true
   def handle_cast(
         {:question, question},
-        %{search_results: search_results, message_history: message_history} = state
+        %{
+          search_results: search_results,
+          message_history: message_history,
+          params: %{response_model: response_model}
+        } = state
       ) do
-    response_model = "gpt-5"
-
     convo_state =
       with {:ok, %{response: response}} <-
              Caque.Responses.query_llm(:openai, search_results, question, response_model) do
