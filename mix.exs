@@ -62,7 +62,8 @@ defmodule Caque.MixProject do
       {:req, "~> 0.5.10"},
       {:snap, "~> 0.12.1"},
       {:mox, "~> 1.2.0"},
-      {:oban, "~> 2.0"}
+      {:oban, "~> 2.0"},
+      {:rustler, "~> 0.27.0"}
     ]
   end
 
