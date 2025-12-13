@@ -5,7 +5,7 @@ defmodule Caque.MixProject do
     [
       app: :caque,
       version: "0.1.0",
-      elixir: "~> 1.14",
+      elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -63,7 +63,7 @@ defmodule Caque.MixProject do
       {:snap, "~> 0.12.1"},
       {:mox, "~> 1.2.0"},
       {:oban, "~> 2.0"},
-      {:rustler, "~> 0.27.0"}
+      {:rustler, "~> 0.37.1"}
     ]
   end
 
