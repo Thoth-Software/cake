@@ -1,5 +1,5 @@
 defmodule Caque.Accounts.UserToken do
-  use Ecto.Schema
+  use Caque.Schema
   import Ecto.Query
   alias Caque.Accounts.UserToken
 

@@ -53,8 +53,6 @@ defmodule Caque.Documents.ParsedDocuments do
   end
 
   def create_parsed_docs!({:ok, parsed_docs_list}) do
-    dbg(parsed_docs_list)
-
     Task.async_stream(
       parsed_docs_list,
       max_concurrency: 10,
