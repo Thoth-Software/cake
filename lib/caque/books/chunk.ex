@@ -53,4 +53,27 @@ defmodule Caque.Books.Chunk do
     ])
     |> foreign_key_constraint(:parsed_book_id)
   end
+
+  def base_query(), do: from(c in __MODULE__)
+
+  def by_book(query, parsed_book_id) do
+    from c in query, where: c.parsed_book_id == ^parsed_book_id
+  end
+
+  def on_page(query, page_number) do
+    from c in query, where: c.page_number == ^page_number
+  end
+
+  def within_pages(query, center_page, range) do
+    first_page = center_page - range
+    last_page = center_page + range
+
+    from c in query,
+      where: not is_nil(c.page_number),
+      where: c.page_number >= ^first_page and c.page_number <= ^last_page
+  end
+
+  def by_section(query, section_title) do
+    from c in query, where: c.section_title == ^section_title
+  end
 end

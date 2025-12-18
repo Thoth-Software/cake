@@ -27,6 +27,8 @@ defmodule Caque.Books.ParsedBook do
 
   """
 
+  Write more of the query composition functions (see by_file_path, by_author, etc) but write them for isbn, publisher, and publication_date. Also write one that finds books published before a given date, another for books published after a given date. Also write separate functions for books parsed on, before, or after a given date.
+
   schema "parsed_books" do
     field :title, :string
     field :metadata, :map
@@ -86,4 +88,59 @@ defmodule Caque.Books.ParsedBook do
     ])
     |> unique_constraint(:file_hash)
   end
-end
+
+  def base_query(), do: from(c in __MODULE__)
+
+  def by_title(query, title) do
+    from b in query, where: b.title == ^title
+  end
+
+  def by_language(query, language_code) do
+    from b in query, where: b.language_code == ^language
+  end
+
+  def by_file_path(query, file_path) do
+    from b in query, where: b.file_path == ^file_path
+  end
+
+  def by_author(query, author) do
+    from b in query, where: ^author in b.authors
+  end
+
+  def by_format(query, format) do
+    from b in query, where: b.source_format == ^format
+  end
+         
+  def by_isbn(query, isbn) do
+    from b in query, where: b.isbn == ^isbn
+  end
+
+  def by_publisher(query, publisher) do
+    from b in query, where: b.publisher == ^publisher
+  end
+
+  def published_on(query, publication_date) do
+    from b in query, where: b.publication_date == ^publication_date
+  end
+
+  def published_before(query, date) do
+    from b in query, where: b.publication_date < ^date
+  end
+
+  def published_after(query, date) do
+    from b in query, where: b.publication_date > ^date
+  end
+
+  def parsed_on(query, date) do
+    from b in query, where: b.parsed_at == ^date)
+  end
+
+  def parsed_before(query, date) do
+    from b in query, where: b.parsed_at < ^date
+  end
+
+  def parsed_after(query, date) do
+    from b in query, where: b.parsed_at > ^date
+  end
+
+  end
