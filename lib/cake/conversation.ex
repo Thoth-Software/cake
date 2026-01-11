@@ -1,7 +1,6 @@
 defmodule Cake.Conversation do
   use GenServer
 
-  alias Cake.Documents.ParsedDocument
   alias Cake.Embeddings
   require Logger
 
@@ -86,11 +85,14 @@ defmodule Cake.Conversation do
         } =
           state
       ) do
-    doc = %ParsedDocument{text: question, title: ""}
-
     with {:ok, %{attrs: %{embedding: embedding}}} <-
-           Embeddings.embed(provider, doc, embedding_model),
-         {:ok, %{hits: hits}} <- caller.search(search_type, index, %{keywords: question, embedding: embedding, keyword_weight: 0.5}),
+           Embeddings.embed(provider, question, embedding_model),
+         {:ok, %{hits: hits}} <-
+           caller.search(search_type, index, %{
+             keywords: question,
+             embedding: embedding,
+             keyword_weight: 0.5
+           }),
          {:ok, %{response: response}} <-
            Cake.Responses.query_llm(:openai, hits, question, response_model) do
       convo_state = %{search_results: hits, message_history: [question, response]}

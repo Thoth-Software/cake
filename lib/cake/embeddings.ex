@@ -8,11 +8,10 @@ defmodule Cake.Embeddings do
 
   alias Cake.Documents.ParsedDocument
 
-  #This needs a spec defining the different error tuples it can return
+  # This needs a spec defining the different error tuples it can return
   @impl true
-  def embed(:openai, %ParsedDocument{text: text, title: title} = parsed_document, model) do
-    input = "#{title}\n\n#{text}"
-    [openai_key: api_key, base_url: url] = Application.get_env(:cake, __MODULE__)
+  def embed(:openai, input, model) do
+    [openai_key: api_key, base_url: url] = Application.get_env(:caque, __MODULE__)
 
     Req.post(
       url: url,
@@ -34,7 +33,7 @@ defmodule Cake.Embeddings do
 
         attrs = %{embedding: embedding}
 
-        {:ok, %{usage: usage, parsed_document: parsed_document, attrs: attrs}}
+        {:ok, %{usage: usage, input: input, attrs: attrs}}
 
       {:ok, %Req.Response{status: code}} ->
         {:error, "#{__MODULE__}  Transport layer error: #{code}"}
