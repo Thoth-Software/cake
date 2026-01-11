@@ -100,7 +100,6 @@ defmodule Cake.Documents.ParsedDocument do
       where: h.source == ^source
   end
 
-  @impl true
   def doc_attrs do
     %{}
   end

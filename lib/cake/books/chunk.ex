@@ -16,7 +16,7 @@ defmodule Cake.Books.Chunk do
     :chunk_index,        # Needed for ordering
     :text,               # The actual content - can't have empty chunks
     :word_count,         # Computed from text, always available
-    :char_count          # Computed from text, always available
+    :char_count          # ut supra
   """
 
   schema "chunks" do

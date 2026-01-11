@@ -6,8 +6,6 @@ defmodule Cake.Embeddings do
 
   @behaviour Cake.Embeddings.Behaviour
 
-  alias Cake.Documents.ParsedDocument
-
   # This needs a spec defining the different error tuples it can return
   @impl true
   def embed(:openai, input, model) do
