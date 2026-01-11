@@ -28,13 +28,21 @@ defmodule Cake.Responses do
   end
 
   def query_llm(:openai, context_docs, question, model) do
-        [openai_key: api_key, response_url: response_url] = Application.get_env(:cake, __MODULE__)
-        # Format context documents into a system message
+    [openai_key: api_key, response_url: response_url] = Application.get_env(:cake, __MODULE__)
+    # Format context documents into a system message
     context_text =
-    context_docs
-    |> Enum.map(fn %{source: %{"package" => package, "source" => _source, "text" => text, "title" => title}} -> "From #{package}, this function is #{title} \n \n #{text} \n \n"  end)
-    |> Enum.join()
-            
+      context_docs
+      |> Enum.map(fn %{
+                       source: %{
+                         "package" => package,
+                         "source" => _source,
+                         "text" => text,
+                         "title" => title
+                       }
+                     } ->
+        "From #{package}, this function is #{title} \n \n #{text} \n \n"
+      end)
+      |> Enum.join()
 
     system_message = """
     You are a helpful assistant. Use the following context to answer the user's question.
@@ -44,7 +52,7 @@ defmodule Cake.Responses do
     #{context_text}
     """
 
-                    messages = [
+    messages = [
       %{role: "system", content: system_message},
       %{role: "user", content: question}
     ]
@@ -61,11 +69,12 @@ defmodule Cake.Responses do
          status: 200,
          body: %{"output" => output, "usage" => usage}
        }} ->
-          response = output
-           |> Enum.find(fn map -> Map.has_key?(map, "content") end)
-           |> Map.get("content")
-           |> List.first()
-           |> Map.get("text")
+        response =
+          output
+          |> Enum.find(fn map -> Map.has_key?(map, "content") end)
+          |> Map.get("content")
+          |> List.first()
+          |> Map.get("text")
 
         {:ok, %{response: response, usage: usage}}
 
@@ -78,6 +87,4 @@ defmodule Cake.Responses do
   end
 
   # def munge_document(%ParsedDocument{"package" => package, "source" => _source, "text" => text, "title" => title})
-
-
 end

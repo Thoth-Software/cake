@@ -26,7 +26,8 @@ defmodule Cake.Documents.Pipeline do
   Cake.Documents.Pipeline.ingest(:openai, Cake.Documents.Hexdocs.Pipeline, {1,18,3}, "text-embedding-ada-002")
   """
 
-  alias Cake.Documents.ParsedDocuments
+  alias Caque.Documents.ParsedDocuments
+  alias Caque.Pipelines
   require Logger
 
   @cluster Cake.Documents.Cluster
@@ -55,7 +56,8 @@ defmodule Cake.Documents.Pipeline do
              source_pipeline,
              embedding_model
            ),
-         opensearch_docs_stream <- add_to_opensearch(docs_with_embeddings_stream),
+         opensearch_docs_stream <-
+           Pipelines.add_to_opensearch(docs_with_embeddings_stream, @index, @cluster),
          :ok <- Stream.run(opensearch_docs_stream) do
       {:ok, source_pipeline.success_message(version)}
     else
@@ -122,14 +124,14 @@ defmodule Cake.Documents.Pipeline do
       on_timeout: :kill_task,
       zip_input_on_exit: true
     )
-    |> detuple()
+    |> Pipelines.detuple()
     |> Task.async_stream(
       &handle_response/1,
       max_concurrency: 5,
       timeout: 5_000,
       on_timeout: :kill_task
     )
-    |> detuple()
+    |> Pipelines.detuple()
 
     # Need a case function here to log errors and pop the kernel out of :ok tuples.
   end
@@ -155,7 +157,7 @@ defmodule Cake.Documents.Pipeline do
     do:
       parsed_doc_stream
       |> Task.async_stream(&ParsedDocuments.create_parsed_doc!/1)
-      |> detuple()
+      |> Pipelines.detuple()
 
   # defp persist_to_opensearch(parsed_doc_stream, cluster_name, index_name) do
   #   Task.async_stream(parsed_doc_stream, fn doc ->
@@ -164,13 +166,4 @@ defmodule Cake.Documents.Pipeline do
   #   end)
   #   |> Stream.run()
   # end
-
-  def detuple(stream_enumerable) do
-    stream_enumerable
-    |> Stream.filter(fn
-      {:ok, _} -> true
-      _ -> false
-    end)
-    |> Stream.map(fn {:ok, value} -> value end)
-  end
 end
