@@ -8,6 +8,78 @@ defmodule Cake.Books do
 
   alias Cake.Books.ParsedBook
 
+  def persist_book_and_chunks({%ParsedBook{} = book, chunks}) when is_list(chunks) do
+    book_attrs =
+      book
+      |> Map.from_struct()
+      |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :chunks])
+
+    multi =
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:book, ParsedBook.changeset(%ParsedBook{}, book_attrs))
+      |> Ecto.Multi.run(:chunks, fn repo, %{book: persisted_book} ->
+        # Build + validate chunk rows *before* insert_all so any invalid chunk rolls back.
+        chunk_rows =
+          chunks
+          |> Enum.with_index()
+          |> Enum.map(fn {chunk, idx} ->
+            chunk_attrs =
+              chunk
+              |> Map.from_struct()
+              |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :parsed_book])
+              |> Map.put(:parsed_book_id, persisted_book.id)
+              |> Map.put_new(:chunk_index, idx)
+
+            cs = Chunk.changeset(%Chunk{}, chunk_attrs)
+
+            if cs.valid? do
+              cs.changes
+            else
+              # Returning {:error, ...} here would stop the Multi and rollback.
+              throw({:invalid_chunk, cs.errors, chunk_attrs})
+            end
+          end)
+
+        {count, returned_rows} =
+          Repo.insert_all(Chunk, chunk_rows,
+            returning: [
+              :id,
+              :parsed_book_id,
+              :page_number,
+              :chunk_index,
+              :section_title,
+              :text,
+              :word_count,
+              :char_count
+            ]
+          )
+
+        if count == length(chunk_rows) do
+          persisted_chunks = Enum.map(returned_rows, &struct(Chunk, &1))
+          {:ok, persisted_chunks}
+        else
+          {:error, {:chunk_insert_count_mismatch, count, length(chunk_rows)}}
+        end
+      end)
+
+    try do
+      case Repo.transaction(multi) do
+        {:ok, %{book: persisted_book, chunks: persisted_chunks}} ->
+          {:ok, {persisted_book, persisted_chunks}}
+
+        {:error, _step, reason, _changes_so_far} ->
+          {:error, reason}
+      end
+    catch
+      {:invalid_chunk, errors, attrs} ->
+        {:error, {:invalid_chunk, errors, attrs}}
+    end
+  end
+
+  def persist_book_and_chunks({book, chunks}) do
+    {:error, {:invalid_input, %{book: book, chunks: chunks}}}
+  end
+
   @doc """
   Returns the list of parsed_books.
 
