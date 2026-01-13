@@ -1,5 +1,5 @@
 # Use an official Elixir runtime as a parent image.
-FROM elixir:1.14
+FROM elixir:1.15
 
 ARG USER_ID=1000
 ARG GROUP_ID=1000
@@ -10,7 +10,11 @@ RUN groupadd --gid ${GROUP_ID} appgroup || true && \
 
 # Install system packages as root
 RUN apt-get update && \
-  apt-get install -y postgresql-client inotify-tools
+  apt-get install -y postgresql-client inotify-tools curl
+  
+# Install Rust (needed for Rustler NIFs)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Create app directory and copy code
 RUN mkdir /app

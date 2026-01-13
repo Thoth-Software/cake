@@ -35,3 +35,7 @@ caque-*.tar
 npm-debug.log
 /assets/node_modules/
 
+
+# Rust binary artifacts
+/target/
+/priv/native
