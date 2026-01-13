@@ -27,8 +27,6 @@ defmodule Caque.Books.ParsedBook do
 
   """
 
-  Write more of the query composition functions (see by_file_path, by_author, etc) but write them for isbn, publisher, and publication_date. Also write one that finds books published before a given date, another for books published after a given date. Also write separate functions for books parsed on, before, or after a given date.
-
   schema "parsed_books" do
     field :title, :string
     field :metadata, :map
