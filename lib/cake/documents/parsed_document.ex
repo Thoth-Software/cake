@@ -1,7 +1,6 @@
 defmodule Cake.Documents.ParsedDocument do
   use Cake.Schema
   import Ecto.Changeset
-  import Ecto.Query, warn: false
 
   @moduledoc """
   Schema for parsed documentation chunks, used to generate embedding vectors

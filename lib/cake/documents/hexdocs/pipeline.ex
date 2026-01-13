@@ -16,13 +16,6 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
 
   @dir Path.join(System.tmp_dir!(), "hexdocs/")
 
-  @doc """
-  Creates a new document in the index. The ID will be assigned automatically.
-  """
-  def add() do
-    :whee!
-  end
-
   @impl true
   def download(version) do
     File.rm_rf!(@dir)
