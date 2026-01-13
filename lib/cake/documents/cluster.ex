@@ -1,10 +1,7 @@
 defmodule Cake.Documents.Cluster do
   @moduledoc """
-  This maps to the cluster of indexes containing technical documents (for now, just one index)
-
-  Eventyually, we'll need to define a Cake cluster behavior - possibly an
-  extension of the Snap cluster behavior - that defines certain callbacks, e.g.
-  the search function.
+  OpenSearch cluster managing all CAKE indices.
+  Currently manages: "docs" (technical documentation) and "chunks_of_books" (book content).
   """
 
   use Snap.Cluster, otp_app: :cake
@@ -52,20 +49,8 @@ defmodule Cake.Documents.Cluster do
     {:ok, config}
   end
 
-  # def init(config) do
-  #   # Defer index creation to handle_continue to avoid blocking init.
-  #   # This allows the cluster to start quickly and register its name
-  #   # before attempting to create indexes.
-  #   {:ok, config, {:continue, :create_indexes}}
-  # end
-
-  # def handle_continue(:create_indexes, config) do
-  #   {:ok, task_pid} = Task.start_link(fn -> create_indexes_unless_exist(nil) end)
-  #   {:noreply, Map.put(config, :index_creation_task, task_pid)}
-  # end
-
   def create_indexes_unless_exist(nil) do
-    Logger.debug("Document cluster not running yet.\n\nWaiting to create indexes...")
+    Logger.debug("Cluster not running yet.\n\nWaiting to create indexes...")
     Process.sleep(10_000)
 
     Process.whereis(__MODULE__)
@@ -73,29 +58,26 @@ defmodule Cake.Documents.Cluster do
   end
 
   def create_indexes_unless_exist(pid) when is_pid(pid) do
-    __MODULE__
-    |> Indexes.list()
-    |> maybe_create_index()
-    |> ensure_index_exists()
+    existing_indices = get_existing_indices()
+
+    # Create both indices
+    create_index_if_missing(existing_indices, "docs", Caque.Documents.ParsedDocument)
+    create_index_if_missing(existing_indices, "chunks_of_books", Caque.Books.Chunk)
+  end
+
+  defp get_existing_indices() do
+    case Indexes.list(__MODULE__) do
+      {:ok, indices} -> indices
+      {:error, error} -> raise error
+    end
   end
 
   def enable_conversational_search(), do: nil
 
-  # In this code snippet, we define a module `MyApp.Elasticsearch` that uses the `Snap.Elasticsearch` library. We then define a function `get_all_docs` that queries the Elasticsearch index named "docs" and retrieves all documents. The function constructs a query that matches all documents in the index and sets the size to 1000 to retrieve a large number of documents. It then extracts the source data from each hit in the response and returns a list of all documents.
   def all_documents() do
     query = %{query: %{match_all: %{}}}
     Snap.Search.search(__MODULE__, "docs", query)
   end
-
-  # Food for thought: bespoke search functions for different clusters, or generalized search functions?
-  # Answer: search functions ought to live on a given cluster, yes. But keep in
-  # mind that clusters go to generic document types. Right now we have only one,
-  # ParsedDoc, which implies only one set of search functions. However, if we
-  # begin to have more than one generic, then we'll need search functions keyed
-  # to that generic.
-  #
-  # Note that this also indicates searchability as a salient constraint on the
-  # design of generic doc schemas.
 
   @spec search(:keyword | :vector | :hybrid, String.t(), %{
           keywords: List.t(),
@@ -117,16 +99,12 @@ defmodule Cake.Documents.Cluster do
 
   def search(:vector, index, %{embedding: embedding}) do
     query = %{
-      # usually same as k
       size: 10,
       query: %{
         knn: %{
           embedding: %{
-            # MUST be a list of floats
             vector: embedding,
             k: 10
-            # optional tuning for HNSW; remove or adjust as needed
-            # rescore: true | %{oversample_factor: 8.0}  # optional
           }
         }
       }
@@ -140,15 +118,11 @@ defmodule Cake.Documents.Cluster do
         embedding: embedding,
         keyword_weight: keyword_weight
       }) do
-    # you can keep vector_weight around for later if you do fancy scoring
-    # vector_weight = 1.0 - keyword_weight
-
     query = %{
       size: 10,
       query: %{
         bool: %{
           must: [
-            # k-NN is the “core” query
             %{
               knn: %{
                 embedding: %{
@@ -158,7 +132,6 @@ defmodule Cake.Documents.Cluster do
               }
             }
           ],
-          # lexical query as a “should” clause that boosts docs
           should: [
             %{
               multi_match: %{
@@ -168,7 +141,6 @@ defmodule Cake.Documents.Cluster do
               }
             }
           ]
-          # no minimum_should_match – knn must match, text is optional but boosts score
         }
       }
     }
@@ -183,33 +155,35 @@ defmodule Cake.Documents.Cluster do
     end)
   end
 
-  defp maybe_create_index({:error, error}), do: raise(error)
-
-  defp maybe_create_index({:ok, existing_index}) do
-    index = "docs"
-
-    case Enum.member?(existing_index, index) do
+  defp create_index_if_missing(existing_indices, index_name, schema) do
+    case Enum.member?(existing_indices, index_name) do
       true ->
-        {:ok, "Document cluster already running"}
+        Logger.info("Index '#{index_name}' already exists")
+        {:ok, "Index already exists"}
 
-      _ ->
-        Snap.Indexes.create(__MODULE__, index, build_mapping(Cake.Documents.ParsedDocument))
+      false ->
+        Logger.info("Creating index '#{index_name}'...")
+        result = Snap.Indexes.create(__MODULE__, index_name, build_mapping(schema))
+        ensure_index_exists(result, index_name)
     end
   end
 
-  defp ensure_index_exists({:error, %Snap.HTTPClient.Response{status: status, body: body}}) do
-    raise "Transport-layer error between app and Snap server: #{__MODULE__}\n\nReturn status: #{status} \n\n body: #{body}}"
+  defp ensure_index_exists({:error, %Snap.HTTPClient.Response{status: status, body: body}}, index) do
+    raise "Transport-layer error creating index '#{index}': Status #{status}, Body: #{body}"
   end
 
-  defp ensure_index_exists({:error, %Snap.ResponseError{status: status, message: message}}) do
-    raise "Application error within Snap instance:\n\n Status: #{status} \n\n Message: #{message}"
+  defp ensure_index_exists({:error, %Snap.ResponseError{status: status, message: message}}, index) do
+    raise "Application error creating index '#{index}': Status #{status}, Message: #{message}"
   end
 
   defp ensure_index_exists({:error, %Jason.DecodeError{data: data}}) do
     raise "Application layer error within Cake instance (cannot parse JSON) :\n\n Data: #{data}"
   end
 
-  defp ensure_index_exists(_) do
-    nil
+  defp ensure_index_exists({:ok, _response}, index) do
+    Logger.info("Successfully created index '#{index}'")
+    :ok
   end
+
+  defp ensure_index_exists(_, _index), do: :ok
 end
