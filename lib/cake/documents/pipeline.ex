@@ -26,6 +26,7 @@ defmodule Cake.Documents.Pipeline do
   Cake.Documents.Pipeline.ingest(:openai, Cake.Documents.Hexdocs.Pipeline, {1,18,3}, "text-embedding-ada-002")
   """
 
+  alias Caque.Documents.ParsedDocument
   alias Caque.Documents.ParsedDocuments
   alias Caque.Pipelines
   require Logger
@@ -117,6 +118,9 @@ defmodule Cake.Documents.Pipeline do
     embeddings_module = embeddings_module()
 
     persisted_parsed_docs_stream
+    |> Stream.map(fn %ParsedDocument{text: text, title: title} = doc ->
+      %{input: "#{title}\n\n#{text}", struct: doc}
+    end)
     |> Task.async_stream(
       &embeddings_module.embed(embedding_service, &1, embedding_model),
       max_concurrency: 5,
@@ -150,8 +154,8 @@ defmodule Cake.Documents.Pipeline do
 
   defp handle_response({_, {:error, error}}), do: Logger.warning(error)
 
-  defp handle_response({_, %{parsed_document: parsed_document, attrs: attrs}}),
-    do: ParsedDocuments.update_parsed_doc!(parsed_document, attrs)
+  defp handle_response({_, %{struct: struct, attrs: attrs}}),
+    do: ParsedDocuments.update_parsed_doc!(struct, attrs)
 
   defp persist_parsed_docs(parsed_doc_stream),
     do:

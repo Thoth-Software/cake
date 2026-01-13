@@ -6,7 +6,8 @@ defmodule Cake.Books do
   import Ecto.Query, warn: false
   alias Cake.Repo
 
-  alias Cake.Books.ParsedBook
+  alias Caque.Books.ParsedBook
+  alias Caque.Books.Chunk
 
   def persist_book_and_chunks({%ParsedBook{} = book, chunks}) when is_list(chunks) do
     book_attrs =
@@ -41,7 +42,7 @@ defmodule Cake.Books do
           end)
 
         {count, returned_rows} =
-          Repo.insert_all(Chunk, chunk_rows,
+          repo.insert_all(Chunk, chunk_rows,
             returning: [
               :id,
               :parsed_book_id,
@@ -142,6 +143,24 @@ defmodule Cake.Books do
   def update_parsed_book(%ParsedBook{} = parsed_book, attrs) do
     parsed_book
     |> ParsedBook.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Updates a chunk.
+
+  ## Examples
+
+      iex> update_chunk!(chunk, %{field: new_value})
+      {:ok, %Chunk{}}
+
+      iex> update_chunk!(chunk, %{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_chunk!(%Chunk{} = chunk, attrs) do
+    chunk
+    |> Chunk.changeset(attrs)
     |> Repo.update()
   end
 

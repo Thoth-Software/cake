@@ -2,13 +2,15 @@ defmodule Cake.Embeddings do
   @moduledoc """
   Calls out to an external API to get embeddings.
   Different APIs may require or return data having different shapes, so Embeddings defines bespoke functinos for each API we foresee using.
+
+  We should look into an Embedding struct to be persisted to postgres with metadata
   """
 
   @behaviour Cake.Embeddings.Behaviour
 
   # This needs a spec defining the different error tuples it can return
   @impl true
-  def embed(:openai, input, model) do
+  def embed(:openai, %{input: input, struct: struct}, model) when is_struct(struct) do
     [openai_key: api_key, base_url: url] = Application.get_env(:caque, __MODULE__)
 
     Req.post(
@@ -31,7 +33,7 @@ defmodule Cake.Embeddings do
 
         attrs = %{embedding: embedding}
 
-        {:ok, %{usage: usage, input: input, attrs: attrs}}
+        {:ok, %{usage: usage, input: input, attrs: attrs, struct: struct}}
 
       {:ok, %Req.Response{status: code}} ->
         {:error, "#{__MODULE__}  Transport layer error: #{code}"}
