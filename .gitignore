@@ -35,6 +35,8 @@ caque-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# Rust config for Emacs' Projectile
+.rust-analyzer.json
 
 # Rust binary artifacts
 /target/
