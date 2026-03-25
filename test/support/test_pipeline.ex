@@ -1,12 +1,12 @@
-defmodule Caque.TestPipeline do
+defmodule Cake.TestPipeline do
   @moduledoc """
   Mock pipeline module for testing DocumentIngestionJob.
 
-  Implements the Caque.Documents.Pipeline behaviour with test-friendly
+  Implements the Cake.Documents.Pipeline behaviour with test-friendly
   implementations that don't require external dependencies or side effects.
   """
 
-  @behaviour Caque.Documents.Pipeline
+  @behaviour Cake.Documents.Pipeline
 
   @impl true
   def download(_version) do
@@ -51,12 +51,12 @@ defmodule Caque.TestPipeline do
   end
 end
 
-defmodule Caque.FailingTestPipeline do
+defmodule Cake.FailingTestPipeline do
   @moduledoc """
   Mock pipeline that fails during download for testing error cases.
   """
 
-  @behaviour Caque.Documents.Pipeline
+  @behaviour Cake.Documents.Pipeline
 
   @impl true
   def download(_version) do

@@ -1,4 +1,4 @@
-defmodule Caque.ObanCase do
+defmodule Cake.ObanCase do
   @moduledoc """
   This module defines the setup for tests requiring Oban.
 
@@ -10,9 +10,9 @@ defmodule Caque.ObanCase do
 
   using do
     quote do
-      import Caque.ObanCase
+      import Cake.ObanCase
 
-      alias Caque.Repo
+      alias Cake.Repo
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
@@ -20,7 +20,7 @@ defmodule Caque.ObanCase do
   end
 
   setup tags do
-    Caque.DataCase.setup_sandbox(tags)
+    Cake.DataCase.setup_sandbox(tags)
     :ok
   end
 
@@ -48,7 +48,7 @@ defmodule Caque.ObanCase do
   def all_enqueued_jobs(queue_name \\ :default) do
     import Ecto.Query
 
-    Caque.Repo.all(
+    Cake.Repo.all(
       from j in Oban.Job,
         where: j.queue == ^to_string(queue_name),
         order_by: [asc: j.id]
@@ -65,7 +65,7 @@ defmodule Caque.ObanCase do
   def jobs_count(queue_name \\ :default) do
     import Ecto.Query
 
-    Caque.Repo.one(
+    Cake.Repo.one(
       from j in Oban.Job,
         where: j.queue == ^to_string(queue_name),
         select: count(j.id)

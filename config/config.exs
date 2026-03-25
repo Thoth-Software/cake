@@ -7,22 +7,22 @@
 # General application configuration
 import Config
 
-config :caque,
-  ecto_repos: [Caque.Repo],
+config :cake,
+  ecto_repos: [Cake.Repo],
   generators: [timestamp_type: :utc_datetime]
 
 # Configures the endpoint
-config :caque, CaqueWeb.Endpoint,
+config :cake, CakeWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: CaqueWeb.ErrorHTML, json: CaqueWeb.ErrorJSON],
+    formats: [html: CakeWeb.ErrorHTML, json: CakeWeb.ErrorJSON],
     layout: false
   ],
-  pubsub_server: Caque.PubSub,
+  pubsub_server: Cake.PubSub,
   live_view: [signing_salt: "QL+aqy0T"]
 
-config :caque, Caque.Documents.Cluster,
+config :cake, Cake.Documents.Cluster,
   url: "http://opensearch:9200",
   username: "admin",
   password: System.get_env("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
@@ -34,18 +34,18 @@ config :caque, Caque.Documents.Cluster,
 #
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
-config :caque, Caque.Mailer, adapter: Swoosh.Adapters.Local
+config :cake, Cake.Mailer, adapter: Swoosh.Adapters.Local
  
 # config/config.exs
-config :caque, Oban,
+config :cake, Oban,
   engine: Oban.Engines.Basic,
   queues: [default: 10],
-  repo: Caque.Repo
+  repo: Cake.Repo
 
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.17.11",
-  caque: [
+  cake: [
     args:
       ~w(js/app.js --bundle --target=es2017 --outdir=../priv/static/assets --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets", __DIR__),
@@ -55,7 +55,7 @@ config :esbuild,
 # Configure tailwind (the version is required)
 config :tailwind,
   version: "3.4.3",
-  caque: [
+  cake: [
     args: ~w(
       --config=tailwind.config.js
       --input=css/app.css

@@ -1,7 +1,7 @@
-defmodule Caque.BooksFixtures do
+defmodule Cake.BooksFixtures do
   @moduledoc """
   This module defines test helpers for creating
-  entities via the `Caque.Books` context.
+  entities via the `Cake.Books` context.
   """
 
   @doc """
@@ -33,7 +33,7 @@ defmodule Caque.BooksFixtures do
         total_pages: 42,
         word_count: 42
       })
-      |> Caque.Books.create_parsed_book()
+      |> Cake.Books.create_parsed_book()
 
     parsed_book
   end
@@ -55,7 +55,7 @@ defmodule Caque.BooksFixtures do
         text: "some text",
         word_count: 42
       })
-      |> Caque.Books.create_chunk()
+      |> Cake.Books.create_chunk()
 
     chunk
   end

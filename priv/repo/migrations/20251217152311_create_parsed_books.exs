@@ -1,4 +1,4 @@
-defmodule Caque.Repo.Migrations.CreateParsedBooks do
+defmodule Cake.Repo.Migrations.CreateParsedBooks do
   use Ecto.Migration
 
   def change do

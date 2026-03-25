@@ -1,27 +1,27 @@
 import Config
 
 # Configure your database
-config :caque, Caque.Repo,
+config :cake, Cake.Repo,
   username: "postgres",
   password: "postgres",
   hostname: System.get_env("PGHOST", "localhost"),
-  database: System.get_env("PGDATABASE", "caque_dev"),
+  database: System.get_env("PGDATABASE", "cake_dev"),
   port: System.get_env("PGPORT", "5432") |> String.to_integer(),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
   # Config for responses
-  config :caque, Caque.Responses,
+  config :cake, Cake.Responses,
     openai_key: System.get_env("OPENAI_KEY"),
     response_url: "https://api.openai.com/v1/responses"
 
 # Config for API keys
-config :caque, Caque.Embeddings,
+config :cake, Cake.Embeddings,
   openai_key: System.get_env("OPENAI_KEY"),
   base_url: "https://api.openai.com/v1/embeddings"
 
-config :caque, Caque.Documents.Cluster,
+config :cake, Cake.Documents.Cluster,
   url: "http://opensearch:9200",
   username: "admin",
   password: System.get_env("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
@@ -33,7 +33,7 @@ config :caque, Caque.Documents.Cluster,
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 # Binding to loopback ipv4 address prevents access from other machines.
-config :caque, CaqueWeb.Endpoint,
+config :cake, CakeWeb.Endpoint,
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {0, 0, 0, 0}, port: 4000],
   check_origin: false,
@@ -41,8 +41,8 @@ config :caque, CaqueWeb.Endpoint,
   debug_errors: true,
   secret_key_base: "QOE6B7HJEKYKqj1veEzuDJfHlTeDAV6TzgrQCgNrSlfLcMMcakvpHh0O3VYG6QJM",
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:caque, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:caque, ~w(--watch)]}
+    esbuild: {Esbuild, :install_and_run, [:cake, ~w(--sourcemap=inline --watch)]},
+    tailwind: {Tailwind, :install_and_run, [:cake, ~w(--watch)]}
   ]
 
 # ## SSL Support
@@ -69,17 +69,17 @@ config :caque, CaqueWeb.Endpoint,
 # different ports.
 
 # Watch static and templates for browser reloading.
-config :caque, CaqueWeb.Endpoint,
+config :cake, CakeWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/gettext/.*(po)$",
-      ~r"lib/caque_web/(controllers|live|components)/.*(ex|heex)$"
+      ~r"lib/cake_web/(controllers|live|components)/.*(ex|heex)$"
     ]
   ]
 
 # Enable dev routes for dashboard and mailbox
-config :caque, dev_routes: true
+config :cake, dev_routes: true
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"

@@ -1,1 +1,1 @@
-Mox.defmock(Caque.Embeddings.Mock, for: Caque.Embeddings.Behaviour)
+Mox.defmock(Cake.Embeddings.Mock, for: Cake.Embeddings.Behaviour)

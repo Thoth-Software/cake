@@ -1,4 +1,4 @@
-defmodule CaqueWeb.ConnCase do
+defmodule CakeWeb.ConnCase do
   @moduledoc """
   This module defines the test case to be used by
   tests that require setting up a connection.
@@ -11,7 +11,7 @@ defmodule CaqueWeb.ConnCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use CaqueWeb.ConnCase, async: true`, although
+  by setting `use CakeWeb.ConnCase, async: true`, although
   this option is not recommended for other databases.
   """
 
@@ -20,19 +20,19 @@ defmodule CaqueWeb.ConnCase do
   using do
     quote do
       # The default endpoint for testing
-      @endpoint CaqueWeb.Endpoint
+      @endpoint CakeWeb.Endpoint
 
-      use CaqueWeb, :verified_routes
+      use CakeWeb, :verified_routes
 
       # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
-      import CaqueWeb.ConnCase
+      import CakeWeb.ConnCase
     end
   end
 
   setup tags do
-    Caque.DataCase.setup_sandbox(tags)
+    Cake.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
@@ -45,7 +45,7 @@ defmodule CaqueWeb.ConnCase do
   test context.
   """
   def register_and_log_in_user(%{conn: conn}) do
-    user = Caque.AccountsFixtures.user_fixture()
+    user = Cake.AccountsFixtures.user_fixture()
     %{conn: log_in_user(conn, user), user: user}
   end
 
@@ -55,7 +55,7 @@ defmodule CaqueWeb.ConnCase do
   It returns an updated `conn`.
   """
   def log_in_user(conn, user) do
-    token = Caque.Accounts.generate_user_session_token(user)
+    token = Cake.Accounts.generate_user_session_token(user)
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})

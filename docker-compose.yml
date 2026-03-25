@@ -6,20 +6,20 @@ services:
       args:
         USER_ID: "${UID}"
         GROUP_ID: "${GID}"
-    container_name: caque_app
+    container_name: cake_app
     ports:
       - "4000:4000"
     depends_on:
       - db
       - opensearch
     environment:
-      PGUSER: "${CAQUE_PGUSER}"
-      PGPASSWORD: "${CAQUE_PGPASSWORD}" 
-      PGDATABASE: "${CAQUE_PGDATABASE}"
-      PGHOST: "${CAQUE_PGHOST}"
-      PGPORT: "${CAQUE_PGPORT}"
+      PGUSER: "${CAKE_PGUSER}"
+      PGPASSWORD: "${CAKE_PGPASSWORD}" 
+      PGDATABASE: "${CAKE_PGDATABASE}"
+      PGHOST: "${CAKE_PGHOST}"
+      PGPORT: "${CAKE_PGPORT}"
       # DATABASE_URL: 0.0.0.0:5432
-      # DATABASE_URL: "postgres://postgres@db/caque_dev"
+      # DATABASE_URL: "postgres://postgres@db/cake_dev"
       OPENSEARCH_URL: "http://opensearch:9200"
       OPENSEARCH_INITIAL_ADMIN_PASSWORD: "${OPENSEARCH_INITIAL_ADMIN_PASSWORD}"
       OPENAI_KEY: "${OPENAI_KEY}"
@@ -29,11 +29,11 @@ services:
 
   db:
     image: postgres:14
-    container_name: caque_db
+    container_name: cake_db
     environment:
-      POSTGRES_USER: "${CAQUE_PGUSER}"
-      POSTGRES_PASSWORD: "${CAQUE_PGPASSWORD}"
-      POSTGRES_DB: "${CAQUE_PGDATABASE}"
+      POSTGRES_USER: "${CAKE_PGUSER}"
+      POSTGRES_PASSWORD: "${CAKE_PGPASSWORD}"
+      POSTGRES_DB: "${CAKE_PGDATABASE}"
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5432:5432"
@@ -47,7 +47,7 @@ services:
 
   opensearch:
     image: opensearchproject/opensearch:latest
-    container_name: caque_opensearch
+    container_name: cake_opensearch
     environment:
       - "discovery.type=single-node"
       - "plugins.security.disabled=true"

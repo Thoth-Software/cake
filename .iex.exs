@@ -1,1 +1,1 @@
-alias Caque.Repo
+alias Cake.Repo

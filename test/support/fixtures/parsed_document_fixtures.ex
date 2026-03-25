@@ -1,7 +1,7 @@
-defmodule Caque.ParsedDocumentFixtures do
+defmodule Cake.ParsedDocumentFixtures do
   @moduledoc """
   This module defines test helpers for creating
-  entities via the `Caque.Documents.ParsedDocuments` context.
+  entities via the `Cake.Documents.ParsedDocuments` context.
   """
 
   @doc """
@@ -19,7 +19,7 @@ defmodule Caque.ParsedDocumentFixtures do
         version: "some version",
         source: "some source"
       })
-      |> Caque.Documents.ParsedDocuments.create_parsed_document()
+      |> Cake.Documents.ParsedDocuments.create_parsed_document()
 
     parsed_documents
   end

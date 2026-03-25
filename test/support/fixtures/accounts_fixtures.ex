@@ -1,7 +1,7 @@
-defmodule Caque.AccountsFixtures do
+defmodule Cake.AccountsFixtures do
   @moduledoc """
   This module defines test helpers for creating
-  entities via the `Caque.Accounts` context.
+  entities via the `Cake.Accounts` context.
   """
 
   def unique_user_email, do: "user#{System.unique_integer()}@example.com"
@@ -18,7 +18,7 @@ defmodule Caque.AccountsFixtures do
     {:ok, user} =
       attrs
       |> valid_user_attributes()
-      |> Caque.Accounts.register_user()
+      |> Cake.Accounts.register_user()
 
     user
   end

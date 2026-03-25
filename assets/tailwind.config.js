@@ -8,8 +8,8 @@ const path = require("path")
 module.exports = {
   content: [
     "./js/**/*.js",
-    "../lib/caque_web.ex",
-    "../lib/caque_web/**/*.*ex"
+    "../lib/cake_web.ex",
+    "../lib/cake_web/**/*.*ex"
   ],
   theme: {
     extend: {

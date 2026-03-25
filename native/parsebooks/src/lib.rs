@@ -6,14 +6,14 @@ use rustler::{Binary, NifStruct};
 // The "module" attribute tells Rustler what Elixir module to decode into.
 
 #[derive(NifStruct)]
-#[module = "Caque.Books.PageContent"]
+#[module = "Cake.Books.PageContent"]
 struct PageContent {
     page_number: u32,
     text: String,
 }
 
 #[derive(NifStruct)]
-#[module = "Caque.Books.PdfExtraction"]
+#[module = "Cake.Books.PdfExtraction"]
 struct PdfExtraction {
     pages: Vec<PageContent>,
 }
@@ -68,5 +68,5 @@ fn extract_pdf(binary: Binary) -> Result<PdfExtraction, String> {
 }
 
 // This macro generates the boilerplate that connects to the BEAM.
-// "Elixir.Caque.ParseBooks" becomes the module that loads the NIF.
-rustler::init!("Elixir.Caque.ParseBooks");
+// "Elixir.Cake.ParseBooks" becomes the module that loads the NIF.
+rustler::init!("Elixir.Cake.ParseBooks");

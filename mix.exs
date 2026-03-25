@@ -1,9 +1,9 @@
-defmodule Caque.MixProject do
+defmodule Cake.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :caque,
+      app: :cake,
       version: "0.1.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -18,7 +18,7 @@ defmodule Caque.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {Caque.Application, []},
+      mod: {Cake.Application, []},
       extra_applications: [:logger, :runtime_tools]
     ]
   end
@@ -80,10 +80,10 @@ defmodule Caque.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["tailwind caque", "esbuild caque"],
+      "assets.build": ["tailwind cake", "esbuild cake"],
       "assets.deploy": [
-        "tailwind caque --minify",
-        "esbuild caque --minify",
+        "tailwind cake --minify",
+        "esbuild cake --minify",
         "phx.digest"
       ]
     ]

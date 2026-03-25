@@ -1,4 +1,4 @@
-defmodule Caque.Repo.Migrations.CreateChunks do
+defmodule Cake.Repo.Migrations.CreateChunks do
   use Ecto.Migration
 
   def change do

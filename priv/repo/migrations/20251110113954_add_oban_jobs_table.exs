@@ -1,5 +1,5 @@
 # What is `version: 15` doing here? Should it stay that way?`
-defmodule Caque.Repo.Migrations.AddObanJobsTable do
+defmodule Cake.Repo.Migrations.AddObanJobsTable do
   use Ecto.Migration
 
   def up do

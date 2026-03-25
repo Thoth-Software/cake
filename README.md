@@ -1,10 +1,10 @@
-# Caque
+# Cake
 
-A RAG (Retrieval-Augmented Generation) framework for Elixir. Caque provides the data structures, ingestion pipelines, and retrieval heuristics needed to build production RAG applications. The framework is designed to be iteratively improved through feedback from real implementations.
+A RAG (Retrieval-Augmented Generation) framework for Elixir. Cake provides the data structures, ingestion pipelines, and retrieval heuristics needed to build production RAG applications. The framework is designed to be iteratively improved through feedback from real implementations.
 
 ## Mission
 
-Caque aims to be a **RAG substrate**, not just a toy app. The core value proposition:
+Cake aims to be a **RAG substrate**, not just a toy app. The core value proposition:
 
 1. **Pluggable Ingestion Pipelines** - Each documentation source is a behaviour with implementations for specific file types
 2. **Opinionated Data Structures** - Schemas designed for effective retrieval, with metadata that matters
@@ -37,7 +37,7 @@ Caque aims to be a **RAG substrate**, not just a toy app. The core value proposi
 
 ## Ingestion Pipelines
 
-### Pipeline Behaviour (`Caque.Documents.Pipeline`)
+### Pipeline Behaviour (`Cake.Documents.Pipeline`)
 
 The core abstraction for all document ingestion. Each pipeline implementation handles a class of documentation (e.g., Elixir hexdocs, Java javadocs, Python docs).
 
@@ -68,7 +68,7 @@ The `Pipeline.ingest/4` function orchestrates the full ingestion:
 - Concurrent processing via `Task.async_stream` (5 max concurrency)
 - Skippable OpenSearch indexing for testing
 
-### Hexdocs Pipeline (`Caque.Documents.Hexdocs.Pipeline`)
+### Hexdocs Pipeline (`Cake.Documents.Hexdocs.Pipeline`)
 
 Implementation for Elixir core documentation.
 
@@ -88,7 +88,7 @@ This approach captures both the documentation and the actual implementation, giv
 
 ## Data Structures
 
-### ParsedDocument (`Caque.Documents.ParsedDocument`)
+### ParsedDocument (`Cake.Documents.ParsedDocument`)
 
 The universal schema for all indexed documentation. Every ingestion pipeline outputs `ParsedDocument` records.
 
@@ -107,7 +107,7 @@ The universal schema for all indexed documentation. Every ingestion pipeline out
 **Query Helpers:**
 - `by_version/2`, `by_language/2`, `by_source/2` for filtering
 
-### Hexdoc (`Caque.Documents.Hexdocs.Hexdoc`)
+### Hexdoc (`Cake.Documents.Hexdocs.Hexdoc`)
 
 Intermediate storage for raw Elixir source code before parsing:
 
@@ -120,7 +120,7 @@ Intermediate storage for raw Elixir source code before parsing:
 
 This two-stage approach (raw → parsed) allows re-parsing when AST extraction heuristics improve.
 
-### ParsedBook (`Caque.Books.ParsedBook`)
+### ParsedBook (`Cake.Books.ParsedBook`)
 
 For book/ebook ingestion (parallel RAG subsystem):
 
@@ -133,7 +133,7 @@ For book/ebook ingestion (parallel RAG subsystem):
 | `table_of_contents` | map | Structure for section-aware retrieval |
 | `embedding_status` | enum | :pending, :processing, :completed, :failed |
 
-### Chunk (`Caque.Books.Chunk`)
+### Chunk (`Cake.Books.Chunk`)
 
 Searchable chunks of a book:
 
@@ -150,7 +150,7 @@ Searchable chunks of a book:
 
 ## Embeddings Module
 
-### Embeddings Behaviour (`Caque.Embeddings.Behaviour`)
+### Embeddings Behaviour (`Cake.Embeddings.Behaviour`)
 
 Defines the contract for embedding services:
 
@@ -159,7 +159,7 @@ Defines the contract for embedding services:
   {:ok, embedding_result()} | {:error, String.t()}
 ```
 
-### OpenAI Implementation (`Caque.Embeddings`)
+### OpenAI Implementation (`Cake.Embeddings`)
 
 Currently the only implementation. Embeds documents by:
 
@@ -169,7 +169,7 @@ Currently the only implementation. Embeds documents by:
 
 **Configuration:**
 ```elixir
-config :caque, Caque.Embeddings,
+config :cake, Cake.Embeddings,
   openai_key: "sk-...",
   base_url: "https://api.openai.com/v1/embeddings"
 ```
@@ -180,7 +180,7 @@ config :caque, Caque.Embeddings,
 
 ## Search & Retrieval
 
-### OpenSearch Cluster (`Caque.Documents.Cluster`)
+### OpenSearch Cluster (`Cake.Documents.Cluster`)
 
 Manages the OpenSearch connection and provides three search modes:
 
@@ -222,7 +222,7 @@ BM25 handles these well, while vector search handles semantic similarity. Hybrid
 
 ## Conversation Module
 
-### Conversation GenServer (`Caque.Conversation`)
+### Conversation GenServer (`Cake.Conversation`)
 
 Manages multi-turn RAG conversations as stateful processes.
 
@@ -262,7 +262,7 @@ Conversation.ask(pid, "How do I use pattern matching?")
 
 ## Response Generation
 
-### Responses Module (`Caque.Responses`)
+### Responses Module (`Cake.Responses`)
 
 Generates LLM responses with retrieved context.
 
@@ -285,7 +285,7 @@ Text: Maps the given function over...
 
 **Configuration:**
 ```elixir
-config :caque, Caque.Responses,
+config :cake, Cake.Responses,
   openai_key: "sk-...",
   response_url: "https://api.openai.com/v1/chat/completions"
 ```
@@ -294,13 +294,13 @@ config :caque, Caque.Responses,
 
 ## Job Scheduling
 
-### Document Ingestion Job (`Caque.Jobs.DocumentIngestionJob`)
+### Document Ingestion Job (`Cake.Jobs.DocumentIngestionJob`)
 
 Oban worker for async document ingestion:
 
 ```elixir
 DocumentIngestionJob.enqueue_for_version(
-  Caque.Documents.Hexdocs.Pipeline,
+  Cake.Documents.Hexdocs.Pipeline,
   :openai,
   {1, 18, 3},
   "text-embedding-ada-002"
@@ -315,7 +315,7 @@ DocumentIngestionJob.enqueue_for_version(
 
 ## Books Pipeline (Experimental)
 
-The books subsystem (`Caque.Books`, `Caque.ParseBooks`) provides infrastructure for ingesting ebooks:
+The books subsystem (`Cake.Books`, `Cake.ParseBooks`) provides infrastructure for ingesting ebooks:
 
 - **ParsedBook** schema with rich metadata (ISBN, publisher, TOC)
 - **Chunk** schema for section-aware retrieval
@@ -327,7 +327,7 @@ The source format field determines chunking strategy - PDFs chunk differently th
 
 ## Application Startup
 
-Supervised processes (`Caque.Application`):
+Supervised processes (`Cake.Application`):
 
 1. Telemetry
 2. PostgreSQL Repo (Ecto)
@@ -335,7 +335,7 @@ Supervised processes (`Caque.Application`):
 4. DNS cluster
 5. Phoenix PubSub
 6. Finch HTTP client
-7. **Caque.Documents.Cluster** (OpenSearch connection)
+7. **Cake.Documents.Cluster** (OpenSearch connection)
 8. Phoenix Endpoint
 
 ---
@@ -344,7 +344,7 @@ Supervised processes (`Caque.Application`):
 
 ### OpenSearch
 ```elixir
-config :caque, Caque.Documents.Cluster,
+config :cake, Cake.Documents.Cluster,
   url: "https://...",
   username: "...",
   password: "..."
@@ -352,14 +352,14 @@ config :caque, Caque.Documents.Cluster,
 
 ### Embeddings
 ```elixir
-config :caque, Caque.Embeddings,
+config :cake, Cake.Embeddings,
   openai_key: "sk-...",
   base_url: "https://api.openai.com/v1/embeddings"
 ```
 
 ### Responses
 ```elixir
-config :caque, Caque.Responses,
+config :cake, Cake.Responses,
   openai_key: "sk-...",
   response_url: "https://api.openai.com/v1/chat/completions"
 ```

@@ -1,4 +1,4 @@
-defmodule Caque.Repo.Migrations.CreateHexdocs do
+defmodule Cake.Repo.Migrations.CreateHexdocs do
   use Ecto.Migration
 
   def change do
