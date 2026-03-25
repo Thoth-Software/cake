@@ -1,6 +1,7 @@
 defmodule Caque.Books.ParsedBook do
   use Caque.Schema
   import Ecto.Changeset
+  import Ecto.Query
 
   @moduledoc """
   All data on a book besides the actual text, which is held in chunks.
@@ -93,12 +94,12 @@ defmodule Caque.Books.ParsedBook do
     from b in query, where: b.title == ^title
   end
 
-  def by_language(query, language_code) do
-    from b in query, where: b.language_code == ^language
+  def by_language(query, language) do
+    from b in query, where: b.language == ^language
   end
 
   def by_file_path(query, file_path) do
-    from b in query, where: b.file_path == ^file_path
+    from b in query, where: b.source_file_path == ^file_path
   end
 
   def by_author(query, author) do
@@ -130,7 +131,7 @@ defmodule Caque.Books.ParsedBook do
   end
 
   def parsed_on(query, date) do
-    from b in query, where: b.parsed_at == ^date)
+    from b in query, where: b.parsed_at == ^date
   end
 
   def parsed_before(query, date) do

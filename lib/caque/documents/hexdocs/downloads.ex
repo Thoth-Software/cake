@@ -61,12 +61,12 @@ defmodule Caque.Documents.Hexdocs.Downloads do
 
   def html_file_paths({error_tuple, _}), do: error_tuple
 
+  def list_files(""), do: []
+
   def list_files(dir) do
     ls = File.ls!(dir)
     {directories, files} = Enum.split_with(ls, &File.dir?/1)
 
     [files | Enum.flat_map(directories, &list_files/1)]
   end
-
-  def list_files(""), do: []
 end

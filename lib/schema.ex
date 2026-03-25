@@ -4,6 +4,7 @@ defmodule Caque.Schema do
   """
 
   @callback doc_attrs() :: map()
+  @optional_callbacks [doc_attrs: 0]
 
   # If we want to add more schemas in the future that are technical docs similar in structure to programming language docs, then this schema is fine as-is
   # However, if we want to add things with structure very different to technical docs, then we will have to change our approach

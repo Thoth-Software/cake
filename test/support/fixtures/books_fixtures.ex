@@ -17,7 +17,7 @@ defmodule Caque.BooksFixtures do
       attrs
       |> Enum.into(%{
         authors: ["option1", "option2"],
-        embedding_status: "some embedding_status",
+        embedding_status: :pending,
         file_hash: unique_parsed_book_file_hash(),
         file_size: 42,
         isbn: "some isbn",
@@ -29,7 +29,6 @@ defmodule Caque.BooksFixtures do
         source_file_path: "some source_file_path",
         source_format: "some source_format",
         table_of_contents: %{},
-        tenant_id: "7488a646-e31f-11e4-aace-600308960662",
         title: "some title",
         total_pages: 42,
         word_count: 42
@@ -43,12 +42,15 @@ defmodule Caque.BooksFixtures do
   Generate a chunk.
   """
   def chunk_fixture(attrs \\ %{}) do
+    parsed_book = parsed_book_fixture()
+
     {:ok, chunk} =
       attrs
       |> Enum.into(%{
         char_count: 42,
         chunk_index: 42,
         page_number: 42,
+        parsed_book_id: parsed_book.id,
         section_title: "some section_title",
         text: "some text",
         word_count: 42

@@ -4,8 +4,6 @@ defmodule Caque.Responses do
   Different APIs may require or return data having different shapes, so Responses defines bespoke functions for each API.
   """
 
-  alias Caque.Documents.ParsedDocument
-
   @api_timeout 120_000
 
   @doc """

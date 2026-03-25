@@ -1,6 +1,7 @@
 defmodule Caque.Books.Chunk do
   use Caque.Schema
   import Ecto.Changeset
+  import Ecto.Query
 
   @moduledoc """
   A searchable chunk of a book. These go onto the OpenSearch instance as documents.
