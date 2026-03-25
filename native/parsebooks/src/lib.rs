@@ -1,21 +1,21 @@
 // This "use" statement brings types into scope, like Elixir's "alias"
 use pdf_extract::Document;
-use rustler::{Binary, Env, NifStruct};
-use std::collections::BTreeMap;
+use rustler::{Binary, NifStruct};
 
 // This derives Rustler's automatic serialization to Elixir terms.
 // The "module" attribute tells Rustler what Elixir module to decode into.
 
 #[derive(NifStruct)]
-#[module = "Caque.Books.Chunk"]
-struct BookChunk {
+#[module = "Caque.Books.PageContent"]
+struct PageContent {
+    page_number: u32,
     text: String,
-    page_number: Integer,
-    chunk_index: Integer,
-    section_title: String,
-    word_count: Integer,
-    char_count: Integer,
-    embedding: Vec<f64>,
+}
+
+#[derive(NifStruct)]
+#[module = "Caque.Books.PdfExtraction"]
+struct PdfExtraction {
+    pages: Vec<PageContent>,
 }
 
 // The #[rustler::nif] attribute marks this as callable from Elixir.
@@ -68,6 +68,5 @@ fn extract_pdf(binary: Binary) -> Result<PdfExtraction, String> {
 }
 
 // This macro generates the boilerplate that connects to the BEAM.
-// "caque_pdf" becomes the NIF library name.
-// The list contains all functions to expose.
-rustler::init!("Elixir.Caque.Books", [extract_pdf]);
+// "Elixir.Caque.ParseBooks" becomes the module that loads the NIF.
+rustler::init!("Elixir.Caque.ParseBooks");

@@ -8,7 +8,7 @@ defmodule Caque.BooksTest do
 
     import Caque.BooksFixtures
 
-    @invalid_attrs %{title: nil, metadata: nil, language: nil, file_size: nil, source_file_path: nil, authors: nil, source_format: nil, file_hash: nil, isbn: nil, publisher: nil, publication_date: nil, total_pages: nil, word_count: nil, table_of_contents: nil, parsed_at: nil, embedding_status: nil, tenant_id: nil}
+    @invalid_attrs %{title: nil, metadata: nil, language: nil, file_size: nil, source_file_path: nil, authors: nil, source_format: nil, file_hash: nil, isbn: nil, publisher: nil, publication_date: nil, total_pages: nil, word_count: nil, table_of_contents: nil, parsed_at: nil, embedding_status: nil}
 
     test "list_parsed_books/0 returns all parsed_books" do
       parsed_book = parsed_book_fixture()
@@ -21,7 +21,7 @@ defmodule Caque.BooksTest do
     end
 
     test "create_parsed_book/1 with valid data creates a parsed_book" do
-      valid_attrs = %{title: "some title", metadata: %{}, language: "some language", file_size: 42, source_file_path: "some source_file_path", authors: ["option1", "option2"], source_format: "some source_format", file_hash: "some file_hash", isbn: "some isbn", publisher: "some publisher", publication_date: ~D[2025-12-16], total_pages: 42, word_count: 42, table_of_contents: %{}, parsed_at: ~U[2025-12-16 15:23:00Z], embedding_status: "some embedding_status", tenant_id: "7488a646-e31f-11e4-aace-600308960662"}
+      valid_attrs = %{title: "some title", metadata: %{}, language: "some language", file_size: 42, source_file_path: "some source_file_path", authors: ["option1", "option2"], source_format: "some source_format", file_hash: "some file_hash", isbn: "some isbn", publisher: "some publisher", publication_date: ~D[2025-12-16], total_pages: 42, word_count: 42, table_of_contents: %{}, parsed_at: ~U[2025-12-16 15:23:00Z], embedding_status: :pending}
 
       assert {:ok, %ParsedBook{} = parsed_book} = Books.create_parsed_book(valid_attrs)
       assert parsed_book.title == "some title"
@@ -39,8 +39,7 @@ defmodule Caque.BooksTest do
       assert parsed_book.word_count == 42
       assert parsed_book.table_of_contents == %{}
       assert parsed_book.parsed_at == ~U[2025-12-16 15:23:00Z]
-      assert parsed_book.embedding_status == "some embedding_status"
-      assert parsed_book.tenant_id == "7488a646-e31f-11e4-aace-600308960662"
+      assert parsed_book.embedding_status == :pending
     end
 
     test "create_parsed_book/1 with invalid data returns error changeset" do
@@ -49,7 +48,7 @@ defmodule Caque.BooksTest do
 
     test "update_parsed_book/2 with valid data updates the parsed_book" do
       parsed_book = parsed_book_fixture()
-      update_attrs = %{title: "some updated title", metadata: %{}, language: "some updated language", file_size: 43, source_file_path: "some updated source_file_path", authors: ["option1"], source_format: "some updated source_format", file_hash: "some updated file_hash", isbn: "some updated isbn", publisher: "some updated publisher", publication_date: ~D[2025-12-17], total_pages: 43, word_count: 43, table_of_contents: %{}, parsed_at: ~U[2025-12-17 15:23:00Z], embedding_status: "some updated embedding_status", tenant_id: "7488a646-e31f-11e4-aace-600308960668"}
+      update_attrs = %{title: "some updated title", metadata: %{}, language: "some updated language", file_size: 43, source_file_path: "some updated source_file_path", authors: ["option1"], source_format: "some updated source_format", file_hash: "some updated file_hash", isbn: "some updated isbn", publisher: "some updated publisher", publication_date: ~D[2025-12-17], total_pages: 43, word_count: 43, table_of_contents: %{}, parsed_at: ~U[2025-12-17 15:23:00Z], embedding_status: :completed}
 
       assert {:ok, %ParsedBook{} = parsed_book} = Books.update_parsed_book(parsed_book, update_attrs)
       assert parsed_book.title == "some updated title"
@@ -67,8 +66,7 @@ defmodule Caque.BooksTest do
       assert parsed_book.word_count == 43
       assert parsed_book.table_of_contents == %{}
       assert parsed_book.parsed_at == ~U[2025-12-17 15:23:00Z]
-      assert parsed_book.embedding_status == "some updated embedding_status"
-      assert parsed_book.tenant_id == "7488a646-e31f-11e4-aace-600308960668"
+      assert parsed_book.embedding_status == :completed
     end
 
     test "update_parsed_book/2 with invalid data returns error changeset" do
@@ -107,7 +105,8 @@ defmodule Caque.BooksTest do
     end
 
     test "create_chunk/1 with valid data creates a chunk" do
-      valid_attrs = %{text: "some text", page_number: 42, chunk_index: 42, section_title: "some section_title", word_count: 42, char_count: 42}
+      parsed_book = parsed_book_fixture()
+      valid_attrs = %{text: "some text", page_number: 42, chunk_index: 42, section_title: "some section_title", word_count: 42, char_count: 42, parsed_book_id: parsed_book.id}
 
       assert {:ok, %Chunk{} = chunk} = Books.create_chunk(valid_attrs)
       assert chunk.text == "some text"
