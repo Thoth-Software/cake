@@ -10,7 +10,7 @@ RUN groupadd --gid ${GROUP_ID} appgroup || true && \
 
 # Install system packages as root
 RUN apt-get update && \
-  apt-get install -y postgresql-client inotify-tools curl
+  apt-get install -y postgresql-client inotify-tools curl build-essential
   
 # Install Rust (needed for Rustler NIFs)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y

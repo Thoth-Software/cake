@@ -83,7 +83,7 @@ defmodule Cake.Books.Pipeline do
   end
 
   def embed_all_chunks(persisted_stream, embedding_service, embedding_model) do
-    embeddings_module = Application.get_env(:caque, :embeddings_module, Cake.Embeddings)
+    embeddings_module = Application.get_env(:cake, :embeddings_module, Cake.Embeddings)
 
     persisted_stream
     |> Stream.map(fn %Chunk{text: text, section_title: section_title} = chunk ->

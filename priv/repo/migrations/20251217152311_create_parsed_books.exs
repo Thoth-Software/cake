@@ -2,7 +2,8 @@ defmodule Cake.Repo.Migrations.CreateParsedBooks do
   use Ecto.Migration
 
   def change do
-    create table(:parsed_books) do
+    create table(:parsed_books, primary_key: false) do
+      add :id, :binary_id, primary_key: true
       # Always required - enforced at DB level
       add :source_file_path, :string, null: false
       add :source_format, :string, null: false
