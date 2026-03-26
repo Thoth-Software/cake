@@ -84,7 +84,7 @@ defmodule Cake.Documents.Pipeline do
         on_timeout: :kill_task
       )
       |> Stream.map(&handle_opensearch_response/1)
-      |> detuple()
+      |> Pipelines.detuple()
     end
   end
 
