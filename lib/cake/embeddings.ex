@@ -11,7 +11,7 @@ defmodule Cake.Embeddings do
   # This needs a spec defining the different error tuples it can return
   @impl true
   def embed(:openai, %{input: input, struct: struct}, model) when is_struct(struct) do
-    [openai_key: api_key, base_url: url] = Application.get_env(:caque, __MODULE__)
+    [openai_key: api_key, base_url: url] = Application.get_env(:cake, __MODULE__)
 
     Req.post(
       url: url,

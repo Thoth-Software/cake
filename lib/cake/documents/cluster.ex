@@ -61,8 +61,8 @@ defmodule Cake.Documents.Cluster do
     existing_indices = get_existing_indices()
 
     # Create both indices
-    create_index_if_missing(existing_indices, "docs", Caque.Documents.ParsedDocument)
-    create_index_if_missing(existing_indices, "chunks_of_books", Caque.Books.Chunk)
+    create_index_if_missing(existing_indices, "docs", Cake.Documents.ParsedDocument)
+    create_index_if_missing(existing_indices, "chunks_of_books", Cake.Books.Chunk)
   end
 
   defp get_existing_indices() do
@@ -176,8 +176,8 @@ defmodule Cake.Documents.Cluster do
     raise "Application error creating index '#{index}': Status #{status}, Message: #{message}"
   end
 
-  defp ensure_index_exists({:error, %Jason.DecodeError{data: data}}) do
-    raise "Application layer error within Cake instance (cannot parse JSON) :\n\n Data: #{data}"
+  defp ensure_index_exists({:error, %Jason.DecodeError{data: data}}, index) do
+    raise "Application layer error within Cake instance creating index '#{index}' (cannot parse JSON) :\n\n Data: #{data}"
   end
 
   defp ensure_index_exists({:ok, _response}, index) do

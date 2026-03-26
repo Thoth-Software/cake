@@ -1,4 +1,4 @@
-defmodule Caque.Pipelines do
+defmodule Cake.Pipelines do
   @moduledoc """
   Various assorted motley helpers, doohickeys, and dongles for data ingestion pipelines. Some of this may very well be cruft.
   """
@@ -27,7 +27,7 @@ defmodule Caque.Pipelines do
   end
 
   defp skip_opensearch? do
-    Application.get_env(:caque, :skip_opensearch, false)
+    Application.get_env(:cake, :skip_opensearch, false)
   end
 
   # NOTE: We need to put together moduledocs for these instead of comments

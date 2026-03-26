@@ -26,9 +26,9 @@ defmodule Cake.Documents.Pipeline do
   Cake.Documents.Pipeline.ingest(:openai, Cake.Documents.Hexdocs.Pipeline, {1,18,3}, "text-embedding-ada-002")
   """
 
-  alias Caque.Documents.ParsedDocument
-  alias Caque.Documents.ParsedDocuments
-  alias Caque.Pipelines
+  alias Cake.Documents.ParsedDocument
+  alias Cake.Documents.ParsedDocuments
+  alias Cake.Pipelines
   require Logger
 
   @cluster Cake.Documents.Cluster

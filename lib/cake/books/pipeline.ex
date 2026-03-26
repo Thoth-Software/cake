@@ -1,19 +1,19 @@
-defmodule Caque.Books.Pipeline do
+defmodule Cake.Books.Pipeline do
   @moduledoc """
   Behaviour for ingesting books.
 
-  Note that, unlike the pipeline at Caque.Documents.Pipeline, this module assumes that the files are already persisted. We're looking ahead to a situation where customers already have their pdfs, epubs, or other books already persisted somewhere, *as binary data*.
+  Note that, unlike the pipeline at Cake.Documents.Pipeline, this module assumes that the files are already persisted. We're looking ahead to a situation where customers already have their pdfs, epubs, or other books already persisted somewhere, *as binary data*.
 
   Bear in mind, however, that the ParsedBook schema contains everything but the actual content, so each ParsedBook is *also* persisted as a record in postgres.
   """
 
-  alias Caque.Books
-  alias Caque.Books.Chunk
-  alias Caque.Books.ParsedBook
-  alias Caque.Pipelines
+  alias Cake.Books
+  alias Cake.Books.Chunk
+  alias Cake.Books.ParsedBook
+  alias Cake.Pipelines
   require Logger
 
-  @cluster Caque.Books.ParsedBook
+  @cluster Cake.Books.ParsedBook
   @index "chunks_of_books"
 
   @callback load_binary(String.t()) :: {:ok, binary()} | {:error, any()}
@@ -83,7 +83,7 @@ defmodule Caque.Books.Pipeline do
   end
 
   def embed_all_chunks(persisted_stream, embedding_service, embedding_model) do
-    embeddings_module = Application.get_env(:caque, :embeddings_module, Caque.Embeddings)
+    embeddings_module = Application.get_env(:caque, :embeddings_module, Cake.Embeddings)
 
     persisted_stream
     |> Stream.map(fn %Chunk{text: text, section_title: section_title} = chunk ->

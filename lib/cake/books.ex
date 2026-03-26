@@ -6,8 +6,8 @@ defmodule Cake.Books do
   import Ecto.Query, warn: false
   alias Cake.Repo
 
-  alias Caque.Books.ParsedBook
-  alias Caque.Books.Chunk
+  alias Cake.Books.ParsedBook
+  alias Cake.Books.Chunk
 
   def persist_book_and_chunks({%ParsedBook{} = book, chunks}) when is_list(chunks) do
     book_attrs =
