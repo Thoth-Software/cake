@@ -41,3 +41,7 @@ npm-debug.log
 # Rust binary artifacts
 /target/
 /priv/native
+
+# emacs config
+
+.dir-locals.el
