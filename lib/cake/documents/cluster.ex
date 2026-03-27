@@ -15,7 +15,11 @@ defmodule Cake.Documents.Cluster do
       method: %{
         name: "hnsw",
         space_type: "cosinesimil",
-        engine: "faiss"
+        engine: "faiss",
+        parameters: %{
+          ef_construction: 512,
+          m: 16
+        }
       }
     }
 
@@ -30,7 +34,11 @@ defmodule Cake.Documents.Cluster do
       end)
 
     %{
-      settings: %{"index.knn" => true},
+      settings: %{
+        "index.knn" => true,
+        "index.refresh_interval" => "30s",
+        "index.merge.policy.max_merge_at_once" => 2
+      },
       mappings: %{properties: text_properties}
     }
   end
