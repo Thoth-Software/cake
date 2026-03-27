@@ -15,65 +15,70 @@ defmodule Cake.Books do
       |> Map.from_struct()
       |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :chunks])
 
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
     multi =
       Ecto.Multi.new()
       |> Ecto.Multi.insert(:book, ParsedBook.changeset(%ParsedBook{}, book_attrs))
       |> Ecto.Multi.run(:chunks, fn repo, %{book: persisted_book} ->
-        # Build + validate chunk rows *before* insert_all so any invalid chunk rolls back.
-        chunk_rows =
-          chunks
-          |> Enum.with_index()
-          |> Enum.map(fn {chunk, idx} ->
-            chunk_attrs =
-              chunk
-              |> Map.from_struct()
-              |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :parsed_book])
-              |> Map.put(:parsed_book_id, persisted_book.id)
-              |> Map.put_new(:chunk_index, idx)
+        chunks
+        |> Enum.with_index()
+        |> Enum.reduce_while({:ok, []}, fn {chunk, idx}, {:ok, acc} ->
+          chunk_attrs =
+            chunk
+            |> Map.from_struct()
+            |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :parsed_book])
+            |> Map.put(:parsed_book_id, persisted_book.id)
+            |> Map.put_new(:chunk_index, idx)
 
-            cs = Chunk.changeset(%Chunk{}, chunk_attrs)
+          cs = Chunk.changeset(%Chunk{}, chunk_attrs)
 
-            if cs.valid? do
+          if cs.valid? do
+            row =
               cs.changes
+              |> Map.put(:inserted_at, now)
+              |> Map.put(:updated_at, now)
+
+            {:cont, {:ok, [row | acc]}}
+          else
+            {:halt, {:error, {:invalid_chunk, cs.errors, chunk_attrs}}}
+          end
+        end)
+        |> case do
+          {:ok, reversed_rows} ->
+            chunk_rows = Enum.reverse(reversed_rows)
+
+            {count, returned_rows} =
+              repo.insert_all(Chunk, chunk_rows,
+                returning: [
+                  :id,
+                  :parsed_book_id,
+                  :page_number,
+                  :chunk_index,
+                  :section_title,
+                  :text,
+                  :word_count,
+                  :char_count
+                ]
+              )
+
+            if count == length(chunk_rows) do
+              {:ok, returned_rows}
             else
-              # Returning {:error, ...} here would stop the Multi and rollback.
-              throw({:invalid_chunk, cs.errors, chunk_attrs})
+              {:error, {:chunk_insert_count_mismatch, count, length(chunk_rows)}}
             end
-          end)
 
-        {count, returned_rows} =
-          repo.insert_all(Chunk, chunk_rows,
-            returning: [
-              :id,
-              :parsed_book_id,
-              :page_number,
-              :chunk_index,
-              :section_title,
-              :text,
-              :word_count,
-              :char_count
-            ]
-          )
-
-        if count == length(chunk_rows) do
-          persisted_chunks = Enum.map(returned_rows, &struct(Chunk, &1))
-          {:ok, persisted_chunks}
-        else
-          {:error, {:chunk_insert_count_mismatch, count, length(chunk_rows)}}
+          {:error, _reason} = error ->
+            error
         end
       end)
 
-    try do
-      case Repo.transaction(multi) do
-        {:ok, %{book: persisted_book, chunks: persisted_chunks}} ->
-          {:ok, {persisted_book, persisted_chunks}}
+    case Repo.transaction(multi) do
+      {:ok, %{book: persisted_book, chunks: persisted_chunks}} ->
+        {:ok, {persisted_book, persisted_chunks}}
 
-        {:error, _step, reason, _changes_so_far} ->
-          {:error, reason}
-      end
-    catch
-      {:invalid_chunk, errors, attrs} ->
-        {:error, {:invalid_chunk, errors, attrs}}
+      {:error, _step, reason, _changes_so_far} ->
+        {:error, reason}
     end
   end
 
