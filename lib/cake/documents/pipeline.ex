@@ -26,7 +26,9 @@ defmodule Cake.Documents.Pipeline do
   Cake.Documents.Pipeline.ingest(:openai, Cake.Documents.Hexdocs.Pipeline, {1,18,3}, "text-embedding-ada-002")
   """
 
+  alias Cake.Documents.ParsedDocument
   alias Cake.Documents.ParsedDocuments
+  alias Cake.Pipelines
   require Logger
 
   @cluster Cake.Documents.Cluster
@@ -55,7 +57,8 @@ defmodule Cake.Documents.Pipeline do
              source_pipeline,
              embedding_model
            ),
-         opensearch_docs_stream <- add_to_opensearch(docs_with_embeddings_stream),
+         opensearch_docs_stream <-
+           Pipelines.add_to_opensearch(docs_with_embeddings_stream, @index, @cluster),
          :ok <- Stream.run(opensearch_docs_stream) do
       {:ok, source_pipeline.success_message(version)}
     else
@@ -81,7 +84,7 @@ defmodule Cake.Documents.Pipeline do
         on_timeout: :kill_task
       )
       |> Stream.map(&handle_opensearch_response/1)
-      |> detuple()
+      |> Pipelines.detuple()
     end
   end
 
@@ -115,6 +118,9 @@ defmodule Cake.Documents.Pipeline do
     embeddings_module = embeddings_module()
 
     persisted_parsed_docs_stream
+    |> Stream.map(fn %ParsedDocument{text: text, title: title} = doc ->
+      %{input: "#{title}\n\n#{text}", struct: doc}
+    end)
     |> Task.async_stream(
       &embeddings_module.embed(embedding_service, &1, embedding_model),
       max_concurrency: 5,
@@ -122,14 +128,14 @@ defmodule Cake.Documents.Pipeline do
       on_timeout: :kill_task,
       zip_input_on_exit: true
     )
-    |> detuple()
+    |> Pipelines.detuple()
     |> Task.async_stream(
       &handle_response/1,
       max_concurrency: 5,
       timeout: 5_000,
       on_timeout: :kill_task
     )
-    |> detuple()
+    |> Pipelines.detuple()
 
     # Need a case function here to log errors and pop the kernel out of :ok tuples.
   end
@@ -148,14 +154,14 @@ defmodule Cake.Documents.Pipeline do
 
   defp handle_response({_, {:error, error}}), do: Logger.warning(error)
 
-  defp handle_response({_, %{parsed_document: parsed_document, attrs: attrs}}),
-    do: ParsedDocuments.update_parsed_doc!(parsed_document, attrs)
+  defp handle_response({_, %{struct: struct, attrs: attrs}}),
+    do: ParsedDocuments.update_parsed_doc!(struct, attrs)
 
   defp persist_parsed_docs(parsed_doc_stream),
     do:
       parsed_doc_stream
       |> Task.async_stream(&ParsedDocuments.create_parsed_doc!/1)
-      |> detuple()
+      |> Pipelines.detuple()
 
   # defp persist_to_opensearch(parsed_doc_stream, cluster_name, index_name) do
   #   Task.async_stream(parsed_doc_stream, fn doc ->
@@ -164,13 +170,4 @@ defmodule Cake.Documents.Pipeline do
   #   end)
   #   |> Stream.run()
   # end
-
-  def detuple(stream_enumerable) do
-    stream_enumerable
-    |> Stream.filter(fn
-      {:ok, _} -> true
-      _ -> false
-    end)
-    |> Stream.map(fn {:ok, value} -> value end)
-  end
 end

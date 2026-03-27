@@ -109,7 +109,7 @@ defmodule Cake.Books.ParsedBook do
   def by_format(query, format) do
     from b in query, where: b.source_format == ^format
   end
-         
+
   def by_isbn(query, isbn) do
     from b in query, where: b.isbn == ^isbn
   end
@@ -141,5 +141,4 @@ defmodule Cake.Books.ParsedBook do
   def parsed_after(query, date) do
     from b in query, where: b.parsed_at > ^date
   end
-
-  end
+end

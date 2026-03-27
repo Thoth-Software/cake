@@ -34,7 +34,8 @@ defmodule Cake.Jobs.DocumentIngestionJobTest do
       {:ok,
        %{
          usage: %{"prompt_tokens" => 10, "total_tokens" => 10},
-         parsed_document: parsed_document,
+         struct: parsed_document.struct,
+         input: parsed_document.input,
          attrs: %{embedding: List.duplicate(0.1, 1536)}
        }}
     end)

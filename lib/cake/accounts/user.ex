@@ -12,7 +12,6 @@ defmodule Cake.Accounts.User do
     timestamps(type: :utc_datetime)
   end
 
-  @impl true
   def doc_attrs do
     %{}
   end

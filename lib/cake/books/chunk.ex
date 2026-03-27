@@ -16,9 +16,10 @@ defmodule Cake.Books.Chunk do
     :chunk_index,        # Needed for ordering
     :text,               # The actual content - can't have empty chunks
     :word_count,         # Computed from text, always available
-    :char_count          # Computed from text, always available
+    :char_count          # ut supra
   """
 
+  @derive {Jason.Encoder, except: [:__meta__, :parsed_book]}
   schema "chunks" do
     field :text, :string
     field :page_number, :integer

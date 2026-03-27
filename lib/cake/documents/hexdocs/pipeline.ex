@@ -7,7 +7,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   alias Cake.Documents.Hexdocs.Hexdoc
 
   @behaviour Cake.Documents.Pipeline
-  import Cake.Documents.Pipeline, only: [detuple: 1]
+  alias Cake.Pipelines
   @type version :: Cake.Documents.Pipeline.version()
 
   @impl true
@@ -15,13 +15,6 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     do: "Successfully ingested Elixir docs from Hexdocs for version #{version}"
 
   @dir Path.join(System.tmp_dir!(), "hexdocs/")
-
-  @doc """
-  Creates a new document in the index. The ID will be assigned automatically.
-  """
-  def add() do
-    :whee!
-  end
 
   @impl true
   def download(version) do
@@ -66,9 +59,9 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
       max_concurrency: 4,
       timeout: :infinity
     )
-    |> detuple()
+    |> Pipelines.detuple()
     |> Task.async_stream(&Cake.Documents.Hexdocs.create_hexdoc/1)
-    |> detuple()
+    |> Pipelines.detuple()
   end
 
   @impl true
@@ -79,7 +72,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
       max_concurrency: 4,
       timeout: 30_000
     )
-    |> detuple()
+    |> Pipelines.detuple()
     |> Stream.flat_map(fn item -> item end)
   end
 

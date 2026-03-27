@@ -24,6 +24,8 @@ done
 # --- Make sure deps/lock are in sync inside the container ---
 echo "Running mix deps.get..."
 mix deps.get
+echo "Compiling deps..."
+mix deps.compile --force bcrypt_elixir
 echo "Compiling..."
 mix compile
 
@@ -32,6 +34,7 @@ mix compile
 # mix ecto.reset
 
 echo "Running migrations..."
+mix ecto.create
 mix ecto.migrate
 
 echo "Seeding DB..."

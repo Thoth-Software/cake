@@ -1,0 +1,131 @@
+defmodule Cake.Books.Pipeline do
+  @moduledoc """
+  Behaviour for ingesting books.
+
+  Note that, unlike the pipeline at Cake.Documents.Pipeline, this module assumes that the files are already persisted. We're looking ahead to a situation where customers already have their pdfs, epubs, or other books already persisted somewhere, *as binary data*.
+
+  Bear in mind, however, that the ParsedBook schema contains everything but the actual content, so each ParsedBook is *also* persisted as a record in postgres.
+
+  Cake.Books.Pipeline.ingest(:openai, Cake.Books.Pdf.Pipeline,  "text-embedding-ada-002", ["assets/programming_phoenix.pdf"])
+  """
+
+  alias Cake.Books
+  alias Cake.Books.Chunk
+  alias Cake.Books.ParsedBook
+  alias Cake.Pipelines
+  require Logger
+
+  @cluster Cake.Documents.Cluster
+  @index "chunks_of_books"
+
+  @callback load_binary(String.t()) :: {:ok, binary()} | {:error, any()}
+  @callback parse(binary()) :: {ParsedBook.t(), [Chunk.t()]}
+  @callback format() :: :pdf
+  @callback success_message() :: String.t()
+
+  # We should look into speccing out a FullBook type that equates to a tuple having {%ParsedBook{}, [%Chunk{}]}
+
+  def ingest(embedding_service, format_pipeline, embedding_model, paths) do
+    with {:ok, binary_stream} <- load_all_binaries(paths, format_pipeline),
+         {:ok, books_and_chunks_stream} <- parse_all_binaries(format_pipeline, binary_stream),
+         {:ok, persisted_books_and_chunks} <- persist_books_and_chunks(books_and_chunks_stream),
+         {:ok, embedded_chunks} <-
+           embed_all_chunks(persisted_books_and_chunks, embedding_service, embedding_model),
+         opensearch_chunks <-
+           Pipelines.add_to_opensearch(embedded_chunks, @index, @cluster),
+         :ok <- Stream.run(opensearch_chunks) do
+      {:ok, format_pipeline.success_message()}
+    else
+      error -> error
+    end
+  end
+
+  def load_all_binaries(paths, format_pipeline) do
+    binary_stream =
+      paths
+      |> Stream.map(fn path ->
+        format_pipeline.load_binary(path)
+      end)
+      |> Pipelines.detuple()
+
+    {:ok, binary_stream}
+  end
+
+  def parse_all_binaries(format_pipeline, binary_stream) do
+    books_and_chunks_stream =
+      binary_stream
+      |> Stream.map(fn binary ->
+        format_pipeline.parse(binary)
+      end)
+
+    {:ok, books_and_chunks_stream}
+  end
+
+  def persist_books_and_chunks(books_and_chunks_stream, opts \\ []) do
+    max_concurrency =
+      Keyword.get(opts, :max_concurrency, System.schedulers_online())
+
+    timeout = Keyword.get(opts, :timeout, :infinity)
+
+    persisted_stream =
+      books_and_chunks_stream
+      |> Task.async_stream(&Books.persist_book_and_chunks/1,
+        max_concurrency: max_concurrency,
+        timeout: timeout,
+        ordered: false
+      )
+      |> Stream.map(fn
+        {:ok, {:ok, persisted}} -> {:ok, persisted}
+        {:ok, {:error, reason}} -> {:error, reason}
+        {:exit, reason} -> {:error, reason}
+      end)
+      |> Pipelines.detuple()
+
+    {:ok, persisted_stream}
+  end
+
+  def embed_all_chunks(persisted_stream, embedding_service, embedding_model) do
+    embeddings_module = Application.get_env(:cake, :embeddings_module, Cake.Embeddings)
+
+    embedded_stream =
+      persisted_stream
+      |> Stream.flat_map(fn {_book, chunks} -> chunks end)
+      |> Stream.map(fn %Chunk{text: text, section_title: section_title} = chunk ->
+        %{input: "#{section_title}\n\n#{text}", struct: chunk}
+      end)
+      |> Task.async_stream(
+        &embeddings_module.embed(embedding_service, &1, embedding_model),
+        max_concurrency: 5,
+        timeout: 5_000,
+        on_timeout: :kill_task,
+        zip_input_on_exit: true
+      )
+      |> Pipelines.detuple()
+      |> Task.async_stream(
+        &handle_response/1,
+        max_concurrency: 5,
+        timeout: 5_000,
+        on_timeout: :kill_task
+      )
+      |> Pipelines.detuple()
+
+    {:ok, embedded_stream}
+  end
+
+  defp handle_response({:exit, {input, reason}}) do
+    Logger.warning("EMBEDDING FAILED\n\nReason: #{reason}\n\n input: #{input.title}")
+  end
+
+  defp handle_response({:error, error}) do
+    Logger.warning("ERROR: #{inspect(error)}")
+  end
+
+  defp handle_response({_, {:error, error}}), do: Logger.warning(error)
+
+  defp handle_response({_, %{struct: struct, attrs: attrs}}) do
+    {:ok, chunk} = Books.update_chunk!(struct, attrs)
+    chunk
+  end
+
+  def persist_parsed_books(_), do: nil
+end

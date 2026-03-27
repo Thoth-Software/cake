@@ -37,9 +37,11 @@ Cake aims to be a **RAG substrate**, not just a toy app. The core value proposit
 
 ## Ingestion Pipelines
 
-### Pipeline Behaviour (`Cake.Documents.Pipeline`)
+Cake defines pipeline behaviours per document type, with implementations for specific formats and sources. Each behaviour prescribes a processing flow suited to its document type, while implementations handle the details of fetching, parsing, and structuring content from a particular format.
 
-The core abstraction for all document ingestion. Each pipeline implementation handles a class of documentation (e.g., Elixir hexdocs, Java javadocs, Python docs).
+### Documents Pipeline Behaviour (`Cake.Documents.Pipeline`)
+
+For ingesting programming language documentation (e.g., Elixir hexdocs, Java javadocs, Python docs). Implementations download versioned documentation from external sources, persist raw files, and parse them into `ParsedDocument` records.
 
 **Required Callbacks:**
 
@@ -53,24 +55,15 @@ The core abstraction for all document ingestion. Each pipeline implementation ha
 
 **Pipeline Flow:**
 
-The `Pipeline.ingest/4` function orchestrates the full ingestion:
-
 1. Download raw documentation
 2. Persist raw files (enables reprocessing with improved heuristics)
 3. Parse into `ParsedDocument` records with streaming
 4. Batch embed using OpenAI (configurable model)
 5. Index in OpenSearch with vector + metadata
 
-**Design Philosophy:**
+#### Hexdocs Implementation (`Cake.Documents.Hexdocs.Pipeline`)
 
-- Raw documents are persisted first, enabling re-parsing when heuristics improve
-- Streaming throughout to handle large documentation sets
-- Concurrent processing via `Task.async_stream` (5 max concurrency)
-- Skippable OpenSearch indexing for testing
-
-### Hexdocs Pipeline (`Cake.Documents.Hexdocs.Pipeline`)
-
-Implementation for Elixir core documentation.
+Implements `Cake.Documents.Pipeline` for Elixir core documentation.
 
 **Download Strategy:**
 - Clones the Elixir repository at a specific version tag
@@ -83,6 +76,44 @@ Implementation for Elixir core documentation.
 - Creates `ParsedDocument` with `title: "function_name/arity"` and `text: docstring + code`
 
 This approach captures both the documentation and the actual implementation, giving the LLM more context for answering questions.
+
+### Books Pipeline Behaviour (`Cake.Books.Pipeline`)
+
+For ingesting books and ebooks. Unlike the documents pipeline, this behaviour assumes files are already stored locally. Implementations load binary file data, parse it into `ParsedBook` metadata and `Chunk` records, and persist both before embedding.
+
+**Required Callbacks:**
+
+| Callback | Purpose |
+|----------|---------|
+| `load_binary(path)` | Load binary file data from storage |
+| `parse(binary)` | Parse binary into a `{ParsedBook, [Chunk]}` tuple |
+| `format()` | Return the format identifier (e.g., `:pdf`) |
+| `success_message()` | Human-readable completion message |
+
+**Pipeline Flow:**
+
+1. Load all binaries from disk
+2. Parse into `ParsedBook` + `Chunk` records (format-aware)
+3. Persist books and chunks to PostgreSQL
+4. Batch embed chunks
+5. Index chunks in OpenSearch
+
+#### PDF Implementation (`Cake.Books.Pdf.Pipeline`)
+
+Implements `Cake.Books.Pipeline` for PDF files.
+
+- Loads PDF binary from filesystem paths
+- Uses Rust NIF (`Cake.ParseBooks`) to extract page text
+- Creates `ParsedBook` metadata (title, file hash, word count, page count)
+- Creates a `Chunk` per non-empty page
+- Computes SHA256 hash for deduplication
+
+### Shared Design Philosophy
+
+- Raw/binary data is persisted first, enabling re-processing when heuristics improve
+- Streaming throughout to handle large datasets
+- Concurrent processing via `Task.async_stream` (5 max concurrency)
+- Skippable OpenSearch indexing for testing
 
 ---
 
@@ -313,16 +344,6 @@ DocumentIngestionJob.enqueue_for_version(
 
 ---
 
-## Books Pipeline (Experimental)
-
-The books subsystem (`Cake.Books`, `Cake.ParseBooks`) provides infrastructure for ingesting ebooks:
-
-- **ParsedBook** schema with rich metadata (ISBN, publisher, TOC)
-- **Chunk** schema for section-aware retrieval
-- **Rustler NIF** binding to Rust parsing library (crate: "parsebooks")
-
-The source format field determines chunking strategy - PDFs chunk differently than EPUBs.
-
 ---
 
 ## Application Startup
@@ -335,8 +356,9 @@ Supervised processes (`Cake.Application`):
 4. DNS cluster
 5. Phoenix PubSub
 6. Finch HTTP client
-7. **Cake.Documents.Cluster** (OpenSearch connection)
-8. Phoenix Endpoint
+7. **Cake.Documents.Cluster** (OpenSearch connection — documents)
+8. **Cake.Books.Cluster** (OpenSearch connection — book chunks)
+9. Phoenix Endpoint
 
 ---
 
@@ -368,18 +390,20 @@ config :cake, Cake.Responses,
 
 ## Adding a New Pipeline
 
-To ingest a new documentation source:
+Choose the behaviour that matches your document type, then implement it for your specific format or source.
+
+**To ingest a new documentation source** (implement `Cake.Documents.Pipeline`):
 
 1. Create a raw document schema (like `Hexdoc`) for intermediate storage
-2. Implement the `Pipeline` behaviour:
-   - `download/1` - Fetch docs for a version
-   - `persist_raw_docs/2` - Store raw files
-   - `parse/1` - Transform to `ParsedDocument` stream
-   - `source/0` - Return source identifier
-   - `success_message/1` - Completion message
+2. Implement the callbacks: `download/1`, `persist_raw_docs/2`, `parse/1`, `source/0`, `success_message/1`
 3. Register with Oban for async ingestion
 
-**Key Principle:** Persist raw documents first. When your parsing heuristics improve, you can re-process without re-downloading.
+**To ingest a new book/ebook format** (implement `Cake.Books.Pipeline`):
+
+1. Implement the callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`
+2. Add format-specific parsing logic (NIF, library, etc.)
+
+**Key Principle:** Persist raw data first. When your parsing heuristics improve, you can re-process without re-downloading or re-loading.
 
 ---
 

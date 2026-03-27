@@ -7,6 +7,84 @@ defmodule Cake.Books do
   alias Cake.Repo
 
   alias Cake.Books.ParsedBook
+  alias Cake.Books.Chunk
+
+  def persist_book_and_chunks({%ParsedBook{} = book, chunks}) when is_list(chunks) do
+    book_attrs =
+      book
+      |> Map.from_struct()
+      |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :chunks])
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    multi =
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:book, ParsedBook.changeset(%ParsedBook{}, book_attrs))
+      |> Ecto.Multi.run(:chunks, fn repo, %{book: persisted_book} ->
+        chunks
+        |> Enum.with_index()
+        |> Enum.reduce_while({:ok, []}, fn {chunk, idx}, {:ok, acc} ->
+          chunk_attrs =
+            chunk
+            |> Map.from_struct()
+            |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :parsed_book])
+            |> Map.put(:parsed_book_id, persisted_book.id)
+            |> Map.put_new(:chunk_index, idx)
+
+          cs = Chunk.changeset(%Chunk{}, chunk_attrs)
+
+          if cs.valid? do
+            row =
+              cs.changes
+              |> Map.put(:inserted_at, now)
+              |> Map.put(:updated_at, now)
+
+            {:cont, {:ok, [row | acc]}}
+          else
+            {:halt, {:error, {:invalid_chunk, cs.errors, chunk_attrs}}}
+          end
+        end)
+        |> case do
+          {:ok, reversed_rows} ->
+            chunk_rows = Enum.reverse(reversed_rows)
+
+            {count, returned_rows} =
+              repo.insert_all(Chunk, chunk_rows,
+                returning: [
+                  :id,
+                  :parsed_book_id,
+                  :page_number,
+                  :chunk_index,
+                  :section_title,
+                  :text,
+                  :word_count,
+                  :char_count
+                ]
+              )
+
+            if count == length(chunk_rows) do
+              {:ok, returned_rows}
+            else
+              {:error, {:chunk_insert_count_mismatch, count, length(chunk_rows)}}
+            end
+
+          {:error, _reason} = error ->
+            error
+        end
+      end)
+
+    case Repo.transaction(multi) do
+      {:ok, %{book: persisted_book, chunks: persisted_chunks}} ->
+        {:ok, {persisted_book, persisted_chunks}}
+
+      {:error, _step, reason, _changes_so_far} ->
+        {:error, reason}
+    end
+  end
+
+  def persist_book_and_chunks({book, chunks}) do
+    {:error, {:invalid_input, %{book: book, chunks: chunks}}}
+  end
 
   @doc """
   Returns the list of parsed_books.
@@ -70,6 +148,24 @@ defmodule Cake.Books do
   def update_parsed_book(%ParsedBook{} = parsed_book, attrs) do
     parsed_book
     |> ParsedBook.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Updates a chunk.
+
+  ## Examples
+
+      iex> update_chunk!(chunk, %{field: new_value})
+      {:ok, %Chunk{}}
+
+      iex> update_chunk!(chunk, %{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_chunk!(%Chunk{} = chunk, attrs) do
+    chunk
+    |> Chunk.changeset(attrs)
     |> Repo.update()
   end
 
