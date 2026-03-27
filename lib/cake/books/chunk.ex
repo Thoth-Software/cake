@@ -19,6 +19,7 @@ defmodule Cake.Books.Chunk do
     :char_count          # ut supra
   """
 
+  @derive {Jason.Encoder, except: [:__meta__, :parsed_book]}
   schema "chunks" do
     field :text, :string
     field :page_number, :integer
