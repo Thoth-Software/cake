@@ -52,6 +52,8 @@ defmodule Cake.Conversation do
       params: params,
       search_results: [],
       message_history: [],
+      chunk_map: %{},
+      citations: [],
       errors: []
     }
 
@@ -93,9 +95,10 @@ defmodule Cake.Conversation do
              embedding: embedding,
              keyword_weight: 0.5
            }),
-         {:ok, %{response: response}} <-
+         {:ok, %{response: response, chunk_map: chunk_map}} <-
            Cake.Responses.query_llm(:openai, hits, question, response_model) do
-      convo_state = %{search_results: hits, message_history: [question, response]}
+      citations = Cake.Citations.extract(response, chunk_map)
+      convo_state = %{search_results: hits, message_history: [question, response], chunk_map: chunk_map, citations: citations}
 
       {:noreply, Map.merge(state, convo_state)}
     else
@@ -116,11 +119,15 @@ defmodule Cake.Conversation do
         } = state
       ) do
     convo_state =
-      with {:ok, %{response: response}} <-
+      with {:ok, %{response: response, chunk_map: chunk_map}} <-
              Cake.Responses.query_llm(:openai, search_results, question, response_model) do
+        citations = Cake.Citations.extract(response, chunk_map)
+
         %{
           search_results: search_results,
-          message_history: message_history ++ [question, response]
+          message_history: message_history ++ [question, response],
+          chunk_map: chunk_map,
+          citations: citations
         }
       else
         {:error, error} -> %{errors: [error | state.errors]}
@@ -136,7 +143,7 @@ defmodule Cake.Conversation do
   end
 
   @impl true
-  def handle_call(:search_results, {from, _}, %{search_results: %{hits: hits}} = state) do
+  def handle_call(:search_results, {from, _}, %{search_results: hits} = state) when is_list(hits) and hits != [] do
     Logger.info("WHOOP MAH NAME IS CHICKA CHICKA #{inspect(from)}")
 
     search_results =
@@ -152,6 +159,16 @@ defmodule Cake.Conversation do
     Logger.info("AWWW HELL NAH NO SEARCH RESULTS YET DAWG")
 
     {:reply, [], state}
+  end
+
+  @impl true
+  def handle_call(:chunk_map, _from, %{chunk_map: chunk_map} = state) do
+    {:reply, chunk_map, state}
+  end
+
+  @impl true
+  def handle_call(:citations, _from, %{citations: citations} = state) do
+    {:reply, citations, state}
   end
 
   def print_hierarchy(map, prefix \\ []) do

@@ -29,24 +29,37 @@ defmodule Cake.Responses do
 
   def query_llm(:openai, context_docs, question, model) do
     [openai_key: api_key, response_url: response_url] = Application.get_env(:cake, __MODULE__)
-    # Format context documents into a system message
-    context_text =
+
+    # Number each chunk and build context text with URLs
+    numbered_chunks =
       context_docs
-      |> Enum.map(fn %{
-                       source: %{
-                         "package" => package,
-                         "source" => _source,
-                         "text" => text,
-                         "title" => title
-                       }
-                     } ->
-        "From #{package}, this function is #{title} \n \n #{text} \n \n"
+      |> Enum.with_index(1)
+      |> Enum.map(fn {%{source: %{"package" => package, "text" => text, "title" => title, "url" => url}}, idx} ->
+        {idx,
+         """
+         [#{idx}] Package: #{package} | Title: #{title}
+         URL: #{url}
+
+         #{text}\
+         """}
       end)
-      |> Enum.join()
+
+    context_text = numbered_chunks |> Enum.map_join("\n---\n", fn {_idx, text} -> text end)
+
+    # Build chunk_map: index -> metadata
+    chunk_map =
+      context_docs
+      |> Enum.with_index(1)
+      |> Map.new(fn {%{source: %{"package" => package, "title" => title, "url" => url}}, idx} ->
+        {idx, %{package: package, title: title, url: url}}
+      end)
 
     system_message = """
-    You are a helpful assistant. Use the following context to answer the user's question.
+    You are a helpful assistant. Use the provided context to answer the user's question.
+    When a claim draws from a specific chunk, cite it inline using the format [N] where N is the chunk number.
+    If multiple chunks support a claim, cite all of them like [1][3].
     If the answer cannot be found in the context, say so.
+    Do NOT fabricate citations. Only cite chunks that actually support the claim.
 
     Context:
     #{context_text}
@@ -76,7 +89,7 @@ defmodule Cake.Responses do
           |> List.first()
           |> Map.get("text")
 
-        {:ok, %{response: response, usage: usage}}
+        {:ok, %{response: response, usage: usage, chunk_map: chunk_map}}
 
       {:ok, %Req.Response{status: code, body: body}} ->
         {:error, "in #{__MODULE__} \n #{code} error, body: #{inspect(body)}"}
