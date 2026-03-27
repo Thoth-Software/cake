@@ -13,7 +13,7 @@ defmodule Cake.Books.Pipeline do
   alias Cake.Pipelines
   require Logger
 
-  @cluster Cake.Books.ParsedBook
+  @cluster Cake.Documents.Cluster
   @index "chunks_of_books"
 
   @callback load_binary(String.t()) :: {:ok, binary()} | {:error, any()}
@@ -85,25 +85,29 @@ defmodule Cake.Books.Pipeline do
   def embed_all_chunks(persisted_stream, embedding_service, embedding_model) do
     embeddings_module = Application.get_env(:cake, :embeddings_module, Cake.Embeddings)
 
-    persisted_stream
-    |> Stream.map(fn %Chunk{text: text, section_title: section_title} = chunk ->
-      %{input: "#{section_title}\n\n#{text}", struct: chunk}
-    end)
-    |> Task.async_stream(
-      &embeddings_module.embed(embedding_service, &1, embedding_model),
-      max_concurrency: 5,
-      timeout: 5_000,
-      on_timeout: :kill_task,
-      zip_input_on_exit: true
-    )
-    |> Pipelines.detuple()
-    |> Task.async_stream(
-      &handle_response/1,
-      max_concurrency: 5,
-      timeout: 5_000,
-      on_timeout: :kill_task
-    )
-    |> Pipelines.detuple()
+    embedded_stream =
+      persisted_stream
+      |> Stream.flat_map(fn {_book, chunks} -> chunks end)
+      |> Stream.map(fn %Chunk{text: text, section_title: section_title} = chunk ->
+        %{input: "#{section_title}\n\n#{text}", struct: chunk}
+      end)
+      |> Task.async_stream(
+        &embeddings_module.embed(embedding_service, &1, embedding_model),
+        max_concurrency: 5,
+        timeout: 5_000,
+        on_timeout: :kill_task,
+        zip_input_on_exit: true
+      )
+      |> Pipelines.detuple()
+      |> Task.async_stream(
+        &handle_response/1,
+        max_concurrency: 5,
+        timeout: 5_000,
+        on_timeout: :kill_task
+      )
+      |> Pipelines.detuple()
+
+    {:ok, embedded_stream}
   end
 
   defp handle_response({:exit, {input, reason}}) do
@@ -116,8 +120,10 @@ defmodule Cake.Books.Pipeline do
 
   defp handle_response({_, {:error, error}}), do: Logger.warning(error)
 
-  defp handle_response({_, %{struct: struct, attrs: attrs}}),
-    do: Books.update_chunk!(struct, attrs)
+  defp handle_response({_, %{struct: struct, attrs: attrs}}) do
+    {:ok, chunk} = Books.update_chunk!(struct, attrs)
+    chunk
+  end
 
   def persist_parsed_books(_), do: nil
 end
