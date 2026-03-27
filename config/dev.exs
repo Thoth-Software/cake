@@ -11,10 +11,10 @@ config :cake, Cake.Repo,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
-  # Config for responses
-  config :cake, Cake.Responses,
-    openai_key: System.get_env("OPENAI_KEY"),
-    response_url: "https://api.openai.com/v1/responses"
+# Config for responses
+config :cake, Cake.Responses,
+  openai_key: System.get_env("OPENAI_KEY"),
+  response_url: "https://api.openai.com/v1/responses"
 
 # Config for API keys
 config :cake, Cake.Embeddings,
@@ -35,7 +35,7 @@ config :cake, Cake.Documents.Cluster,
 # Binding to loopback ipv4 address prevents access from other machines.
 config :cake, CakeWeb.Endpoint,
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {0, 0, 0, 0}, port: 4000],
+  http: [ip: {0, 0, 0, 0}, port: 4000, thousand_island_options: [read_timeout: 300_000]],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
