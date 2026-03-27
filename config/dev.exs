@@ -70,7 +70,7 @@ config :cake, CakeWeb.Endpoint,
 
 # Watch static and templates for browser reloading.
 config :cake, CakeWeb.Endpoint,
-  live_reload: 
+  live_reload: [
     patterns: [
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/gettext/.*(po)$",

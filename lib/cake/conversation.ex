@@ -4,11 +4,6 @@ defmodule Cake.Conversation do
   alias Cake.Embeddings
   require Logger
 
-  # Eventually, Cake.Documents.Cluster will be replaced by something
-  # configurable. The idea there is to make this conversation module be agnostic
-  # about clusters and just manage conversations, and be able to do so for
-  # arbitrary clusters.
-
   # External API (Client Functions)
   # 
   # For now, the external API assumes that the caller process will track
@@ -98,7 +93,13 @@ defmodule Cake.Conversation do
          {:ok, %{response: response, chunk_map: chunk_map}} <-
            Cake.Responses.query_llm(:openai, hits, question, response_model) do
       citations = Cake.Citations.extract(response, chunk_map)
-      convo_state = %{search_results: hits, message_history: [question, response], chunk_map: chunk_map, citations: citations}
+
+      convo_state = %{
+        search_results: hits,
+        message_history: [question, response],
+        chunk_map: chunk_map,
+        citations: citations
+      }
 
       {:noreply, Map.merge(state, convo_state)}
     else
@@ -143,7 +144,8 @@ defmodule Cake.Conversation do
   end
 
   @impl true
-  def handle_call(:search_results, {from, _}, %{search_results: hits} = state) when is_list(hits) and hits != [] do
+  def handle_call(:search_results, {from, _}, %{search_results: hits} = state)
+      when is_list(hits) and hits != [] do
     Logger.info("WHOOP MAH NAME IS CHICKA CHICKA #{inspect(from)}")
 
     search_results =
