@@ -22,8 +22,24 @@ defmodule Cake.Citations do
     |> Enum.sort()
     |> Enum.flat_map(fn index ->
       case Map.fetch(chunk_map, index) do
-        {:ok, %{package: package, title: title, url: url}} ->
-          [%{index: index, package: package, title: title, url: url}]
+        {:ok,
+         %{
+           book_title: book_title,
+           page_number: page_number,
+           section_title: section_title,
+           chunk_index: chunk_index,
+           chunk_preview: chunk_preview
+         }} ->
+          [
+            %{
+              index: index,
+              book_title: book_title,
+              page_number: page_number,
+              section_title: section_title,
+              chunk_index: chunk_index,
+              chunk_preview: chunk_preview
+            }
+          ]
 
         :error ->
           Logger.warning("Citation [#{index}] not found in chunk_map, dropping hallucinated citation")

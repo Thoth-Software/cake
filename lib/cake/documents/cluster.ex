@@ -87,17 +87,26 @@ defmodule Cake.Documents.Cluster do
     Snap.Search.search(__MODULE__, "docs", query)
   end
 
+  # TODO: Extract a `search_fields/0` callback into a behaviour, most likely on the
+  # pipeline behaviours keyed to generics. Each schema (ParsedDocument, Chunk,
+  # etc.) should declare which of its fields are searchable and how they should be
+  # weighted, rather than requiring callers to pass a fields list. The search
+  # function would then take a schema module as a parameter and call
+  # schema.search_fields() to build the query. For now, callers pass `fields`
+  # explicitly as a stopgap. 
+
+  # Cake.Documents.Cluster.search(:keyword, "chunks_of_books")
   @spec search(:keyword | :vector | :hybrid, String.t(), %{
           keywords: List.t(),
           embedding: List.t(),
           keyword_weight: Float.t()
         }) :: {:ok, map()} | {:error, any()}
-  def search(:keyword, index, %{keywords: keywords}) do
+  def search(:keyword, index, %{keywords: keywords, fields: fields}) do
     query = %{
       query: %{
         multi_match: %{
           query: keywords,
-          fields: ["title^2", "text"]
+          fields: fields
         }
       }
     }
@@ -123,6 +132,7 @@ defmodule Cake.Documents.Cluster do
 
   def search(:hybrid, index, %{
         keywords: keywords,
+        fields: fields,
         embedding: embedding,
         keyword_weight: keyword_weight
       }) do
@@ -144,7 +154,7 @@ defmodule Cake.Documents.Cluster do
             %{
               multi_match: %{
                 query: keywords,
-                fields: ["title^2", "text"],
+                fields: fields,
                 boost: keyword_weight
               }
             }

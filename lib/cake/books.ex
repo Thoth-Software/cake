@@ -214,6 +214,22 @@ defmodule Cake.Books do
   end
 
   @doc """
+  Fetches Chunk records for a list of OpenSearch hits, with `parsed_book`
+  preloaded. Returns chunks in the same order as the hits.
+  """
+  def chunks_for_hits(hits) do
+    ids = Enum.map(hits, fn hit -> hit.source["id"] end)
+
+    chunks_by_id =
+      Repo.all(from c in Chunk, where: c.id in ^ids, preload: :parsed_book)
+      |> Map.new(fn chunk -> {chunk.id, chunk} end)
+
+    ids
+    |> Enum.map(&Map.get(chunks_by_id, &1))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  @doc """
   Gets a single chunk.
 
   Raises `Ecto.NoResultsError` if the Chunk does not exist.

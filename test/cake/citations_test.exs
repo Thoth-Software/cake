@@ -4,17 +4,50 @@ defmodule Cake.CitationsTest do
   alias Cake.Citations
 
   @chunk_map %{
-    1 => %{package: "Enum", title: "map/2", url: "https://hexdocs.pm/elixir/Enum.html#map/2"},
-    2 => %{package: "Enum", title: "filter/2", url: "https://hexdocs.pm/elixir/Enum.html#filter/2"},
-    3 => %{package: "Task", title: "async/1", url: "https://hexdocs.pm/elixir/Task.html#async/1"}
+    1 => %{
+      book_title: "Programming Elixir",
+      section_title: "Enum",
+      page_number: 42,
+      chunk_index: 10,
+      chunk_preview: "The Enum module provides a set of algorithms to work with enumerables."
+    },
+    2 => %{
+      book_title: "Programming Elixir",
+      section_title: "Streams",
+      page_number: 55,
+      chunk_index: 15,
+      chunk_preview: "Streams are lazy enumerables that allow you to compose operations."
+    },
+    3 => %{
+      book_title: "Elixir in Action",
+      section_title: "Tasks",
+      page_number: 101,
+      chunk_index: 40,
+      chunk_preview: "Tasks are processes meant to execute one particular action throughout their lifetime."
+    }
   }
 
   test "extracts valid citations from response text" do
-    response = "Use map/2 [1] and filter/2 [3] for this."
+    response = "Use Enum [1] and Tasks [3] for this."
 
     assert Citations.extract(response, @chunk_map) == [
-             %{index: 1, package: "Enum", title: "map/2", url: "https://hexdocs.pm/elixir/Enum.html#map/2"},
-             %{index: 3, package: "Task", title: "async/1", url: "https://hexdocs.pm/elixir/Task.html#async/1"}
+             %{
+               index: 1,
+               book_title: "Programming Elixir",
+               section_title: "Enum",
+               page_number: 42,
+               chunk_index: 10,
+               chunk_preview: "The Enum module provides a set of algorithms to work with enumerables."
+             },
+             %{
+               index: 3,
+               book_title: "Elixir in Action",
+               section_title: "Tasks",
+               page_number: 101,
+               chunk_index: 40,
+               chunk_preview:
+                 "Tasks are processes meant to execute one particular action throughout their lifetime."
+             }
            ]
   end
 
@@ -22,7 +55,14 @@ defmodule Cake.CitationsTest do
     response = "This is supported [1] and also [99]."
 
     assert Citations.extract(response, @chunk_map) == [
-             %{index: 1, package: "Enum", title: "map/2", url: "https://hexdocs.pm/elixir/Enum.html#map/2"}
+             %{
+               index: 1,
+               book_title: "Programming Elixir",
+               section_title: "Enum",
+               page_number: 42,
+               chunk_index: 10,
+               chunk_preview: "The Enum module provides a set of algorithms to work with enumerables."
+             }
            ]
   end
 
@@ -33,10 +73,17 @@ defmodule Cake.CitationsTest do
   end
 
   test "deduplicates repeated citations" do
-    response = "Use map/2 [1] and also map/2 again [1]."
+    response = "Use Enum [1] and also Enum again [1]."
 
     assert Citations.extract(response, @chunk_map) == [
-             %{index: 1, package: "Enum", title: "map/2", url: "https://hexdocs.pm/elixir/Enum.html#map/2"}
+             %{
+               index: 1,
+               book_title: "Programming Elixir",
+               section_title: "Enum",
+               page_number: 42,
+               chunk_index: 10,
+               chunk_preview: "The Enum module provides a set of algorithms to work with enumerables."
+             }
            ]
   end
 end

@@ -1,7 +1,7 @@
 defmodule Cake.Conversation do
   use GenServer
 
-  alias Cake.Embeddings
+  alias Cake.{Books, Embeddings}
   require Logger
 
   # External API (Client Functions)
@@ -60,15 +60,16 @@ defmodule Cake.Conversation do
     {:ok, state}
   end
 
-  # {:ok, pid} = Cake.Conversation.start_link(Cake.Documents.Cluster,"text-embedding-ada-002", "docs", "gpt-5", :openai, :hybrid)
-  # Cake.Conversation.ask(pid, "Which Elixir function would I use to spin up a short-lived process to do a job and then die?")
-  def ask(pid, question) do
-    GenServer.cast(pid, {:question, question})
+  # {:ok, pid} = Cake.Conversation.start_link(Cake.Documents.Cluster,"text-embedding-ada-002", "docs", "gpt-5", :openai, :keyword)
+  # Cake.Conversation.ask(pid, "Which Elixir function would I use to spin up a short-lived process to do a job and then die?", ["title^2", "text"])
+  # GenServer.cast(pid, :inspect)
+  def ask(pid, question, fields) do
+    GenServer.cast(pid, {:question, question, fields})
   end
 
   @impl true
   def handle_cast(
-        {:question, question},
+        {:question, question, fields},
         %{
           search_results: [],
           params: %{
@@ -83,19 +84,21 @@ defmodule Cake.Conversation do
           state
       ) do
     with {:ok, %{attrs: %{embedding: embedding}}} <-
-           Embeddings.embed(provider, question, embedding_model),
+           Embeddings.embed(provider, %{input: question}, embedding_model),
          {:ok, %{hits: hits}} <-
            caller.search(search_type, index, %{
              keywords: question,
              embedding: embedding,
-             keyword_weight: 0.5
+             keyword_weight: 0.5,
+             fields: fields
            }),
+         chunks = Books.chunks_for_hits(hits),
          {:ok, %{response: response, chunk_map: chunk_map}} <-
-           Cake.Responses.query_llm(:openai, hits, question, response_model) do
+           Cake.Responses.query_llm(:openai, chunks, question, response_model) do
       citations = Cake.Citations.extract(response, chunk_map)
 
       convo_state = %{
-        search_results: hits,
+        search_results: chunks,
         message_history: [question, response],
         chunk_map: chunk_map,
         citations: citations
@@ -144,16 +147,11 @@ defmodule Cake.Conversation do
   end
 
   @impl true
-  def handle_call(:search_results, {from, _}, %{search_results: hits} = state)
-      when is_list(hits) and hits != [] do
+  def handle_call(:search_results, {from, _}, %{search_results: chunks} = state)
+      when is_list(chunks) and chunks != [] do
     Logger.info("WHOOP MAH NAME IS CHICKA CHICKA #{inspect(from)}")
 
-    search_results =
-      Enum.map(hits, fn %{source: source} ->
-        Map.take(source, ["language", "package", "source", "title", "text", "url", "version"])
-      end)
-
-    {:reply, search_results, state}
+    {:reply, chunks, state}
   end
 
   @impl true
@@ -171,6 +169,11 @@ defmodule Cake.Conversation do
   @impl true
   def handle_call(:citations, _from, %{citations: citations} = state) do
     {:reply, citations, state}
+  end
+
+  @impl true
+  def handle_call(:inspect, _from, state) do
+    {:reply, state, state}
   end
 
   def print_hierarchy(map, prefix \\ []) do
