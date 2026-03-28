@@ -24,8 +24,11 @@ done
 # --- Make sure deps/lock are in sync inside the container ---
 echo "Running mix deps.get..."
 mix deps.get
+echo "Removing compiled Rust artifacts to force recompilation inside container..."
+rm -f priv/native/*.so
 echo "Compiling deps..."
 mix deps.compile --force bcrypt_elixir
+mix compile --force
 echo "Compiling..."
 mix compile
 
