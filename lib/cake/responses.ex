@@ -27,26 +27,66 @@ defmodule Cake.Responses do
     {:error, :not_implemented}
   end
 
+  # NOTE: right now this is keyed to the Chunk generic for chunks of ingested
+  # books. We need to re-think the architecture around this. In particular, we
+  # need to set up this module so it can be agnostic about what particular struct
+  # is being passed in. The solution for this should probably mirror the
+  # solution we've architected for the search function in the Cluster module: a
+  # callback, defined in a behaviour, that returns the list of fields to become
+  # part of the LLM query.
+
   def query_llm(:openai, context_docs, question, model) do
     [openai_key: api_key, response_url: response_url] = Application.get_env(:cake, __MODULE__)
-    # Format context documents into a system message
-    context_text =
+
+    # Number each chunk and build context text
+    numbered_chunks =
       context_docs
-      |> Enum.map(fn %{
-                       source: %{
-                         "package" => package,
-                         "source" => _source,
-                         "text" => text,
-                         "title" => title
-                       }
-                     } ->
-        "From #{package}, this function is #{title} \n \n #{text} \n \n"
+      |> Enum.with_index(1)
+      |> Enum.map(fn {%Cake.Books.Chunk{
+                        text: text,
+                        section_title: section_title,
+                        page_number: page_number,
+                        parsed_book: %{title: title}
+                      }, idx} ->
+        {idx,
+         """
+         [#{idx}] Book: #{title} | Page: #{page_number}
+         Section: #{section_title || "(none)"}
+
+         #{text}\
+         """}
       end)
-      |> Enum.join()
+
+    context_text = numbered_chunks |> Enum.map_join("\n---\n", fn {_idx, text} -> text end)
+
+    # Build chunk_map: index -> metadata
+    chunk_map =
+      context_docs
+      |> Enum.with_index(1)
+      |> Map.new(fn {%Cake.Books.Chunk{
+                       text: text,
+                       section_title: section_title,
+                       page_number: page_number,
+                       chunk_index: chunk_index,
+                       parsed_book: %{title: book_title}
+                     }, idx} ->
+        {idx,
+         %{
+           book_title: book_title,
+           page_number: page_number,
+           section_title: section_title,
+           chunk_index: chunk_index,
+           chunk_preview: String.slice(text, 0, 80)
+         }}
+      end)
 
     system_message = """
-    You are a helpful assistant. Use the following context to answer the user's question.
+    You are a helpful assistant. Use the provided context to answer the user's question.
+    Use inline citations like [1], [2] when drawing from a specific chunk. Each number corresponds to a numbered chunk above.
+    If multiple chunks support a claim, cite all of them like [1][3].
+    Prioritize citing specific page numbers when answering.
     If the answer cannot be found in the context, say so.
+    Do NOT fabricate citations. Only cite chunks that actually support the claim.
 
     Context:
     #{context_text}
@@ -76,7 +116,7 @@ defmodule Cake.Responses do
           |> List.first()
           |> Map.get("text")
 
-        {:ok, %{response: response, usage: usage}}
+        {:ok, %{response: response, usage: usage, chunk_map: chunk_map}}
 
       {:ok, %Req.Response{status: code, body: body}} ->
         {:error, "in #{__MODULE__} \n #{code} error, body: #{inspect(body)}"}
@@ -85,6 +125,4 @@ defmodule Cake.Responses do
         {:error, "#{__MODULE__} Transport error: #{reason}"}
     end
   end
-
-  # def munge_document(%ParsedDocument{"package" => package, "source" => _source, "text" => text, "title" => title})
 end

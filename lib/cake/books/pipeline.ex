@@ -7,6 +7,9 @@ defmodule Cake.Books.Pipeline do
   Bear in mind, however, that the ParsedBook schema contains everything but the actual content, so each ParsedBook is *also* persisted as a record in postgres.
 
   Cake.Books.Pipeline.ingest(:openai, Cake.Books.Pdf.Pipeline,  "text-embedding-ada-002", ["assets/programming_phoenix.pdf"])
+  {:ok, pid} = Cake.Conversation.start_link(Cake.Documents.Cluster,"text-embedding-ada-002", "chunks_of_books", "gpt-5", :openai, :keyword)
+  Cake.Conversation.ask(pid, "How do socket assigns work in Liveview?", ["title^2", "text"])
+  GenServer.cast(pid, :inspect)
   """
 
   alias Cake.Books
@@ -90,41 +93,54 @@ defmodule Cake.Books.Pipeline do
     embedded_stream =
       persisted_stream
       |> Stream.flat_map(fn {_book, chunks} -> chunks end)
-      |> Stream.map(fn %Chunk{text: text, section_title: section_title} = chunk ->
-        %{input: "#{section_title}\n\n#{text}", struct: chunk}
-      end)
       |> Task.async_stream(
-        &embeddings_module.embed(embedding_service, &1, embedding_model),
+        fn %Chunk{text: text, section_title: section_title} = chunk ->
+          result =
+            embeddings_module.embed(
+              embedding_service,
+              %{input: "#{section_title}\n\n#{text}"},
+              embedding_model
+            )
+
+          {chunk, result}
+        end,
         max_concurrency: 5,
         timeout: 5_000,
         on_timeout: :kill_task,
         zip_input_on_exit: true
       )
-      |> Pipelines.detuple()
-      |> Task.async_stream(
-        &handle_response/1,
-        max_concurrency: 5,
-        timeout: 5_000,
-        on_timeout: :kill_task
-      )
-      |> Pipelines.detuple()
+      |> Stream.flat_map(&handle_embed_result/1)
 
     {:ok, embedded_stream}
   end
 
-  defp handle_response({:exit, {input, reason}}) do
-    Logger.warning("EMBEDDING FAILED\n\nReason: #{reason}\n\n input: #{input.title}")
+  defp handle_embed_result({:ok, {chunk, {:ok, %{attrs: attrs}}}}) do
+    case Books.update_chunk(chunk, attrs) do
+      {:ok, updated_chunk} ->
+        [updated_chunk]
+
+      {:error, reason} ->
+        Logger.warning("Could not update chunk: #{inspect(reason)}")
+        []
+    end
   end
 
-  defp handle_response({:error, error}) do
+  defp handle_embed_result({:ok, {_chunk, {:error, error}}}) do
     Logger.warning("ERROR: #{inspect(error)}")
+    []
   end
 
-  defp handle_response({_, {:error, error}}), do: Logger.warning(error)
+  defp handle_embed_result({:exit, {%Chunk{} = input, reason}}) do
+    Logger.warning(
+      "EMBEDDING FAILED\n\nReason: #{inspect(reason)}\n\n input: #{input.section_title}"
+    )
 
-  defp handle_response({_, %{struct: struct, attrs: attrs}}) do
-    {:ok, chunk} = Books.update_chunk!(struct, attrs)
-    chunk
+    []
+  end
+
+  defp handle_embed_result({:exit, reason}) do
+    Logger.warning("EMBEDDING FAILED\n\nReason: #{inspect(reason)}")
+    []
   end
 
   def persist_parsed_books(_), do: nil

@@ -10,7 +10,7 @@ defmodule Cake.Embeddings do
 
   # This needs a spec defining the different error tuples it can return
   @impl true
-  def embed(:openai, %{input: input, struct: struct}, model) when is_struct(struct) do
+  def embed(:openai, %{input: input}, model) do
     [openai_key: api_key, base_url: url] = Application.get_env(:cake, __MODULE__)
 
     Req.post(
@@ -33,7 +33,7 @@ defmodule Cake.Embeddings do
 
         attrs = %{embedding: embedding}
 
-        {:ok, %{usage: usage, input: input, attrs: attrs, struct: struct}}
+        {:ok, %{usage: usage, input: input, attrs: attrs}}
 
       {:ok, %Req.Response{status: code}} ->
         {:error, "#{__MODULE__}  Transport layer error: #{code}"}

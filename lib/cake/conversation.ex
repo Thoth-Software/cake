@@ -1,13 +1,8 @@
 defmodule Cake.Conversation do
   use GenServer
 
-  alias Cake.Embeddings
+  alias Cake.{Books, Embeddings}
   require Logger
-
-  # Eventually, Cake.Documents.Cluster will be replaced by something
-  # configurable. The idea there is to make this conversation module be agnostic
-  # about clusters and just manage conversations, and be able to do so for
-  # arbitrary clusters.
 
   # External API (Client Functions)
   # 
@@ -52,6 +47,8 @@ defmodule Cake.Conversation do
       params: params,
       search_results: [],
       message_history: [],
+      chunk_map: %{},
+      citations: [],
       errors: []
     }
 
@@ -63,15 +60,16 @@ defmodule Cake.Conversation do
     {:ok, state}
   end
 
-  # {:ok, pid} = Cake.Conversation.start_link(Cake.Documents.Cluster,"text-embedding-ada-002", "docs", "gpt-5", :openai, :hybrid)
-  # Cake.Conversation.ask(pid, "Which Elixir function would I use to spin up a short-lived process to do a job and then die?")
-  def ask(pid, question) do
-    GenServer.cast(pid, {:question, question})
+  # {:ok, pid} = Cake.Conversation.start_link(Cake.Documents.Cluster,"text-embedding-ada-002", "docs", "gpt-5", :openai, :keyword)
+  # Cake.Conversation.ask(pid, "Which Elixir function would I use to spin up a short-lived process to do a job and then die?", ["title^2", "text"])
+  # GenServer.cast(pid, :inspect)
+  def ask(pid, question, fields) do
+    GenServer.cast(pid, {:question, question, fields})
   end
 
   @impl true
   def handle_cast(
-        {:question, question},
+        {:question, question, fields},
         %{
           search_results: [],
           params: %{
@@ -86,16 +84,25 @@ defmodule Cake.Conversation do
           state
       ) do
     with {:ok, %{attrs: %{embedding: embedding}}} <-
-           Embeddings.embed(provider, question, embedding_model),
+           Embeddings.embed(provider, %{input: question}, embedding_model),
          {:ok, %{hits: hits}} <-
            caller.search(search_type, index, %{
              keywords: question,
              embedding: embedding,
-             keyword_weight: 0.5
+             keyword_weight: 0.5,
+             fields: fields
            }),
-         {:ok, %{response: response}} <-
-           Cake.Responses.query_llm(:openai, hits, question, response_model) do
-      convo_state = %{search_results: hits, message_history: [question, response]}
+         chunks = Books.chunks_for_hits(hits),
+         {:ok, %{response: response, chunk_map: chunk_map}} <-
+           Cake.Responses.query_llm(:openai, chunks, question, response_model) do
+      citations = Cake.Citations.extract(response, chunk_map)
+
+      convo_state = %{
+        search_results: chunks,
+        message_history: [question, response],
+        chunk_map: chunk_map,
+        citations: citations
+      }
 
       {:noreply, Map.merge(state, convo_state)}
     else
@@ -116,11 +123,15 @@ defmodule Cake.Conversation do
         } = state
       ) do
     convo_state =
-      with {:ok, %{response: response}} <-
+      with {:ok, %{response: response, chunk_map: chunk_map}} <-
              Cake.Responses.query_llm(:openai, search_results, question, response_model) do
+        citations = Cake.Citations.extract(response, chunk_map)
+
         %{
           search_results: search_results,
-          message_history: message_history ++ [question, response]
+          message_history: message_history ++ [question, response],
+          chunk_map: chunk_map,
+          citations: citations
         }
       else
         {:error, error} -> %{errors: [error | state.errors]}
@@ -136,15 +147,11 @@ defmodule Cake.Conversation do
   end
 
   @impl true
-  def handle_call(:search_results, {from, _}, %{search_results: %{hits: hits}} = state) do
+  def handle_call(:search_results, {from, _}, %{search_results: chunks} = state)
+      when is_list(chunks) and chunks != [] do
     Logger.info("WHOOP MAH NAME IS CHICKA CHICKA #{inspect(from)}")
 
-    search_results =
-      Enum.map(hits, fn %{source: source} ->
-        Map.take(source, ["language", "package", "source", "title", "text", "url", "version"])
-      end)
-
-    {:reply, search_results, state}
+    {:reply, chunks, state}
   end
 
   @impl true
@@ -152,6 +159,21 @@ defmodule Cake.Conversation do
     Logger.info("AWWW HELL NAH NO SEARCH RESULTS YET DAWG")
 
     {:reply, [], state}
+  end
+
+  @impl true
+  def handle_call(:chunk_map, _from, %{chunk_map: chunk_map} = state) do
+    {:reply, chunk_map, state}
+  end
+
+  @impl true
+  def handle_call(:citations, _from, %{citations: citations} = state) do
+    {:reply, citations, state}
+  end
+
+  @impl true
+  def handle_call(:inspect, _from, state) do
+    {:reply, state, state}
   end
 
   def print_hierarchy(map, prefix \\ []) do
