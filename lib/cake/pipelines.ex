@@ -22,7 +22,7 @@ defmodule Cake.Pipelines do
         on_timeout: :kill_task
       )
       |> Stream.map(&handle_opensearch_response/1)
-      |> detuple()
+      |> detuple_with_logging("opensearch.index")
     end
   end
 
@@ -30,19 +30,48 @@ defmodule Cake.Pipelines do
     Application.get_env(:cake, :skip_opensearch, false)
   end
 
-  # NOTE: We need to put together moduledocs for these instead of comments
-  # The {:exit, element} tuple is emitted when the process spawned by task.asyn_stream dies
   defp handle_opensearch_response({:exit, element}),
-    do: Logger.warning("Failed to insert document #{element.id}. Process died")
+    do: {:error, {:opensearch_exit, element}}
 
   defp handle_opensearch_response({:ok, task_response}),
-    do: handle_opensearch_response(task_response)
+    do: handle_opensearch_task_result(task_response)
 
   defp handle_opensearch_response({:error, changeset}),
-    do: Logger.warning("Could not insert document. Changeset: #{inspect(changeset)}")
+    do: {:error, {:opensearch_changeset, changeset}}
 
-  defp handle_opensearch_response(%{"_id" => id}),
-    do: Logger.info("Document #{id} created")
+  defp handle_opensearch_task_result({:error, error}),
+    do: {:error, {:opensearch_api_error, error}}
+
+  defp handle_opensearch_task_result(%{"_id" => id}) do
+    Logger.info("Document #{id} created")
+    {:ok, id}
+  end
+
+  @doc """
+  Filters a stream of {:ok, value} | {:error, reason} tuples,
+  logging errors and passing through successes.
+
+  The `step_name` parameter identifies which pipeline stage failed,
+  for log readability.
+  """
+  # TODO: Persist errors to a dedicated table for retry (point 5)
+  # TODO: Return a summary of {success_count, error_count} after Stream.run (point 4)
+  def detuple_with_logging(stream_enumerable, step_name) do
+    stream_enumerable
+    |> Stream.filter(fn
+      {:ok, _} ->
+        true
+
+      {:error, reason} ->
+        Logger.warning("[#{step_name}] Item failed: #{inspect(reason)}")
+        false
+
+      other ->
+        Logger.warning("[#{step_name}] Unexpected value: #{inspect(other)}")
+        false
+    end)
+    |> Stream.map(fn {:ok, value} -> value end)
+  end
 
   def detuple(stream_enumerable) do
     stream_enumerable
