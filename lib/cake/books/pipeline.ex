@@ -28,6 +28,11 @@ defmodule Cake.Books.Pipeline do
 
   # We should look into speccing out a FullBook type that equates to a tuple having {%ParsedBook{}, [%Chunk{}]}
 
+  # TODO: Track per-step success/error counts and return a summary
+  #   e.g. {:ok, %{persisted: 12, embedded: 10, indexed: 10, errors: 2}}
+  # TODO: Persist errors to a dedicated FailedIngest table for retry
+  # TODO: Partial success should not be reported as full success —
+  #   the success_message should reflect how many items actually made it through
   def ingest(embedding_service, format_pipeline, embedding_model, paths) do
     with {:ok, binary_stream} <- load_all_binaries(paths, format_pipeline),
          {:ok, books_and_chunks_stream} <- parse_all_binaries(format_pipeline, binary_stream),
@@ -49,7 +54,7 @@ defmodule Cake.Books.Pipeline do
       |> Stream.map(fn path ->
         format_pipeline.load_binary(path)
       end)
-      |> Pipelines.detuple()
+      |> Pipelines.detuple_with_logging("books.load_binary")
 
     {:ok, binary_stream}
   end
@@ -58,8 +63,13 @@ defmodule Cake.Books.Pipeline do
     books_and_chunks_stream =
       binary_stream
       |> Stream.map(fn binary ->
-        format_pipeline.parse(binary)
+        try do
+          {:ok, format_pipeline.parse(binary)}
+        rescue
+          e -> {:error, {binary, Exception.message(e)}}
+        end
       end)
+      |> Pipelines.detuple_with_logging("books.parse")
 
     {:ok, books_and_chunks_stream}
   end
@@ -82,7 +92,7 @@ defmodule Cake.Books.Pipeline do
         {:ok, {:error, reason}} -> {:error, reason}
         {:exit, reason} -> {:error, reason}
       end)
-      |> Pipelines.detuple()
+      |> Pipelines.detuple_with_logging("books.persist")
 
     {:ok, persisted_stream}
   end
