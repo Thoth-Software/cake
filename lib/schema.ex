@@ -10,24 +10,28 @@ defmodule Cake.Schema do
     quote do
       use Ecto.Schema
       import Ecto.Query
-      import Cake.Schema, only: [sanitize_text_fields: 2]
 
       @primary_key {:id, :binary_id, autogenerate: true}
       @foreign_key_type :binary_id
-    end
-  end
 
-  def sanitize_text_fields(changeset) do
-    string_fields =
-      __MODULE__.__schema__(:fields)
-      |> Enum.filter(&(__MODULE__.__schema__(:type, &1) == :string))
+      def sanitize_text_fields(changeset) do
+        string_fields =
+          __MODULE__.__schema__(:fields)
+          |> Enum.filter(&(__MODULE__.__schema__(:type, &1) == :string))
 
-    Enum.reduce(string_fields, changeset, fn field, cs ->
-      case get_change(cs, field) do
-        nil -> cs
-        value when is_binary(value) -> put_change(cs, field, String.replace(value, <<0>>, ""))
-        _ -> cs
+        Enum.reduce(string_fields, changeset, fn field, cs ->
+          case get_change(cs, field) do
+            nil ->
+              cs
+
+            value when is_binary(value) ->
+              put_change(cs, field, String.replace(value, <<0>>, ""))
+
+            _ ->
+              cs
+          end
+        end)
       end
-    end)
+    end
   end
 end
