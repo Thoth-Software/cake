@@ -6,9 +6,12 @@ defmodule Cake.Books.Pipeline do
 
   Bear in mind, however, that the ParsedBook schema contains everything but the actual content, so each ParsedBook is *also* persisted as a record in postgres.
 
-  Cake.Books.Pipeline.ingest(:openai, Cake.Books.Pdf.Pipeline,  "text-embedding-ada-002", ["assets/programming_phoenix.pdf"])
+  assets_path = "assets/static"
+  filenames = File.ls!(assets_path)
+  paths = Enum.map(filenames, &"HASHTAG{assets_path}/HASHTAG{&1}")
+  Cake.Books.Pipeline.ingest(:openai, Cake.Books.Pdf.Pipeline,  "text-embedding-ada-002", paths)
   {:ok, pid} = Cake.Conversation.start_link(Cake.Documents.Cluster,"text-embedding-ada-002", "chunks_of_books", "gpt-5", :openai, :keyword)
-  Cake.Conversation.ask(pid, "How do socket assigns work in Liveview?", ["title^2", "text"])
+  Cake.Conversation.ask(pid, "How do I install the P/N:  98-0110 Rev. A dealkalizer? What's the max flow rate on the SCALA2?", ["title^2", "text"])
   GenServer.cast(pid, :inspect)
   """
 
@@ -23,7 +26,7 @@ defmodule Cake.Books.Pipeline do
 
   @callback load_binary(String.t()) :: {:ok, binary()} | {:error, any()}
   @callback parse(binary()) :: {ParsedBook.t(), [Chunk.t()]}
-  @callback format() :: :pdf
+  @callback format() :: Atom.t()
   @callback success_message() :: String.t()
 
   # We should look into speccing out a FullBook type that equates to a tuple having {%ParsedBook{}, [%Chunk{}]}
