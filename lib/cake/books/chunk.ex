@@ -54,6 +54,7 @@ defmodule Cake.Books.Chunk do
       :char_count
     ])
     |> foreign_key_constraint(:parsed_book_id)
+    |> sanitize_text_fields()
   end
 
   def base_query(), do: from(c in __MODULE__)
