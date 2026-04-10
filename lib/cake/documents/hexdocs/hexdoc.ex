@@ -25,6 +25,7 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
     hexdoc
     |> cast(attrs, [:version, :module, :core, :url, :content])
     |> validate_required([:version, :module, :core, :url, :content])
+    |> sanitize_text_fields()
   end
 
   def base_query(), do: from(h in __MODULE__)

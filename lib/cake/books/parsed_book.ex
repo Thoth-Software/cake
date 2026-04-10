@@ -86,6 +86,7 @@ defmodule Cake.Books.ParsedBook do
       :embedding_status
     ])
     |> unique_constraint(:file_hash)
+    |> sanitize_text_fields()
   end
 
   def base_query(), do: from(c in __MODULE__)

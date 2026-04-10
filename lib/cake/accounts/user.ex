@@ -44,6 +44,7 @@ defmodule Cake.Accounts.User do
     |> cast(attrs, [:email, :password])
     |> validate_email(opts)
     |> validate_password(opts)
+    |> sanitize_text_fields()
   end
 
   defp validate_email(changeset, opts) do
@@ -52,6 +53,7 @@ defmodule Cake.Accounts.User do
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
     |> validate_length(:email, max: 160)
     |> maybe_validate_unique_email(opts)
+    |> sanitize_text_fields()
   end
 
   defp validate_password(changeset, opts) do
@@ -63,6 +65,7 @@ defmodule Cake.Accounts.User do
     # |> validate_format(:password, ~r/[A-Z]/, message: "at least one upper case character")
     # |> validate_format(:password, ~r/[!?@#$%^&*_0-9]/, message: "at least one digit or punctuation character")
     |> maybe_hash_password(opts)
+    |> sanitize_text_fields()
   end
 
   defp maybe_hash_password(changeset, opts) do

@@ -80,6 +80,7 @@ defmodule Cake.Documents.ParsedDocument do
       :url
       # text:
     ])
+    |> sanitize_text_fields()
   end
 
   def base_query(), do: from(p in __MODULE__)

@@ -428,6 +428,8 @@ Choose the behaviour that matches your document type, then implement it for your
 - Every stream transformation step must use `Pipelines.detuple_with_logging/2` with a descriptive step name, not the silent `detuple/1`.
 - Callbacks should return `{:ok, _}` / `{:error, _}` tuples. If a callback calls a function that raises, the behaviour module wraps the call in `try/rescue` so errors enter the logging path rather than silently dying as task exits.
 - Pipeline-fatal errors must be logged in the `else` branch of the `ingest` function.
+- The schema for new generic data structures will have a changeset pipeline. That pipeline must include `sanitize_text_fields/1` if any fields on the schema have type `string`,
+- Every new schema must `use` `Cake.Schema` instead of the default `Ecto.Schema`
 
 **Key Principle:** Persist raw data first. When your parsing heuristics improve, you can re-process without re-downloading or re-loading.
 

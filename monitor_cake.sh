@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-LOGFILE="cake_monitor_$(date +%Y%m%d_%H%M%S).log"
+LOGFILE="assets/logs/cake_monitor_$(date +%Y%m%d_%H%M%S).log"
 INTERVAL=2
 
 # Container names (from docker-compose.yml)
