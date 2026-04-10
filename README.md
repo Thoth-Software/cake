@@ -115,6 +115,24 @@ Implements `Cake.Books.Pipeline` for PDF files.
 - Concurrent processing via `Task.async_stream` (5 max concurrency)
 - Skippable OpenSearch indexing for testing
 
+### Error Handling in Pipelines
+
+Pipelines process streams of items (files, documents, chunks), and failures fall into two categories that are handled differently.
+
+**Item-level failures** occur when a single item in the stream fails while the rest continue normally. A corrupt PDF that won't parse, an embedding API timeout for one chunk, or a changeset validation error on a single record are all item-level failures. These are handled inside the stream itself via `Pipelines.detuple_with_logging/2`, which logs the error with the pipeline step name and filters the failed item out of the stream. Successfully-processed items continue downstream unaffected.
+
+**Pipeline-fatal failures** occur when the entire pipeline cannot continue. The download step failing, OpenSearch being unreachable, or an invalid embedding model string are pipeline-fatal. These are handled in the `ingest` function on each behaviour module, where the `with` chain short-circuits and returns an error tuple. Nothing downstream runs.
+
+The distinction matters for two reasons. First, item-level failures should not abort a batch — if 148 out of 150 PDFs parse successfully, those 148 should be persisted, embedded, and indexed. Second, the retry strategy differs: item-level failures can be retried individually, while pipeline-fatal failures require retrying the entire batch.
+
+**Where logging lives:**
+
+The behaviour module's `ingest` function is responsible for logging (and eventually persisting) pipeline-fatal errors. Each stream transformation step uses `Pipelines.detuple_with_logging/2` with a descriptive step name (e.g., `"books.parse"`, `"docs.embed"`) to log item-level failures. Callback implementations (e.g., `Pdf.Pipeline.parse/1`) return `{:ok, _}` or `{:error, _}` tuples — they do not log directly, because the behaviour module is the single point of observability for the pipeline as a whole.
+
+Step names follow the convention `"pipeline.step"` where `pipeline` is a short identifier for the behaviour (`books`, `docs`) and `step` identifies the transformation (`load_binary`, `parse`, `persist`, `embed`, `opensearch.index`).
+
+**Future: error persistence.** Item-level errors will be persisted to a `FailedIngest` table (via `Cake.FailedIngests`) at the point of failure, inside `detuple_with_logging`. Pipeline-fatal errors will be persisted in the `else` branch of the `ingest` function's `with` chain. Each record stores the behaviour, implementation, step, version, error text, and an input identifier sufficient to locate and retry the failed item. See the `FailedIngest` schema for details.
+
 ---
 
 ## Data Structures
@@ -397,11 +415,19 @@ Choose the behaviour that matches your document type, then implement it for your
 1. Create a raw document schema (like `Hexdoc`) for intermediate storage
 2. Implement the callbacks: `download/1`, `persist_raw_docs/2`, `parse/1`, `source/0`, `success_message/1`
 3. Register with Oban for async ingestion
+4. Ensure all callback return values use `{:ok, _}` / `{:error, _}` tuples so `detuple_with_logging` can observe failures
 
 **To ingest a new book/ebook format** (implement `Cake.Books.Pipeline`):
 
 1. Implement the callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`
 2. Add format-specific parsing logic (NIF, library, etc.)
+3. If `parse/1` calls code that can raise (e.g., a NIF), the behaviour's `parse_all_binaries` wraps it in `try/rescue` — your callback does not need to catch its own exceptions
+
+**Requirements for all new pipelines and implementations:**
+
+- Every stream transformation step must use `Pipelines.detuple_with_logging/2` with a descriptive step name, not the silent `detuple/1`.
+- Callbacks should return `{:ok, _}` / `{:error, _}` tuples. If a callback calls a function that raises, the behaviour module wraps the call in `try/rescue` so errors enter the logging path rather than silently dying as task exits.
+- Pipeline-fatal errors must be logged in the `else` branch of the `ingest` function.
 
 **Key Principle:** Persist raw data first. When your parsing heuristics improve, you can re-process without re-downloading or re-loading.
 

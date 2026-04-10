@@ -44,6 +44,11 @@ defmodule Cake.Documents.Pipeline do
 
   @spec ingest(atom(), atom(), version(), String.t()) :: {:ok, String.t()} | {:error, any()}
   def ingest(embedding_service, source_pipeline, {major, minor, patch}, embedding_model) do
+    # TODO: Track per-step success/error counts and return a summary
+    #   e.g. {:ok, %{persisted: 142, embedded: 138, indexed: 138, errors: 4}}
+    # TODO: Persist errors to a dedicated table for retry (see also detuple_with_logging)
+    # TODO: Partial success should not be reported as full success —
+    #   the success_message should reflect how many items actually made it through
     version = Enum.join([major, minor, patch], ".")
 
     with {:ok, file_paths} <- source_pipeline.download(version),
@@ -128,16 +133,14 @@ defmodule Cake.Documents.Pipeline do
       on_timeout: :kill_task,
       zip_input_on_exit: true
     )
-    |> Pipelines.detuple()
+    |> Pipelines.detuple_with_logging("docs.embed")
     |> Task.async_stream(
       &handle_response/1,
       max_concurrency: 5,
       timeout: 5_000,
       on_timeout: :kill_task
     )
-    |> Pipelines.detuple()
-
-    # Need a case function here to log errors and pop the kernel out of :ok tuples.
+    |> Pipelines.detuple_with_logging("docs.embed_persist")
   end
 
   defp embeddings_module do
@@ -145,23 +148,45 @@ defmodule Cake.Documents.Pipeline do
   end
 
   defp handle_response({:exit, {input, reason}}) do
-    Logger.warning("EMBEDDING FAILED\n\nReason: #{reason}\n\n input: #{input.title}")
+    {:error, {:embedding_exit, input.title, reason}}
   end
 
   defp handle_response({:error, error}) do
-    Logger.warning("ERROR: #{inspect(error)}")
+    {:error, {:embedding_error, error}}
   end
 
-  defp handle_response({_, {:error, error}}), do: Logger.warning(error)
+  defp handle_response({_, {:error, error}}) do
+    {:error, {:embedding_api_error, error}}
+  end
 
-  defp handle_response({_, %{struct: struct, attrs: attrs}}),
-    do: ParsedDocuments.update_parsed_doc!(struct, attrs)
+  defp handle_response({_, %{struct: struct, attrs: attrs}}) do
+    case ParsedDocuments.update_parsed_document(struct, attrs) do
+      {:ok, updated} -> {:ok, updated}
+      {:error, reason} -> {:error, {:update_failed, struct.id, reason}}
+    end
+  end
 
-  defp persist_parsed_docs(parsed_doc_stream),
-    do:
-      parsed_doc_stream
-      |> Task.async_stream(&ParsedDocuments.create_parsed_doc!/1)
-      |> Pipelines.detuple()
+  # TODO: Persist failed items to an errors table for retry
+  # TODO: Return {success_count, error_count} summary after pipeline completes
+  defp persist_parsed_docs(parsed_doc_stream) do
+    parsed_doc_stream
+    |> Task.async_stream(
+      fn attrs ->
+        try do
+          {:ok, ParsedDocuments.create_parsed_doc!(attrs)}
+        rescue
+          e -> {:error, {attrs[:title] || "unknown", Exception.message(e)}}
+        end
+      end,
+      max_concurrency: 5,
+      timeout: :infinity
+    )
+    |> Stream.map(fn
+      {:ok, result} -> result
+      {:exit, reason} -> {:error, {:task_exit, reason}}
+    end)
+    |> Pipelines.detuple_with_logging("docs.persist")
+  end
 
   # defp persist_to_opensearch(parsed_doc_stream, cluster_name, index_name) do
   #   Task.async_stream(parsed_doc_stream, fn doc ->
