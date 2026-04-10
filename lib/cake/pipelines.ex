@@ -39,6 +39,9 @@ defmodule Cake.Pipelines do
   defp handle_opensearch_response({:error, changeset}),
     do: {:error, {:opensearch_changeset, changeset}}
 
+  defp handle_opensearch_task_result({:ok, task_response}),
+    do: handle_opensearch_task_result(task_response)
+
   defp handle_opensearch_task_result({:error, error}),
     do: {:error, {:opensearch_api_error, error}}
 
