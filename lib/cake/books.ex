@@ -3,13 +3,31 @@ defmodule Cake.Books do
   The Books context.
   """
 
+  require Logger
   import Ecto.Query, warn: false
   alias Cake.Repo
 
   alias Cake.Books.ParsedBook
   alias Cake.Books.Chunk
 
-  def persist_book_and_chunks({%ParsedBook{} = book, chunks}) when is_list(chunks) do
+  def persist_book_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
+      when is_list(chunks) do
+    case Repo.one(from b in ParsedBook, where: b.file_hash == ^hash) do
+      %ParsedBook{} = existing ->
+        existing_chunks = Repo.all(from c in Chunk, where: c.parsed_book_id == ^existing.id)
+        Logger.debug("Skipping already-persisted book #{existing.title} (#{hash})")
+        {:ok, {existing, existing_chunks}}
+
+      nil ->
+        do_persist_book_and_chunks(book, chunks)
+    end
+  end
+
+  def persist_book_and_chunks({book, chunks}) do
+    {:error, {:invalid_input, %{book: book, chunks: chunks}}}
+  end
+
+  defp do_persist_book_and_chunks(book, chunks) do
     book_attrs =
       book
       |> Map.from_struct()
@@ -80,10 +98,6 @@ defmodule Cake.Books do
       {:error, _step, reason, _changes_so_far} ->
         {:error, {book.source_file_path, reason}}
     end
-  end
-
-  def persist_book_and_chunks({book, chunks}) do
-    {:error, {:invalid_input, %{book: book, chunks: chunks}}}
   end
 
   @doc """

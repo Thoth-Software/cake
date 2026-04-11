@@ -10,6 +10,7 @@ defmodule Cake.Books.Pipeline do
   filenames = File.ls!(assets_path)
   paths = Enum.map(filenames, &"HASHTAG{assets_path}/HASHTAG{&1}")
   Cake.Books.Pipeline.ingest(:openai, Cake.Books.Pdf.Pipeline,  "text-embedding-ada-002", paths)
+  Cake.Books.Pipeline.ingest_with_sweep(:openai, Cake.Books.Pdf.Pipeline,  "text-embedding-ada-002", paths)
   {:ok, pid} = Cake.Conversation.start_link(Cake.Documents.Cluster,"text-embedding-ada-002", "chunks_of_books", "gpt-5", :openai, :keyword)
   Cake.Conversation.ask(pid, "How do I install the P/N:  98-0110 Rev. A dealkalizer? What's the max flow rate on the SCALA2?", ["title^2", "text"])
   GenServer.cast(pid, :inspect)
