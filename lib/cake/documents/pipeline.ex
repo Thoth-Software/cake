@@ -96,6 +96,45 @@ defmodule Cake.Documents.Pipeline do
   end
 
   @doc """
+  Runs the ingestion pipeline, then sweeps up item-level failures.
+  Returns the original ingest result. Sweep results are logged.
+
+  Options:
+    - :max_sweeps — maximum number of retry passes (default: 2)
+  """
+  def ingest_with_sweep(
+        embedding_service,
+        source_pipeline,
+        version_tuple,
+        embedding_model,
+        opts \\ []
+      ) do
+    result = ingest(embedding_service, source_pipeline, version_tuple, embedding_model)
+
+    {major, minor, patch} = version_tuple
+    version = Enum.join([major, minor, patch], ".")
+
+    retry_fn = fn failure ->
+      retry(failure, source_pipeline, embedding_service, embedding_model)
+    end
+
+    {resolved, remaining} =
+      Pipelines.sweep(
+        "Cake.Documents.Pipeline",
+        inspect(source_pipeline),
+        version,
+        retry_fn,
+        opts
+      )
+
+    if resolved > 0 or remaining > 0 do
+      Logger.info("[docs.sweep] Resolved #{resolved}, remaining #{remaining}")
+    end
+
+    result
+  end
+
+  @doc """
   Retries a single failed ingest item. Dispatches based on the step that failed:
   persist failures re-run from the raw source doc; embed/index failures resume
   from the existing ParsedDocument.

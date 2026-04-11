@@ -73,6 +73,36 @@ defmodule Cake.Books.Pipeline do
   end
 
   @doc """
+  Runs the ingestion pipeline, then sweeps up item-level failures.
+  Returns the original ingest result. Sweep results are logged.
+
+  Options:
+    - :max_sweeps — maximum number of retry passes (default: 2)
+  """
+  def ingest_with_sweep(embedding_service, format_pipeline, embedding_model, paths, opts \\ []) do
+    result = ingest(embedding_service, format_pipeline, embedding_model, paths)
+
+    retry_fn = fn failure ->
+      retry(failure, format_pipeline, embedding_service, embedding_model)
+    end
+
+    {resolved, remaining} =
+      Pipelines.sweep(
+        "Cake.Books.Pipeline",
+        inspect(format_pipeline),
+        embedding_model,
+        retry_fn,
+        opts
+      )
+
+    if resolved > 0 or remaining > 0 do
+      Logger.info("[books.sweep] Resolved #{resolved}, remaining #{remaining}")
+    end
+
+    result
+  end
+
+  @doc """
   Retries a single failed ingest item. Dispatches based on the step that failed:
   early failures re-run from the file, embed/index failures resume from the
   persisted chunk.
