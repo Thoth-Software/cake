@@ -46,7 +46,7 @@ defmodule Cake.Responses do
                         text: text,
                         section_title: section_title,
                         page_number: page_number,
-                        parsed_book: %{title: title}
+                        parsed_book: %{title: title, source_file_path: _source_file_path}
                       }, idx} ->
         {idx,
          """
@@ -68,7 +68,7 @@ defmodule Cake.Responses do
                        section_title: section_title,
                        page_number: page_number,
                        chunk_index: chunk_index,
-                       parsed_book: %{title: book_title}
+                       parsed_book: %{title: book_title, source_file_path: source_file_path}
                      }, idx} ->
         {idx,
          %{
@@ -76,7 +76,8 @@ defmodule Cake.Responses do
            page_number: page_number,
            section_title: section_title,
            chunk_index: chunk_index,
-           chunk_preview: String.slice(text, 0, 80)
+           chunk_preview: String.slice(text, 0, 200),
+           source_file_path: source_file_path
          }}
       end)
 
