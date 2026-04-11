@@ -3,9 +3,19 @@ defmodule Cake.Pipelines do
   Various assorted motley helpers, doohickeys, and dongles for data ingestion pipelines. Some of this may very well be cruft.
   """
 
+  defmodule Context do
+    @moduledoc """
+    Carries pipeline identity through an ingest run.
+    Built once at the top of each behaviour's `ingest` function
+    and passed to `detuple_with_logging` so it can persist errors
+    with full provenance.
+    """
+    defstruct [:behaviour, :implementation, :version]
+  end
+
   require Logger
 
-  def add_to_opensearch(docs_with_embeddings_stream, index, cluster) do
+  def add_to_opensearch(docs_with_embeddings_stream, index, cluster, %Context{} = ctx) do
     if skip_opensearch?() do
       # In test mode, just pass through the documents without calling OpenSearch
       docs_with_embeddings_stream
@@ -22,7 +32,7 @@ defmodule Cake.Pipelines do
         on_timeout: :kill_task
       )
       |> Stream.map(&handle_opensearch_response/1)
-      |> detuple_with_logging("opensearch.index")
+      |> detuple_with_logging("opensearch.index", ctx)
     end
   end
 
@@ -52,14 +62,13 @@ defmodule Cake.Pipelines do
 
   @doc """
   Filters a stream of {:ok, value} | {:error, reason} tuples,
-  logging errors and passing through successes.
+  logging errors, persisting them to FailedIngest, and passing through successes.
 
   The `step_name` parameter identifies which pipeline stage failed,
-  for log readability.
+  for log readability. The `ctx` parameter carries pipeline identity
+  so failures can be persisted with full provenance.
   """
-  # TODO: Persist errors to a dedicated table for retry (point 5)
-  # TODO: Return a summary of {success_count, error_count} after Stream.run (point 4)
-  def detuple_with_logging(stream_enumerable, step_name) do
+  def detuple_with_logging(stream_enumerable, step_name, %Context{} = ctx) do
     stream_enumerable
     |> Stream.filter(fn
       {:ok, _} ->
@@ -67,13 +76,51 @@ defmodule Cake.Pipelines do
 
       {:error, reason} ->
         Logger.warning("[#{step_name}] Item failed: #{inspect(reason)}")
+        persist_failure(ctx, step_name, reason)
         false
 
       other ->
         Logger.warning("[#{step_name}] Unexpected value: #{inspect(other)}")
+        persist_failure(ctx, step_name, other)
         false
     end)
     |> Stream.map(fn {:ok, value} -> value end)
+  end
+
+  @doc """
+  Logs an item-level failure and persists it to the FailedIngest table.
+  Use this from pipeline steps that handle errors manually instead of
+  going through detuple_with_logging.
+  """
+  def log_and_persist_failure(%Context{} = ctx, step_name, reason) do
+    Logger.warning("[#{step_name}] Item failed: #{inspect(reason)}")
+    persist_failure(ctx, step_name, reason)
+  end
+
+  defp persist_failure(%Context{} = ctx, step_name, reason) do
+    {input_id, error_text} = extract_error_info(reason)
+
+    Cake.FailedIngests.create_failed_ingest(%{
+      pipeline_behaviour: ctx.behaviour,
+      pipeline_implementation: ctx.implementation,
+      step: step_name,
+      version: ctx.version,
+      error_text: error_text,
+      input_identifier: input_id,
+      pipeline_fatal: false
+    })
+  end
+
+  defp extract_error_info({identifier, message}) when is_binary(identifier) and is_binary(message) do
+    {identifier, message}
+  end
+
+  defp extract_error_info({identifier, reason}) when is_binary(identifier) do
+    {identifier, inspect(reason)}
+  end
+
+  defp extract_error_info(reason) do
+    {nil, inspect(reason)}
   end
 
   def detuple(stream_enumerable) do

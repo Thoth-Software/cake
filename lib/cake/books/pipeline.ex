@@ -33,36 +33,56 @@ defmodule Cake.Books.Pipeline do
 
   # TODO: Track per-step success/error counts and return a summary
   #   e.g. {:ok, %{persisted: 12, embedded: 10, indexed: 10, errors: 2}}
-  # TODO: Persist errors to a dedicated FailedIngest table for retry
   # TODO: Partial success should not be reported as full success —
   #   the success_message should reflect how many items actually made it through
   def ingest(embedding_service, format_pipeline, embedding_model, paths) do
-    with {:ok, binary_stream} <- load_all_binaries(paths, format_pipeline),
-         {:ok, books_and_chunks_stream} <- parse_all_binaries(format_pipeline, binary_stream),
-         {:ok, persisted_books_and_chunks} <- persist_books_and_chunks(books_and_chunks_stream),
+    ctx = %Pipelines.Context{
+      behaviour: "Cake.Books.Pipeline",
+      implementation: inspect(format_pipeline),
+      version: embedding_model
+    }
+
+    with {:ok, binary_stream} <- load_all_binaries(paths, format_pipeline, ctx),
+         {:ok, books_and_chunks_stream} <-
+           parse_all_binaries(format_pipeline, binary_stream, ctx),
+         {:ok, persisted_books_and_chunks} <-
+           persist_books_and_chunks(books_and_chunks_stream, ctx),
          {:ok, embedded_chunks} <-
-           embed_all_chunks(persisted_books_and_chunks, embedding_service, embedding_model),
+           embed_all_chunks(persisted_books_and_chunks, embedding_service, embedding_model, ctx),
          opensearch_chunks <-
-           Pipelines.add_to_opensearch(embedded_chunks, @index, @cluster),
+           Pipelines.add_to_opensearch(embedded_chunks, @index, @cluster, ctx),
          :ok <- Stream.run(opensearch_chunks) do
       {:ok, format_pipeline.success_message()}
     else
-      error -> error
+      error ->
+        Logger.warning("[books.ingest] Pipeline-fatal error: #{inspect(error)}")
+
+        Cake.FailedIngests.create_failed_ingest(%{
+          pipeline_behaviour: ctx.behaviour,
+          pipeline_implementation: ctx.implementation,
+          step: "ingest",
+          version: ctx.version,
+          error_text: inspect(error),
+          input_identifier: nil,
+          pipeline_fatal: true
+        })
+
+        error
     end
   end
 
-  def load_all_binaries(paths, format_pipeline) do
+  def load_all_binaries(paths, format_pipeline, ctx) do
     binary_stream =
       paths
       |> Stream.map(fn path ->
         format_pipeline.load_binary(path)
       end)
-      |> Pipelines.detuple_with_logging("books.load_binary")
+      |> Pipelines.detuple_with_logging("books.load_binary", ctx)
 
     {:ok, binary_stream}
   end
 
-  def parse_all_binaries(format_pipeline, binary_stream) do
+  def parse_all_binaries(format_pipeline, binary_stream, ctx) do
     books_and_chunks_stream =
       binary_stream
       |> Stream.map(fn binary ->
@@ -72,12 +92,12 @@ defmodule Cake.Books.Pipeline do
           e -> {:error, {binary, Exception.message(e)}}
         end
       end)
-      |> Pipelines.detuple_with_logging("books.parse")
+      |> Pipelines.detuple_with_logging("books.parse", ctx)
 
     {:ok, books_and_chunks_stream}
   end
 
-  def persist_books_and_chunks(books_and_chunks_stream, opts \\ []) do
+  def persist_books_and_chunks(books_and_chunks_stream, ctx, opts \\ []) do
     max_concurrency =
       Keyword.get(opts, :max_concurrency, System.schedulers_online())
 
@@ -95,12 +115,12 @@ defmodule Cake.Books.Pipeline do
         {:ok, {:error, reason}} -> {:error, reason}
         {:exit, reason} -> {:error, reason}
       end)
-      |> Pipelines.detuple_with_logging("books.persist")
+      |> Pipelines.detuple_with_logging("books.persist", ctx)
 
     {:ok, persisted_stream}
   end
 
-  def embed_all_chunks(persisted_stream, embedding_service, embedding_model) do
+  def embed_all_chunks(persisted_stream, embedding_service, embedding_model, ctx) do
     embeddings_module = Application.get_env(:cake, :embeddings_module, Cake.Embeddings)
 
     embedded_stream =
@@ -122,37 +142,34 @@ defmodule Cake.Books.Pipeline do
         on_timeout: :kill_task,
         zip_input_on_exit: true
       )
-      |> Stream.flat_map(&handle_embed_result/1)
+      |> Stream.flat_map(&handle_embed_result(&1, ctx))
 
     {:ok, embedded_stream}
   end
 
-  defp handle_embed_result({:ok, {chunk, {:ok, %{attrs: attrs}}}}) do
+  defp handle_embed_result({:ok, {chunk, {:ok, %{attrs: attrs}}}}, ctx) do
     case Books.update_chunk(chunk, attrs) do
       {:ok, updated_chunk} ->
         [updated_chunk]
 
       {:error, reason} ->
-        Logger.warning("Could not update chunk: #{inspect(reason)}")
+        Pipelines.log_and_persist_failure(ctx, "books.embed", reason)
         []
     end
   end
 
-  defp handle_embed_result({:ok, {_chunk, {:error, error}}}) do
-    Logger.warning("ERROR: #{inspect(error)}")
+  defp handle_embed_result({:ok, {_chunk, {:error, error}}}, ctx) do
+    Pipelines.log_and_persist_failure(ctx, "books.embed", error)
     []
   end
 
-  defp handle_embed_result({:exit, {%Chunk{} = input, reason}}) do
-    Logger.warning(
-      "EMBEDDING FAILED\n\nReason: #{inspect(reason)}\n\n input: #{input.section_title}"
-    )
-
+  defp handle_embed_result({:exit, {%Chunk{} = input, reason}}, ctx) do
+    Pipelines.log_and_persist_failure(ctx, "books.embed", {input.section_title, reason})
     []
   end
 
-  defp handle_embed_result({:exit, reason}) do
-    Logger.warning("EMBEDDING FAILED\n\nReason: #{inspect(reason)}")
+  defp handle_embed_result({:exit, reason}, ctx) do
+    Pipelines.log_and_persist_failure(ctx, "books.embed", reason)
     []
   end
 
