@@ -64,7 +64,7 @@ defmodule Cake.Books.Pdf.Pipeline do
           char_count: String.length(page.text)
         }
       end)
-      |> Enum.reject(&(&1.text == ""))
+      |> Enum.reject(&(String.trim(&1.text) == ""))
 
     {parsed_book, chunks}
   end
