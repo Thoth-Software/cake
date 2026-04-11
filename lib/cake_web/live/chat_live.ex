@@ -10,7 +10,7 @@ defmodule CakeWeb.ChatLive do
       response_model: "gpt-4o-mini",
       provider: :openai,
       search_type: :hybrid,
-      fields: ["title^2", "text"]
+      fields: ["section_title^2", "text"]
     }
 
     {:ok, pid} = Cake.Conversation.start_link(opts)
@@ -74,9 +74,9 @@ defmodule CakeWeb.ChatLive do
           ]}
         >
           <span class="text-xs font-semibold text-gray-500 block mb-1">
-            <%= if msg.role == :user, do: "You", else: "Cake" %>
+            {if msg.role == :user, do: "You", else: "Cake"}
           </span>
-          <span class="text-sm whitespace-pre-wrap"><%= msg.text %></span>
+          <span class="text-sm whitespace-pre-wrap">{msg.text}</span>
         </div>
       </div>
 

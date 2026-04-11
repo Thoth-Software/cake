@@ -39,6 +39,7 @@ defmodule Cake.Books.Chunk do
     chunk
     |> cast(attrs, [
       :parsed_book_id,
+      :embedding,
       :page_number,
       :chunk_index,
       :section_title,
