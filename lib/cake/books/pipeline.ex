@@ -43,8 +43,10 @@ defmodule Cake.Books.Pipeline do
     }
 
     with {:ok, binary_stream} <- load_all_binaries(paths, format_pipeline, ctx),
-         {:ok, books_and_chunks_stream} <- parse_all_binaries(format_pipeline, binary_stream, ctx),
-         {:ok, persisted_books_and_chunks} <- persist_books_and_chunks(books_and_chunks_stream, ctx),
+         {:ok, books_and_chunks_stream} <-
+           parse_all_binaries(format_pipeline, binary_stream, ctx),
+         {:ok, persisted_books_and_chunks} <-
+           persist_books_and_chunks(books_and_chunks_stream, ctx),
          {:ok, embedded_chunks} <-
            embed_all_chunks(persisted_books_and_chunks, embedding_service, embedding_model, ctx),
          opensearch_chunks <-
