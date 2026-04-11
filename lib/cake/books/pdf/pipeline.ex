@@ -8,6 +8,7 @@ defmodule Cake.Books.Pdf.Pipeline do
 
   @behaviour Cake.Books.Pipeline
 
+  require Logger
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
 
@@ -21,7 +22,15 @@ defmodule Cake.Books.Pdf.Pipeline do
 
   @impl true
   def parse({path, binary}) do
-    {:ok, %{pages: pages}} = Cake.ParseBooks.extract_pdf(binary)
+    {:ok, %{pages: pages, skipped: skipped}} = Cake.ParseBooks.extract_pdf(binary)
+
+    if skipped != [] do
+      skipped_nums = Enum.map(skipped, & &1.page_number) |> Enum.join(", ")
+
+      Logger.warning(
+        "PDF #{Path.basename(path)}: skipped pages #{skipped_nums} due to extraction errors"
+      )
+    end
 
     file_hash = :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower)
 
