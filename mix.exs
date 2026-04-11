@@ -63,7 +63,8 @@ defmodule Cake.MixProject do
       {:snap, "~> 0.12.1"},
       {:mox, "~> 1.2.0"},
       {:oban, "~> 2.0"},
-      {:rustler, "~> 0.37.1"}
+      {:rustler, "~> 0.37.1"},
+      {:periscope, "~> 0.7.0"}
     ]
   end
 
