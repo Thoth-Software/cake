@@ -4,5 +4,5 @@ defmodule Cake.Books.PdfExtraction do
   Rustler decodes into this automatically via NifStruct.
   """
 
-  defstruct [:pages]
+  defstruct [:pages, skipped: []]
 end
