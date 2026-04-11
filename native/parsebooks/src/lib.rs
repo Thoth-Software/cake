@@ -1,3 +1,4 @@
+use lopdf;
 use pdf_extract::Document;
 use rustler::{Binary, NifStruct};
 
@@ -20,6 +21,34 @@ struct SkippedPage {
 struct PdfExtraction {
     pages: Vec<PageContent>,
     skipped: Vec<SkippedPage>,
+    title: Option<String>,
+}
+
+fn extract_title(doc: &lopdf::Document) -> Option<String> {
+    let info_ref = doc.trailer.get(b"Info").ok()?;
+    let info_obj = doc.dereference(info_ref).ok()?.1;
+
+    if let lopdf::Object::Dictionary(dict) = info_obj {
+        if let Ok(title_obj) = dict.get(b"Title") {
+            let title_str = match title_obj {
+                lopdf::Object::String(bytes, _) => {
+                    String::from_utf8_lossy(bytes).into_owned()
+                }
+                _ => return None,
+            };
+
+            let trimmed = title_str.trim().to_string();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    }
 }
 
 // The #[rustler::nif] attribute marks this as callable from Elixir.
@@ -40,6 +69,8 @@ fn extract_pdf(binary: Binary) -> Result<PdfExtraction, String> {
     // If the PDF can't be loaded at all, fail the whole extraction.
     let doc = Document::load_mem(bytes)
         .map_err(|e| format!("PDF load failed: {}", e))?;
+
+    let title = extract_title(&doc);
 
     // get_pages() returns BTreeMap<u32, ObjectId> where the key
     // is the page number (1-indexed) and value is internal PDF ref.
@@ -71,7 +102,7 @@ fn extract_pdf(binary: Binary) -> Result<PdfExtraction, String> {
 
     // Return success with our extraction result.
     // Rustler will automatically convert this to an Elixir struct.
-    Ok(PdfExtraction { pages, skipped })
+    Ok(PdfExtraction { pages, skipped, title })
 }
 
 // This macro generates the boilerplate that connects to the BEAM.
