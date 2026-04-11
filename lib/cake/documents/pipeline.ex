@@ -9,7 +9,7 @@ defmodule Cake.Documents.Pipeline do
   The pipeline runs:
 
   version                   # For core modules, this is the language version. Otherwise, it's the package version.
-  |> download()           
+  |> download()
   |> persist_raw_docs(file_paths)   # Save the raw data, most likely HTML. This is our source of truth.
 
   version
@@ -46,28 +46,47 @@ defmodule Cake.Documents.Pipeline do
   def ingest(embedding_service, source_pipeline, {major, minor, patch}, embedding_model) do
     # TODO: Track per-step success/error counts and return a summary
     #   e.g. {:ok, %{persisted: 142, embedded: 138, indexed: 138, errors: 4}}
-    # TODO: Persist errors to a dedicated table for retry (see also detuple_with_logging)
     # TODO: Partial success should not be reported as full success —
     #   the success_message should reflect how many items actually made it through
     version = Enum.join([major, minor, patch], ".")
 
+    ctx = %Pipelines.Context{
+      behaviour: "Cake.Documents.Pipeline",
+      implementation: inspect(source_pipeline),
+      version: version
+    }
+
     with {:ok, file_paths} <- source_pipeline.download(version),
          raw_docs_stream <- source_pipeline.persist_raw_docs(file_paths, version),
          parsed_docs_attrs_stream <- source_pipeline.parse(raw_docs_stream),
-         persisted_parsed_docs_stream <- persist_parsed_docs(parsed_docs_attrs_stream),
+         persisted_parsed_docs_stream <- persist_parsed_docs(parsed_docs_attrs_stream, ctx),
          docs_with_embeddings_stream <-
            batch_embed(
              persisted_parsed_docs_stream,
              embedding_service,
              source_pipeline,
-             embedding_model
+             embedding_model,
+             ctx
            ),
          opensearch_docs_stream <-
-           Pipelines.add_to_opensearch(docs_with_embeddings_stream, @index, @cluster),
+           Pipelines.add_to_opensearch(docs_with_embeddings_stream, @index, @cluster, ctx),
          :ok <- Stream.run(opensearch_docs_stream) do
       {:ok, source_pipeline.success_message(version)}
     else
-      error -> error
+      error ->
+        Logger.warning("[documents.ingest] Pipeline-fatal error: #{inspect(error)}")
+
+        Cake.FailedIngests.create_failed_ingest(%{
+          pipeline_behaviour: ctx.behaviour,
+          pipeline_implementation: ctx.implementation,
+          step: "ingest",
+          version: ctx.version,
+          error_text: inspect(error),
+          input_identifier: nil,
+          pipeline_fatal: true
+        })
+
+        error
     end
   end
 
@@ -118,7 +137,8 @@ defmodule Cake.Documents.Pipeline do
         persisted_parsed_docs_stream,
         embedding_service,
         _source_pipeline,
-        embedding_model
+        embedding_model,
+        ctx
       ) do
     embeddings_module = embeddings_module()
 
@@ -133,14 +153,14 @@ defmodule Cake.Documents.Pipeline do
       on_timeout: :kill_task,
       zip_input_on_exit: true
     )
-    |> Pipelines.detuple_with_logging("docs.embed")
+    |> Pipelines.detuple_with_logging("docs.embed", ctx)
     |> Task.async_stream(
       &handle_response/1,
       max_concurrency: 5,
       timeout: 5_000,
       on_timeout: :kill_task
     )
-    |> Pipelines.detuple_with_logging("docs.embed_persist")
+    |> Pipelines.detuple_with_logging("docs.embed_persist", ctx)
   end
 
   defp embeddings_module do
@@ -166,9 +186,8 @@ defmodule Cake.Documents.Pipeline do
     end
   end
 
-  # TODO: Persist failed items to an errors table for retry
   # TODO: Return {success_count, error_count} summary after pipeline completes
-  defp persist_parsed_docs(parsed_doc_stream) do
+  defp persist_parsed_docs(parsed_doc_stream, ctx) do
     parsed_doc_stream
     |> Task.async_stream(
       fn attrs ->
@@ -185,7 +204,7 @@ defmodule Cake.Documents.Pipeline do
       {:ok, result} -> result
       {:exit, reason} -> {:error, {:task_exit, reason}}
     end)
-    |> Pipelines.detuple_with_logging("docs.persist")
+    |> Pipelines.detuple_with_logging("docs.persist", ctx)
   end
 
   # defp persist_to_opensearch(parsed_doc_stream, cluster_name, index_name) do
