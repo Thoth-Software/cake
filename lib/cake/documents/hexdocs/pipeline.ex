@@ -4,7 +4,9 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   """
 
   require Logger
+  import Ecto.Query, warn: false
   alias Cake.Documents.Hexdocs.Hexdoc
+  alias Cake.Repo
 
   @behaviour Cake.Documents.Pipeline
   alias Cake.Pipelines
@@ -96,6 +98,19 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
       url: url,
       content: content
     }
+  end
+
+  @impl true
+  def retry_from_raw(input_identifier, version) do
+    [module_name | _] = String.split(input_identifier, "@")
+
+    case Repo.one(
+           from h in Hexdoc,
+             where: h.module == ^module_name and h.version == ^version
+         ) do
+      nil -> {:error, {:raw_doc_not_found, input_identifier}}
+      hexdoc -> {:ok, Hexdoc.to_parsed_docs(hexdoc)}
+    end
   end
 
   def list_files(path) do

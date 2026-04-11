@@ -62,11 +62,10 @@ defmodule Cake.Pipelines do
 
   @doc """
   Filters a stream of {:ok, value} | {:error, reason} tuples,
-  logging errors, persisting them to FailedIngest, and passing through successes.
+  logging errors, persisting them to `FailedIngest`, and passing through successes.
 
   The `step_name` parameter identifies which pipeline stage failed,
-  for log readability. The `ctx` parameter carries pipeline identity
-  so failures can be persisted with full provenance.
+  for log readability.
   """
   def detuple_with_logging(stream_enumerable, step_name, %Context{} = ctx) do
     stream_enumerable
@@ -111,7 +110,8 @@ defmodule Cake.Pipelines do
     })
   end
 
-  defp extract_error_info({identifier, message}) when is_binary(identifier) and is_binary(message) do
+  defp extract_error_info({identifier, message})
+       when is_binary(identifier) and is_binary(message) do
     {identifier, message}
   end
 
