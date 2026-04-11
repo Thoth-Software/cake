@@ -15,7 +15,7 @@ defmodule Cake.Books.Pdf.Pipeline do
   def load_binary(path) do
     case File.read(path) do
       {:ok, binary} -> {:ok, {path, binary}}
-      {:error, reason} -> {:error, "Failed to read #{path}: #{inspect(reason)}"}
+      {:error, reason} -> {:error, {path, "Failed to read: #{inspect(reason)}"}}
     end
   end
 

@@ -22,6 +22,20 @@ defmodule Cake.FailedIngests do
   end
 
   @doc """
+  Returns all non-fatal FailedIngest records matching the given
+  behaviour, implementation, and version.
+  """
+  def list_failed_ingests_for(behaviour, implementation, version) do
+    from(f in FailedIngest,
+      where: f.pipeline_behaviour == ^behaviour,
+      where: f.pipeline_implementation == ^implementation,
+      where: f.version == ^version,
+      where: f.pipeline_fatal == false
+    )
+    |> Repo.all()
+  end
+
+  @doc """
   Gets a single failed_ingest.
 
   Raises `Ecto.NoResultsError` if the Failed ingest does not exist.

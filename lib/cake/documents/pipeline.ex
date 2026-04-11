@@ -29,6 +29,7 @@ defmodule Cake.Documents.Pipeline do
   alias Cake.Documents.ParsedDocument
   alias Cake.Documents.ParsedDocuments
   alias Cake.Pipelines
+  alias Cake.Repo
   require Logger
 
   @cluster Cake.Documents.Cluster
@@ -41,6 +42,10 @@ defmodule Cake.Documents.Pipeline do
   @callback parse(String.t()) :: {:ok, Enumerable.t()} | {:error, :parse, any()}
   @callback source() :: String.t()
   @callback success_message(String.t()) :: String.t()
+  @callback retry_from_raw(input_identifier :: String.t(), String.t()) ::
+              {:ok, [map()]} | {:error, any()}
+
+  @optional_callbacks [retry_from_raw: 2]
 
   @spec ingest(atom(), atom(), version(), String.t()) :: {:ok, String.t()} | {:error, any()}
   def ingest(embedding_service, source_pipeline, {major, minor, patch}, embedding_model) do
@@ -88,6 +93,69 @@ defmodule Cake.Documents.Pipeline do
 
         error
     end
+  end
+
+  @doc """
+  Runs the ingestion pipeline, then sweeps up item-level failures.
+  Returns the original ingest result. Sweep results are logged.
+
+  Options:
+    - :max_sweeps — maximum number of retry passes (default: 2)
+  """
+  def ingest_with_sweep(
+        embedding_service,
+        source_pipeline,
+        version_tuple,
+        embedding_model,
+        opts \\ []
+      ) do
+    result = ingest(embedding_service, source_pipeline, version_tuple, embedding_model)
+
+    {major, minor, patch} = version_tuple
+    version = Enum.join([major, minor, patch], ".")
+
+    retry_fn = fn failure ->
+      retry(failure, source_pipeline, embedding_service, embedding_model)
+    end
+
+    {resolved, remaining} =
+      Pipelines.sweep(
+        "Cake.Documents.Pipeline",
+        inspect(source_pipeline),
+        version,
+        retry_fn,
+        opts
+      )
+
+    if resolved > 0 or remaining > 0 do
+      Logger.info("[docs.sweep] Resolved #{resolved}, remaining #{remaining}")
+    end
+
+    result
+  end
+
+  @doc """
+  Retries a single failed ingest item. Dispatches based on the step that failed:
+  persist failures re-run from the raw source doc; embed/index failures resume
+  from the existing ParsedDocument.
+  """
+  def retry(
+        %Cake.FailedIngests.FailedIngest{step: "docs.persist"} = failure,
+        source_pipeline,
+        embedding_service,
+        embedding_model
+      ) do
+    retry_persist_failure(failure, source_pipeline, embedding_service, embedding_model)
+  end
+
+  def retry(
+        %Cake.FailedIngests.FailedIngest{step: step} = failure,
+        _source_pipeline,
+        embedding_service,
+        embedding_model
+      )
+      when step in ["docs.embed", "docs.embed_persist", "opensearch.index"] do
+    retry_embed_failure(failure, embedding_service, embedding_model)
   end
 
   # There seems to be a flaw here. If we use the context function to get all the parsed documents for a given source and version, then we are NOT getting those docs one at a time after their embeddings have been added. Interdasting...
@@ -168,21 +236,21 @@ defmodule Cake.Documents.Pipeline do
   end
 
   defp handle_response({:exit, {input, reason}}) do
-    {:error, {:embedding_exit, input.title, reason}}
+    {:error, {input.struct.id, inspect(reason)}}
   end
 
   defp handle_response({:error, error}) do
-    {:error, {:embedding_error, error}}
+    {:error, {nil, inspect(error)}}
   end
 
   defp handle_response({_, {:error, error}}) do
-    {:error, {:embedding_api_error, error}}
+    {:error, {nil, inspect(error)}}
   end
 
   defp handle_response({_, %{struct: struct, attrs: attrs}}) do
     case ParsedDocuments.update_parsed_document(struct, attrs) do
       {:ok, updated} -> {:ok, updated}
-      {:error, reason} -> {:error, {:update_failed, struct.id, reason}}
+      {:error, reason} -> {:error, {struct.id, inspect(reason)}}
     end
   end
 
@@ -194,7 +262,7 @@ defmodule Cake.Documents.Pipeline do
         try do
           {:ok, ParsedDocuments.create_parsed_doc!(attrs)}
         rescue
-          e -> {:error, {attrs[:title] || "unknown", Exception.message(e)}}
+          e -> {:error, {"#{attrs[:package]}@#{attrs[:version]}", Exception.message(e)}}
         end
       end,
       max_concurrency: 5,
@@ -205,6 +273,72 @@ defmodule Cake.Documents.Pipeline do
       {:exit, reason} -> {:error, {:task_exit, reason}}
     end)
     |> Pipelines.detuple_with_logging("docs.persist", ctx)
+  end
+
+  defp retry_persist_failure(failure, source_pipeline, embedding_service, embedding_model) do
+    unless function_exported?(source_pipeline, :retry_from_raw, 2) do
+      {:error, {:retry_not_implemented, source_pipeline}}
+    else
+      with {:ok, parsed_attrs_list} <-
+             source_pipeline.retry_from_raw(failure.input_identifier, failure.version),
+           persisted_docs <-
+             Enum.map(parsed_attrs_list, fn attrs ->
+               ParsedDocuments.create_parsed_doc!(attrs)
+             end),
+           :ok <- embed_and_index(persisted_docs, embedding_service, embedding_model) do
+        Cake.FailedIngests.delete_failed_ingest(failure)
+        {:ok, :retried}
+      end
+    end
+  end
+
+  defp retry_embed_failure(failure, embedding_service, embedding_model) do
+    case Repo.get(ParsedDocument, failure.input_identifier) do
+      nil ->
+        {:error, {:document_not_found, failure.input_identifier}}
+
+      doc ->
+        with :ok <- embed_and_index([doc], embedding_service, embedding_model) do
+          Cake.FailedIngests.delete_failed_ingest(failure)
+          {:ok, :retried}
+        end
+    end
+  end
+
+  defp embed_and_index(docs, embedding_service, embedding_model) do
+    embeddings_module = embeddings_module()
+
+    Enum.reduce_while(docs, :ok, fn doc, :ok ->
+      embed_input = %{input: "#{doc.title}\n\n#{doc.text}", struct: doc}
+
+      case embeddings_module.embed(embedding_service, embed_input, embedding_model) do
+        {:ok, %{struct: struct, attrs: attrs}} ->
+          case ParsedDocuments.update_parsed_document(struct, attrs) do
+            {:ok, updated} ->
+              case index_single(updated) do
+                :ok -> {:cont, :ok}
+                error -> {:halt, error}
+              end
+
+            error ->
+              {:halt, error}
+          end
+
+        {:error, _} = error ->
+          {:halt, error}
+      end
+    end)
+  end
+
+  defp index_single(doc) do
+    if Application.get_env(:cake, :skip_opensearch, false) do
+      :ok
+    else
+      case Snap.Document.update(@cluster, @index, %{doc: doc, doc_as_upsert: true}, doc.id) do
+        %{"_id" => _} -> :ok
+        error -> {:error, {:opensearch_index, error}}
+      end
+    end
   end
 
   # defp persist_to_opensearch(parsed_doc_stream, cluster_name, index_name) do

@@ -62,11 +62,10 @@ defmodule Cake.Pipelines do
 
   @doc """
   Filters a stream of {:ok, value} | {:error, reason} tuples,
-  logging errors, persisting them to FailedIngest, and passing through successes.
+  logging errors, persisting them to `FailedIngest`, and passing through successes.
 
   The `step_name` parameter identifies which pipeline stage failed,
-  for log readability. The `ctx` parameter carries pipeline identity
-  so failures can be persisted with full provenance.
+  for log readability.
   """
   def detuple_with_logging(stream_enumerable, step_name, %Context{} = ctx) do
     stream_enumerable
@@ -111,7 +110,8 @@ defmodule Cake.Pipelines do
     })
   end
 
-  defp extract_error_info({identifier, message}) when is_binary(identifier) and is_binary(message) do
+  defp extract_error_info({identifier, message})
+       when is_binary(identifier) and is_binary(message) do
     {identifier, message}
   end
 
@@ -121,6 +121,67 @@ defmodule Cake.Pipelines do
 
   defp extract_error_info(reason) do
     {nil, inspect(reason)}
+  end
+
+  @doc """
+  Retries item-level failures for a given pipeline run. Queries FailedIngests
+  for non-fatal failures matching the given behaviour/implementation/version,
+  calls the provided retry function on each, and loops until clean or max
+  sweeps reached.
+
+  The `retry_fn` argument is a 1-arity function that accepts a %FailedIngest{}
+  and returns {:ok, :retried} | {:error, any()}.
+
+  Returns {resolved_count, remaining_count}.
+  """
+  # NOTE: If we end up with many more behaviours, this sweep + ingest_with_sweep
+  # pattern could be extracted into a macro. For now, the duplication is minimal
+  # and the explicitness is worth it.
+  def sweep(behaviour, implementation, version, retry_fn, opts \\ []) do
+    max_sweeps = Keyword.get(opts, :max_sweeps, 2)
+    do_sweep(behaviour, implementation, version, retry_fn, max_sweeps, 0)
+  end
+
+  defp do_sweep(behaviour, implementation, version, _retry_fn, 0, total_resolved) do
+    remaining =
+      Cake.FailedIngests.list_failed_ingests_for(behaviour, implementation, version)
+      |> length()
+
+    {total_resolved, remaining}
+  end
+
+  defp do_sweep(behaviour, implementation, version, retry_fn, sweeps_left, total_resolved) do
+    failures = Cake.FailedIngests.list_failed_ingests_for(behaviour, implementation, version)
+
+    if failures == [] do
+      {total_resolved, 0}
+    else
+      resolved_this_sweep =
+        Enum.count(failures, fn failure ->
+          case retry_fn.(failure) do
+            {:ok, :retried} ->
+              true
+
+            {:error, reason} ->
+              Logger.warning("[sweep] Retry failed for #{failure.id}: #{inspect(reason)}")
+              false
+          end
+        end)
+
+      if resolved_this_sweep == 0 do
+        # No progress — stop early, remaining failures are probably permanent
+        {total_resolved, length(failures)}
+      else
+        do_sweep(
+          behaviour,
+          implementation,
+          version,
+          retry_fn,
+          sweeps_left - 1,
+          total_resolved + resolved_this_sweep
+        )
+      end
+    end
   end
 
   def detuple(stream_enumerable) do
