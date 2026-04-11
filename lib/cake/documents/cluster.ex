@@ -43,10 +43,8 @@ defmodule Cake.Documents.Cluster do
     }
   end
 
-  def start_convo(), do: start_convo(%{automatic: true})
-
-  def start_convo(params) do
-    case GenServer.start_link(Cake.Conversation, params) do
+  def start_convo(opts) do
+    case Cake.Conversation.start_link(opts) do
       {:ok, pid} -> pid
       error_tuple -> error_tuple
     end
