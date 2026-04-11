@@ -1,9 +1,5 @@
-// This "use" statement brings types into scope, like Elixir's "alias"
 use pdf_extract::Document;
 use rustler::{Binary, NifStruct};
-
-// This derives Rustler's automatic serialization to Elixir terms.
-// The "module" attribute tells Rustler what Elixir module to decode into.
 
 #[derive(NifStruct)]
 #[module = "Cake.Books.PageContent"]
@@ -13,9 +9,17 @@ struct PageContent {
 }
 
 #[derive(NifStruct)]
+#[module = "Cake.Books.SkippedPage"]
+struct SkippedPage {
+    page_number: u32,
+    reason: String,
+}
+
+#[derive(NifStruct)]
 #[module = "Cake.Books.PdfExtraction"]
 struct PdfExtraction {
     pages: Vec<PageContent>,
+    skipped: Vec<SkippedPage>,
 }
 
 // The #[rustler::nif] attribute marks this as callable from Elixir.
@@ -33,38 +37,41 @@ fn extract_pdf(binary: Binary) -> Result<PdfExtraction, String> {
     // Document::load_mem attempts to parse the PDF from memory.
     // It returns Result<Document, Error>. The map_err converts
     // any error into a String (which becomes an Elixir error tuple).
-    let doc = Document::load_mem(bytes).map_err(|e| format!("PDF load failed: {}", e))?;
-
-    // The ? operator is Rust's early return for errors.
-    // If load_mem returns Err, we exit here with that error.
-    // If it returns Ok(document), we unwrap and continue.
+    // If the PDF can't be loaded at all, fail the whole extraction.
+    let doc = Document::load_mem(bytes)
+        .map_err(|e| format!("PDF load failed: {}", e))?;
 
     // get_pages() returns BTreeMap<u32, ObjectId> where the key
     // is the page number (1-indexed) and value is internal PDF ref.
     // We only care about the keys (page numbers).
     let page_numbers: Vec<u32> = doc.get_pages().keys().cloned().collect();
 
-    // Now we need to extract text from each page.
-    // We'll build up a Vec<PageContent> to return.
     let mut pages: Vec<PageContent> = Vec::new();
+    let mut skipped: Vec<SkippedPage> = Vec::new();
 
-    // Iterate over each page number
     for page_num in page_numbers {
         // extract_text takes a slice of page numbers.
         // We pass a single-element slice to get one page at a time.
-        let text = doc
-            .extract_text(&[page_num])
-            .map_err(|e| format!("Text extraction failed on page {}: {}", page_num, e))?;
-
-        pages.push(PageContent {
-            page_number: page_num,
-            text,
-        });
+        // Failed pages are recorded in skipped rather than aborting the whole extraction.
+        match doc.extract_text(&[page_num]) {
+            Ok(text) => {
+                pages.push(PageContent {
+                    page_number: page_num,
+                    text,
+                });
+            }
+            Err(e) => {
+                skipped.push(SkippedPage {
+                    page_number: page_num,
+                    reason: format!("{}", e),
+                });
+            }
+        }
     }
 
     // Return success with our extraction result.
     // Rustler will automatically convert this to an Elixir struct.
-    Ok(PdfExtraction { pages })
+    Ok(PdfExtraction { pages, skipped })
 }
 
 // This macro generates the boilerplate that connects to the BEAM.

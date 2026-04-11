@@ -107,6 +107,7 @@ Implements `Cake.Books.Pipeline` for PDF files.
 - Creates `ParsedBook` metadata (title, file hash, word count, page count)
 - Creates a `Chunk` per non-empty page
 - Computes SHA256 hash for deduplication
+- Certain pdf encodings (e.g. scannedp ages, proprietary encodigs) are not parse-able by our NIF. In the future, we'll have a pipeline for that.
 
 ### Shared Design Philosophy
 
