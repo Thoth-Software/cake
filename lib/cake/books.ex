@@ -78,7 +78,7 @@ defmodule Cake.Books do
         {:ok, {persisted_book, persisted_chunks}}
 
       {:error, _step, reason, _changes_so_far} ->
-        {:error, reason}
+        {:error, {book.source_file_path, reason}}
     end
   end
 

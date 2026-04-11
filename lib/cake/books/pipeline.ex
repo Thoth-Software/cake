@@ -19,6 +19,7 @@ defmodule Cake.Books.Pipeline do
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
   alias Cake.Pipelines
+  alias Cake.Repo
   require Logger
 
   @cluster Cake.Documents.Cluster
@@ -71,6 +72,31 @@ defmodule Cake.Books.Pipeline do
     end
   end
 
+  @doc """
+  Retries a single failed ingest item. Dispatches based on the step that failed:
+  early failures re-run from the file, embed/index failures resume from the
+  persisted chunk.
+  """
+  def retry(
+        %Cake.FailedIngests.FailedIngest{step: step} = failure,
+        format_pipeline,
+        embedding_service,
+        embedding_model
+      )
+      when step in ["books.load_binary", "books.parse", "books.persist"] do
+    retry_from_file(failure, format_pipeline, embedding_service, embedding_model)
+  end
+
+  def retry(
+        %Cake.FailedIngests.FailedIngest{step: step} = failure,
+        _format_pipeline,
+        embedding_service,
+        embedding_model
+      )
+      when step in ["books.embed", "opensearch.index"] do
+    retry_from_chunk(failure, embedding_service, embedding_model)
+  end
+
   def load_all_binaries(paths, format_pipeline, ctx) do
     binary_stream =
       paths
@@ -89,7 +115,14 @@ defmodule Cake.Books.Pipeline do
         try do
           {:ok, format_pipeline.parse(binary)}
         rescue
-          e -> {:error, {binary, Exception.message(e)}}
+          e ->
+            path =
+              case binary do
+                {p, _} when is_binary(p) -> p
+                _ -> "unknown"
+              end
+
+            {:error, {path, Exception.message(e)}}
         end
       end)
       |> Pipelines.detuple_with_logging("books.parse", ctx)
@@ -108,12 +141,24 @@ defmodule Cake.Books.Pipeline do
       |> Task.async_stream(&Books.persist_book_and_chunks/1,
         max_concurrency: max_concurrency,
         timeout: timeout,
-        ordered: false
+        ordered: false,
+        zip_input_on_exit: true
       )
       |> Stream.map(fn
-        {:ok, {:ok, persisted}} -> {:ok, persisted}
-        {:ok, {:error, reason}} -> {:error, reason}
-        {:exit, reason} -> {:error, reason}
+        {:ok, {:ok, persisted}} ->
+          {:ok, persisted}
+
+        {:ok, {:error, {path, reason}}} ->
+          {:error, {path, inspect(reason)}}
+
+        {:ok, {:error, reason}} ->
+          {:error, reason}
+
+        {:exit, {{%ParsedBook{source_file_path: path}, _chunks}, reason}} ->
+          {:error, {path, inspect(reason)}}
+
+        {:exit, {_input, reason}} ->
+          {:error, {nil, inspect(reason)}}
       end)
       |> Pipelines.detuple_with_logging("books.persist", ctx)
 
@@ -153,24 +198,98 @@ defmodule Cake.Books.Pipeline do
         [updated_chunk]
 
       {:error, reason} ->
-        Pipelines.log_and_persist_failure(ctx, "books.embed", reason)
+        Pipelines.log_and_persist_failure(ctx, "books.embed", {chunk.id, inspect(reason)})
         []
     end
   end
 
-  defp handle_embed_result({:ok, {_chunk, {:error, error}}}, ctx) do
-    Pipelines.log_and_persist_failure(ctx, "books.embed", error)
+  defp handle_embed_result({:ok, {chunk, {:error, error}}}, ctx) do
+    Pipelines.log_and_persist_failure(ctx, "books.embed", {chunk.id, inspect(error)})
     []
   end
 
-  defp handle_embed_result({:exit, {%Chunk{} = input, reason}}, ctx) do
-    Pipelines.log_and_persist_failure(ctx, "books.embed", {input.section_title, reason})
+  defp handle_embed_result({:exit, {%Chunk{} = chunk, reason}}, ctx) do
+    Pipelines.log_and_persist_failure(ctx, "books.embed", {chunk.id, inspect(reason)})
     []
   end
 
   defp handle_embed_result({:exit, reason}, ctx) do
-    Pipelines.log_and_persist_failure(ctx, "books.embed", reason)
+    Pipelines.log_and_persist_failure(ctx, "books.embed", {nil, inspect(reason)})
     []
+  end
+
+  defp retry_from_file(failure, format_pipeline, embedding_service, embedding_model) do
+    path = failure.input_identifier
+
+    if is_nil(path) do
+      {:error, {:no_input_identifier, failure.id}}
+    else
+      with {:ok, binary} <- format_pipeline.load_binary(path),
+           {parsed_book, chunks} <- try_parse(format_pipeline, binary),
+           {:ok, {_persisted_book, persisted_chunks}} <-
+             Books.persist_book_and_chunks({parsed_book, chunks}),
+           :ok <- embed_and_index_chunks(persisted_chunks, embedding_service, embedding_model) do
+        Cake.FailedIngests.delete_failed_ingest(failure)
+        {:ok, :retried}
+      end
+    end
+  end
+
+  defp try_parse(format_pipeline, binary) do
+    try do
+      format_pipeline.parse(binary)
+    rescue
+      e -> {:error, {:parse_failed, Exception.message(e)}}
+    end
+  end
+
+  defp retry_from_chunk(failure, embedding_service, embedding_model) do
+    case Repo.get(Chunk, failure.input_identifier) do
+      nil ->
+        {:error, {:chunk_not_found, failure.input_identifier}}
+
+      chunk ->
+        with :ok <- embed_and_index_chunks([chunk], embedding_service, embedding_model) do
+          Cake.FailedIngests.delete_failed_ingest(failure)
+          {:ok, :retried}
+        end
+    end
+  end
+
+  defp embed_and_index_chunks(chunks, embedding_service, embedding_model) do
+    embeddings_module = Application.get_env(:cake, :embeddings_module, Cake.Embeddings)
+
+    Enum.reduce_while(chunks, :ok, fn chunk, :ok ->
+      input = %{input: "#{chunk.section_title}\n\n#{chunk.text}"}
+
+      case embeddings_module.embed(embedding_service, input, embedding_model) do
+        {:ok, %{attrs: attrs}} ->
+          case Books.update_chunk(chunk, attrs) do
+            {:ok, updated} ->
+              case index_single_chunk(updated) do
+                :ok -> {:cont, :ok}
+                error -> {:halt, error}
+              end
+
+            {:error, reason} ->
+              {:halt, {:error, {:chunk_update_failed, chunk.id, reason}}}
+          end
+
+        {:error, reason} ->
+          {:halt, {:error, {:embed_failed, chunk.id, reason}}}
+      end
+    end)
+  end
+
+  defp index_single_chunk(chunk) do
+    if Application.get_env(:cake, :skip_opensearch, false) do
+      :ok
+    else
+      case Snap.Document.update(@cluster, @index, %{doc: chunk, doc_as_upsert: true}, chunk.id) do
+        %{"_id" => _} -> :ok
+        error -> {:error, {:opensearch_index, chunk.id, error}}
+      end
+    end
   end
 
   def persist_parsed_books(_), do: nil
