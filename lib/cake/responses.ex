@@ -102,7 +102,9 @@ defmodule Cake.Responses do
       url: response_url,
       json: %{model: model, input: messages},
       auth: {:bearer, api_key},
-      receive_timeout: @api_timeout
+      receive_timeout: @api_timeout,
+      retry: :transient,
+      max_retries: 3
     )
     |> case do
       {:ok,
