@@ -33,17 +33,26 @@ config :cake, Cake.Documents.Cluster,
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 # Binding to loopback ipv4 address prevents access from other machines.
+in_docker = File.exists?("/.dockerenv")
+
+watchers =
+  if in_docker do
+    []
+  else
+    [
+      esbuild: {Esbuild, :install_and_run, [:cake, ~w(--sourcemap=inline --watch)]},
+      tailwind: {Tailwind, :install_and_run, [:cake, ~w(--watch)]}
+    ]
+  end
+
 config :cake, CakeWeb.Endpoint,
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {0, 0, 0, 0}, port: 4000, thousand_island_options: [read_timeout: 300_000]],
   check_origin: false,
-  code_reloader: true,
+  code_reloader: !in_docker,
   debug_errors: true,
   secret_key_base: "QOE6B7HJEKYKqj1veEzuDJfHlTeDAV6TzgrQCgNrSlfLcMMcakvpHh0O3VYG6QJM",
-  watchers: [
-    esbuild: {Esbuild, :install_and_run, [:cake, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:cake, ~w(--watch)]}
-  ]
+  watchers: watchers
 
 # ## SSL Support
 #
@@ -68,15 +77,17 @@ config :cake, CakeWeb.Endpoint,
 # configured to run both http and https servers on
 # different ports.
 
-# Watch static and templates for browser reloading.
-config :cake, CakeWeb.Endpoint,
-  live_reload: [
-    patterns: [
-      ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
-      ~r"priv/gettext/.*(po)$",
-      ~r"lib/cake_web/(controllers|live|components)/.*(ex|heex)$"
+# Watch static and templates for browser reloading (disabled in Docker — virtiofs + inotify crashes VZ VMs).
+if not in_docker do
+  config :cake, CakeWeb.Endpoint,
+    live_reload: [
+      patterns: [
+        ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
+        ~r"priv/gettext/.*(po)$",
+        ~r"lib/cake_web/(controllers|live|components)/.*(ex|heex)$"
+      ]
     ]
-  ]
+end
 
 # Enable dev routes for dashboard and mailbox
 config :cake, dev_routes: true

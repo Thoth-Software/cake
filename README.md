@@ -375,8 +375,7 @@ Supervised processes (`Cake.Application`):
 5. Phoenix PubSub
 6. Finch HTTP client
 7. **Cake.Documents.Cluster** (OpenSearch connection — documents)
-8. **Cake.Books.Cluster** (OpenSearch connection — book chunks)
-9. Phoenix Endpoint
+8. Phoenix Endpoint
 
 ---
 

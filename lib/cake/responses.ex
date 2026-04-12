@@ -46,7 +46,7 @@ defmodule Cake.Responses do
                         text: text,
                         section_title: section_title,
                         page_number: page_number,
-                        parsed_book: %{title: title}
+                        parsed_book: %{title: title, source_file_path: _source_file_path}
                       }, idx} ->
         {idx,
          """
@@ -68,7 +68,7 @@ defmodule Cake.Responses do
                        section_title: section_title,
                        page_number: page_number,
                        chunk_index: chunk_index,
-                       parsed_book: %{title: book_title}
+                       parsed_book: %{title: book_title, source_file_path: source_file_path}
                      }, idx} ->
         {idx,
          %{
@@ -76,7 +76,8 @@ defmodule Cake.Responses do
            page_number: page_number,
            section_title: section_title,
            chunk_index: chunk_index,
-           chunk_preview: String.slice(text, 0, 80)
+           chunk_preview: String.slice(text, 0, 200),
+           source_file_path: source_file_path
          }}
       end)
 
@@ -101,7 +102,9 @@ defmodule Cake.Responses do
       url: response_url,
       json: %{model: model, input: messages},
       auth: {:bearer, api_key},
-      receive_timeout: @api_timeout
+      receive_timeout: @api_timeout,
+      retry: :transient,
+      max_retries: 3
     )
     |> case do
       {:ok,
@@ -109,14 +112,16 @@ defmodule Cake.Responses do
          status: 200,
          body: %{"output" => output, "usage" => usage}
        }} ->
-        response =
-          output
-          |> Enum.find(fn map -> Map.has_key?(map, "content") end)
-          |> Map.get("content")
-          |> List.first()
-          |> Map.get("text")
+        case Enum.find(output, fn map -> Map.has_key?(map, "content") end) do
+          %{"content" => [%{"text" => text} | _]} ->
+            {:ok, %{response: text, usage: usage, chunk_map: chunk_map}}
 
-        {:ok, %{response: response, usage: usage, chunk_map: chunk_map}}
+          nil ->
+            {:error, "#{__MODULE__}: no content block found in output: #{inspect(output)}"}
+
+          other ->
+            {:error, "#{__MODULE__}: unexpected content structure: #{inspect(other)}"}
+        end
 
       {:ok, %Req.Response{status: code, body: body}} ->
         {:error, "in #{__MODULE__} \n #{code} error, body: #{inspect(body)}"}

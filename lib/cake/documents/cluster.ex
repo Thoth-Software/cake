@@ -43,10 +43,8 @@ defmodule Cake.Documents.Cluster do
     }
   end
 
-  def start_convo(), do: start_convo(%{automatic: true})
-
-  def start_convo(params) do
-    case GenServer.start_link(Cake.Conversation, params) do
+  def start_convo(opts) do
+    case Cake.Conversation.start_link(opts) do
       {:ok, pid} -> pid
       error_tuple -> error_tuple
     end
@@ -116,12 +114,12 @@ defmodule Cake.Documents.Cluster do
 
   def search(:vector, index, %{embedding: embedding}) do
     query = %{
-      size: 10,
+      size: 30,
       query: %{
         knn: %{
           embedding: %{
             vector: embedding,
-            k: 10
+            k: 30
           }
         }
       }
@@ -137,7 +135,7 @@ defmodule Cake.Documents.Cluster do
         keyword_weight: keyword_weight
       }) do
     query = %{
-      size: 10,
+      size: 30,
       query: %{
         bool: %{
           must: [
@@ -145,7 +143,10 @@ defmodule Cake.Documents.Cluster do
               knn: %{
                 embedding: %{
                   vector: embedding,
-                  k: 10
+                  k: 30,
+                  method_parameters: %{
+                    ef_search: 256
+                  }
                 }
               }
             }

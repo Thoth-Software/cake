@@ -21,6 +21,8 @@ defmodule CakeWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    live "/chat", ChatLive
+    get "/books/download/*file_path", BooksController, :download
   end
 
   # Other scopes may use custom stacks.

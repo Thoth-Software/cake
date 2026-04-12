@@ -28,7 +28,8 @@ defmodule Cake.Citations do
            page_number: page_number,
            section_title: section_title,
            chunk_index: chunk_index,
-           chunk_preview: chunk_preview
+           chunk_preview: chunk_preview,
+           source_file_path: source_file_path
          }} ->
           [
             %{
@@ -37,7 +38,8 @@ defmodule Cake.Citations do
               page_number: page_number,
               section_title: section_title,
               chunk_index: chunk_index,
-              chunk_preview: chunk_preview
+              chunk_preview: chunk_preview,
+              source_file_path: source_file_path
             }
           ]
 

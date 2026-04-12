@@ -21,8 +21,33 @@ defmodule Cake.Books.Pdf.Pipeline do
   end
 
   @impl true
+  @spec parse({any(), binary()}) ::
+          {%Cake.Books.ParsedBook{
+             __meta__: map(),
+             authors: nil,
+             chunks: map(),
+             embedding_status: :pending,
+             file_hash: binary(),
+             file_size: non_neg_integer(),
+             id: nil,
+             inserted_at: nil,
+             isbn: nil,
+             language: nil,
+             metadata: nil,
+             parsed_at: map(),
+             publication_date: nil,
+             publisher: nil,
+             source_file_path: any(),
+             source_format: <<_::24>>,
+             table_of_contents: nil,
+             title: binary(),
+             total_pages: non_neg_integer(),
+             updated_at: nil,
+             word_count: non_neg_integer()
+           }, list()}
   def parse({path, binary}) do
-    {:ok, %{pages: pages, skipped: skipped}} = Cake.ParseBooks.extract_pdf(binary)
+    {:ok, %{pages: pages, skipped: skipped, title: metadata_title}} =
+      Cake.ParseBooks.extract_pdf(binary)
 
     if skipped != [] do
       skipped_nums = Enum.map(skipped, & &1.page_number) |> Enum.join(", ")
@@ -43,9 +68,9 @@ defmodule Cake.Books.Pdf.Pipeline do
     word_count = count_words(all_text)
 
     title =
-      case pages do
-        [first | _] -> extract_title(first.text, path)
-        [] -> Path.basename(path, ".pdf")
+      case metadata_title do
+        t when is_binary(t) and t != "" -> t
+        _ -> title_fallback(pages, path)
       end
 
     parsed_book = %ParsedBook{
@@ -88,17 +113,23 @@ defmodule Cake.Books.Pdf.Pipeline do
     text |> String.split(~r/\s+/, trim: true) |> length()
   end
 
-  defp extract_title(first_page_text, path) do
-    first_page_text
-    |> String.split("\n", trim: true)
-    |> List.first()
-    |> case do
-      nil -> Path.basename(path, ".pdf")
-      line -> String.trim(line)
-    end
-    |> case do
-      "" -> Path.basename(path, ".pdf")
-      title -> title
+  defp title_fallback(pages, path) do
+    case pages do
+      [first | _] ->
+        first.text
+        |> String.split("\n", trim: true)
+        |> List.first()
+        |> case do
+          nil -> Path.basename(path, ".pdf")
+          line -> String.trim(line)
+        end
+        |> case do
+          "" -> Path.basename(path, ".pdf")
+          title -> title
+        end
+
+      [] ->
+        Path.basename(path, ".pdf")
     end
   end
 end
