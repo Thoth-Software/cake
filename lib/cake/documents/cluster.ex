@@ -114,7 +114,7 @@ defmodule Cake.Documents.Cluster do
 
   def search(:vector, index, %{embedding: embedding}) do
     query = %{
-      size: 10,
+      size: 30,
       query: %{
         knn: %{
           embedding: %{
@@ -143,7 +143,10 @@ defmodule Cake.Documents.Cluster do
               knn: %{
                 embedding: %{
                   vector: embedding,
-                  k: 30
+                  k: 30,
+                  method_parameters: %{
+                    ef_search: 256
+                  }
                 }
               }
             }

@@ -58,18 +58,21 @@ defmodule Cake.Conversation do
       fields: fields
     } = state
 
+    keyword_weight = 0.8
+
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Embeddings.embed(provider, %{input: question}, embedding_model),
          {:ok, %{hits: hits}} <-
            cluster.search(search_type, index, %{
              keywords: question,
              embedding: embedding,
-             keyword_weight: 0.5,
+             keyword_weight: keyword_weight,
              fields: fields
            }),
          chunks = Books.chunks_for_hits(hits),
+         expanded_chunks = Books.expand_with_neighbors(chunks, 2),
          {:ok, %{response: response, chunk_map: chunk_map}} <-
-           Cake.Responses.query_llm(:openai, chunks, question, response_model) do
+           Cake.Responses.query_llm(:openai, expanded_chunks, question, response_model) do
       citations = Cake.Citations.extract(response, chunk_map)
 
       send(state.reply_to, {:convo_response, response, citations})
@@ -77,7 +80,7 @@ defmodule Cake.Conversation do
       {:noreply,
        %{
          state
-         | search_results: chunks,
+         | search_results: expanded_chunks,
            message_history: [question, response],
            chunk_map: chunk_map,
            citations: citations
@@ -115,7 +118,10 @@ defmodule Cake.Conversation do
   @impl true
   def handle_call(:search_results, {from, _}, %{search_results: chunks} = state)
       when is_list(chunks) and chunks != [] do
-    Logger.debug("search_results requested by #{inspect(from)}, returning #{length(chunks)} chunks")
+    Logger.debug(
+      "search_results requested by #{inspect(from)}, returning #{length(chunks)} chunks"
+    )
+
     {:reply, chunks, state}
   end
 
