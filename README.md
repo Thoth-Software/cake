@@ -1,459 +1,241 @@
 # Cake
 
-A RAG (Retrieval-Augmented Generation) framework for Elixir. Cake provides the data structures, ingestion pipelines, and retrieval heuristics needed to build production RAG applications. The framework is designed to be iteratively improved through feedback from real implementations.
+Cake is a Retrieval-Augmented Generation (RAG) framework built in Elixir. It provides pluggable ingestion pipelines, hybrid search (vector + keyword), multi-turn conversations with citation tracking, and error recovery for production document Q&A systems. The framework is designed for tenant-isolated deployments where each customer gets a bespoke frontend against shared OpenSearch infrastructure.
 
-## Mission
-
-Cake aims to be a **RAG substrate**, not just a toy app. The core value proposition:
-
-1. **Pluggable Ingestion Pipelines** - Each documentation source is a behaviour with implementations for specific file types
-2. **Opinionated Data Structures** - Schemas designed for effective retrieval, with metadata that matters
-3. **Hybrid Search** - Vector similarity + keyword search, configurable per use case
-4. **Multi-turn Conversations** - Stateful RAG conversations, not just stateless Q&A
-
-## Architecture Overview
-
-```
-[Raw Documentation]
-       ↓
-[Pipeline.download/1]        ← Source-specific fetching
-       ↓
-[Pipeline.persist_raw_docs/2] ← Store raw data (source of truth)
-       ↓
-[Pipeline.parse/1]           ← Extract structured content
-       ↓
-[ParsedDocument]             ← Unified document schema
-       ↓
-[Embeddings.embed/3]         ← Generate vector embeddings
-       ↓
-[OpenSearch Index]           ← k-NN + BM25 hybrid search
-       ↓
-[Conversation]               ← Multi-turn RAG with context
-       ↓
-[Responses.query_llm/4]      ← Grounded answer generation
-```
+The immediate use case is a document Q&A tool for enterprise customers whose document formats include PDF, Word, Excel, CSV, and JPG. The demo-critical path is PDF ingestion, LiveView chat UI, and citation display. Other document formats are explicitly post-demo.
 
 ---
 
-## Ingestion Pipelines
+## How the RAG Loop Works End to End
 
-Cake defines pipeline behaviours per document type, with implementations for specific formats and sources. Each behaviour prescribes a processing flow suited to its document type, while implementations handle the details of fetching, parsing, and structuring content from a particular format.
+Cake's core loop proceeds through five stages. Understanding this flow is essential context for working on any part of the system, because each module's design is shaped by its position in this sequence:
 
-### Documents Pipeline Behaviour (`Cake.Documents.Pipeline`)
+1. **Ingest**: Raw documents (PDFs, HTML docs) are downloaded, persisted as-is (the "raw data first" principle — persist before parsing so you can re-process when heuristics improve), then parsed into structured records (`ParsedDocument` or `ParsedBook` + `Chunk`).
 
-For ingesting programming language documentation (e.g., Elixir hexdocs, Java javadocs, Python docs). Implementations download versioned documentation from external sources, persist raw files, and parse them into `ParsedDocument` records.
+2. **Embed**: Parsed text is sent to OpenAI's `text-embedding-ada-002` to produce 1536-dimensional vectors. Title is prepended to text before embedding because function names and headings carry significant semantic weight.
 
-**Required Callbacks:**
+3. **Index**: Embedded records are upserted into OpenSearch indices configured with HNSW k-NN (FAISS engine, cosine similarity) plus full-text BM25 fields.
 
-| Callback | Purpose |
-|----------|---------|
-| `download(version)` | Fetch raw documentation for a specific version |
-| `persist_raw_docs(file_paths, version)` | Store raw files as source of truth |
-| `parse(raw_docs_stream)` | Transform raw docs into `ParsedDocument` structs |
-| `source()` | Return the source identifier (e.g., "hexdocs") |
-| `success_message(version)` | Human-readable completion message |
+4. **Retrieve**: When a user asks a question, the `Conversation` GenServer embeds the question, runs a hybrid search (vector similarity as `must`, keyword BM25 as `should` boost), and collects the top-k chunks with metadata.
 
-**Pipeline Flow:**
+5. **Generate**: Retrieved chunks are formatted into a numbered context block, sent to the LLM with the user's question, and the response is parsed for `[N]` citation markers that map back to specific chunks with page numbers, section titles, and previews.
 
-1. Download raw documentation
-2. Persist raw files (enables reprocessing with improved heuristics)
-3. Parse into `ParsedDocument` records with streaming
-4. Batch embed using OpenAI (configurable model)
-5. Index in OpenSearch with vector + metadata
-
-#### Hexdocs Implementation (`Cake.Documents.Hexdocs.Pipeline`)
-
-Implements `Cake.Documents.Pipeline` for Elixir core documentation.
-
-**Download Strategy:**
-- Clones the Elixir repository at a specific version tag
-- Extracts `.ex` source files from `lib/elixir/lib/`
-
-**Parsing Strategy:**
-- Uses `Code.string_to_quoted/1` to parse Elixir AST
-- Walks the AST to find `@doc` annotations paired with function definitions
-- Extracts function signature, arity, and documentation
-- Creates `ParsedDocument` with `title: "function_name/arity"` and `text: docstring + code`
-
-This approach captures both the documentation and the actual implementation, giving the LLM more context for answering questions.
-
-### Books Pipeline Behaviour (`Cake.Books.Pipeline`)
-
-For ingesting books and ebooks. Unlike the documents pipeline, this behaviour assumes files are already stored locally. Implementations load binary file data, parse it into `ParsedBook` metadata and `Chunk` records, and persist both before embedding.
-
-**Required Callbacks:**
-
-| Callback | Purpose |
-|----------|---------|
-| `load_binary(path)` | Load binary file data from storage |
-| `parse(binary)` | Parse binary into a `{ParsedBook, [Chunk]}` tuple |
-| `format()` | Return the format identifier (e.g., `:pdf`) |
-| `success_message()` | Human-readable completion message |
-
-**Pipeline Flow:**
-
-1. Load all binaries from disk
-2. Parse into `ParsedBook` + `Chunk` records (format-aware)
-3. Persist books and chunks to PostgreSQL
-4. Batch embed chunks
-5. Index chunks in OpenSearch
-
-#### PDF Implementation (`Cake.Books.Pdf.Pipeline`)
-
-Implements `Cake.Books.Pipeline` for PDF files.
-
-- Loads PDF binary from filesystem paths
-- Uses Rust NIF (`Cake.ParseBooks`) to extract page text
-- Creates `ParsedBook` metadata (title, file hash, word count, page count)
-- Creates a `Chunk` per non-empty page
-- Computes SHA256 hash for deduplication
-
-### Shared Design Philosophy
-
-- Raw/binary data is persisted first, enabling re-processing when heuristics improve
-- Streaming throughout to handle large datasets
-- Concurrent processing via `Task.async_stream` (5 max concurrency)
-- Skippable OpenSearch indexing for testing
-
-### Error Handling in Pipelines
-
-Pipelines process streams of items (files, documents, chunks), and failures fall into two categories that are handled differently.
-
-**Item-level failures** occur when a single item in the stream fails while the rest continue normally. A corrupt PDF that won't parse, an embedding API timeout for one chunk, or a changeset validation error on a single record are all item-level failures. These are handled inside the stream itself via `Pipelines.detuple_with_logging/2`, which logs the error with the pipeline step name and filters the failed item out of the stream. Successfully-processed items continue downstream unaffected.
-
-**Pipeline-fatal failures** occur when the entire pipeline cannot continue. The download step failing, OpenSearch being unreachable, or an invalid embedding model string are pipeline-fatal. These are handled in the `ingest` function on each behaviour module, where the `with` chain short-circuits and returns an error tuple. Nothing downstream runs.
-
-The distinction matters for two reasons. First, item-level failures should not abort a batch — if 148 out of 150 PDFs parse successfully, those 148 should be persisted, embedded, and indexed. Second, the retry strategy differs: item-level failures can be retried individually, while pipeline-fatal failures require retrying the entire batch.
-
-**Where logging lives:**
-
-The behaviour module's `ingest` function is responsible for logging (and eventually persisting) pipeline-fatal errors. Each stream transformation step uses `Pipelines.detuple_with_logging/2` with a descriptive step name (e.g., `"books.parse"`, `"docs.embed"`) to log item-level failures. Callback implementations (e.g., `Pdf.Pipeline.parse/1`) return `{:ok, _}` or `{:error, _}` tuples — they do not log directly, because the behaviour module is the single point of observability for the pipeline as a whole.
-
-Step names follow the convention `"pipeline.step"` where `pipeline` is a short identifier for the behaviour (`books`, `docs`) and `step` identifies the transformation (`load_binary`, `parse`, `persist`, `embed`, `opensearch.index`).
-
-**Future: error persistence.** Item-level errors will be persisted to a `FailedIngest` table (via `Cake.FailedIngests`) at the point of failure, inside `detuple_with_logging`. Pipeline-fatal errors will be persisted in the `else` branch of the `ingest` function's `with` chain. Each record stores the behaviour, implementation, step, version, error text, and an input identifier sufficient to locate and retry the failed item. See the `FailedIngest` schema for details.
+On follow-up turns within the same conversation, stages 2-3 of the retrieve step are skipped — the Conversation reuses previously retrieved chunks and only queries the LLM with the new question appended to message history. This reduces latency and API cost.
 
 ---
 
-## Data Structures
+## Architecture: Module Responsibilities and Data Flow
 
-### ParsedDocument (`Cake.Documents.ParsedDocument`)
+The system is organized into four layers. Each layer has a clear responsibility boundary, and modules within a layer communicate through defined interfaces (behaviours, function signatures, GenServer protocols).
 
-The universal schema for all indexed documentation. Every ingestion pipeline outputs `ParsedDocument` records.
+### Ingestion Layer: Two Parallel Pipeline Systems
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `source` | string | Pipeline identifier ("hexdocs", "javadocs", etc.) |
-| `version` | string | Documentation version |
-| `package` | string | Module/gem/class name |
-| `language` | string | Programming language |
-| `title` | string | Function/class/method name - used in embeddings |
-| `text` | string | Documentation content |
-| `url` | string | Original documentation URL |
-| `core` | boolean | Part of stdlib/core? |
-| `embedding` | float array | 1536-dimensional vector (OpenAI ada-002) |
+Cake has two ingestion subsystems that share the same architectural pattern but handle different source material. The reason for the split is that programming documentation and books have fundamentally different parsing requirements, metadata schemas, and chunking strategies — collapsing them into a single pipeline would require too many conditional branches.
 
-**Query Helpers:**
-- `by_version/2`, `by_language/2`, `by_source/2` for filtering
+**`Cake.Documents.Pipeline`** handles programming documentation (Elixir hexdocs today, javadocs/pydocs planned). It defines a behaviour with callbacks `download/1`, `persist_raw_docs/2`, `parse/1`, `source/0`, and `success_message/1`. The module also contains the `ingest/4` orchestrator that sequences these callbacks into a stream pipeline: download → persist raw → parse → embed → index. The current implementation is `Cake.Documents.Hexdocs.Pipeline`, which downloads versioned tarballs from hex.pm, extracts HTML files, and parses them into `ParsedDocument` records.
 
-### Hexdoc (`Cake.Documents.Hexdocs.Hexdoc`)
+**`Cake.Books.Pipeline`** handles books and ebooks. Its callbacks are `load_binary/1`, `parse/1`, `format/0`, and `success_message/0`. The current implementation is `Cake.Books.Pdf.Pipeline`, which uses a Rustler NIF (the `parsebooks` Rust crate wrapping `pdf-extract`) to parse PDFs into `ParsedBook` + `Chunk` records. The NIF boundary is a known complexity point — macOS-compiled Mach-O `.so` files are incompatible with the Linux Docker container, requiring forced recompilation in `entrypoint.sh`.
 
-Intermediate storage for raw Elixir source code before parsing:
+**`Cake.Pipelines`** provides shared infrastructure used by both pipeline types: `detuple_with_logging/3` filters `{:ok, _}/{:error, _}` streams and persists errors to the `FailedIngest` table, `add_to_opensearch/4` handles index upserts, and `sweep/5` implements a retry loop for item-level failures. A `Context` struct carries pipeline identity (behaviour, implementation, version) through a run for error provenance.
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `module` | string | Elixir module name |
-| `version` | string | Elixir version |
-| `content` | string | Raw source code |
-| `url` | string | hexdocs.pm URL |
+### Storage and Search Layer: Postgres and OpenSearch
 
-This two-stage approach (raw → parsed) allows re-parsing when AST extraction heuristics improve.
+**`Cake.Repo`** (Ecto/Postgres) stores all structured data: parsed documents, parsed books, chunks, users, failed ingests, and Oban jobs. All schemas use binary UUIDs via `Cake.Schema` and include `sanitize_text_fields/1` in their changesets.
 
-### ParsedBook (`Cake.Books.ParsedBook`)
+**`Cake.Documents.Cluster`** (Snap/OpenSearch) manages the search index. It's a GenServer that creates indices at startup and exposes `search/3` with three modes. **Keyword search** uses BM25 multi_match across configurable fields with optional boost weights. **Vector search** uses k-NN with k=10, cosine similarity, and HNSW via FAISS engine. **Hybrid search** (the default and recommended mode) puts vector similarity in `must` and keyword matching in `should` with a configurable boost weight. Hybrid exists because pure vector search struggles with exact identifiers, function names, rare terms, and precise code patterns that BM25 handles well.
 
-For book/ebook ingestion (parallel RAG subsystem):
+Tenant isolation uses multiple OpenSearch indices against a shared backend cluster, with bespoke frontends per client — not multiple clusters.
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `title` | string | Book title |
-| `authors` | string array | Author list |
-| `source_format` | string | PDF, EPUB, etc. (determines chunking strategy) |
-| `file_hash` | string | For deduplication |
-| `table_of_contents` | map | Structure for section-aware retrieval |
-| `embedding_status` | enum | :pending, :processing, :completed, :failed |
+### Conversation Layer: Stateful Multi-Turn RAG
 
-### Chunk (`Cake.Books.Chunk`)
+**`Cake.Conversation`** is a GenServer that manages the state of a single RAG conversation. Its state includes search results, message history, chunk map, citations, and accumulated errors. The two-phase lifecycle is the key design decision: the first `ask/3` call performs the full retrieve-and-generate loop, while subsequent `ask/2` calls skip retrieval and reuse cached search results. This assumes follow-up questions relate to the same topic — a reasonable heuristic for document Q&A that saves latency and API cost.
 
-Searchable chunks of a book:
+The cluster module is passed as the `caller` argument to `start_link/6`. This is dependency injection for testability (Mox), not for supporting multiple clusters at runtime.
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `text` | string | Content |
-| `page_number` | integer | For citation |
-| `chunk_index` | integer | Ordering |
-| `section_title` | string | Section context |
-| `word_count` | integer | Token estimation |
-| `embedding` | float array | Vector representation |
+**`Cake.Responses`** formats retrieved chunks into a numbered context block for the LLM, builds the system prompt instructing citation behavior, calls the OpenAI API, extracts the response text, and constructs the `chunk_map` (integer index → chunk metadata). Currently hardcoded to expect `Cake.Books.Chunk` structs — generalizing this is a known TODO.
+
+**`Cake.Citations`** is a pure function module that parses `[N]` markers from LLM response text, resolves them against the chunk_map, filters out hallucinated citations (indices not in the map), deduplicates, and sorts. The chunk_map includes `book_title`, `page_number`, `section_title`, `chunk_index`, and `chunk_preview` — all five are necessary for citations to be distinguishable to end users (earlier versions using only book title were too generic).
+
+**`Cake.Embeddings`** calls the OpenAI embeddings API. It implements `Cake.Embeddings.Behaviour` to allow Mox substitution in tests. Title is prepended to text before embedding.
+
+### Web Layer: Phoenix LiveView Chat Interface
+
+**`CakeWeb.ChatLive`** is the user-facing chat UI. It communicates with `Cake.Conversation` using a polling pattern: `Process.send_after` triggers periodic `handle_info/2` callbacks that call `Conversation.get_messages/1` (a `handle_call(:messages, ...)` on the GenServer). This works but is a known anti-pattern — replacement with Phoenix.PubSub is a planned TODO.
+
+The rest of the web layer is standard Phoenix 1.7 scaffolding: `mix phx.gen.auth`-generated authentication (accounts, sessions, registration, settings), LiveView components, and Bandit HTTP server.
 
 ---
 
-## Embeddings Module
+## Error Handling: Two-Tier Failure Model in Pipelines
 
-### Embeddings Behaviour (`Cake.Embeddings.Behaviour`)
+Cake's ingestion pipelines distinguish between two categories of failure, and the distinction matters because the retry strategy and observability requirements differ:
 
-Defines the contract for embedding services:
+**Item-level failures** occur when a single item in the stream fails while the rest continue. A corrupt PDF that won't parse, an embedding API timeout for one chunk, or a changeset validation error on a single record are all item-level. These are handled inside the stream by `Pipelines.detuple_with_logging/3`, which logs the error with the pipeline step name, persists it to the `failed_ingests` table with full provenance (behaviour, implementation, step, version, input identifier), and filters the failed item out of the stream. Successfully-processed items continue downstream unaffected. Failed items can be retried individually via `Pipelines.sweep/5`.
 
-```elixir
-@callback embed(atom(), ParsedDocument.t(), String.t()) ::
-  {:ok, embedding_result()} | {:error, String.t()}
-```
+**Pipeline-fatal failures** occur when the entire pipeline cannot continue. The download step failing, OpenSearch being unreachable, or an invalid embedding model string are pipeline-fatal. These are handled in the `else` branch of the `with` chain in each behaviour module's `ingest` function. Nothing downstream runs.
 
-### OpenAI Implementation (`Cake.Embeddings`)
-
-Currently the only implementation. Embeds documents by:
-
-1. Combining `title` and `text`: `"#{title}\n\n#{text}"`
-2. Calling OpenAI embeddings API
-3. Returning the embedding vector + usage stats
-
-**Configuration:**
-```elixir
-config :cake, Cake.Embeddings,
-  openai_key: "sk-...",
-  base_url: "https://api.openai.com/v1/embeddings"
-```
-
-**Design Note:** Title is prepended to text for embedding because function names and signatures carry significant semantic weight for code documentation.
+Step names follow the convention `"pipeline.step"` — e.g., `"books.parse"`, `"docs.embed"`, `"opensearch.index"`.
 
 ---
 
-## Search & Retrieval
+## Data Schemas: Structural Contracts for Domain Objects
 
-### OpenSearch Cluster (`Cake.Documents.Cluster`)
+### ParsedDocument Schema for Indexed Programming Documentation
 
-Manages the OpenSearch connection and provides three search modes:
+`Cake.Documents.ParsedDocument` is the universal output schema for all documentation ingestion pipelines. Every pipeline implementation (hexdocs, future javadocs, etc.) produces these records. Fields: `source` (pipeline identifier), `version`, `package` (module/gem/class name), `language`, `title` (function/method name — used in embeddings), `text`, `url`, `embedding` (1536-float array), `core` (boolean: part of stdlib?). Query helpers: `by_version/2`, `by_language/2`, `by_source/2`.
 
-#### Keyword Search
-```elixir
-Cluster.search(:keyword, index, %{keywords: "pattern matching"})
-```
-Multi-match query across `title` (boosted 2x) and `text` fields.
+### ParsedBook and Chunk Schemas for Book Content
 
-#### Vector Search
-```elixir
-Cluster.search(:vector, index, %{embedding: embedding})
-```
-k-NN search with k=10, cosine similarity, HNSW algorithm via FAISS engine.
+`Cake.Books.ParsedBook` stores book-level metadata. Fields: `title`, `authors` (string array), `source_format` (determines chunking strategy), `file_hash` (deduplication), `file_size`, `word_count`, `total_pages`, `parsed_at`, `embedding_status` (enum: pending/processing/completed/failed), `metadata` (map for format-specific extras), `table_of_contents` (map), `language` (ISO code), `isbn`, `publisher`, `publication_date`. Has many `Chunk` records.
 
-#### Hybrid Search (Default)
-```elixir
-Cluster.search(:hybrid, index, %{
-  keywords: "pattern matching",
-  embedding: embedding,
-  keyword_weight: 0.3
-})
-```
-Combines vector similarity as the core query with keyword matching as a boost signal. Configurable keyword weighting.
+`Cake.Books.Chunk` stores searchable text fragments belonging to a book. Fields: `text`, `page_number` (nullable — some formats lack pages), `chunk_index` (ordering for unpaginated formats), `section_title`, `word_count`, `char_count`, `embedding` (1536-float array). Belongs to `ParsedBook`. Query helpers: `by_book/2`, `on_page/2`, `within_pages/3`, `by_section/2`.
 
-**Index Schema:**
-- Embedding field: `knn_vector`, 1536 dimensions, HNSW + FAISS
-- Text field: Full-text searchable
-- Metadata fields: Keyword type for filtering
+### FailedIngest Schema for Error Tracking and Retry
 
-**Why Hybrid?** Pure vector search struggles with:
-- Exact identifiers and function names
-- Rare terms and acronyms
-- Precise code patterns
-
-BM25 handles these well, while vector search handles semantic similarity. Hybrid gives you both.
+`Cake.FailedIngests.FailedIngest` persists every item-level pipeline failure. Fields: `pipeline_behaviour`, `pipeline_implementation`, `step`, `version`, `error_text`, `input_identifier` (sufficient to locate and retry the failed item), `pipeline_fatal` (boolean), `retry_count`, `last_retried_at`. The `sweep/5` function in `Cake.Pipelines` queries these records and retries them via a caller-provided retry function.
 
 ---
 
-## Conversation Module
+## Adding a New Ingestion Pipeline
 
-### Conversation GenServer (`Cake.Conversation`)
+There are two extension points depending on what you're ingesting. Both follow the same pattern: implement a behaviour, return result tuples from callbacks, and let the orchestrator handle stream composition and error tracking.
 
-Manages multi-turn RAG conversations as stateful processes.
+### Adding a New Documentation Source (Implement Cake.Documents.Pipeline)
 
-**Initialization:**
-```elixir
-Conversation.start_link(
-  caller,           # Cluster module
-  embedder,         # Embedding model string
-  index,            # OpenSearch index name
-  response_model,   # LLM model name
-  provider,         # :openai
-  search_type       # :hybrid
-)
+To ingest a new source of programming documentation, implement the `Cake.Documents.Pipeline` behaviour:
+
+1. Create a raw document schema (like `Hexdoc`) for intermediate storage of fetched content.
+2. Implement callbacks: `download/1` (fetch raw docs for a version), `persist_raw_docs/2` (save raw files as source of truth), `parse/1` (transform raw docs into `ParsedDocument` attrs), `source/0` (return identifier string), `success_message/1` (human-readable completion message).
+3. Register with Oban via `DocumentIngestionJob.enqueue_for_version/4` for async ingestion.
+4. Ensure all callbacks return `{:ok, _}` / `{:error, _}` tuples so `detuple_with_logging` can observe failures.
+5. Optionally implement `retry_from_raw/2` to enable item-level retry from persisted raw docs.
+
+### Adding a New Book/Ebook Format (Implement Cake.Books.Pipeline)
+
+To ingest a new ebook format, implement the `Cake.Books.Pipeline` behaviour:
+
+1. Implement callbacks: `load_binary/1` (read file into memory), `parse/1` (transform binary into `{ParsedBook, [Chunk]}` tuple), `format/0` (return format string like "pdf"), `success_message/0`.
+2. Add format-specific parsing logic. If `parse/1` calls code that can raise (e.g., a NIF), the behaviour's orchestrator wraps it in `try/rescue`.
+3. The schema for any new data structures must `use Cake.Schema` and include `sanitize_text_fields/1` if it has string fields.
+
+### Requirements for All Pipeline Implementations
+
+Every stream transformation step must use `Pipelines.detuple_with_logging/3` with a descriptive step name — not the silent `detuple/1`. Callbacks return `{:ok, _}` / `{:error, _}` tuples. Pipeline-fatal errors are logged in the `else` branch of the `ingest` function. The key principle: **persist raw data first**. When your parsing heuristics improve, you can re-process without re-downloading.
+
+---
+
+## Development Environment Setup and Operation
+
+### Prerequisites and Initial Setup
+
+Docker, Docker Compose, Colima (macOS), Elixir 1.15+, Rust toolchain (for Rustler NIFs).
+
+```bash
+# Pull container images
+docker pull opensearchproject/opensearch
+docker pull postgres:14
+
+# Clone and enter
+git clone git@github.com:caleb-bb/cake.git && cd cake
+
+# Start the containerized environment
+docker-compose up -d
+
+# Or, if running locally without Docker for the Elixir app:
+mix deps.get
+mix ecto.setup
+mix phx.server
 ```
 
-**Two-Turn Workflow:**
+### Running the Development Environment via Docker Compose
 
-1. **First Turn** (no prior context):
-   - Embed the question
-   - Perform hybrid search
-   - Query LLM with retrieved context
-   - Store search results and message history
+`docker-compose up` starts three containers: `cake_app` (Phoenix on port 4000), `cake_db` (Postgres on port 5432), `cake_opensearch` (OpenSearch on port 9200). The `entrypoint.sh` script handles waiting for OpenSearch health, recompiling NIFs for the Linux container, running migrations, seeding, and starting Phoenix.
 
-2. **Subsequent Turns** (with prior context):
-   - Reuse previous search results
-   - Query LLM with same context + new question
-   - Append to message history
+Environment variables (set in `.env` or shell): `CAKE_PGUSER`, `CAKE_PGPASSWORD`, `CAKE_PGDATABASE`, `CAKE_PGHOST`, `CAKE_PGPORT`, `OPENSEARCH_INITIAL_ADMIN_PASSWORD`, `OPENAI_KEY`.
 
-**API:**
-```elixir
-Conversation.ask(pid, "How do I use pattern matching?")
+### Known Colima/Docker Gotchas on macOS
+
+The `.:/app` bind mount overlays macOS-compiled binaries onto the Linux container, breaking NIFs. Fix: `entrypoint.sh` runs `rm -f priv/native/*.so && mix deps.compile --force bcrypt_elixir && mix compile --force`. The diagnostic signal for this failure is "module not available" (not `:nif_not_loaded`).
+
+The Colima VM's default FD limit of 1024 is too low for concurrent `Task.async_stream` fan-out across Postgres, OpenSearch, and OpenAI. Fix: raise kernel + systemd FD limits via provision script.
+
+The `limactl` port forwarder accumulates leaked CLOSED socket FDs over long sessions. Fix: `colima start --network-address` gives the VM a routable IP and eliminates the forwarder entirely.
+
+### Quality Checks and Testing
+
+```bash
+mix compile --warnings-as-errors --force  # Zero warnings required
+mix credo --strict                         # Zero issues required
+mix dialyzer                               # Zero new warnings required
+mix test                                   # Zero failures required
+mix coveralls.html                         # Coverage report in cover/
+
+mix quality.fast    # compile + credo (quick local check)
+mix quality         # compile + credo + dialyzer (full suite)
 ```
 
-**Design Philosophy:** Conversations reuse search results across turns because follow-up questions typically relate to the same topic. This reduces latency and API costs.
+Test data factories are in `test/support/factory.ex` (ExMachina). Property tests (StreamData) are in files named `*_property_test.exs`. Coverage threshold is enforced in CI via `coveralls.json`.
 
 ---
 
-## Response Generation
+## Configuration Reference for External Services
 
-### Responses Module (`Cake.Responses`)
+### OpenSearch Cluster Connection
 
-Generates LLM responses with retrieved context.
-
-**Process:**
-1. Format context docs as system message (package, title, text for each)
-2. Build messages array with context + user question
-3. Call LLM API
-4. Parse and return response
-
-**Context Format:**
-```
-You are a helpful assistant...
-Context:
----
-Package: Enum
-Title: map/2
-Text: Maps the given function over...
----
-```
-
-**Configuration:**
-```elixir
-config :cake, Cake.Responses,
-  openai_key: "sk-...",
-  response_url: "https://api.openai.com/v1/chat/completions"
-```
-
----
-
-## Job Scheduling
-
-### Document Ingestion Job (`Cake.Jobs.DocumentIngestionJob`)
-
-Oban worker for async document ingestion:
-
-```elixir
-DocumentIngestionJob.enqueue_for_version(
-  Cake.Documents.Hexdocs.Pipeline,
-  :openai,
-  {1, 18, 3},
-  "text-embedding-ada-002"
-)
-```
-
-- Retries up to 3 times on failure
-- Logs success/error messages
-- Runs ingestion in background
-
----
-
----
-
-## Application Startup
-
-Supervised processes (`Cake.Application`):
-
-1. Telemetry
-2. PostgreSQL Repo (Ecto)
-3. Oban job queue
-4. DNS cluster
-5. Phoenix PubSub
-6. Finch HTTP client
-7. **Cake.Documents.Cluster** (OpenSearch connection — documents)
-8. Phoenix Endpoint
-
----
-
-## Configuration
-
-### OpenSearch
 ```elixir
 config :cake, Cake.Documents.Cluster,
-  url: "https://...",
+  url: "http://opensearch:9200",
   username: "...",
   password: "..."
 ```
 
-### Embeddings
+The cluster creates indices at startup if they don't exist. Index names: `"docs"` (programming documentation), `"chunks_of_books"` (book content). Both use 1536-dimension knn_vector fields with HNSW + FAISS and cosine similarity.
+
+### OpenAI Embeddings and LLM Responses
+
 ```elixir
 config :cake, Cake.Embeddings,
   openai_key: "sk-...",
   base_url: "https://api.openai.com/v1/embeddings"
-```
 
-### Responses
-```elixir
 config :cake, Cake.Responses,
   openai_key: "sk-...",
   response_url: "https://api.openai.com/v1/chat/completions"
 ```
 
----
-
-## Adding a New Pipeline
-
-Choose the behaviour that matches your document type, then implement it for your specific format or source.
-
-**To ingest a new documentation source** (implement `Cake.Documents.Pipeline`):
-
-1. Create a raw document schema (like `Hexdoc`) for intermediate storage
-2. Implement the callbacks: `download/1`, `persist_raw_docs/2`, `parse/1`, `source/0`, `success_message/1`
-3. Register with Oban for async ingestion
-4. Ensure all callback return values use `{:ok, _}` / `{:error, _}` tuples so `detuple_with_logging` can observe failures
-
-**To ingest a new book/ebook format** (implement `Cake.Books.Pipeline`):
-
-1. Implement the callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`
-2. Add format-specific parsing logic (NIF, library, etc.)
-3. If `parse/1` calls code that can raise (e.g., a NIF), the behaviour's `parse_all_binaries` wraps it in `try/rescue` — your callback does not need to catch its own exceptions
-
-**Requirements for all new pipelines and implementations:**
-
-- Every stream transformation step must use `Pipelines.detuple_with_logging/2` with a descriptive step name, not the silent `detuple/1`.
-- Callbacks should return `{:ok, _}` / `{:error, _}` tuples. If a callback calls a function that raises, the behaviour module wraps the call in `try/rescue` so errors enter the logging path rather than silently dying as task exits.
-- Pipeline-fatal errors must be logged in the `else` branch of the `ingest` function.
-- The schema for new generic data structures will have a changeset pipeline. That pipeline must include `sanitize_text_fields/1` if any fields on the schema have type `string`,
-- Every new schema must `use` `Cake.Schema` instead of the default `Ecto.Schema`
-
-**Key Principle:** Persist raw data first. When your parsing heuristics improve, you can re-process without re-downloading or re-loading.
+Embedding model: `text-embedding-ada-002` (1536 dimensions). Response model: configurable per conversation via `Conversation.start_link/6`.
 
 ---
 
-## Development
+## Supervision Tree and Application Startup Order
 
-```bash
-# Compile without warnings
-mix compile --force
+`Cake.Application` starts processes in this order. The order matters because later processes depend on earlier ones being available:
 
-# Run tests without warnings
-mix test
-```
+1. `CakeWeb.Telemetry` — telemetry metrics
+2. `Cake.Repo` — Postgres connection pool
+3. Oban — background job processing
+4. `DNSCluster` — DNS-based node discovery
+5. `Phoenix.PubSub` — pub/sub for LiveView
+6. `Finch` — HTTP client pool (for Swoosh emails)
+7. `Cake.Documents.Cluster` — OpenSearch connection + index creation
+8. `CakeWeb.Endpoint` — Phoenix HTTP server (last, so all dependencies are ready)
 
 ---
 
-## Roadmap
+## Roadmap: What's Planned and What's Deferred
 
-See `feature_roadmap.md` for planned enhancements including:
+See `feature_roadmap.md` for the full research-backed roadmap. The short version:
 
-- Re-ranking pipelines
-- Query expansion (HyDE-style)
-- Semantic chunking with overlap
-- Context assembly strategies
-- Faithfulness checks
-- Conversational memory improvements
-- Evaluation harnesses
+**Demo-critical (in progress):** PDF ingestion via Rustler NIF, LiveView chat UI with polling, citation display with chunk-level metadata.
+
+**Post-demo planned:** Replace polling with PubSub, expand test coverage (four-tier plan), Word/Excel/CSV/JPG ingestion pipelines, extract `Responses.Behaviour` for testability, extract `search_fields/0` callback, generalize `Responses.query_llm/4` beyond Chunk structs.
+
+**Longer-term:** Re-ranking pipelines, query expansion (HyDE-style), semantic chunking with overlap, context assembly strategies, faithfulness evaluation harness, conversational memory improvements.
+
+---
+
+## Dynamic Refdoc Protocol: Keeping This File Current
+
+This README is a living document that should accurately reflect the codebase at all times. Any AI assistant making changes to Cake should review this file after completing a task and propose updates to any sections that are now stale. Human contributors should do the same. The rule: **if you changed it in code, check whether you need to change it here.**
+
+The companion file `CLAUDE.md` contains operational rules and conventions for AI assistants. It is more prescriptive (what you *must* do) while this README is more descriptive (what things *are* and *why*). Both files should be kept in sync with the codebase and with each other.
