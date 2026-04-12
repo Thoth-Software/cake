@@ -119,7 +119,7 @@ defmodule Cake.Documents.Cluster do
         knn: %{
           embedding: %{
             vector: embedding,
-            k: 10
+            k: 30
           }
         }
       }
@@ -135,7 +135,7 @@ defmodule Cake.Documents.Cluster do
         keyword_weight: keyword_weight
       }) do
     query = %{
-      size: 10,
+      size: 30,
       query: %{
         bool: %{
           must: [
@@ -143,7 +143,7 @@ defmodule Cake.Documents.Cluster do
               knn: %{
                 embedding: %{
                   vector: embedding,
-                  k: 10
+                  k: 30
                 }
               }
             }
