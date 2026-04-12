@@ -13,7 +13,8 @@ defmodule CakeWeb.ChatLive do
       fields: ["section_title^2", "text"]
     }
 
-    {:ok, pid} = Cake.Conversation.start_link(opts)
+    {:ok, pid} = Cake.Conversation.start(opts)
+    Process.monitor(pid)
 
     {:ok,
      assign(socket,
@@ -54,6 +55,16 @@ defmodule CakeWeb.ChatLive do
      assign(socket,
        messages:
          socket.assigns.messages ++ [%{role: :assistant, text: "Error: #{inspect(error)}"}],
+       loading: false
+     )}
+  end
+
+  def handle_info({:DOWN, _ref, :process, _pid, reason}, socket) do
+    {:noreply,
+     assign(socket,
+       messages:
+         socket.assigns.messages ++
+           [%{role: :assistant, text: "Error: conversation process crashed (#{inspect(reason)})"}],
        loading: false
      )}
   end

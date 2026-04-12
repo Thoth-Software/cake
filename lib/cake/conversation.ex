@@ -16,6 +16,10 @@ defmodule Cake.Conversation do
     GenServer.start_link(__MODULE__, opts)
   end
 
+  def start(opts) when is_map(opts) do
+    GenServer.start(__MODULE__, opts)
+  end
+
   @impl true
   def init(opts) do
     state = %{

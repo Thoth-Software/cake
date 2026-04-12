@@ -110,14 +110,16 @@ defmodule Cake.Responses do
          status: 200,
          body: %{"output" => output, "usage" => usage}
        }} ->
-        response =
-          output
-          |> Enum.find(fn map -> Map.has_key?(map, "content") end)
-          |> Map.get("content")
-          |> List.first()
-          |> Map.get("text")
+        case Enum.find(output, fn map -> Map.has_key?(map, "content") end) do
+          %{"content" => [%{"text" => text} | _]} ->
+            {:ok, %{response: text, usage: usage, chunk_map: chunk_map}}
 
-        {:ok, %{response: response, usage: usage, chunk_map: chunk_map}}
+          nil ->
+            {:error, "#{__MODULE__}: no content block found in output: #{inspect(output)}"}
+
+          other ->
+            {:error, "#{__MODULE__}: unexpected content structure: #{inspect(other)}"}
+        end
 
       {:ok, %Req.Response{status: code, body: body}} ->
         {:error, "in #{__MODULE__} \n #{code} error, body: #{inspect(body)}"}
