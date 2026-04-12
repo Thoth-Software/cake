@@ -6,4 +6,4 @@ alias Cake.Documents.ParsedDocument
 alias Cake.FailedIngests.FailedIngest
 alias Cake.Repo
 
-import Periscope
+if Code.ensure_loaded?(Periscope), do: import(Periscope)
