@@ -22,6 +22,7 @@ defmodule CakeWeb.Router do
 
     get "/", PageController, :home
     live "/chat", ChatLive
+    live "/search", SearchLive
     get "/books/download/*file_path", BooksController, :download
   end
 
