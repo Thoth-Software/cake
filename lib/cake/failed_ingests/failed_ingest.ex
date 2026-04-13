@@ -16,6 +16,16 @@ defmodule Cake.FailedIngests.FailedIngest do
     timestamps(type: :utc_datetime)
   end
 
+  @type failed_ingest() :: %{
+          pipeline_behaviour: String.t(),
+          pipeline_implementation: String.t(),
+          step: String.t(),
+          version: String.t(),
+          error_text: String.t(),
+          input_identifier: String.t(),
+          pipeline_fatal: boolean()
+        }
+
   @doc false
   @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(failed_ingest, attrs) do

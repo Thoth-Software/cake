@@ -39,11 +39,7 @@ defmodule Cake.Books.Pipeline do
   #   the success_message should reflect how many items actually made it through
   @spec ingest(atom(), atom(), String.t(), [String.t()]) :: {:ok, String.t()} | any()
   def ingest(embedding_service, format_pipeline, embedding_model, paths) do
-    ctx = %Pipelines.Context{
-      behaviour: "Cake.Books.Pipeline",
-      implementation: inspect(format_pipeline),
-      version: embedding_model
-    }
+    ctx = Pipelines.build_context(__MODULE__, format_pipeline, "")
 
     with {:ok, binary_stream} <- load_all_binaries(paths, format_pipeline, ctx),
          {:ok, books_and_chunks_stream} <-
@@ -57,20 +53,7 @@ defmodule Cake.Books.Pipeline do
          :ok <- Stream.run(opensearch_chunks) do
       {:ok, format_pipeline.success_message()}
     else
-      error ->
-        Logger.warning("[books.ingest] Pipeline-fatal error: #{inspect(error)}")
-
-        Cake.FailedIngests.create_failed_ingest(%{
-          pipeline_behaviour: ctx.behaviour,
-          pipeline_implementation: ctx.implementation,
-          step: "ingest",
-          version: ctx.version,
-          error_text: inspect(error),
-          input_identifier: nil,
-          pipeline_fatal: true
-        })
-
-        error
+      error -> Pipelines.handle_ingest_error(error, ctx)
     end
   end
 

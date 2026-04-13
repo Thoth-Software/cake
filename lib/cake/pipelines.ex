@@ -3,7 +3,12 @@ defmodule Cake.Pipelines do
   Various assorted motley helpers, doohickeys, and dongles for data ingestion pipelines. Some of this may very well be cruft.
   """
 
+  alias Cake.FailedIngests.FailedIngest
+  alias Cake.Pipelines
+
   require Logger
+
+  @type context :: %{behaviour: String.t(), implementation: String.t(), version: String.t()}
 
   defmodule Context do
     @moduledoc """
@@ -196,5 +201,40 @@ defmodule Cake.Pipelines do
       _ -> false
     end)
     |> Stream.map(fn {:ok, value} -> value end)
+  end
+
+  @spec build_context(atom(), atom(), {integer(), integer(), integer()}) :: context()
+  def build_context(behaviour_module, source_pipeline, {major, minor, patch}) do
+    version = Enum.join([major, minor, patch], ".")
+
+    %Pipelines.Context{
+      behaviour: inspect(behaviour_module),
+      implementation: inspect(source_pipeline),
+      version: version
+    }
+  end
+
+  @spec build_context(atom(), atom(), String.t()) :: context()
+  def build_context(behaviour_module, source_pipeline, version) do
+    %Pipelines.Context{
+      behaviour: inspect(behaviour_module),
+      implementation: inspect(source_pipeline),
+      version: version
+    }
+  end
+
+  @spec handle_ingest_error({:error, any()}, context()) :: FailedIngest.failed_ingest()
+  def handle_ingest_error({:error, error}, ctx) do
+    Logger.warning(Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error: #{inspect(error)}"))
+
+    Cake.FailedIngests.create_failed_ingest(%{
+      pipeline_behaviour: ctx.behaviour,
+      pipeline_implementation: ctx.implementation,
+      step: "ingest",
+      version: ctx.version,
+      error_text: inspect(error),
+      input_identifier: "",
+      pipeline_fatal: true
+    })
   end
 end
