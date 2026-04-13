@@ -267,11 +267,9 @@ defmodule Cake.Books.Pipeline do
   end
 
   defp try_parse(format_pipeline, binary) do
-    try do
-      format_pipeline.parse(binary)
-    rescue
-      e -> {:error, {:parse_failed, Exception.message(e)}}
-    end
+    format_pipeline.parse(binary)
+  rescue
+    e -> {:error, {:parse_failed, Exception.message(e)}}
   end
 
   defp retry_from_chunk(failure, embedding_service, embedding_model) do
@@ -291,25 +289,26 @@ defmodule Cake.Books.Pipeline do
     embeddings_module = Application.get_env(:cake, :embeddings_module, Cake.Embeddings)
 
     Enum.reduce_while(chunks, :ok, fn chunk, :ok ->
-      input = %{input: "#{chunk.section_title}\n\n#{chunk.text}"}
-
-      case embeddings_module.embed(embedding_service, input, embedding_model) do
-        {:ok, %{attrs: attrs}} ->
-          case Books.update_chunk(chunk, attrs) do
-            {:ok, updated} ->
-              case index_single_chunk(updated) do
-                :ok -> {:cont, :ok}
-                error -> {:halt, error}
-              end
-
-            {:error, reason} ->
-              {:halt, {:error, {:chunk_update_failed, chunk.id, reason}}}
-          end
-
-        {:error, reason} ->
-          {:halt, {:error, {:embed_failed, chunk.id, reason}}}
+      case embed_single_chunk(chunk, embeddings_module, embedding_service, embedding_model) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
       end
     end)
+  end
+
+  defp embed_single_chunk(chunk, embeddings_module, embedding_service, embedding_model) do
+    input = %{input: "#{chunk.section_title}\n\n#{chunk.text}"}
+
+    case embeddings_module.embed(embedding_service, input, embedding_model) do
+      {:ok, %{attrs: attrs}} ->
+        case Books.update_chunk(chunk, attrs) do
+          {:ok, updated} -> index_single_chunk(updated)
+          {:error, reason} -> {:error, {:chunk_update_failed, chunk.id, reason}}
+        end
+
+      {:error, reason} ->
+        {:error, {:embed_failed, chunk.id, reason}}
+    end
   end
 
   defp index_single_chunk(chunk) do

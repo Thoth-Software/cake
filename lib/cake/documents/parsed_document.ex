@@ -31,7 +31,7 @@ defmodule Cake.Documents.ParsedDocument do
     # In Elixir, these are modules. In Ruby, they're gems. And so on.
     field :package, :string
 
-    # metadata: language 
+    # metadata: language
     # Elixir, Python, Java, Clojure, etc
     field :language, :string
 

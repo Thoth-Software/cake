@@ -91,7 +91,7 @@ defmodule Cake.Documents.Cluster do
   # weighted, rather than requiring callers to pass a fields list. The search
   # function would then take a schema module as a parameter and call
   # schema.search_fields() to build the query. For now, callers pass `fields`
-  # explicitly as a stopgap. 
+  # explicitly as a stopgap.
 
   # Cake.Documents.Cluster.search(:keyword, "chunks_of_books")
   @spec search(:keyword | :vector | :hybrid, String.t(), %{

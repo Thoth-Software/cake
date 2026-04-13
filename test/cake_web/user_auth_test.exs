@@ -1,9 +1,10 @@
 defmodule CakeWeb.UserAuthTest do
   use CakeWeb.ConnCase, async: true
 
-  alias Phoenix.LiveView
   alias Cake.Accounts
   alias CakeWeb.UserAuth
+  alias Phoenix.LiveView
+
   import Cake.AccountsFixtures
 
   @remember_me_cookie "_cake_web_user_remember_me"

@@ -6,7 +6,7 @@ defmodule Cake.Accounts do
   import Ecto.Query, warn: false
   alias Cake.Repo
 
-  alias Cake.Accounts.{User, UserToken, UserNotifier}
+  alias Cake.Accounts.{User, UserNotifier, UserToken}
 
   ## Database getters
 

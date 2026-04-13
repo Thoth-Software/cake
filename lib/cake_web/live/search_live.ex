@@ -32,27 +32,7 @@ defmodule CakeWeb.SearchLive do
           results =
             chunks
             |> Enum.group_by(fn chunk -> chunk.parsed_book end)
-            |> Enum.map(fn {book, book_chunks} ->
-              pages =
-                book_chunks
-                |> Enum.sort_by(& &1.page_number)
-                |> Enum.uniq_by(& &1.page_number)
-                |> Enum.map(fn chunk ->
-                  %{
-                    page_number: chunk.page_number,
-                    section_title: chunk.section_title,
-                    chunk_preview: String.slice(chunk.text, 0, 200)
-                  }
-                end)
-
-              %{
-                book_title: book.title,
-                source_file_path: book.source_file_path,
-                total_pages: book.total_pages,
-                hit_count: length(book_chunks),
-                pages: pages
-              }
-            end)
+            |> Enum.map(&build_book_result/1)
             |> Enum.sort_by(& &1.hit_count, :desc)
 
           {:ok, results}
@@ -71,6 +51,28 @@ defmodule CakeWeb.SearchLive do
           {:noreply, assign(socket, loading: false, error: inspect(error))}
       end
     end
+  end
+
+  defp build_book_result({book, book_chunks}) do
+    pages =
+      book_chunks
+      |> Enum.sort_by(& &1.page_number)
+      |> Enum.uniq_by(& &1.page_number)
+      |> Enum.map(fn chunk ->
+        %{
+          page_number: chunk.page_number,
+          section_title: chunk.section_title,
+          chunk_preview: String.slice(chunk.text, 0, 200)
+        }
+      end)
+
+    %{
+      book_title: book.title,
+      source_file_path: book.source_file_path,
+      total_pages: book.total_pages,
+      hit_count: length(book_chunks),
+      pages: pages
+    }
   end
 
   def render(assigns) do

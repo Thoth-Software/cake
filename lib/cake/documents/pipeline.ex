@@ -158,7 +158,10 @@ defmodule Cake.Documents.Pipeline do
     retry_embed_failure(failure, embedding_service, embedding_model)
   end
 
-  # There seems to be a flaw here. If we use the context function to get all the parsed documents for a given source and version, then we are NOT getting those docs one at a time after their embeddings have been added. Interdasting...
+  # There seems to be a flaw here. If we use the context function to get all the
+  # parsed documents for a given source and version, then we are NOT getting
+  # those docs one at a time after their embeddings have been added.
+  # Interdasting...
   def add_to_opensearch(docs_with_embeddings_stream) do
     if skip_opensearch?() do
       # In test mode, just pass through the documents without calling OpenSearch
@@ -276,9 +279,7 @@ defmodule Cake.Documents.Pipeline do
   end
 
   defp retry_persist_failure(failure, source_pipeline, embedding_service, embedding_model) do
-    unless function_exported?(source_pipeline, :retry_from_raw, 2) do
-      {:error, {:retry_not_implemented, source_pipeline}}
-    else
+    if function_exported?(source_pipeline, :retry_from_raw, 2) do
       with {:ok, parsed_attrs_list} <-
              source_pipeline.retry_from_raw(failure.input_identifier, failure.version),
            persisted_docs <-
@@ -289,6 +290,8 @@ defmodule Cake.Documents.Pipeline do
         Cake.FailedIngests.delete_failed_ingest(failure)
         {:ok, :retried}
       end
+    else
+      {:error, {:retry_not_implemented, source_pipeline}}
     end
   end
 
@@ -311,21 +314,13 @@ defmodule Cake.Documents.Pipeline do
     Enum.reduce_while(docs, :ok, fn doc, :ok ->
       embed_input = %{input: "#{doc.title}\n\n#{doc.text}", struct: doc}
 
-      case embeddings_module.embed(embedding_service, embed_input, embedding_model) do
-        {:ok, %{struct: struct, attrs: attrs}} ->
-          case ParsedDocuments.update_parsed_document(struct, attrs) do
-            {:ok, updated} ->
-              case index_single(updated) do
-                :ok -> {:cont, :ok}
-                error -> {:halt, error}
-              end
-
-            error ->
-              {:halt, error}
-          end
-
-        {:error, _} = error ->
-          {:halt, error}
+      with {:ok, %{struct: struct, attrs: attrs}} <-
+             embeddings_module.embed(embedding_service, embed_input, embedding_model),
+           {:ok, updated} <- ParsedDocuments.update_parsed_document(struct, attrs),
+           :ok <- index_single(updated) do
+        {:cont, :ok}
+      else
+        error -> {:halt, error}
       end
     end)
   end

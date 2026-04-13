@@ -18,14 +18,19 @@ defmodule Cake.Embeddings do
       json: %{model: model, input: input},
       auth: {:bearer, api_key}
     )
-    # Later on, there should probably be multiple function heads of "embed", but extract the following to its own re-used handle_response function.
+    # Later on, there should probably be multiple function heads of "embed", but
+    # extract the following to its own re-used handle_response function.
     |> case do
       {:ok,
        %Req.Response{
          status: 200,
          body: %{"data" => data, "usage" => usage}
        }} ->
-        # Usage here refers to token usage. We really ought to store this in the DB, maybe along with timestamps, service, embedding model used, and then the actual embedding. All that implies an Embedding struct with its own table. This, in turn, requires that we make embeddings into an association instead of a field on the ParsedDocument struct.
+        # Usage here refers to token usage. We really ought to store this in the
+        # DB, maybe along with timestamps, service, embedding model used, and
+        # then the actual embedding. All that implies an Embedding struct with
+        # its own table. This, in turn, requires that we make embeddings into an
+        # association instead of a field on the ParsedDocument struct.
         embedding =
           data
           |> Enum.find(fn item -> is_map(item) end)

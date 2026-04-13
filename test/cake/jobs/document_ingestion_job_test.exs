@@ -5,10 +5,10 @@ defmodule Cake.Jobs.DocumentIngestionJobTest do
   import Mox
   require Logger
 
+  alias Cake.Embeddings.Mock, as: EmbeddingsMock
+  alias Cake.FailingTestPipeline
   alias Cake.Jobs.DocumentIngestionJob
   alias Cake.TestPipeline
-  alias Cake.FailingTestPipeline
-  alias Cake.Embeddings.Mock, as: EmbeddingsMock
 
   # Allow mocks to be used in tests
   setup :verify_on_exit!

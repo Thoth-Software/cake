@@ -8,7 +8,24 @@ defmodule Cake.BooksTest do
 
     import Cake.BooksFixtures
 
-    @invalid_attrs %{title: nil, metadata: nil, language: nil, file_size: nil, source_file_path: nil, authors: nil, source_format: nil, file_hash: nil, isbn: nil, publisher: nil, publication_date: nil, total_pages: nil, word_count: nil, table_of_contents: nil, parsed_at: nil, embedding_status: nil}
+    @invalid_attrs %{
+      title: nil,
+      metadata: nil,
+      language: nil,
+      file_size: nil,
+      source_file_path: nil,
+      authors: nil,
+      source_format: nil,
+      file_hash: nil,
+      isbn: nil,
+      publisher: nil,
+      publication_date: nil,
+      total_pages: nil,
+      word_count: nil,
+      table_of_contents: nil,
+      parsed_at: nil,
+      embedding_status: nil
+    }
 
     test "list_parsed_books/0 returns all parsed_books" do
       parsed_book = parsed_book_fixture()
@@ -21,7 +38,26 @@ defmodule Cake.BooksTest do
     end
 
     test "create_parsed_book/1 with valid data creates a parsed_book" do
-      valid_attrs = %{title: "some title", metadata: %{}, language: "some language", file_size: 42, source_file_path: "some source_file_path", authors: ["option1", "option2"], source_format: "some source_format", file_hash: "some file_hash", isbn: "some isbn", publisher: "some publisher", publication_date: ~D[2025-12-16], total_pages: 42, word_count: 42, table_of_contents: %{}, parsed_at: ~U[2025-12-16 15:23:00Z], embedding_status: :pending}
+      valid_attrs = %{
+        title: "some title",
+        metadata: %{},
+        language: "some
+      language",
+        file_size: 42,
+        source_file_path: "some source_file_path",
+        authors: ["option1", "option2"],
+        source_format: "some source_format",
+        file_hash: "some file_hash",
+        isbn: "some isbn",
+        publisher: "some
+      publisher",
+        publication_date: ~D[2025-12-16],
+        total_pages: 42,
+        word_count: 42,
+        table_of_contents: %{},
+        parsed_at: ~U[2025-12-16 15:23:00Z],
+        embedding_status: :pending
+      }
 
       assert {:ok, %ParsedBook{} = parsed_book} = Books.create_parsed_book(valid_attrs)
       assert parsed_book.title == "some title"
@@ -48,9 +84,32 @@ defmodule Cake.BooksTest do
 
     test "update_parsed_book/2 with valid data updates the parsed_book" do
       parsed_book = parsed_book_fixture()
-      update_attrs = %{title: "some updated title", metadata: %{}, language: "some updated language", file_size: 43, source_file_path: "some updated source_file_path", authors: ["option1"], source_format: "some updated source_format", file_hash: "some updated file_hash", isbn: "some updated isbn", publisher: "some updated publisher", publication_date: ~D[2025-12-17], total_pages: 43, word_count: 43, table_of_contents: %{}, parsed_at: ~U[2025-12-17 15:23:00Z], embedding_status: :completed}
 
-      assert {:ok, %ParsedBook{} = parsed_book} = Books.update_parsed_book(parsed_book, update_attrs)
+      update_attrs = %{
+        title: "some updated title",
+        metadata: %{},
+        language: "some updated language",
+        file_size: 43,
+        source_file_path: "some updated
+      source_file_path",
+        authors: ["option1"],
+        source_format: "some updated
+      source_format",
+        file_hash: "some updated file_hash",
+        isbn: "some updated
+      isbn",
+        publisher: "some updated publisher",
+        publication_date: ~D[2025-12-17],
+        total_pages: 43,
+        word_count: 43,
+        table_of_contents: %{},
+        parsed_at: ~U[2025-12-17 15:23:00Z],
+        embedding_status: :completed
+      }
+
+      assert {:ok, %ParsedBook{} = parsed_book} =
+               Books.update_parsed_book(parsed_book, update_attrs)
+
       assert parsed_book.title == "some updated title"
       assert parsed_book.metadata == %{}
       assert parsed_book.language == "some updated language"
@@ -92,7 +151,14 @@ defmodule Cake.BooksTest do
 
     import Cake.BooksFixtures
 
-    @invalid_attrs %{text: nil, page_number: nil, chunk_index: nil, section_title: nil, word_count: nil, char_count: nil}
+    @invalid_attrs %{
+      text: nil,
+      page_number: nil,
+      chunk_index: nil,
+      section_title: nil,
+      word_count: nil,
+      char_count: nil
+    }
 
     test "list_chunks/0 returns all chunks" do
       chunk = chunk_fixture()
@@ -106,7 +172,16 @@ defmodule Cake.BooksTest do
 
     test "create_chunk/1 with valid data creates a chunk" do
       parsed_book = parsed_book_fixture()
-      valid_attrs = %{text: "some text", page_number: 42, chunk_index: 42, section_title: "some section_title", word_count: 42, char_count: 42, parsed_book_id: parsed_book.id}
+
+      valid_attrs = %{
+        text: "some text",
+        page_number: 42,
+        chunk_index: 42,
+        section_title: "some section_title",
+        word_count: 42,
+        char_count: 42,
+        parsed_book_id: parsed_book.id
+      }
 
       assert {:ok, %Chunk{} = chunk} = Books.create_chunk(valid_attrs)
       assert chunk.text == "some text"
@@ -123,7 +198,15 @@ defmodule Cake.BooksTest do
 
     test "update_chunk/2 with valid data updates the chunk" do
       chunk = chunk_fixture()
-      update_attrs = %{text: "some updated text", page_number: 43, chunk_index: 43, section_title: "some updated section_title", word_count: 43, char_count: 43}
+
+      update_attrs = %{
+        text: "some updated text",
+        page_number: 43,
+        chunk_index: 43,
+        section_title: "some updated section_title",
+        word_count: 43,
+        char_count: 43
+      }
 
       assert {:ok, %Chunk{} = chunk} = Books.update_chunk(chunk, update_attrs)
       assert chunk.text == "some updated text"

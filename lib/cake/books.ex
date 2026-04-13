@@ -7,8 +7,8 @@ defmodule Cake.Books do
   import Ecto.Query, warn: false
   alias Cake.Repo
 
-  alias Cake.Books.ParsedBook
   alias Cake.Books.Chunk
+  alias Cake.Books.ParsedBook
 
   def persist_book_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
       when is_list(chunks) do
@@ -266,7 +266,8 @@ defmodule Cake.Books do
 
   """
   @spec expand_with_neighbors([Chunk.t()], non_neg_integer()) :: [Chunk.t()]
-  def expand_with_neighbors(chunks, offset) when is_list(chunks) and is_integer(offset) and offset >= 0 do
+  def expand_with_neighbors(chunks, offset)
+      when is_list(chunks) and is_integer(offset) and offset >= 0 do
     chunks
     |> Enum.group_by(& &1.parsed_book_id)
     |> Enum.flat_map(fn {book_id, book_chunks} ->

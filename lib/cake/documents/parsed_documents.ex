@@ -4,8 +4,9 @@ defmodule Cake.Documents.ParsedDocuments do
   """
 
   import Ecto.Query, warn: false
-  alias Cake.Repo
+
   alias Cake.Documents.ParsedDocument
+  alias Cake.Repo
 
   @doc """
   Returns the list of parsed documents.
