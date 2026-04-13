@@ -21,7 +21,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   @dir Path.join(System.tmp_dir!(), "hexdocs/")
 
   @impl Cake.Documents.Pipeline
-  def download(version) do
+  def download(%{version: version}) do
     File.rm_rf!(@dir)
     File.mkdir_p(@dir)
 
@@ -56,7 +56,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
 
   # What the fuck does this function even return!?
   @impl Cake.Documents.Pipeline
-  def persist_raw_docs(file_paths, version) do
+  def persist_raw_docs(file_paths, %{version: version}) do
     file_paths
     |> Task.async_stream(&to_hexdoc_attrs(&1, version),
       max_concurrency: 4,

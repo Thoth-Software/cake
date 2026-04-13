@@ -15,9 +15,9 @@ defmodule Cake.Pipelines do
     Carries pipeline identity through an ingest run.
     Built once at the top of each behaviour's `ingest` function
     and passed to `detuple_with_logging` so it can persist errors
-    with full provenance.
+    with full provenance. Also carries a keyword list of opts.
     """
-    defstruct [:behaviour, :implementation, :version]
+    defstruct [:behaviour, :implementation, :version, :opts]
   end
 
   @spec add_to_opensearch(Enumerable.t(), String.t(), module(), Context.t()) :: Enumerable.t()
@@ -203,23 +203,28 @@ defmodule Cake.Pipelines do
     |> Stream.map(fn {:ok, value} -> value end)
   end
 
+  @spec build_context(atom(), atom(), any(), list()) :: context()
+  def build_context(behaviour_module, source_pipeline, version, opts \\ [])
+
   @spec build_context(atom(), atom(), {integer(), integer(), integer()}) :: context()
-  def build_context(behaviour_module, source_pipeline, {major, minor, patch}) do
+  def build_context(behaviour_module, source_pipeline, {major, minor, patch}, opts) do
     version = Enum.join([major, minor, patch], ".")
 
     %Pipelines.Context{
       behaviour: inspect(behaviour_module),
       implementation: inspect(source_pipeline),
-      version: version
+      version: version,
+      opts: opts
     }
   end
 
   @spec build_context(atom(), atom(), String.t()) :: context()
-  def build_context(behaviour_module, source_pipeline, version) do
+  def build_context(behaviour_module, source_pipeline, version, opts) do
     %Pipelines.Context{
       behaviour: inspect(behaviour_module),
       implementation: inspect(source_pipeline),
-      version: version
+      version: version,
+      opts: opts
     }
   end
 

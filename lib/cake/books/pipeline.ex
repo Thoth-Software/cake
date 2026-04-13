@@ -167,25 +167,30 @@ defmodule Cake.Books.Pipeline do
         ordered: false,
         zip_input_on_exit: true
       )
-      |> Stream.map(fn
-        {:ok, {:ok, persisted}} ->
-          {:ok, persisted}
-
-        {:ok, {:error, {path, reason}}} ->
-          {:error, {path, inspect(reason)}}
-
-        {:ok, {:error, reason}} ->
-          {:error, reason}
-
-        {:exit, {{%ParsedBook{source_file_path: path}, _chunks}, reason}} ->
-          {:error, {path, inspect(reason)}}
-
-        {:exit, {_input, reason}} ->
-          {:error, {nil, inspect(reason)}}
-      end)
+      |> Stream.map(&munge_persisted_stream/1)
       |> Pipelines.detuple_with_logging("books.persist", ctx)
 
     {:ok, persisted_stream}
+  end
+
+  @spec munge_persisted_stream(Enumerable.t()) :: {:ok, list()} | {:error, any()}
+  def munge_persisted_stream(persisted_books_and_chunks) do
+    case persisted_books_and_chunks do
+      {:ok, {:ok, persisted}} ->
+        {:ok, persisted}
+
+      {:ok, {:error, {path, reason}}} ->
+        {:error, {path, inspect(reason)}}
+
+      {:ok, {:error, reason}} ->
+        {:error, reason}
+
+      {:exit, {{%ParsedBook{source_file_path: path}, _chunks}, reason}} ->
+        {:error, {path, inspect(reason)}}
+
+      {:exit, {_input, reason}} ->
+        {:error, {nil, inspect(reason)}}
+    end
   end
 
   @spec embed_all_chunks(Enumerable.t(), atom(), String.t(), Pipelines.Context.t()) ::
