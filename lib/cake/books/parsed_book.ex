@@ -54,6 +54,24 @@ defmodule Cake.Books.ParsedBook do
     timestamps(type: :utc_datetime)
   end
 
+  @type book() :: %{
+          title: String.t(),
+          metadata: map(),
+          language: String.t(),
+          file_size: integer(),
+          source_file_path: String.t(),
+          authors: {:array, String.t()},
+          source_format: String.t(),
+          file_hash: String.t(),
+          isbn: String.t(),
+          publisher: String.t(),
+          publication_date: Date.t(),
+          total_pages: integer(),
+          word_count: integer(),
+          table_of_contents: map(),
+          parsed_at: DateTime.t()
+        }
+
   @doc false
   @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(parsed_book, attrs) do
