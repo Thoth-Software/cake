@@ -9,7 +9,8 @@ defmodule Cake.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
-      deps: deps()
+      deps: deps(),
+      dialyzer: dialyzer()
     ]
   end
 
@@ -62,6 +63,8 @@ defmodule Cake.MixProject do
       {:req, "~> 0.5.10"},
       {:snap, "~> 0.12.1"},
       {:mox, "~> 1.2.0"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:oban, "~> 2.0"},
       {:rustler, "~> 0.37.1"},
       {:periscope, "~> 0.7.0"}
@@ -86,7 +89,22 @@ defmodule Cake.MixProject do
         "tailwind cake --minify",
         "esbuild cake --minify",
         "phx.digest"
-      ]
+      ],
+      quality: ["compile --warnings-as-errors", "credo --strict", "dialyzer"],
+      "quality.fast": ["compile --warnings-as-errors", "credo --strict"]
+    ]
+  end
+
+  defp dialyzer do
+    [
+      plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+      plt_add_apps: [:mix, :ex_unit],
+      flags: [
+        :unmatched_returns,
+        :error_handling,
+        :no_opaque
+      ],
+      ignore_warnings: ".dialyzer_ignore.exs"
     ]
   end
 end

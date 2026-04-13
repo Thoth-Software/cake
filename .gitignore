@@ -42,6 +42,9 @@ npm-debug.log
 /target/
 /priv/native
 
+# Dialyzer PLT files (large, machine-specific)
+priv/plts/
+
 # emacs config
 
 .dir-locals.el
