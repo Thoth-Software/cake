@@ -44,6 +44,7 @@ defmodule CakeWeb.ConnCase do
   It stores an updated connection and a registered user in the
   test context.
   """
+  @spec register_and_log_in_user(map()) :: map()
   def register_and_log_in_user(%{conn: conn}) do
     user = Cake.AccountsFixtures.user_fixture()
     %{conn: log_in_user(conn, user), user: user}
@@ -54,6 +55,7 @@ defmodule CakeWeb.ConnCase do
 
   It returns an updated `conn`.
   """
+  @spec log_in_user(Plug.Conn.t(), Cake.Accounts.User.t()) :: Plug.Conn.t()
   def log_in_user(conn, user) do
     token = Cake.Accounts.generate_user_session_token(user)
 

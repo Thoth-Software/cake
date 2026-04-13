@@ -3,35 +3,36 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   Implements the document ingestion pipeline for hexdocs.
   """
 
-  require Logger
+  @behaviour Cake.Documents.Pipeline
+
   import Ecto.Query, warn: false
   alias Cake.Documents.Hexdocs.Hexdoc
+  alias Cake.Pipelines
   alias Cake.Repo
 
-  @behaviour Cake.Documents.Pipeline
-  alias Cake.Pipelines
+  require Logger
+
   @type version :: Cake.Documents.Pipeline.version()
 
-  @impl true
+  @impl Cake.Documents.Pipeline
   def success_message(version),
     do: "Successfully ingested Elixir docs from Hexdocs for version #{version}"
 
   @dir Path.join(System.tmp_dir!(), "hexdocs/")
 
-  @impl true
+  @impl Cake.Documents.Pipeline
   def download(version) do
     File.rm_rf!(@dir)
     File.mkdir_p(@dir)
 
-    System.cmd("git", [
-      "clone",
-      "-b",
-      "v#{version}",
-      "--single-branch",
-      "https://github.com/elixir-lang/elixir.git",
-      @dir
-    ])
-    |> case do
+    case System.cmd("git", [
+           "clone",
+           "-b",
+           "v#{version}",
+           "--single-branch",
+           "https://github.com/elixir-lang/elixir.git",
+           @dir
+         ]) do
       {_, 0} ->
         Path.join(@dir, "lib/elixir/lib") |> Path.expand() |> File.ls()
 
@@ -54,7 +55,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   end
 
   # What the fuck does this function even return!?
-  @impl true
+  @impl Cake.Documents.Pipeline
   def persist_raw_docs(file_paths, version) do
     file_paths
     |> Task.async_stream(&to_hexdoc_attrs(&1, version),
@@ -66,7 +67,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     |> Pipelines.detuple()
   end
 
-  @impl true
+  @impl Cake.Documents.Pipeline
   def parse(raw_docs_stream) do
     raw_docs_stream
     |> Task.async_stream(
@@ -78,9 +79,10 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     |> Stream.flat_map(fn item -> item end)
   end
 
-  @impl true
+  @impl Cake.Documents.Pipeline
   def source(), do: Hexdoc.doc_attrs().source
 
+  @spec to_hexdoc_attrs(String.t(), String.t()) :: map()
   def to_hexdoc_attrs(path, version) do
     url_suffix =
       path
@@ -100,7 +102,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     }
   end
 
-  @impl true
+  @impl Cake.Documents.Pipeline
   def retry_from_raw(input_identifier, version) do
     [module_name | _] = String.split(input_identifier, "@")
 
@@ -113,6 +115,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     end
   end
 
+  @spec list_files(String.t()) :: [String.t()]
   def list_files(path) do
     all_paths =
       path

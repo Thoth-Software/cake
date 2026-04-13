@@ -14,6 +14,7 @@ defmodule Cake.Citations do
   Returns a deduplicated, sorted list of citation maps for each valid [N]
   reference found in the text.
   """
+  @spec extract(String.t(), map()) :: [map()]
   def extract(response_text, chunk_map) do
     @citation_pattern
     |> Regex.scan(response_text)

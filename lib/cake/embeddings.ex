@@ -9,18 +9,17 @@ defmodule Cake.Embeddings do
   @behaviour Cake.Embeddings.Behaviour
 
   # This needs a spec defining the different error tuples it can return
-  @impl true
+  @impl Cake.Embeddings.Behaviour
   def embed(:openai, %{input: input}, model) do
     [openai_key: api_key, base_url: url] = Application.get_env(:cake, __MODULE__)
 
-    Req.post(
-      url: url,
-      json: %{model: model, input: input},
-      auth: {:bearer, api_key}
-    )
     # Later on, there should probably be multiple function heads of "embed", but
     # extract the following to its own re-used handle_response function.
-    |> case do
+    case Req.post(
+           url: url,
+           json: %{model: model, input: input},
+           auth: {:bearer, api_key}
+         ) do
       {:ok,
        %Req.Response{
          status: 200,

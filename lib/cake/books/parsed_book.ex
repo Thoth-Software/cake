@@ -1,8 +1,4 @@
 defmodule Cake.Books.ParsedBook do
-  use Cake.Schema
-  import Ecto.Changeset
-  import Ecto.Query
-
   @moduledoc """
   All data on a book besides the actual text, which is held in chunks.
 
@@ -27,6 +23,10 @@ defmodule Cake.Books.ParsedBook do
     :embedding_status       # Has a default, but good to require
 
   """
+
+  use Cake.Schema
+  import Ecto.Changeset
+  import Ecto.Query
 
   schema "parsed_books" do
     field :title, :string
@@ -55,6 +55,7 @@ defmodule Cake.Books.ParsedBook do
   end
 
   @doc false
+  @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(parsed_book, attrs) do
     parsed_book
     |> cast(attrs, [
@@ -89,56 +90,70 @@ defmodule Cake.Books.ParsedBook do
     |> sanitize_text_fields()
   end
 
+  @spec base_query() :: Ecto.Query.t()
   def base_query(), do: from(c in __MODULE__)
 
+  @spec by_title(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_title(query, title) do
     from b in query, where: b.title == ^title
   end
 
+  @spec by_language(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_language(query, language) do
     from b in query, where: b.language == ^language
   end
 
+  @spec by_file_path(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_file_path(query, file_path) do
     from b in query, where: b.source_file_path == ^file_path
   end
 
+  @spec by_author(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_author(query, author) do
     from b in query, where: ^author in b.authors
   end
 
+  @spec by_format(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_format(query, format) do
     from b in query, where: b.source_format == ^format
   end
 
+  @spec by_isbn(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_isbn(query, isbn) do
     from b in query, where: b.isbn == ^isbn
   end
 
+  @spec by_publisher(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_publisher(query, publisher) do
     from b in query, where: b.publisher == ^publisher
   end
 
+  @spec published_on(Ecto.Query.t(), Date.t()) :: Ecto.Query.t()
   def published_on(query, publication_date) do
     from b in query, where: b.publication_date == ^publication_date
   end
 
+  @spec published_before(Ecto.Query.t(), Date.t()) :: Ecto.Query.t()
   def published_before(query, date) do
     from b in query, where: b.publication_date < ^date
   end
 
+  @spec published_after(Ecto.Query.t(), Date.t()) :: Ecto.Query.t()
   def published_after(query, date) do
     from b in query, where: b.publication_date > ^date
   end
 
+  @spec parsed_on(Ecto.Query.t(), DateTime.t()) :: Ecto.Query.t()
   def parsed_on(query, date) do
     from b in query, where: b.parsed_at == ^date
   end
 
+  @spec parsed_before(Ecto.Query.t(), DateTime.t()) :: Ecto.Query.t()
   def parsed_before(query, date) do
     from b in query, where: b.parsed_at < ^date
   end
 
+  @spec parsed_after(Ecto.Query.t(), DateTime.t()) :: Ecto.Query.t()
   def parsed_after(query, date) do
     from b in query, where: b.parsed_at > ^date
   end

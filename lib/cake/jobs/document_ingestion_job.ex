@@ -116,6 +116,7 @@ defmodule Cake.Jobs.DocumentIngestionJob do
       ...> })
       {:ok, %Oban.Job{}}
   """
+  @spec enqueue(map()) :: {:ok, Oban.Job.t()} | {:error, Ecto.Changeset.t()}
   def enqueue(%{source_pipeline: source_pipeline} = args) when is_atom(source_pipeline) do
     args
     |> Map.put(:source_pipeline, module_to_string(source_pipeline))
@@ -150,17 +151,18 @@ defmodule Cake.Jobs.DocumentIngestionJob do
       ...> )
       {:ok, %Oban.Job{}}
   """
+  @spec enqueue_for_version(atom(), atom(), {integer(), integer(), integer()}, String.t()) ::
+          {:ok, Oban.Job.t()} | {:error, Ecto.Changeset.t()}
   def enqueue_for_version(source_pipeline, embedding_service, {major, minor, patch}, embedding_model)
       when is_atom(source_pipeline) and is_atom(embedding_service) and
              is_integer(major) and is_integer(minor) and is_integer(patch) and
              is_binary(embedding_model) do
-    %{
+    enqueue(%{
       source_pipeline: module_to_string(source_pipeline),
       embedding_service: Atom.to_string(embedding_service),
       version: %{major: major, minor: minor, patch: patch},
       embedding_model: embedding_model
-    }
-    |> enqueue()
+    })
   end
 
   # Converts a module atom to a string without the "Elixir." prefix

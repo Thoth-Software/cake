@@ -1,11 +1,11 @@
 defmodule CakeWeb.UserAuthTest do
   use CakeWeb.ConnCase, async: true
 
+  import Cake.AccountsFixtures
+
   alias Cake.Accounts
   alias CakeWeb.UserAuth
   alias Phoenix.LiveView
-
-  import Cake.AccountsFixtures
 
   @remember_me_cookie "_cake_web_user_remember_me"
 
@@ -140,7 +140,7 @@ defmodule CakeWeb.UserAuthTest do
     end
 
     test "assigns nil to current_user assign if there isn't a user_token", %{conn: conn} do
-      session = conn |> get_session()
+      session = get_session(conn)
 
       {:cont, updated_socket} =
         UserAuth.on_mount(:mount_current_user, %{}, session, %LiveView.Socket{})
@@ -174,7 +174,7 @@ defmodule CakeWeb.UserAuthTest do
     end
 
     test "redirects to login page if there isn't a user_token", %{conn: conn} do
-      session = conn |> get_session()
+      session = get_session(conn)
 
       socket = %LiveView.Socket{
         endpoint: CakeWeb.Endpoint,
@@ -201,7 +201,7 @@ defmodule CakeWeb.UserAuthTest do
     end
 
     test "doesn't redirect if there is no authenticated user", %{conn: conn} do
-      session = conn |> get_session()
+      session = get_session(conn)
 
       assert {:cont, _updated_socket} =
                UserAuth.on_mount(

@@ -17,6 +17,7 @@ defmodule Cake.FailedIngests.FailedIngest do
   end
 
   @doc false
+  @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(failed_ingest, attrs) do
     failed_ingest
     |> cast(attrs, [

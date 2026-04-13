@@ -11,6 +11,7 @@ defmodule Cake.Documents.Hexdocs do
   @doc """
   Returns all hexdocs from the passed Elixir version.
   """
+  @spec hexdocs_by_version(String.t()) :: [Hexdoc.t()]
   def hexdocs_by_version(version) do
     Hexdoc.base_query()
     |> Hexdoc.by_version(version)
@@ -26,6 +27,7 @@ defmodule Cake.Documents.Hexdocs do
       [%Hexdoc{}, ...]
 
   """
+  @spec list_hexdocs() :: [Hexdoc.t()]
   def list_hexdocs do
     Repo.all(Hexdoc)
   end
@@ -44,6 +46,7 @@ defmodule Cake.Documents.Hexdocs do
       ** (Ecto.NoResultsError)
 
   """
+  @spec get_hexdoc!(binary()) :: Hexdoc.t()
   def get_hexdoc!(id), do: Repo.get!(Hexdoc, id)
 
   @doc """
@@ -58,6 +61,7 @@ defmodule Cake.Documents.Hexdocs do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec create_hexdoc(map()) :: {:ok, Hexdoc.t()} | {:error, Ecto.Changeset.t()}
   def create_hexdoc(attrs \\ %{}) do
     %Hexdoc{}
     |> Hexdoc.changeset(attrs)
@@ -76,6 +80,7 @@ defmodule Cake.Documents.Hexdocs do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec update_hexdoc(Hexdoc.t(), map()) :: {:ok, Hexdoc.t()} | {:error, Ecto.Changeset.t()}
   def update_hexdoc(%Hexdoc{} = hexdoc, attrs) do
     hexdoc
     |> Hexdoc.changeset(attrs)
@@ -94,6 +99,7 @@ defmodule Cake.Documents.Hexdocs do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec delete_hexdoc(Hexdoc.t()) :: {:ok, Hexdoc.t()} | {:error, Ecto.Changeset.t()}
   def delete_hexdoc(%Hexdoc{} = hexdoc) do
     Repo.delete(hexdoc)
   end
@@ -107,6 +113,7 @@ defmodule Cake.Documents.Hexdocs do
       %Ecto.Changeset{data: %Hexdoc{}}
 
   """
+  @spec change_hexdoc(Hexdoc.t(), map()) :: Ecto.Changeset.t()
   def change_hexdoc(%Hexdoc{} = hexdoc, attrs \\ %{}) do
     Hexdoc.changeset(hexdoc, attrs)
   end

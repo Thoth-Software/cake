@@ -1,6 +1,8 @@
 defmodule CakeWeb.ChatLive do
   use CakeWeb, :live_view
 
+  @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
     opts = %{
       cluster: Cake.Documents.Cluster,
@@ -26,6 +28,8 @@ defmodule CakeWeb.ChatLive do
      )}
   end
 
+  @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("submit", %{"question" => question}, socket) do
     if String.trim(question) == "" do
       {:noreply, socket}
@@ -41,6 +45,8 @@ defmodule CakeWeb.ChatLive do
     end
   end
 
+  @spec handle_info(term(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_info({:convo_response, response, citations}, socket) do
     {:noreply,
      assign(socket,
@@ -69,6 +75,7 @@ defmodule CakeWeb.ChatLive do
      )}
   end
 
+  @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
     <div class="max-w-2xl mx-auto p-4">

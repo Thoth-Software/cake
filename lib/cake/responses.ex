@@ -19,6 +19,7 @@ defmodule Cake.Responses do
     - {:ok, %{response: text, usage: usage_info}}
     - {:error, reason}
   """
+  @spec query_llm(atom(), list(), String.t(), String.t()) :: {:ok, map()} | {:error, any()}
   def query_llm(:anthropic, _context_docs, _question, _model) do
     # TODO: Implement Anthropic Messages API call
     # - Munge context_docs into system/user messages
@@ -57,7 +58,7 @@ defmodule Cake.Responses do
          """}
       end)
 
-    context_text = numbered_chunks |> Enum.map_join("\n---\n", fn {_idx, text} -> text end)
+    context_text = Enum.map_join(numbered_chunks, "\n---\n", fn {_idx, text} -> text end)
 
     # Build chunk_map: index -> metadata
     chunk_map =
@@ -98,15 +99,14 @@ defmodule Cake.Responses do
       %{role: "user", content: question}
     ]
 
-    Req.post(
-      url: response_url,
-      json: %{model: model, input: messages},
-      auth: {:bearer, api_key},
-      receive_timeout: @api_timeout,
-      retry: :transient,
-      max_retries: 3
-    )
-    |> case do
+    case Req.post(
+           url: response_url,
+           json: %{model: model, input: messages},
+           auth: {:bearer, api_key},
+           receive_timeout: @api_timeout,
+           retry: :transient,
+           max_retries: 3
+         ) do
       {:ok,
        %Req.Response{
          status: 200,

@@ -7,6 +7,7 @@ defmodule Cake.HexdocsFixtures do
   @doc """
   Generate a hexdoc.
   """
+  @spec hexdoc_fixture(map()) :: Cake.Documents.Hexdocs.Hexdoc.t()
   def hexdoc_fixture(attrs \\ %{}) do
     {:ok, hexdoc} =
       attrs

@@ -8,11 +8,12 @@ defmodule Cake.Books.Pdf.Pipeline do
 
   @behaviour Cake.Books.Pipeline
 
-  require Logger
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
 
-  @impl true
+  require Logger
+
+  @impl Cake.Books.Pipeline
   def load_binary(path) do
     case File.read(path) do
       {:ok, binary} -> {:ok, {path, binary}}
@@ -20,7 +21,7 @@ defmodule Cake.Books.Pdf.Pipeline do
     end
   end
 
-  @impl true
+  @impl Cake.Books.Pipeline
   @spec parse({any(), binary()}) ::
           {%Cake.Books.ParsedBook{
              __meta__: map(),
@@ -50,14 +51,14 @@ defmodule Cake.Books.Pdf.Pipeline do
       Cake.ParseBooks.extract_pdf(binary)
 
     if skipped != [] do
-      skipped_nums = Enum.map(skipped, & &1.page_number) |> Enum.join(", ")
+      skipped_nums = Enum.join(Enum.map(skipped, & &1.page_number), ", ")
 
       Logger.warning(
         "PDF #{Path.basename(path)}: skipped pages #{skipped_nums} due to extraction errors"
       )
     end
 
-    file_hash = :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower)
+    file_hash = Base.encode16(:crypto.hash(:sha256, binary), case: :lower)
 
     all_text =
       pages
@@ -81,7 +82,7 @@ defmodule Cake.Books.Pdf.Pipeline do
       file_size: byte_size(binary),
       total_pages: length(pages),
       word_count: word_count,
-      parsed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      parsed_at: DateTime.truncate(DateTime.utc_now(), :second),
       embedding_status: :pending
     }
 
@@ -103,27 +104,31 @@ defmodule Cake.Books.Pdf.Pipeline do
     {parsed_book, chunks}
   end
 
-  @impl true
+  @impl Cake.Books.Pipeline
   def format, do: :pdf
 
-  @impl true
+  @impl Cake.Books.Pipeline
   def success_message, do: "Successfully ingested PDF books"
 
   defp count_words(text) do
-    text |> String.split(~r/\s+/, trim: true) |> length()
+    length(String.split(text, ~r/\s+/, trim: true))
   end
 
   defp title_fallback(pages, path) do
     case pages do
       [first | _] ->
-        first.text
-        |> String.split("\n", trim: true)
-        |> List.first()
-        |> case do
-          nil -> Path.basename(path, ".pdf")
-          line -> String.trim(line)
-        end
-        |> case do
+        raw_line =
+          first.text
+          |> String.split("\n", trim: true)
+          |> List.first()
+
+        trimmed =
+          case raw_line do
+            nil -> Path.basename(path, ".pdf")
+            line -> String.trim(line)
+          end
+
+        case trimmed do
           "" -> Path.basename(path, ".pdf")
           title -> title
         end

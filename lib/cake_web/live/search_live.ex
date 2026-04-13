@@ -1,6 +1,8 @@
 defmodule CakeWeb.SearchLive do
   use CakeWeb, :live_view
 
+  @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
@@ -11,6 +13,8 @@ defmodule CakeWeb.SearchLive do
      )}
   end
 
+  @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("search", %{"query" => query}, socket) do
     if String.trim(query) == "" do
       {:noreply, socket}
@@ -75,6 +79,7 @@ defmodule CakeWeb.SearchLive do
     }
   end
 
+  @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
     <div class="max-w-2xl mx-auto p-4">

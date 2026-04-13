@@ -1,9 +1,12 @@
 defmodule Cake.Conversation do
   use GenServer
 
-  alias Cake.{Books, Embeddings}
+  alias Cake.Books
+  alias Cake.Embeddings
+
   require Logger
 
+  @spec child_spec(map()) :: Supervisor.child_spec()
   def child_spec(opts) do
     %{
       id: __MODULE__,
@@ -12,15 +15,17 @@ defmodule Cake.Conversation do
     }
   end
 
+  @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
     GenServer.start_link(__MODULE__, opts)
   end
 
+  @spec start(map()) :: GenServer.on_start()
   def start(opts) when is_map(opts) do
     GenServer.start(__MODULE__, opts)
   end
 
-  @impl true
+  @impl GenServer
   def init(opts) do
     state = %{
       cluster: opts.cluster,
@@ -41,12 +46,13 @@ defmodule Cake.Conversation do
     {:ok, state}
   end
 
+  @spec ask(pid(), String.t()) :: :ok
   def ask(pid, question) do
     GenServer.cast(pid, {:question, question})
   end
 
   # First turn: no search results yet — embed, search, then query LLM
-  @impl true
+  @impl GenServer
   def handle_cast({:question, question}, %{search_results: []} = state) do
     %{
       cluster: cluster,
@@ -93,7 +99,7 @@ defmodule Cake.Conversation do
   end
 
   # Subsequent turns: search results already populated — skip search, continue conversation
-  @impl true
+  @impl GenServer
   def handle_cast({:question, question}, %{search_results: search_results} = state) do
     with {:ok, %{response: response, chunk_map: chunk_map}} <-
            Cake.Responses.query_llm(:openai, search_results, question, state.response_model) do
@@ -115,7 +121,7 @@ defmodule Cake.Conversation do
     end
   end
 
-  @impl true
+  @impl GenServer
   def handle_call(:search_results, {from, _}, %{search_results: chunks} = state)
       when is_list(chunks) and chunks != [] do
     Logger.debug(
@@ -125,27 +131,28 @@ defmodule Cake.Conversation do
     {:reply, chunks, state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call(:search_results, {_from, _}, %{search_results: []} = state) do
     Logger.debug("search_results requested but none available yet")
     {:reply, [], state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call(:chunk_map, _from, %{chunk_map: chunk_map} = state) do
     {:reply, chunk_map, state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call(:citations, _from, %{citations: citations} = state) do
     {:reply, citations, state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call(:inspect, _from, state) do
     {:reply, state, state}
   end
 
+  @spec print_hierarchy(map(), list()) :: list()
   def print_hierarchy(map, prefix \\ []) do
     for {key, value} <- map do
       IO.puts("#{Enum.join(prefix, ".")}#{key}")

@@ -1,10 +1,11 @@
 defmodule Cake.AccountsTest do
   use Cake.DataCase
 
-  alias Cake.Accounts
-
   import Cake.AccountsFixtures
-  alias Cake.Accounts.{User, UserToken}
+
+  alias Cake.Accounts
+  alias Cake.Accounts.User
+  alias Cake.Accounts.UserToken
 
   describe "get_user_by_email/1" do
     test "does not return the user if the email does not exist" do

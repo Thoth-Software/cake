@@ -3,6 +3,8 @@ defmodule Cake.Pipelines do
   Various assorted motley helpers, doohickeys, and dongles for data ingestion pipelines. Some of this may very well be cruft.
   """
 
+  require Logger
+
   defmodule Context do
     @moduledoc """
     Carries pipeline identity through an ingest run.
@@ -13,13 +15,11 @@ defmodule Cake.Pipelines do
     defstruct [:behaviour, :implementation, :version]
   end
 
-  require Logger
-
+  @spec add_to_opensearch(Enumerable.t(), String.t(), module(), Context.t()) :: Enumerable.t()
   def add_to_opensearch(docs_with_embeddings_stream, index, cluster, %Context{} = ctx) do
     if skip_opensearch?() do
       # In test mode, just pass through the documents without calling OpenSearch
-      docs_with_embeddings_stream
-      |> Stream.map(fn doc ->
+      Stream.map(docs_with_embeddings_stream, fn doc ->
         Logger.debug("Skipping OpenSearch insert for document #{doc.id} (test mode)")
         doc
       end)
@@ -67,6 +67,7 @@ defmodule Cake.Pipelines do
   The `step_name` parameter identifies which pipeline stage failed,
   for log readability.
   """
+  @spec detuple_with_logging(Enumerable.t(), String.t(), Context.t()) :: Enumerable.t()
   def detuple_with_logging(stream_enumerable, step_name, %Context{} = ctx) do
     stream_enumerable
     |> Stream.filter(fn
@@ -91,6 +92,8 @@ defmodule Cake.Pipelines do
   Use this from pipeline steps that handle errors manually instead of
   going through detuple_with_logging.
   """
+  @spec log_and_persist_failure(Context.t(), String.t(), any()) ::
+          {:ok, Cake.FailedIngests.FailedIngest.t()} | {:error, Ecto.Changeset.t()}
   def log_and_persist_failure(%Context{} = ctx, step_name, reason) do
     Logger.warning("[#{step_name}] Item failed: #{inspect(reason)}")
     persist_failure(ctx, step_name, reason)
@@ -137,6 +140,8 @@ defmodule Cake.Pipelines do
   # NOTE: If we end up with many more behaviours, this sweep + ingest_with_sweep
   # pattern could be extracted into a macro. For now, the duplication is minimal
   # and the explicitness is worth it.
+  @spec sweep(String.t(), String.t(), String.t(), fun(), [{:max_sweeps, integer()}]) ::
+          {integer(), integer()}
   def sweep(behaviour, implementation, version, retry_fn, opts \\ []) do
     max_sweeps = Keyword.get(opts, :max_sweeps, 2)
     do_sweep(behaviour, implementation, version, retry_fn, max_sweeps, 0)
@@ -144,8 +149,7 @@ defmodule Cake.Pipelines do
 
   defp do_sweep(behaviour, implementation, version, _retry_fn, 0, total_resolved) do
     remaining =
-      Cake.FailedIngests.list_failed_ingests_for(behaviour, implementation, version)
-      |> length()
+      length(Cake.FailedIngests.list_failed_ingests_for(behaviour, implementation, version))
 
     {total_resolved, remaining}
   end
@@ -184,6 +188,7 @@ defmodule Cake.Pipelines do
     end
   end
 
+  @spec detuple(Enumerable.t()) :: Enumerable.t()
   def detuple(stream_enumerable) do
     stream_enumerable
     |> Stream.filter(fn

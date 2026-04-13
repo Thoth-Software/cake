@@ -5,6 +5,7 @@ defmodule CakeWeb.BooksController do
 
   alias Cake.Books
 
+  @spec download(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def download(conn, %{"file_path" => file_path_segments}) do
     file_path = Enum.join(file_path_segments, "/")
     # file_path arrives URL-encoded from the route; Phoenix decodes it.

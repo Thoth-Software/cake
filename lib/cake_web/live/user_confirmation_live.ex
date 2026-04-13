@@ -3,6 +3,7 @@ defmodule CakeWeb.UserConfirmationLive do
 
   alias Cake.Accounts
 
+  @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(%{live_action: :edit} = assigns) do
     ~H"""
     <div class="mx-auto max-w-sm">
@@ -23,6 +24,8 @@ defmodule CakeWeb.UserConfirmationLive do
     """
   end
 
+  @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:ok, Phoenix.LiveView.Socket.t(), keyword()}
   def mount(%{"token" => token}, _session, socket) do
     form = to_form(%{"token" => token}, as: "user")
     {:ok, assign(socket, form: form), temporary_assigns: [form: nil]}
@@ -30,6 +33,8 @@ defmodule CakeWeb.UserConfirmationLive do
 
   # Do not log in the user after confirmation to avoid a
   # leaked token giving the user access to the account.
+  @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("confirm_account", %{"user" => %{"token" => token}}, socket) do
     case Accounts.confirm_user(token) do
       {:ok, _} ->

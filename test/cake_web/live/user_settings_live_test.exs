@@ -1,9 +1,10 @@
 defmodule CakeWeb.UserSettingsLiveTest do
   use CakeWeb.ConnCase, async: true
 
-  alias Cake.Accounts
   import Phoenix.LiveViewTest
   import Cake.AccountsFixtures
+
+  alias Cake.Accounts
 
   describe "Settings page" do
     test "renders settings page", %{conn: conn} do

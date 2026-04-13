@@ -102,6 +102,9 @@ defmodule Cake.Documents.Pipeline do
   Options:
     - :max_sweeps — maximum number of retry passes (default: 2)
   """
+  @spec ingest_with_sweep(atom(), atom(), {integer(), integer(), integer()}, String.t(), [
+          {:max_sweeps, integer()}
+        ]) :: {:ok, String.t()} | {:error, any()}
   def ingest_with_sweep(
         embedding_service,
         source_pipeline,
@@ -139,6 +142,8 @@ defmodule Cake.Documents.Pipeline do
   persist failures re-run from the raw source doc; embed/index failures resume
   from the existing ParsedDocument.
   """
+  @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
+          {:ok, :retried} | {:error, any()}
   def retry(
         %Cake.FailedIngests.FailedIngest{step: "docs.persist"} = failure,
         source_pipeline,
@@ -162,11 +167,11 @@ defmodule Cake.Documents.Pipeline do
   # parsed documents for a given source and version, then we are NOT getting
   # those docs one at a time after their embeddings have been added.
   # Interdasting...
+  @spec add_to_opensearch(Enumerable.t()) :: Enumerable.t()
   def add_to_opensearch(docs_with_embeddings_stream) do
     if skip_opensearch?() do
       # In test mode, just pass through the documents without calling OpenSearch
-      docs_with_embeddings_stream
-      |> Stream.map(fn doc ->
+      Stream.map(docs_with_embeddings_stream, fn doc ->
         Logger.debug("Skipping OpenSearch insert for document #{doc.id} (test mode)")
         doc
       end)
@@ -204,6 +209,8 @@ defmodule Cake.Documents.Pipeline do
   # Cake.Documents.Pipeline.batch_embed(:openai, Cake.Documents.Hexdocs.Pipeline, "text-embedding-ada-002", "1.18.3")
   # Need some way of passing parsed docs out one at a time to be persisted to Opensearch
   # What do we use besides Enum.each if we want this to return parsed docs?
+  # #TODO a ctx custom type the Dialyzer can expect
+  @spec batch_embed(Enumerable.t(), atom(), atom(), String.t(), map()) :: Enumerable.t()
   def batch_embed(
         persisted_parsed_docs_stream,
         embedding_service,

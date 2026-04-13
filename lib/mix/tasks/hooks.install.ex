@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Hooks.Install do
+  @shortdoc "Installs git hooks from priv/hooks/"
+
   @moduledoc """
   Installs git hooks from priv/hooks/ into .git/hooks/.
 
@@ -10,8 +12,6 @@ defmodule Mix.Tasks.Hooks.Install do
   """
 
   use Mix.Task
-
-  @shortdoc "Installs git hooks from priv/hooks/"
 
   @impl Mix.Task
   def run(_args) do
