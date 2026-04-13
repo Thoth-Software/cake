@@ -36,33 +36,37 @@ defmodule Cake.Documents.Pipeline do
   @index "docs"
 
   @type version :: {integer(), integer(), integer()}
+  @type context :: %{behaviour: String.t(), implementation: String.t(), version: String.t()}
+  @type failed_ingest :: %{
+          pipeline_behaviour: String.t(),
+          pipeline_implementation: String.t(),
+          step: String.t(),
+          version: String.t(),
+          error_text: String.t(),
+          input_identifier: String.t(),
+          pipeline_fatal: boolean()
+        }
 
-  @callback download(String.t()) :: {:ok, [String.t()]} | {:error, :download, any()}
-  @callback persist_raw_docs([String.t()], String.t()) :: :ok | {:error, :persist_raw_docs, any()}
+  @callback download(context()) :: {:ok, [String.t()]} | {:error, :download, any()}
+  @callback persist_raw_docs([String.t()], context()) :: :ok | {:error, :persist_raw_docs, any()}
   @callback parse(String.t()) :: {:ok, Enumerable.t()} | {:error, :parse, any()}
   @callback source() :: String.t()
-  @callback success_message(String.t()) :: String.t()
+  @callback success_message(context()) :: String.t()
   @callback retry_from_raw(input_identifier :: String.t(), String.t()) ::
               {:ok, [map()]} | {:error, any()}
 
   @optional_callbacks [retry_from_raw: 2]
 
   @spec ingest(atom(), atom(), version(), String.t()) :: {:ok, String.t()} | {:error, any()}
-  def ingest(embedding_service, source_pipeline, {major, minor, patch}, embedding_model) do
+  def ingest(embedding_service, source_pipeline, version_tuple, embedding_model) do
     # TODO: Track per-step success/error counts and return a summary
     #   e.g. {:ok, %{persisted: 142, embedded: 138, indexed: 138, errors: 4}}
     # TODO: Partial success should not be reported as full success —
     #   the success_message should reflect how many items actually made it through
-    version = Enum.join([major, minor, patch], ".")
+    ctx = build_context(source_pipeline, version_tuple)
 
-    ctx = %Pipelines.Context{
-      behaviour: "Cake.Documents.Pipeline",
-      implementation: inspect(source_pipeline),
-      version: version
-    }
-
-    with {:ok, file_paths} <- source_pipeline.download(version),
-         raw_docs_stream <- source_pipeline.persist_raw_docs(file_paths, version),
+    with {:ok, file_paths} <- source_pipeline.download(ctx),
+         raw_docs_stream <- source_pipeline.persist_raw_docs(file_paths, ctx),
          parsed_docs_attrs_stream <- source_pipeline.parse(raw_docs_stream),
          persisted_parsed_docs_stream <- persist_parsed_docs(parsed_docs_attrs_stream, ctx),
          docs_with_embeddings_stream <-
@@ -76,22 +80,10 @@ defmodule Cake.Documents.Pipeline do
          opensearch_docs_stream <-
            Pipelines.add_to_opensearch(docs_with_embeddings_stream, @index, @cluster, ctx),
          :ok <- Stream.run(opensearch_docs_stream) do
-      {:ok, source_pipeline.success_message(version)}
+      {:ok, source_pipeline.success_message(ctx)}
     else
       error ->
-        Logger.warning("[documents.ingest] Pipeline-fatal error: #{inspect(error)}")
-
-        Cake.FailedIngests.create_failed_ingest(%{
-          pipeline_behaviour: ctx.behaviour,
-          pipeline_implementation: ctx.implementation,
-          step: "ingest",
-          version: ctx.version,
-          error_text: inspect(error),
-          input_identifier: nil,
-          pipeline_fatal: true
-        })
-
-        error
+        handle_ingest_error(error, ctx)
     end
   end
 
@@ -343,11 +335,29 @@ defmodule Cake.Documents.Pipeline do
     end
   end
 
-  # defp persist_to_opensearch(parsed_doc_stream, cluster_name, index_name) do
-  #   Task.async_stream(parsed_doc_stream, fn doc ->
-  #     dbg(doc)
-  #     Snap.Document.add(cluster_name, index_name, doc)
-  #   end)
-  #   |> Stream.run()
-  # end
+  @spec build_context(atom(), version()) :: context()
+  defp build_context(source_pipeline, {major, minor, patch}) do
+    Enum.join([major, minor, patch], ".")
+
+    %Pipelines.Context{
+      behaviour: "Cake.Documents.Pipeline",
+      implementation: inspect(source_pipeline),
+      version: version
+    }
+  end
+
+  @spec handle_ingest_error({:error, any()}, context()) :: failed_ingest()
+  defp handle_ingest_error({:error, error}, pipeline_context) do
+    Logger.warning(Logger.warning("[documents.ingest] Pipeline-fatal error: #{inspect(error)}"))
+
+    Cake.FailedIngests.create_failed_ingest(%{
+      pipeline_behaviour: ctx.behaviour,
+      pipeline_implementation: ctx.implementation,
+      step: "ingest",
+      version: ctx.version,
+      error_text: inspect(error),
+      input_identifier: "",
+      pipeline_fatal: true
+    })
+  end
 end
