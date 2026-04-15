@@ -303,22 +303,24 @@ defmodule Cake.Books do
     chunks
     |> Enum.group_by(& &1.parsed_book_id)
     |> Enum.flat_map(fn {book_id, book_chunks} ->
-      ranges =
-        book_chunks
-        |> Enum.map(fn c -> {max(c.chunk_index - offset, 0), c.chunk_index + offset} end)
-        |> Enum.sort()
-        |> merge_ranges()
-
-      Enum.flat_map(ranges, fn {low, high} ->
-        Chunk.base_query()
-        |> Chunk.by_book(book_id)
-        |> where([c], c.chunk_index >= ^low and c.chunk_index <= ^high)
-        |> order_by([c], asc: c.chunk_index)
-        |> Repo.all()
-        |> Repo.preload(:parsed_book)
-      end)
+      fetch_neighbor_ranges(book_id, book_chunks, offset)
     end)
     |> Enum.uniq_by(& &1.id)
+  end
+
+  defp fetch_neighbor_ranges(book_id, book_chunks, offset) do
+    book_chunks
+    |> Enum.map(fn c -> {max(c.chunk_index - offset, 0), c.chunk_index + offset} end)
+    |> Enum.sort()
+    |> merge_ranges()
+    |> Enum.flat_map(fn {low, high} ->
+      Chunk.base_query()
+      |> Chunk.by_book(book_id)
+      |> where([c], c.chunk_index >= ^low and c.chunk_index <= ^high)
+      |> order_by([c], asc: c.chunk_index)
+      |> Repo.all()
+      |> Repo.preload(:parsed_book)
+    end)
   end
 
   # Merges a sorted list of {low, high} integer ranges into non-overlapping ranges.

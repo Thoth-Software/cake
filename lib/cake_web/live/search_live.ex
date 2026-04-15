@@ -21,39 +21,34 @@ defmodule CakeWeb.SearchLive do
     else
       socket = assign(socket, loading: true, error: nil)
 
-      result =
-        with {:ok, %{attrs: %{embedding: embedding}}} <-
-               Cake.Embeddings.embed(:openai, %{input: query}, "text-embedding-ada-002"),
-             {:ok, %{hits: hits}} <-
-               Cake.Documents.Cluster.search(:hybrid, "chunks_of_books", %{
-                 keywords: query,
-                 embedding: embedding,
-                 keyword_weight: 0.8,
-                 fields: ["section_title^2", "text"]
-               }) do
-          chunks = Cake.Books.chunks_for_hits(hits)
-
-          results =
-            chunks
-            |> Enum.group_by(fn chunk -> chunk.parsed_book end)
-            |> Enum.map(&build_book_result/1)
-            |> Enum.sort_by(& &1.hit_count, :desc)
-
-          {:ok, results}
-        end
-
-      case result do
+      case run_search(query) do
         {:ok, results} ->
-          {:noreply,
-           assign(socket,
-             results: results,
-             loading: false,
-             form: to_form(%{"query" => ""})
-           )}
+          {:noreply, assign(socket, results: results, loading: false, form: to_form(%{"query" => ""}))}
 
         {:error, error} ->
           {:noreply, assign(socket, loading: false, error: inspect(error))}
       end
+    end
+  end
+
+  defp run_search(query) do
+    with {:ok, %{attrs: %{embedding: embedding}}} <-
+           Cake.Embeddings.embed(:openai, %{input: query}, "text-embedding-ada-002"),
+         {:ok, %{hits: hits}} <-
+           Cake.Documents.Cluster.search(:hybrid, "chunks_of_books", %{
+             keywords: query,
+             embedding: embedding,
+             keyword_weight: 0.8,
+             fields: ["section_title^2", "text"]
+           }) do
+      results =
+        hits
+        |> Cake.Books.chunks_for_hits()
+        |> Enum.group_by(fn chunk -> chunk.parsed_book end)
+        |> Enum.map(&build_book_result/1)
+        |> Enum.sort_by(& &1.hit_count, :desc)
+
+      {:ok, results}
     end
   end
 
