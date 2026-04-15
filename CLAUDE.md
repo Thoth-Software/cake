@@ -205,3 +205,90 @@ config/
 
 native/parsebooks/   # Rust crate for PDF parsing via Rustler
 ```
+
+
+## Reference Loading Rules
+
+All reference files live in `priv/reference/`. Load them **before** making changes, not after. Read the full file, internalize it, then proceed.
+
+### Always available
+
+Read `priv/reference/naming-conventions.md` at the start of every task that involves creating or renaming modules, functions, variables, or atoms. Follow its conventions exactly. Do not import naming habits from other languages.
+
+Read `priv/reference/enum-cheat.md` before writing any list, map, or collection transformation. Prefer existing `Enum` and `Stream` functions over manual recursion or multi-step filter/map chains. If you are about to write explicit recursion over a list, check this file first — there is almost certainly an existing function that does what you need.
+
+### Anti-pattern references
+
+Load `priv/reference/code-anti-patterns.md` when you are about to:
+
+- Refactor or rewrite the body of an existing function
+- Add or change pattern matching in function heads or case/cond/with blocks
+- Introduce or modify string/list/map manipulation logic
+- Work with atoms, particularly if constructing them from external input or converting from strings
+- Add parameters to a function signature or change a function's arity
+- Write or modify exception handling (try/rescue/catch)
+- Modify data validation, parsing, or transformation pipelines
+- Introduce boolean or flag parameters that branch behavior inside a function
+
+Load `priv/reference/design-anti-patterns.md` when you are about to:
+
+- Create a new module or rename/move an existing module
+- Create or modify a directory under `lib/`
+- Define a new public API boundary between modules (especially Phoenix contexts)
+- Add, remove, or restructure a `defstruct` or schema
+- Introduce a new dependency or library wrapper
+- Change how modules reference or call each other
+- Define a behaviour, protocol, or callback interface
+- Add application-level configuration (`config/`)
+- Expose or return internal data structures across module boundaries
+
+Load `priv/reference/macro-anti-patterns.md` when you are about to:
+
+- Write or modify any `defmacro` or `defmacrop`
+- Add or change a `use` declaration in any module
+- Work with `quote`, `unquote`, or `Macro` module functions
+- Create or modify a DSL or declarative interface
+- Generate functions or module attributes at compile time
+- Reach for metaprogramming to solve a problem that might be solvable with higher-order functions
+
+Load `priv/reference/process-anti-patterns.md` when you are about to:
+
+- Create, modify, or supervise a GenServer, Agent, or Task
+- Add a child to a supervision tree or modify `application.ex`
+- Use `spawn`, `spawn_link`, `Task.async`, or `Task.start`
+- Introduce or modify process-based state (any state that lives in a process rather than a data structure)
+- Work with Registry, named processes, or dynamic supervisors
+- Add or modify PubSub, message passing, or inter-process communication
+- Reach for a process to solve a problem that might be solvable with a plain module and functions
+
+### Positive references (load alongside their anti-pattern counterpart)
+
+When `priv/reference/macro-anti-patterns.md` is loaded, also load:
+
+- `priv/reference/macros.md` — the correct way to write macros when one is warranted
+- `priv/reference/quote-and-unquote.md` — correct AST manipulation patterns
+
+When `priv/reference/process-anti-patterns.md` is loaded, also load:
+
+- `priv/reference/genservers.md` — correct GenServer structure and API design
+- `priv/reference/supervisor-and-application.md` — correct supervision tree patterns
+- `priv/reference/dynamic-supervisor.md` — correct dynamic process creation (only if the task involves dynamic/runtime process spawning)
+
+When `priv/reference/code-anti-patterns.md` is loaded, also load:
+
+- `priv/reference/patterns-and-guards.md` — authoritative reference for legal guard expressions and pattern matching forms
+
+### Rare references (load only on specific triggers)
+
+Load `priv/reference/gradual-set-theoretic-types.md` and `priv/reference/typespecs.md` together when you are about to:
+
+- Write or modify `@type`, `@typep`, or `@opaque` attributes
+- Write or modify `@spec` attributes
+- Address type-related compiler warnings
+- Design a new data type or revise the shape of an existing one
+
+Load `priv/reference/library-guidelines.md` only when:
+
+- The task involves writing or modifying public API meant for external consumption
+- You are designing a behaviour or protocol intended for third-party implementation
+- The task explicitly mentions library design or packaging concerns
