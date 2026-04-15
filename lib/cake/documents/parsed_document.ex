@@ -1,7 +1,4 @@
 defmodule Cake.Documents.ParsedDocument do
-  use Cake.Schema
-  import Ecto.Changeset
-
   @moduledoc """
   Schema for parsed documentation chunks, used to generate embedding vectors
   and store searchable metadata for OpenSearch.
@@ -15,6 +12,9 @@ defmodule Cake.Documents.ParsedDocument do
   That is, if you take the right deep learning model and decode the embedding, you should
   get exactly what's in :content
   """
+
+  use Cake.Schema
+  import Ecto.Changeset
 
   @derive {Jason.Encoder, except: [:__meta__]}
   schema "parsed_documents" do
@@ -31,7 +31,7 @@ defmodule Cake.Documents.ParsedDocument do
     # In Elixir, these are modules. In Ruby, they're gems. And so on.
     field :package, :string
 
-    # metadata: language 
+    # metadata: language
     # Elixir, Python, Java, Clojure, etc
     field :language, :string
 
@@ -59,6 +59,7 @@ defmodule Cake.Documents.ParsedDocument do
   end
 
   @doc false
+  @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(parsed_doc, attrs \\ %{}) do
     parsed_doc
     |> cast(attrs, [
@@ -83,23 +84,28 @@ defmodule Cake.Documents.ParsedDocument do
     |> sanitize_text_fields()
   end
 
+  @spec base_query() :: Ecto.Query.t()
   def base_query(), do: from(p in __MODULE__)
 
+  @spec by_version(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_version(query, version) do
     from h in query,
       where: h.version == ^version
   end
 
+  @spec by_language(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_language(query, language) do
     from h in query,
       where: h.language == ^language
   end
 
+  @spec by_source(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_source(query, source) do
     from h in query,
       where: h.source == ^source
   end
 
+  @spec doc_attrs() :: map()
   def doc_attrs do
     %{}
   end

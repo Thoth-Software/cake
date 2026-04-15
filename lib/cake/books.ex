@@ -3,14 +3,16 @@ defmodule Cake.Books do
   The Books context.
   """
 
-  require Logger
   import Ecto.Query, warn: false
+  alias Cake.Books.Chunk
+  alias Cake.Books.ParsedBook
   alias Cake.Repo
 
-  alias Cake.Books.ParsedBook
-  alias Cake.Books.Chunk
+  require Logger
 
-  def persist_book_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
+  @spec persist_books_and_chunks({struct(), [struct()]} | tuple()) ::
+          {:ok, {struct(), [struct()]}} | {:error, any()}
+  def persist_books_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
       when is_list(chunks) do
     case Repo.one(from b in ParsedBook, where: b.file_hash == ^hash) do
       %ParsedBook{} = existing ->
@@ -19,78 +21,97 @@ defmodule Cake.Books do
         {:ok, {existing, existing_chunks}}
 
       nil ->
-        do_persist_book_and_chunks(book, chunks)
+        persist_books_and_chunks(book, chunks)
     end
   end
 
-  def persist_book_and_chunks({book, chunks}) do
+  def persist_books_and_chunks({book, chunks}) do
     {:error, {:invalid_input, %{book: book, chunks: chunks}}}
   end
 
-  defp do_persist_book_and_chunks(book, chunks) do
+  @spec persist_books_and_chunks(struct(), [struct()]) ::
+          {:ok, {struct(), [struct()]}} | {:error, any()}
+  def persist_books_and_chunks(%ParsedBook{} = book, chunks) when is_list(chunks) do
+    book
+    |> build_multi(chunks)
+    |> run_transaction(book)
+  end
+
+  defp build_multi(book, chunks) do
     book_attrs =
       book
       |> Map.from_struct()
       |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :chunks])
 
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(:book, ParsedBook.changeset(%ParsedBook{}, book_attrs))
+    |> Ecto.Multi.run(:chunks, fn repo, %{book: persisted_book} ->
+      insert_chunks(repo, persisted_book, chunks)
+    end)
+  end
 
-    multi =
-      Ecto.Multi.new()
-      |> Ecto.Multi.insert(:book, ParsedBook.changeset(%ParsedBook{}, book_attrs))
-      |> Ecto.Multi.run(:chunks, fn repo, %{book: persisted_book} ->
-        chunks
-        |> Enum.with_index()
-        |> Enum.reduce_while({:ok, []}, fn {chunk, idx}, {:ok, acc} ->
-          chunk_attrs =
-            chunk
-            |> Map.from_struct()
-            |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :parsed_book])
-            |> Map.put(:parsed_book_id, persisted_book.id)
-            |> Map.put_new(:chunk_index, idx)
+  defp insert_chunks(repo, persisted_book, chunks) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
-          cs = Chunk.changeset(%Chunk{}, chunk_attrs)
+    chunks
+    |> Enum.with_index()
+    |> Enum.reduce_while({:ok, []}, fn {chunk, idx}, {:ok, acc} ->
+      case build_chunk_row(chunk, persisted_book.id, idx, now) do
+        {:ok, row} -> {:cont, {:ok, [row | acc]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> then(fn
+      {:ok, reversed_rows} -> bulk_insert_chunks(repo, Enum.reverse(reversed_rows))
+      {:error, _} = error -> error
+    end)
+  end
 
-          if cs.valid? do
-            row =
-              cs.changes
-              |> Map.put(:inserted_at, now)
-              |> Map.put(:updated_at, now)
+  defp build_chunk_row(chunk, book_id, idx, now) do
+    chunk_attrs =
+      chunk
+      |> Map.from_struct()
+      |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :parsed_book])
+      |> Map.put(:parsed_book_id, book_id)
+      |> Map.put_new(:chunk_index, idx)
 
-            {:cont, {:ok, [row | acc]}}
-          else
-            {:halt, {:error, {:invalid_chunk, cs.errors, chunk_attrs}}}
-          end
-        end)
-        |> case do
-          {:ok, reversed_rows} ->
-            chunk_rows = Enum.reverse(reversed_rows)
+    cs = Chunk.changeset(%Chunk{}, chunk_attrs)
 
-            {count, returned_rows} =
-              repo.insert_all(Chunk, chunk_rows,
-                returning: [
-                  :id,
-                  :parsed_book_id,
-                  :page_number,
-                  :chunk_index,
-                  :section_title,
-                  :text,
-                  :word_count,
-                  :char_count
-                ]
-              )
+    if cs.valid? do
+      row =
+        cs.changes
+        |> Map.put(:inserted_at, now)
+        |> Map.put(:updated_at, now)
 
-            if count == length(chunk_rows) do
-              {:ok, returned_rows}
-            else
-              {:error, {:chunk_insert_count_mismatch, count, length(chunk_rows)}}
-            end
+      {:ok, row}
+    else
+      {:error, {:invalid_chunk, cs.errors, chunk_attrs}}
+    end
+  end
 
-          {:error, _reason} = error ->
-            error
-        end
-      end)
+  defp bulk_insert_chunks(repo, chunk_rows) do
+    {count, returned_rows} =
+      repo.insert_all(Chunk, chunk_rows,
+        returning: [
+          :id,
+          :parsed_book_id,
+          :page_number,
+          :chunk_index,
+          :section_title,
+          :text,
+          :word_count,
+          :char_count
+        ]
+      )
 
+    if count == length(chunk_rows) do
+      {:ok, returned_rows}
+    else
+      {:error, {:chunk_insert_count_mismatch, count, length(chunk_rows)}}
+    end
+  end
+
+  defp run_transaction(multi, book) do
     case Repo.transaction(multi) do
       {:ok, %{book: persisted_book, chunks: persisted_chunks}} ->
         {:ok, {persisted_book, persisted_chunks}}
@@ -109,6 +130,7 @@ defmodule Cake.Books do
       [%ParsedBook{}, ...]
 
   """
+  @spec list_parsed_books() :: [struct()]
   def list_parsed_books do
     Repo.all(ParsedBook)
   end
@@ -127,6 +149,7 @@ defmodule Cake.Books do
       ** (Ecto.NoResultsError)
 
   """
+  @spec get_parsed_book!(binary()) :: struct()
   def get_parsed_book!(id), do: Repo.get!(ParsedBook, id)
 
   @doc """
@@ -141,6 +164,7 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec create_parsed_book(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def create_parsed_book(attrs \\ %{}) do
     %ParsedBook{}
     |> ParsedBook.changeset(attrs)
@@ -159,6 +183,8 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec update_parsed_book(struct(), map()) ::
+          {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def update_parsed_book(%ParsedBook{} = parsed_book, attrs) do
     parsed_book
     |> ParsedBook.changeset(attrs)
@@ -177,6 +203,7 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec update_chunk!(struct(), map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def update_chunk!(%Chunk{} = chunk, attrs) do
     chunk
     |> Chunk.changeset(attrs)
@@ -195,6 +222,8 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec delete_parsed_book(struct()) ::
+          {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def delete_parsed_book(%ParsedBook{} = parsed_book) do
     Repo.delete(parsed_book)
   end
@@ -208,11 +237,10 @@ defmodule Cake.Books do
       %Ecto.Changeset{data: %ParsedBook{}}
 
   """
+  @spec change_parsed_book(struct(), map()) :: Ecto.Changeset.t()
   def change_parsed_book(%ParsedBook{} = parsed_book, attrs \\ %{}) do
     ParsedBook.changeset(parsed_book, attrs)
   end
-
-  alias Cake.Books.Chunk
 
   @doc """
   Returns the list of chunks.
@@ -223,6 +251,7 @@ defmodule Cake.Books do
       [%Chunk{}, ...]
 
   """
+  @spec list_chunks() :: [struct()]
   def list_chunks do
     Repo.all(Chunk)
   end
@@ -231,12 +260,15 @@ defmodule Cake.Books do
   Fetches Chunk records for a list of OpenSearch hits, with `parsed_book`
   preloaded. Returns chunks in the same order as the hits.
   """
+  @spec chunks_for_hits(%Snap.Hits{} | list()) :: [struct()]
   def chunks_for_hits(hits) do
     ids = Enum.map(hits, fn hit -> hit.source["id"] end)
 
     chunks_by_id =
-      Repo.all(from c in Chunk, where: c.id in ^ids, preload: :parsed_book)
-      |> Map.new(fn chunk -> {chunk.id, chunk} end)
+      Map.new(
+        Repo.all(from c in Chunk, where: c.id in ^ids, preload: :parsed_book),
+        fn chunk -> {chunk.id, chunk} end
+      )
 
     ids
     |> Enum.map(&Map.get(chunks_by_id, &1))
@@ -265,27 +297,30 @@ defmodule Cake.Books do
       expanded = Books.expand_with_neighbors(chunks, 2)
 
   """
-  @spec expand_with_neighbors([Chunk.t()], non_neg_integer()) :: [Chunk.t()]
-  def expand_with_neighbors(chunks, offset) when is_list(chunks) and is_integer(offset) and offset >= 0 do
+  @spec expand_with_neighbors([struct()], non_neg_integer()) :: [struct()]
+  def expand_with_neighbors(chunks, offset)
+      when is_list(chunks) and is_integer(offset) and offset >= 0 do
     chunks
     |> Enum.group_by(& &1.parsed_book_id)
     |> Enum.flat_map(fn {book_id, book_chunks} ->
-      ranges =
-        book_chunks
-        |> Enum.map(fn c -> {max(c.chunk_index - offset, 0), c.chunk_index + offset} end)
-        |> Enum.sort()
-        |> merge_ranges()
-
-      Enum.flat_map(ranges, fn {low, high} ->
-        Chunk.base_query()
-        |> Chunk.by_book(book_id)
-        |> where([c], c.chunk_index >= ^low and c.chunk_index <= ^high)
-        |> order_by([c], asc: c.chunk_index)
-        |> Repo.all()
-        |> Repo.preload(:parsed_book)
-      end)
+      fetch_neighbor_ranges(book_id, book_chunks, offset)
     end)
     |> Enum.uniq_by(& &1.id)
+  end
+
+  defp fetch_neighbor_ranges(book_id, book_chunks, offset) do
+    book_chunks
+    |> Enum.map(fn c -> {max(c.chunk_index - offset, 0), c.chunk_index + offset} end)
+    |> Enum.sort()
+    |> merge_ranges()
+    |> Enum.flat_map(fn {low, high} ->
+      Chunk.base_query()
+      |> Chunk.by_book(book_id)
+      |> where([c], c.chunk_index >= ^low and c.chunk_index <= ^high)
+      |> order_by([c], asc: c.chunk_index)
+      |> Repo.all()
+      |> Repo.preload(:parsed_book)
+    end)
   end
 
   # Merges a sorted list of {low, high} integer ranges into non-overlapping ranges.
@@ -294,14 +329,15 @@ defmodule Cake.Books do
   defp merge_ranges([]), do: []
 
   defp merge_ranges([first | rest]) do
-    Enum.reduce(rest, [first], fn {low, high}, [{acc_low, acc_high} | tail] ->
-      if low <= acc_high + 1 do
-        [{acc_low, max(acc_high, high)} | tail]
-      else
-        [{low, high}, {acc_low, acc_high} | tail]
-      end
-    end)
-    |> Enum.reverse()
+    Enum.reverse(
+      Enum.reduce(rest, [first], fn {low, high}, [{acc_low, acc_high} | tail] ->
+        if low <= acc_high + 1 do
+          [{acc_low, max(acc_high, high)} | tail]
+        else
+          [{low, high}, {acc_low, acc_high} | tail]
+        end
+      end)
+    )
   end
 
   @doc """
@@ -318,6 +354,7 @@ defmodule Cake.Books do
       ** (Ecto.NoResultsError)
 
   """
+  @spec get_chunk!(binary()) :: struct()
   def get_chunk!(id), do: Repo.get!(Chunk, id)
 
   @doc """
@@ -332,6 +369,7 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec create_chunk(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def create_chunk(attrs \\ %{}) do
     %Chunk{}
     |> Chunk.changeset(attrs)
@@ -350,6 +388,7 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec update_chunk(struct(), map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def update_chunk(%Chunk{} = chunk, attrs) do
     chunk
     |> Chunk.changeset(attrs)
@@ -368,6 +407,7 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec delete_chunk(struct()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def delete_chunk(%Chunk{} = chunk) do
     Repo.delete(chunk)
   end
@@ -381,6 +421,7 @@ defmodule Cake.Books do
       %Ecto.Changeset{data: %Chunk{}}
 
   """
+  @spec change_chunk(struct(), map()) :: Ecto.Changeset.t()
   def change_chunk(%Chunk{} = chunk, attrs \\ %{}) do
     Chunk.changeset(chunk, attrs)
   end

@@ -3,19 +3,20 @@ defmodule Cake.Jobs.DocumentIngestionJobTest do
   use Oban.Testing, repo: Cake.Repo
 
   import Mox
-  require Logger
 
+  alias Cake.Embeddings.Mock
+  alias Cake.FailingTestPipeline
   alias Cake.Jobs.DocumentIngestionJob
   alias Cake.TestPipeline
-  alias Cake.FailingTestPipeline
-  alias Cake.Embeddings.Mock, as: EmbeddingsMock
+
+  require Logger
 
   # Allow mocks to be used in tests
   setup :verify_on_exit!
 
   setup do
     # Configure the application to use the mock embeddings module for tests
-    Application.put_env(:cake, :embeddings_module, EmbeddingsMock)
+    Application.put_env(:cake, :embeddings_module, Mock)
 
     # Set Logger level to info for tests to capture all logs
     Logger.configure(level: :info)
@@ -29,7 +30,7 @@ defmodule Cake.Jobs.DocumentIngestionJobTest do
 
   # Helper function to stub embedding calls
   defp stub_embeddings do
-    stub(EmbeddingsMock, :embed, fn _service, parsed_document, _model ->
+    stub(Mock, :embed, fn _service, parsed_document, _model ->
       # Return a successful embedding result
       {:ok,
        %{

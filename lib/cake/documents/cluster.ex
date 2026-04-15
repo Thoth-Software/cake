@@ -8,6 +8,7 @@ defmodule Cake.Documents.Cluster do
   alias Snap.Indexes
   require Logger
 
+  @spec build_mapping(module()) :: map()
   def build_mapping(schema) do
     embedding = %{
       type: "knn_vector",
@@ -24,8 +25,7 @@ defmodule Cake.Documents.Cluster do
     }
 
     text_properties =
-      schema.__schema__(:fields)
-      |> Enum.reduce(%{}, fn field, acc ->
+      Enum.reduce(schema.__schema__(:fields), %{}, fn field, acc ->
         case field do
           :text -> Map.merge(%{text: %{type: "text"}}, acc)
           :embedding -> Map.merge(%{embedding: embedding}, acc)
@@ -43,6 +43,7 @@ defmodule Cake.Documents.Cluster do
     }
   end
 
+  @spec start_convo(map()) :: pid() | {:error, any()}
   def start_convo(opts) do
     case Cake.Conversation.start_link(opts) do
       {:ok, pid} -> pid
@@ -50,17 +51,18 @@ defmodule Cake.Documents.Cluster do
     end
   end
 
+  @spec init(keyword()) :: {:ok, keyword()}
   def init(config) do
     Task.start_link(fn -> create_indexes_unless_exist(nil) end)
     {:ok, config}
   end
 
+  @spec create_indexes_unless_exist(nil | pid()) :: :ok
   def create_indexes_unless_exist(nil) do
     Logger.debug("Cluster not running yet.\n\nWaiting to create indexes...")
     Process.sleep(10_000)
 
-    Process.whereis(__MODULE__)
-    |> create_indexes_unless_exist()
+    create_indexes_unless_exist(Process.whereis(__MODULE__))
   end
 
   def create_indexes_unless_exist(pid) when is_pid(pid) do
@@ -78,8 +80,10 @@ defmodule Cake.Documents.Cluster do
     end
   end
 
+  @spec enable_conversational_search() :: nil
   def enable_conversational_search(), do: nil
 
+  @spec all_documents() :: {:ok, Snap.SearchResponse.t()} | {:error, any()}
   def all_documents() do
     query = %{query: %{match_all: %{}}}
     Snap.Search.search(__MODULE__, "docs", query)
@@ -91,7 +95,7 @@ defmodule Cake.Documents.Cluster do
   # weighted, rather than requiring callers to pass a fields list. The search
   # function would then take a schema module as a parameter and call
   # schema.search_fields() to build the query. For now, callers pass `fields`
-  # explicitly as a stopgap. 
+  # explicitly as a stopgap.
 
   # Cake.Documents.Cluster.search(:keyword, "chunks_of_books")
   @spec search(:keyword | :vector | :hybrid, String.t(), %{
@@ -167,9 +171,9 @@ defmodule Cake.Documents.Cluster do
     Snap.Search.search(__MODULE__, index, query)
   end
 
+  @spec hits_text({:ok, Snap.SearchResponse.t()}) :: [String.t() | nil]
   def hits_text({:ok, %Snap.SearchResponse{hits: hits}}) do
-    hits
-    |> Enum.map(fn hit ->
+    Enum.map(hits, fn hit ->
       hit.source["text"]
     end)
   end

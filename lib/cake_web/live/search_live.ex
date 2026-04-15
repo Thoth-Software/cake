@@ -1,6 +1,8 @@
 defmodule CakeWeb.SearchLive do
   use CakeWeb, :live_view
 
+  @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
@@ -11,61 +13,17 @@ defmodule CakeWeb.SearchLive do
      )}
   end
 
+  @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("search", %{"query" => query}, socket) do
     if String.trim(query) == "" do
       {:noreply, socket}
     else
       socket = assign(socket, loading: true, error: nil)
 
-      result =
-        with {:ok, %{attrs: %{embedding: embedding}}} <-
-               Cake.Embeddings.embed(:openai, %{input: query}, "text-embedding-ada-002"),
-             {:ok, %{hits: hits}} <-
-               Cake.Documents.Cluster.search(:hybrid, "chunks_of_books", %{
-                 keywords: query,
-                 embedding: embedding,
-                 keyword_weight: 0.8,
-                 fields: ["section_title^2", "text"]
-               }) do
-          chunks = Cake.Books.chunks_for_hits(hits)
-
-          results =
-            chunks
-            |> Enum.group_by(fn chunk -> chunk.parsed_book end)
-            |> Enum.map(fn {book, book_chunks} ->
-              pages =
-                book_chunks
-                |> Enum.sort_by(& &1.page_number)
-                |> Enum.uniq_by(& &1.page_number)
-                |> Enum.map(fn chunk ->
-                  %{
-                    page_number: chunk.page_number,
-                    section_title: chunk.section_title,
-                    chunk_preview: String.slice(chunk.text, 0, 200)
-                  }
-                end)
-
-              %{
-                book_title: book.title,
-                source_file_path: book.source_file_path,
-                total_pages: book.total_pages,
-                hit_count: length(book_chunks),
-                pages: pages
-              }
-            end)
-            |> Enum.sort_by(& &1.hit_count, :desc)
-
-          {:ok, results}
-        end
-
-      case result do
+      case run_search(query) do
         {:ok, results} ->
-          {:noreply,
-           assign(socket,
-             results: results,
-             loading: false,
-             form: to_form(%{"query" => ""})
-           )}
+          {:noreply, assign(socket, results: results, loading: false, form: to_form(%{"query" => ""}))}
 
         {:error, error} ->
           {:noreply, assign(socket, loading: false, error: inspect(error))}
@@ -73,6 +31,50 @@ defmodule CakeWeb.SearchLive do
     end
   end
 
+  defp run_search(query) do
+    with {:ok, %{attrs: %{embedding: embedding}}} <-
+           Cake.Embeddings.embed(:openai, %{input: query}, "text-embedding-ada-002"),
+         {:ok, %{hits: hits}} <-
+           Cake.Documents.Cluster.search(:hybrid, "chunks_of_books", %{
+             keywords: query,
+             embedding: embedding,
+             keyword_weight: 0.8,
+             fields: ["section_title^2", "text"]
+           }) do
+      results =
+        hits
+        |> Cake.Books.chunks_for_hits()
+        |> Enum.group_by(fn chunk -> chunk.parsed_book end)
+        |> Enum.map(&build_book_result/1)
+        |> Enum.sort_by(& &1.hit_count, :desc)
+
+      {:ok, results}
+    end
+  end
+
+  defp build_book_result({book, book_chunks}) do
+    pages =
+      book_chunks
+      |> Enum.sort_by(& &1.page_number)
+      |> Enum.uniq_by(& &1.page_number)
+      |> Enum.map(fn chunk ->
+        %{
+          page_number: chunk.page_number,
+          section_title: chunk.section_title,
+          chunk_preview: String.slice(chunk.text, 0, 200)
+        }
+      end)
+
+    %{
+      book_title: book.title,
+      source_file_path: book.source_file_path,
+      total_pages: book.total_pages,
+      hit_count: length(book_chunks),
+      pages: pages
+    }
+  end
+
+  @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
     <div class="max-w-2xl mx-auto p-4">

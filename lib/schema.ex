@@ -16,8 +16,10 @@ defmodule Cake.Schema do
 
       def sanitize_text_fields(changeset) do
         string_fields =
-          __MODULE__.__schema__(:fields)
-          |> Enum.filter(&(__MODULE__.__schema__(:type, &1) == :string))
+          Enum.filter(
+            __MODULE__.__schema__(:fields),
+            &(__MODULE__.__schema__(:type, &1) == :string)
+          )
 
         Enum.reduce(string_fields, changeset, fn field, cs ->
           case get_change(cs, field) do

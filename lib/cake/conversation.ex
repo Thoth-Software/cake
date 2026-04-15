@@ -1,9 +1,12 @@
 defmodule Cake.Conversation do
   use GenServer
 
-  alias Cake.{Books, Embeddings}
+  alias Cake.Books
+  alias Cake.Embeddings
+
   require Logger
 
+  @spec child_spec(map()) :: Supervisor.child_spec()
   def child_spec(opts) do
     %{
       id: __MODULE__,
@@ -12,15 +15,17 @@ defmodule Cake.Conversation do
     }
   end
 
+  @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
     GenServer.start_link(__MODULE__, opts)
   end
 
+  @spec start(map()) :: GenServer.on_start()
   def start(opts) when is_map(opts) do
     GenServer.start(__MODULE__, opts)
   end
 
-  @impl true
+  @impl GenServer
   def init(opts) do
     state = %{
       cluster: opts.cluster,
@@ -41,51 +46,19 @@ defmodule Cake.Conversation do
     {:ok, state}
   end
 
+  @spec ask(pid(), String.t()) :: :ok
   def ask(pid, question) do
     GenServer.cast(pid, {:question, question})
   end
 
   # First turn: no search results yet — embed, search, then query LLM
-  @impl true
+  @impl GenServer
   def handle_cast({:question, question}, %{search_results: []} = state) do
-    %{
-      cluster: cluster,
-      embedder: embedding_model,
-      index: index,
-      response_model: response_model,
-      provider: provider,
-      search_type: search_type,
-      fields: fields
-    } = state
+    case run_first_turn(question, state) do
+      {:ok, {response, citations, new_state}} ->
+        send(state.reply_to, {:convo_response, response, citations})
+        {:noreply, new_state}
 
-    keyword_weight = 0.8
-
-    with {:ok, %{attrs: %{embedding: embedding}}} <-
-           Embeddings.embed(provider, %{input: question}, embedding_model),
-         {:ok, %{hits: hits}} <-
-           cluster.search(search_type, index, %{
-             keywords: question,
-             embedding: embedding,
-             keyword_weight: keyword_weight,
-             fields: fields
-           }),
-         chunks = Books.chunks_for_hits(hits),
-         expanded_chunks = Books.expand_with_neighbors(chunks, 2),
-         {:ok, %{response: response, chunk_map: chunk_map}} <-
-           Cake.Responses.query_llm(:openai, expanded_chunks, question, response_model) do
-      citations = Cake.Citations.extract(response, chunk_map)
-
-      send(state.reply_to, {:convo_response, response, citations})
-
-      {:noreply,
-       %{
-         state
-         | search_results: expanded_chunks,
-           message_history: [question, response],
-           chunk_map: chunk_map,
-           citations: citations
-       }}
-    else
       {:error, error} ->
         send(state.reply_to, {:convo_error, error})
         {:noreply, %{state | errors: [error | state.errors]}}
@@ -93,29 +66,77 @@ defmodule Cake.Conversation do
   end
 
   # Subsequent turns: search results already populated — skip search, continue conversation
-  @impl true
+  @impl GenServer
   def handle_cast({:question, question}, %{search_results: search_results} = state) do
-    with {:ok, %{response: response, chunk_map: chunk_map}} <-
-           Cake.Responses.query_llm(:openai, search_results, question, state.response_model) do
-      citations = Cake.Citations.extract(response, chunk_map)
+    case run_subsequent_turn(question, search_results, state) do
+      {:ok, {response, citations, new_state}} ->
+        send(state.reply_to, {:convo_response, response, citations})
+        {:noreply, new_state}
 
-      send(state.reply_to, {:convo_response, response, citations})
-
-      {:noreply,
-       %{
-         state
-         | message_history: state.message_history ++ [question, response],
-           chunk_map: chunk_map,
-           citations: citations
-       }}
-    else
       {:error, error} ->
         send(state.reply_to, {:convo_error, error})
         {:noreply, %{state | errors: [error | state.errors]}}
     end
   end
 
-  @impl true
+  defp run_first_turn(question, state) do
+    with {:ok, expanded_chunks} <- embed_and_search(question, state),
+         {:ok, %{response: response, chunk_map: chunk_map}} <-
+           Cake.Responses.query_llm(:openai, expanded_chunks, question, state.response_model) do
+      citations = Cake.Citations.extract(response, chunk_map)
+
+      new_state = %{
+        state
+        | search_results: expanded_chunks,
+          message_history: [question, response],
+          chunk_map: chunk_map,
+          citations: citations
+      }
+
+      {:ok, {response, citations, new_state}}
+    end
+  end
+
+  defp embed_and_search(question, state) do
+    %{
+      cluster: cluster,
+      embedder: embedding_model,
+      index: index,
+      provider: provider,
+      search_type: search_type,
+      fields: fields
+    } = state
+
+    with {:ok, %{attrs: %{embedding: embedding}}} <-
+           Embeddings.embed(provider, %{input: question}, embedding_model),
+         {:ok, %{hits: hits}} <-
+           cluster.search(search_type, index, %{
+             keywords: question,
+             embedding: embedding,
+             keyword_weight: 0.8,
+             fields: fields
+           }) do
+      {:ok, Books.expand_with_neighbors(Books.chunks_for_hits(hits), 2)}
+    end
+  end
+
+  defp run_subsequent_turn(question, search_results, state) do
+    with {:ok, %{response: response, chunk_map: chunk_map}} <-
+           Cake.Responses.query_llm(:openai, search_results, question, state.response_model) do
+      citations = Cake.Citations.extract(response, chunk_map)
+
+      new_state = %{
+        state
+        | message_history: state.message_history ++ [question, response],
+          chunk_map: chunk_map,
+          citations: citations
+      }
+
+      {:ok, {response, citations, new_state}}
+    end
+  end
+
+  @impl GenServer
   def handle_call(:search_results, {from, _}, %{search_results: chunks} = state)
       when is_list(chunks) and chunks != [] do
     Logger.debug(
@@ -125,33 +146,34 @@ defmodule Cake.Conversation do
     {:reply, chunks, state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call(:search_results, {_from, _}, %{search_results: []} = state) do
     Logger.debug("search_results requested but none available yet")
     {:reply, [], state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call(:chunk_map, _from, %{chunk_map: chunk_map} = state) do
     {:reply, chunk_map, state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call(:citations, _from, %{citations: citations} = state) do
     {:reply, citations, state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call(:inspect, _from, state) do
     {:reply, state, state}
   end
 
+  @spec print_hierarchy(map(), list()) :: list()
   def print_hierarchy(map, prefix \\ []) do
     for {key, value} <- map do
-      IO.puts("#{Enum.join(prefix, ".")}#{key}")
+      Logger.debug("#{Enum.join(Enum.reverse(prefix), ".")}#{key}")
 
       if is_map(value) do
-        print_hierarchy(value, prefix ++ [key])
+        print_hierarchy(value, [key | prefix])
       end
     end
   end

@@ -25,6 +25,7 @@ defmodule CakeWeb.UserAuth do
   disconnected on log out. The line can be safely removed
   if you are not using LiveView.
   """
+  @spec log_in_user(map(), map(), map()) :: map()
   def log_in_user(conn, user, params \\ %{}) do
     token = Accounts.generate_user_session_token(user)
     user_return_to = get_session(conn, :user_return_to)
@@ -72,6 +73,7 @@ defmodule CakeWeb.UserAuth do
 
   It clears all session data for safety. See renew_session.
   """
+  @spec log_out_user(Plug.Conn.t()) :: Plug.Conn.t()
   def log_out_user(conn) do
     user_token = get_session(conn, :user_token)
     user_token && Accounts.delete_user_session_token(user_token)
@@ -90,6 +92,7 @@ defmodule CakeWeb.UserAuth do
   Authenticates the user by looking into the session
   and remember me token.
   """
+  @spec fetch_current_user(Plug.Conn.t(), keyword()) :: Plug.Conn.t()
   def fetch_current_user(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
     user = user_token && Accounts.get_user_by_session_token(user_token)
@@ -145,10 +148,13 @@ defmodule CakeWeb.UserAuth do
         live "/profile", ProfileLive, :index
       end
   """
+
+  @spec on_mount(atom(), map(), map(), map()) :: {:halt, map()} | {:cont, map()}
   def on_mount(:mount_current_user, _params, session, socket) do
     {:cont, mount_current_user(socket, session)}
   end
 
+  @spec on_mount(atom(), map(), map(), map()) :: {:halt, map()} | {:cont, map()}
   def on_mount(:ensure_authenticated, _params, session, socket) do
     socket = mount_current_user(socket, session)
 
@@ -164,6 +170,7 @@ defmodule CakeWeb.UserAuth do
     end
   end
 
+  @spec on_mount(atom(), map(), map(), map()) :: {:halt, map()} | {:cont, map()}
   def on_mount(:redirect_if_user_is_authenticated, _params, session, socket) do
     socket = mount_current_user(socket, session)
 
@@ -185,6 +192,7 @@ defmodule CakeWeb.UserAuth do
   @doc """
   Used for routes that require the user to not be authenticated.
   """
+  @spec redirect_if_user_is_authenticated(Plug.Conn.t(), keyword()) :: Plug.Conn.t()
   def redirect_if_user_is_authenticated(conn, _opts) do
     if conn.assigns[:current_user] do
       conn
@@ -201,6 +209,7 @@ defmodule CakeWeb.UserAuth do
   If you want to enforce the user email is confirmed before
   they use the application at all, here would be a good place.
   """
+  @spec require_authenticated_user(Plug.Conn.t(), keyword()) :: Plug.Conn.t()
   def require_authenticated_user(conn, _opts) do
     if conn.assigns[:current_user] do
       conn

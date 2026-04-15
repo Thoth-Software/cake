@@ -5,12 +5,14 @@ defmodule Cake.Documents.Hexdocs.Downloads do
 
   @dir System.tmp_dir!() <> "hexdocs/"
 
+  @spec clone_and_get_module_paths(String.t()) :: [String.t()]
   def clone_and_get_module_paths(version) do
     File.mkdir_p(@dir)
-    System.cmd("git", ["clone", "https://github.com/elixir-lang/elixir.git", @dir])
-    System.cmd("git", ["checkout v#{version}"])
+    System.cmd("git", ["clone", "https://github.com/elixir-lang/elixir.git", @dir], env: [])
+    System.cmd("git", ["checkout v#{version}"], env: [])
 
-    list_files("elixir/lib/elixir/lib")
+    "elixir/lib/elixir/lib"
+    |> list_files()
     |> List.flatten()
     |> Enum.filter(fn filename -> String.ends_with?(filename, ".ex") end)
     |> Enum.map(fn relative_file_path ->
@@ -43,6 +45,7 @@ defmodule Cake.Documents.Hexdocs.Downloads do
     end
   end
 
+  @spec html_file_paths({:ok, String.t()} | {term(), term()}) :: {:ok, [String.t()]} | term()
   def html_file_paths({:ok, tar_path}) do
     :erl_tar.extract(tar_path, [:compressed, {:cwd, @dir}, :verbose])
 
@@ -61,6 +64,7 @@ defmodule Cake.Documents.Hexdocs.Downloads do
 
   def html_file_paths({error_tuple, _}), do: error_tuple
 
+  @spec list_files(String.t()) :: [String.t()]
   def list_files(""), do: []
 
   def list_files(dir) do

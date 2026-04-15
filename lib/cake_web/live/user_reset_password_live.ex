@@ -3,6 +3,7 @@ defmodule CakeWeb.UserResetPasswordLive do
 
   alias Cake.Accounts
 
+  @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-sm">
@@ -38,6 +39,8 @@ defmodule CakeWeb.UserResetPasswordLive do
     """
   end
 
+  @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:ok, Phoenix.LiveView.Socket.t(), keyword()}
   def mount(params, _session, socket) do
     socket = assign_user_and_token(socket, params)
 
@@ -55,6 +58,8 @@ defmodule CakeWeb.UserResetPasswordLive do
 
   # Do not log in the user after reset password to avoid a
   # leaked token giving the user access to the account.
+  @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("reset_password", %{"user" => user_params}, socket) do
     case Accounts.reset_user_password(socket.assigns.user, user_params) do
       {:ok, _} ->

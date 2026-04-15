@@ -3,23 +3,33 @@ defmodule Cake.Pipelines do
   Various assorted motley helpers, doohickeys, and dongles for data ingestion pipelines. Some of this may very well be cruft.
   """
 
+  alias Cake.Pipelines
+
+  require Logger
+
   defmodule Context do
     @moduledoc """
     Carries pipeline identity through an ingest run.
     Built once at the top of each behaviour's `ingest` function
     and passed to `detuple_with_logging` so it can persist errors
-    with full provenance.
+    with full provenance. Also carries a keyword list of opts.
     """
-    defstruct [:behaviour, :implementation, :version]
+    @type t :: %__MODULE__{
+      behaviour: String.t(),
+      implementation: String.t(),
+      version: String.t(),
+      opts: keyword()
+    }
+    defstruct [:behaviour, :implementation, :version, :opts]
   end
 
-  require Logger
+  @type context :: Context.t()
 
+  @spec add_to_opensearch(Enumerable.t(), String.t(), module(), struct()) :: Enumerable.t()
   def add_to_opensearch(docs_with_embeddings_stream, index, cluster, %Context{} = ctx) do
     if skip_opensearch?() do
       # In test mode, just pass through the documents without calling OpenSearch
-      docs_with_embeddings_stream
-      |> Stream.map(fn doc ->
+      Stream.map(docs_with_embeddings_stream, fn doc ->
         Logger.debug("Skipping OpenSearch insert for document #{doc.id} (test mode)")
         doc
       end)
@@ -67,6 +77,7 @@ defmodule Cake.Pipelines do
   The `step_name` parameter identifies which pipeline stage failed,
   for log readability.
   """
+  @spec detuple_with_logging(Enumerable.t(), String.t(), struct()) :: Enumerable.t()
   def detuple_with_logging(stream_enumerable, step_name, %Context{} = ctx) do
     stream_enumerable
     |> Stream.filter(fn
@@ -91,6 +102,8 @@ defmodule Cake.Pipelines do
   Use this from pipeline steps that handle errors manually instead of
   going through detuple_with_logging.
   """
+  @spec log_and_persist_failure(struct(), String.t(), any()) ::
+          {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def log_and_persist_failure(%Context{} = ctx, step_name, reason) do
     Logger.warning("[#{step_name}] Item failed: #{inspect(reason)}")
     persist_failure(ctx, step_name, reason)
@@ -137,6 +150,8 @@ defmodule Cake.Pipelines do
   # NOTE: If we end up with many more behaviours, this sweep + ingest_with_sweep
   # pattern could be extracted into a macro. For now, the duplication is minimal
   # and the explicitness is worth it.
+  @spec sweep(String.t(), String.t(), String.t(), fun(), [{:max_sweeps, integer()}]) ::
+          {integer(), integer()}
   def sweep(behaviour, implementation, version, retry_fn, opts \\ []) do
     max_sweeps = Keyword.get(opts, :max_sweeps, 2)
     do_sweep(behaviour, implementation, version, retry_fn, max_sweeps, 0)
@@ -144,8 +159,7 @@ defmodule Cake.Pipelines do
 
   defp do_sweep(behaviour, implementation, version, _retry_fn, 0, total_resolved) do
     remaining =
-      Cake.FailedIngests.list_failed_ingests_for(behaviour, implementation, version)
-      |> length()
+      length(Cake.FailedIngests.list_failed_ingests_for(behaviour, implementation, version))
 
     {total_resolved, remaining}
   end
@@ -184,6 +198,7 @@ defmodule Cake.Pipelines do
     end
   end
 
+  @spec detuple(Enumerable.t()) :: Enumerable.t()
   def detuple(stream_enumerable) do
     stream_enumerable
     |> Stream.filter(fn
@@ -191,5 +206,45 @@ defmodule Cake.Pipelines do
       _ -> false
     end)
     |> Stream.map(fn {:ok, value} -> value end)
+  end
+
+  @spec build_context(atom(), atom(), any(), list()) :: context()
+  def build_context(behaviour_module, source_pipeline, version, opts \\ [])
+
+  @spec build_context(atom(), atom(), {integer(), integer(), integer()}) :: context()
+  def build_context(behaviour_module, source_pipeline, {major, minor, patch}, opts) do
+    version = Enum.join([major, minor, patch], ".")
+
+    %Pipelines.Context{
+      behaviour: inspect(behaviour_module),
+      implementation: inspect(source_pipeline),
+      version: version,
+      opts: opts
+    }
+  end
+
+  @spec build_context(atom(), atom(), String.t()) :: context()
+  def build_context(behaviour_module, source_pipeline, version, opts) do
+    %Pipelines.Context{
+      behaviour: inspect(behaviour_module),
+      implementation: inspect(source_pipeline),
+      version: version,
+      opts: opts
+    }
+  end
+
+  @spec handle_ingest_error({:error, any()}, context()) :: FailedIngest.failed_ingest()
+  def handle_ingest_error({:error, error}, ctx) do
+    Logger.warning(Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error: #{inspect(error)}"))
+
+    Cake.FailedIngests.create_failed_ingest(%{
+      pipeline_behaviour: ctx.behaviour,
+      pipeline_implementation: ctx.implementation,
+      step: "ingest",
+      version: ctx.version,
+      error_text: inspect(error),
+      input_identifier: "",
+      pipeline_fatal: true
+    })
   end
 end

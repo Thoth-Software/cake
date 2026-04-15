@@ -41,6 +41,7 @@ defmodule CakeWeb.CoreComponents do
   attr :on_cancel, JS, default: %JS{}
   slot :inner_block, required: true
 
+  @spec modal(map()) :: Phoenix.LiveView.Rendered.t()
   def modal(assigns) do
     ~H"""
     <div
@@ -105,6 +106,7 @@ defmodule CakeWeb.CoreComponents do
 
   slot :inner_block, doc: "the optional inner block that renders the flash message"
 
+  @spec flash(map()) :: Phoenix.LiveView.Rendered.t()
   def flash(assigns) do
     assigns = assign_new(assigns, :id, fn -> "flash-#{assigns.kind}" end)
 
@@ -144,6 +146,7 @@ defmodule CakeWeb.CoreComponents do
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
 
+  @spec flash_group(map()) :: Phoenix.LiveView.Rendered.t()
   def flash_group(assigns) do
     ~H"""
     <div id={@id}>
@@ -199,6 +202,7 @@ defmodule CakeWeb.CoreComponents do
   slot :inner_block, required: true
   slot :actions, doc: "the slot for form actions, such as a submit button"
 
+  @spec simple_form(map()) :: Phoenix.LiveView.Rendered.t()
   def simple_form(assigns) do
     ~H"""
     <.form :let={f} for={@for} as={@as} {@rest}>
@@ -226,6 +230,7 @@ defmodule CakeWeb.CoreComponents do
 
   slot :inner_block, required: true
 
+  @spec button(map()) :: Phoenix.LiveView.Rendered.t()
   def button(assigns) do
     ~H"""
     <button
@@ -291,6 +296,7 @@ defmodule CakeWeb.CoreComponents do
     include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
                 multiple pattern placeholder readonly required rows size step)
 
+  @spec input(map()) :: Phoenix.LiveView.Rendered.t()
   def input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     errors = if Phoenix.Component.used_input?(field), do: field.errors, else: []
 
@@ -394,6 +400,7 @@ defmodule CakeWeb.CoreComponents do
   attr :for, :string, default: nil
   slot :inner_block, required: true
 
+  @spec label(map()) :: Phoenix.LiveView.Rendered.t()
   def label(assigns) do
     ~H"""
     <label for={@for} class="block text-sm font-semibold leading-6 text-zinc-800">
@@ -407,6 +414,7 @@ defmodule CakeWeb.CoreComponents do
   """
   slot :inner_block, required: true
 
+  @spec error(map()) :: Phoenix.LiveView.Rendered.t()
   def error(assigns) do
     ~H"""
     <p class="mt-3 flex gap-3 text-sm leading-6 text-rose-600">
@@ -425,6 +433,7 @@ defmodule CakeWeb.CoreComponents do
   slot :subtitle
   slot :actions
 
+  @spec header(map()) :: Phoenix.LiveView.Rendered.t()
   def header(assigns) do
     ~H"""
     <header class={[@actions != [] && "flex items-center justify-between gap-6", @class]}>
@@ -466,6 +475,7 @@ defmodule CakeWeb.CoreComponents do
 
   slot :action, doc: "the slot for showing user actions in the last table column"
 
+  @spec table(map()) :: Phoenix.LiveView.Rendered.t()
   def table(assigns) do
     assigns =
       with %{rows: %Phoenix.LiveView.LiveStream{}} <- assigns do
@@ -533,6 +543,7 @@ defmodule CakeWeb.CoreComponents do
     attr :title, :string, required: true
   end
 
+  @spec list(map()) :: Phoenix.LiveView.Rendered.t()
   def list(assigns) do
     ~H"""
     <div class="mt-14">
@@ -556,6 +567,7 @@ defmodule CakeWeb.CoreComponents do
   attr :navigate, :any, required: true
   slot :inner_block, required: true
 
+  @spec back(map()) :: Phoenix.LiveView.Rendered.t()
   def back(assigns) do
     ~H"""
     <div class="mt-16">
@@ -591,6 +603,7 @@ defmodule CakeWeb.CoreComponents do
   attr :name, :string, required: true
   attr :class, :string, default: nil
 
+  @spec icon(map()) :: Phoenix.LiveView.Rendered.t()
   def icon(%{name: "hero-" <> _} = assigns) do
     ~H"""
     <span class={[@name, @class]} />
@@ -599,6 +612,7 @@ defmodule CakeWeb.CoreComponents do
 
   ## JS Commands
 
+  @spec show(Phoenix.LiveView.JS.t(), String.t()) :: Phoenix.LiveView.JS.t()
   def show(js \\ %JS{}, selector) do
     JS.show(js,
       to: selector,
@@ -610,6 +624,7 @@ defmodule CakeWeb.CoreComponents do
     )
   end
 
+  @spec hide(Phoenix.LiveView.JS.t(), String.t()) :: Phoenix.LiveView.JS.t()
   def hide(js \\ %JS{}, selector) do
     JS.hide(js,
       to: selector,
@@ -621,6 +636,7 @@ defmodule CakeWeb.CoreComponents do
     )
   end
 
+  @spec show_modal(Phoenix.LiveView.JS.t(), String.t()) :: Phoenix.LiveView.JS.t()
   def show_modal(js \\ %JS{}, id) when is_binary(id) do
     js
     |> JS.show(to: "##{id}")
@@ -634,6 +650,7 @@ defmodule CakeWeb.CoreComponents do
     |> JS.focus_first(to: "##{id}-content")
   end
 
+  @spec hide_modal(Phoenix.LiveView.JS.t(), String.t()) :: Phoenix.LiveView.JS.t()
   def hide_modal(js \\ %JS{}, id) do
     js
     |> JS.hide(
@@ -649,6 +666,7 @@ defmodule CakeWeb.CoreComponents do
   @doc """
   Translates an error message using gettext.
   """
+  @spec translate_error({String.t(), keyword()}) :: String.t()
   def translate_error({msg, opts}) do
     # When using gettext, we typically pass the strings we want
     # to translate as a static argument:
@@ -670,6 +688,7 @@ defmodule CakeWeb.CoreComponents do
   @doc """
   Translates the errors for a field from a keyword list of errors.
   """
+  @spec translate_errors(keyword(), atom()) :: [String.t()]
   def translate_errors(errors, field) when is_list(errors) do
     for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
   end

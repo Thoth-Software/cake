@@ -7,11 +7,13 @@ defmodule Cake.BooksFixtures do
   @doc """
   Generate a unique parsed_book file_hash.
   """
+  @spec unique_parsed_book_file_hash() :: String.t()
   def unique_parsed_book_file_hash, do: "some file_hash#{System.unique_integer([:positive])}"
 
   @doc """
   Generate a parsed_book.
   """
+  @spec parsed_book_fixture(map()) :: Cake.Books.ParsedBook.t()
   def parsed_book_fixture(attrs \\ %{}) do
     {:ok, parsed_book} =
       attrs
@@ -41,6 +43,7 @@ defmodule Cake.BooksFixtures do
   @doc """
   Generate a chunk.
   """
+  @spec chunk_fixture(map()) :: Cake.Books.Chunk.t()
   def chunk_fixture(attrs \\ %{}) do
     parsed_book = parsed_book_fixture()
 

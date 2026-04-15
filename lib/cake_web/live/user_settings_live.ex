@@ -3,6 +3,7 @@ defmodule CakeWeb.UserSettingsLive do
 
   alias Cake.Accounts
 
+  @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
     <.header class="text-center">
@@ -73,6 +74,8 @@ defmodule CakeWeb.UserSettingsLive do
     """
   end
 
+  @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:ok, Phoenix.LiveView.Socket.t()} | {:ok, Phoenix.LiveView.Socket.t(), keyword()}
   def mount(%{"token" => token}, _session, socket) do
     socket =
       case Accounts.update_user_email(socket.assigns.current_user, token) do
@@ -103,6 +106,8 @@ defmodule CakeWeb.UserSettingsLive do
     {:ok, socket}
   end
 
+  @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("validate_email", params, socket) do
     %{"current_password" => password, "user" => user_params} = params
 

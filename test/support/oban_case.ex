@@ -33,6 +33,7 @@ defmodule Cake.ObanCase do
 
       assert {:ok, [result]} = drain_jobs(:default)
   """
+  @spec drain_jobs(atom()) :: map()
   def drain_jobs(queue_name \\ :default) do
     Oban.drain_queue(queue: queue_name)
   end
@@ -45,6 +46,7 @@ defmodule Cake.ObanCase do
       jobs = all_enqueued_jobs(:default)
       assert length(jobs) == 1
   """
+  @spec all_enqueued_jobs(atom()) :: [Oban.Job.t()]
   def all_enqueued_jobs(queue_name \\ :default) do
     import Ecto.Query
 
@@ -62,6 +64,7 @@ defmodule Cake.ObanCase do
 
       assert jobs_count(:default) == 1
   """
+  @spec jobs_count(atom()) :: non_neg_integer()
   def jobs_count(queue_name \\ :default) do
     import Ecto.Query
 

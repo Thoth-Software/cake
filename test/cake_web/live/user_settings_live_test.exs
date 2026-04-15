@@ -1,9 +1,10 @@
 defmodule CakeWeb.UserSettingsLiveTest do
   use CakeWeb.ConnCase, async: true
 
-  alias Cake.Accounts
   import Phoenix.LiveViewTest
   import Cake.AccountsFixtures
+
+  alias Cake.Accounts
 
   describe "Settings page" do
     test "renders settings page", %{conn: conn} do
@@ -182,8 +183,8 @@ defmodule CakeWeb.UserSettingsLiveTest do
       assert Accounts.get_user_by_email(email)
 
       # use confirm token again
-      {:error, redirect} = live(conn, ~p"/users/settings/confirm_email/#{token}")
-      assert {:live_redirect, %{to: path, flash: flash}} = redirect
+      {:error, second_redirect} = live(conn, ~p"/users/settings/confirm_email/#{token}")
+      assert {:live_redirect, %{to: path, flash: flash}} = second_redirect
       assert path == ~p"/users/settings"
       assert %{"error" => message} = flash
       assert message == "Email change link is invalid or it has expired."
