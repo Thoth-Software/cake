@@ -10,4 +10,5 @@ if ! mix credo --strict; then
   exit 1
 fi
 
+echo "."
 echo "==> Credo passed. Pushing."
