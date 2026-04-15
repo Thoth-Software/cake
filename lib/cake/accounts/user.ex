@@ -12,6 +12,18 @@ defmodule Cake.Accounts.User do
     timestamps(type: :utc_datetime)
   end
 
+  @type t :: %__MODULE__{
+          __meta__: Ecto.Schema.Metadata.t(),
+          id: Ecto.UUID.t() | nil,
+          email: String.t(),
+          password: String.t() | nil,
+          hashed_password: String.t() | nil,
+          current_password: String.t() | nil,
+          confirmed_at: DateTime.t() | nil,
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
+
   @spec doc_attrs() :: map()
   def doc_attrs do
     %{}

@@ -25,6 +25,17 @@ defmodule Cake.Accounts.UserToken do
     timestamps(type: :utc_datetime, updated_at: false)
   end
 
+  @type t :: %__MODULE__{
+          __meta__: Ecto.Schema.Metadata.t(),
+          id: Ecto.UUID.t() | nil,
+          token: binary(),
+          context: String.t(),
+          sent_to: String.t() | nil,
+          user_id: Ecto.UUID.t() | nil,
+          user: Cake.Accounts.User.t() | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil
+        }
+
   @doc """
   Generates a token that will be stored in a signed place,
   such as session or cookie. As they are signed, those

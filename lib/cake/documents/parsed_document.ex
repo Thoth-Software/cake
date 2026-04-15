@@ -58,6 +58,22 @@ defmodule Cake.Documents.ParsedDocument do
     timestamps()
   end
 
+  @type t :: %__MODULE__{
+          __meta__: Ecto.Schema.Metadata.t(),
+          id: Ecto.UUID.t() | nil,
+          source: String.t(),
+          version: String.t(),
+          package: String.t(),
+          language: String.t() | nil,
+          title: String.t() | nil,
+          url: String.t(),
+          embedding: [float()] | nil,
+          text: String.t() | nil,
+          core: boolean(),
+          inserted_at: NaiveDateTime.t() | nil,
+          updated_at: NaiveDateTime.t() | nil
+        }
+
   @doc false
   @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(parsed_doc, attrs \\ %{}) do
