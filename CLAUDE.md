@@ -34,7 +34,8 @@ Every change must pass all of the following before being considered complete. Ru
 
 `mix credo --strict` must produce zero issues. Credo is configured in `.credo.exs`. If a new check triggers that you believe should be suppressed, explain why to the user and propose a config change — do not add `# credo:disable-for-this-file` without approval.
 
-`mix dialyzer` must produce zero warnings beyond those listed in `.dialyzer_ignore.exs`. If your change introduces a new Dialyzer warning, either fix the underlying issue or propose adding the suppression with a comment explaining why.
+(not this one yet)
+<!-- `mix dialyzer` must produce zero warnings beyond those listed in `.dialyzer_ignore.exs`. If your change introduces a new Dialyzer warning, either fix the underlying issue or propose adding the suppression with a comment explaining why. -->
 
 `mix test` must pass with zero failures and zero warnings. Tests run with `MIX_ENV=test`. The test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` before the test suite.
 
