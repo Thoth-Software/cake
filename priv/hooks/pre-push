@@ -1,27 +1,13 @@
 #!/usr/bin/env bash
-# priv/hooks/pre-push
-#
-# Quality gate: runs before `git push`. Blocks push if checks fail.
-# Bypass with: git push --no-verify
-# Install with: mix hooks.install
+set -euo pipefail
 
-set -e
+echo "==> Running Credo (pre-push gate)..."
 
-echo "Running pre-push quality checks..."
-
-echo "  Compiling (warnings-as-errors)..."
-mix compile --warnings-as-errors --force 2>&1
-if [ $? -ne 0 ]; then
-  echo "Compilation has warnings. Fix them before pushing."
+if ! mix credo --strict; then
+  echo ""
+  echo "!! Push rejected: Credo found issues."
+  echo "!! Run 'mix credo --strict' to see details, fix them, then push again."
   exit 1
 fi
 
-echo "  Running Credo..."
-mix credo --strict 2>&1
-if [ $? -ne 0 ]; then
-  echo "Credo found issues. Fix them before pushing."
-  exit 1
-fi
-
-echo "All pre-push checks passed."
-exit 0
+echo "==> Credo passed. Pushing."
