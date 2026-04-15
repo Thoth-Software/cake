@@ -25,14 +25,18 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     File.rm_rf!(@dir)
     File.mkdir_p(@dir)
 
-    case System.cmd("git", [
-           "clone",
-           "-b",
-           "v#{version}",
-           "--single-branch",
-           "https://github.com/elixir-lang/elixir.git",
-           @dir
-         ]) do
+    case System.cmd(
+           "git",
+           [
+             "clone",
+             "-b",
+             "v#{version}",
+             "--single-branch",
+             "https://github.com/elixir-lang/elixir.git",
+             @dir
+           ],
+           env: []
+         ) do
       {_, 0} ->
         paths =
           @dir
