@@ -22,7 +22,7 @@ defmodule Cake.Books.Pdf.Pipeline do
   end
 
   @impl Cake.Books.Pipeline
-  @spec parse({any(), binary()}) :: {ParsedBook.t(), [Chunk.t()]}
+  @spec parse({any(), binary()}) :: {struct(), [struct()]}
   def parse({path, binary}) do
     extracted = extract(path, binary)
     warn_skipped(extracted)
@@ -75,7 +75,7 @@ defmodule Cake.Books.Pdf.Pipeline do
     )
   end
 
-  @spec build_parsed_book(map()) :: ParsedBook.t()
+  @spec build_parsed_book(map()) :: struct()
   defp build_parsed_book(extracted) do
     %ParsedBook{
       title: extracted.title,
@@ -90,7 +90,7 @@ defmodule Cake.Books.Pdf.Pipeline do
     }
   end
 
-  @spec build_chunks(list()) :: [Chunk.t()]
+  @spec build_chunks(list()) :: [struct()]
   defp build_chunks(pages) do
     pages
     |> Enum.with_index()

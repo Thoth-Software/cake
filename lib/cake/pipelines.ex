@@ -3,12 +3,9 @@ defmodule Cake.Pipelines do
   Various assorted motley helpers, doohickeys, and dongles for data ingestion pipelines. Some of this may very well be cruft.
   """
 
-  alias Cake.FailedIngests.FailedIngest
   alias Cake.Pipelines
 
   require Logger
-
-  @type context :: %{behaviour: String.t(), implementation: String.t(), version: String.t()}
 
   defmodule Context do
     @moduledoc """
@@ -17,10 +14,18 @@ defmodule Cake.Pipelines do
     and passed to `detuple_with_logging` so it can persist errors
     with full provenance. Also carries a keyword list of opts.
     """
+    @type t :: %__MODULE__{
+      behaviour: String.t(),
+      implementation: String.t(),
+      version: String.t(),
+      opts: keyword()
+    }
     defstruct [:behaviour, :implementation, :version, :opts]
   end
 
-  @spec add_to_opensearch(Enumerable.t(), String.t(), module(), Context.t()) :: Enumerable.t()
+  @type context :: Context.t()
+
+  @spec add_to_opensearch(Enumerable.t(), String.t(), module(), struct()) :: Enumerable.t()
   def add_to_opensearch(docs_with_embeddings_stream, index, cluster, %Context{} = ctx) do
     if skip_opensearch?() do
       # In test mode, just pass through the documents without calling OpenSearch
@@ -72,7 +77,7 @@ defmodule Cake.Pipelines do
   The `step_name` parameter identifies which pipeline stage failed,
   for log readability.
   """
-  @spec detuple_with_logging(Enumerable.t(), String.t(), Context.t()) :: Enumerable.t()
+  @spec detuple_with_logging(Enumerable.t(), String.t(), struct()) :: Enumerable.t()
   def detuple_with_logging(stream_enumerable, step_name, %Context{} = ctx) do
     stream_enumerable
     |> Stream.filter(fn
@@ -97,8 +102,8 @@ defmodule Cake.Pipelines do
   Use this from pipeline steps that handle errors manually instead of
   going through detuple_with_logging.
   """
-  @spec log_and_persist_failure(Context.t(), String.t(), any()) ::
-          {:ok, Cake.FailedIngests.FailedIngest.t()} | {:error, Ecto.Changeset.t()}
+  @spec log_and_persist_failure(struct(), String.t(), any()) ::
+          {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def log_and_persist_failure(%Context{} = ctx, step_name, reason) do
     Logger.warning("[#{step_name}] Item failed: #{inspect(reason)}")
     persist_failure(ctx, step_name, reason)

@@ -10,8 +10,8 @@ defmodule Cake.Books do
 
   require Logger
 
-  @spec persist_books_and_chunks({ParsedBook.t(), [Chunk.t()]} | tuple()) ::
-          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, any()}
+  @spec persist_books_and_chunks({struct(), [struct()]} | tuple()) ::
+          {:ok, {struct(), [struct()]}} | {:error, any()}
   def persist_books_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
       when is_list(chunks) do
     case Repo.one(from b in ParsedBook, where: b.file_hash == ^hash) do
@@ -29,8 +29,8 @@ defmodule Cake.Books do
     {:error, {:invalid_input, %{book: book, chunks: chunks}}}
   end
 
-  @spec persist_books_and_chunks(ParsedBook.t(), [Chunk.t()]) ::
-          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, any()}
+  @spec persist_books_and_chunks(struct(), [struct()]) ::
+          {:ok, {struct(), [struct()]}} | {:error, any()}
   def persist_books_and_chunks(%ParsedBook{} = book, chunks) when is_list(chunks) do
     book
     |> build_multi(chunks)
@@ -130,7 +130,7 @@ defmodule Cake.Books do
       [%ParsedBook{}, ...]
 
   """
-  @spec list_parsed_books() :: [ParsedBook.t()]
+  @spec list_parsed_books() :: [struct()]
   def list_parsed_books do
     Repo.all(ParsedBook)
   end
@@ -149,7 +149,7 @@ defmodule Cake.Books do
       ** (Ecto.NoResultsError)
 
   """
-  @spec get_parsed_book!(binary()) :: ParsedBook.t()
+  @spec get_parsed_book!(binary()) :: struct()
   def get_parsed_book!(id), do: Repo.get!(ParsedBook, id)
 
   @doc """
@@ -164,7 +164,7 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec create_parsed_book(map()) :: {:ok, ParsedBook.t()} | {:error, Ecto.Changeset.t()}
+  @spec create_parsed_book(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def create_parsed_book(attrs \\ %{}) do
     %ParsedBook{}
     |> ParsedBook.changeset(attrs)
@@ -183,8 +183,8 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec update_parsed_book(ParsedBook.t(), map()) ::
-          {:ok, ParsedBook.t()} | {:error, Ecto.Changeset.t()}
+  @spec update_parsed_book(struct(), map()) ::
+          {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def update_parsed_book(%ParsedBook{} = parsed_book, attrs) do
     parsed_book
     |> ParsedBook.changeset(attrs)
@@ -203,7 +203,7 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec update_chunk!(Chunk.t(), map()) :: {:ok, Chunk.t()} | {:error, Ecto.Changeset.t()}
+  @spec update_chunk!(struct(), map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def update_chunk!(%Chunk{} = chunk, attrs) do
     chunk
     |> Chunk.changeset(attrs)
@@ -222,8 +222,8 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec delete_parsed_book(ParsedBook.t()) ::
-          {:ok, ParsedBook.t()} | {:error, Ecto.Changeset.t()}
+  @spec delete_parsed_book(struct()) ::
+          {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def delete_parsed_book(%ParsedBook{} = parsed_book) do
     Repo.delete(parsed_book)
   end
@@ -237,7 +237,7 @@ defmodule Cake.Books do
       %Ecto.Changeset{data: %ParsedBook{}}
 
   """
-  @spec change_parsed_book(ParsedBook.t(), map()) :: Ecto.Changeset.t()
+  @spec change_parsed_book(struct(), map()) :: Ecto.Changeset.t()
   def change_parsed_book(%ParsedBook{} = parsed_book, attrs \\ %{}) do
     ParsedBook.changeset(parsed_book, attrs)
   end
@@ -251,7 +251,7 @@ defmodule Cake.Books do
       [%Chunk{}, ...]
 
   """
-  @spec list_chunks() :: [Chunk.t()]
+  @spec list_chunks() :: [struct()]
   def list_chunks do
     Repo.all(Chunk)
   end
@@ -260,7 +260,7 @@ defmodule Cake.Books do
   Fetches Chunk records for a list of OpenSearch hits, with `parsed_book`
   preloaded. Returns chunks in the same order as the hits.
   """
-  @spec chunks_for_hits(list()) :: [Chunk.t()]
+  @spec chunks_for_hits(%Snap.Hits{} | list()) :: [struct()]
   def chunks_for_hits(hits) do
     ids = Enum.map(hits, fn hit -> hit.source["id"] end)
 
@@ -297,7 +297,7 @@ defmodule Cake.Books do
       expanded = Books.expand_with_neighbors(chunks, 2)
 
   """
-  @spec expand_with_neighbors([Chunk.t()], non_neg_integer()) :: [Chunk.t()]
+  @spec expand_with_neighbors([struct()], non_neg_integer()) :: [struct()]
   def expand_with_neighbors(chunks, offset)
       when is_list(chunks) and is_integer(offset) and offset >= 0 do
     chunks
@@ -354,7 +354,7 @@ defmodule Cake.Books do
       ** (Ecto.NoResultsError)
 
   """
-  @spec get_chunk!(binary()) :: Chunk.t()
+  @spec get_chunk!(binary()) :: struct()
   def get_chunk!(id), do: Repo.get!(Chunk, id)
 
   @doc """
@@ -369,7 +369,7 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec create_chunk(map()) :: {:ok, Chunk.t()} | {:error, Ecto.Changeset.t()}
+  @spec create_chunk(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def create_chunk(attrs \\ %{}) do
     %Chunk{}
     |> Chunk.changeset(attrs)
@@ -388,7 +388,7 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec update_chunk(Chunk.t(), map()) :: {:ok, Chunk.t()} | {:error, Ecto.Changeset.t()}
+  @spec update_chunk(struct(), map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def update_chunk(%Chunk{} = chunk, attrs) do
     chunk
     |> Chunk.changeset(attrs)
@@ -407,7 +407,7 @@ defmodule Cake.Books do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec delete_chunk(Chunk.t()) :: {:ok, Chunk.t()} | {:error, Ecto.Changeset.t()}
+  @spec delete_chunk(struct()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def delete_chunk(%Chunk{} = chunk) do
     Repo.delete(chunk)
   end
@@ -421,7 +421,7 @@ defmodule Cake.Books do
       %Ecto.Changeset{data: %Chunk{}}
 
   """
-  @spec change_chunk(Chunk.t(), map()) :: Ecto.Changeset.t()
+  @spec change_chunk(struct(), map()) :: Ecto.Changeset.t()
   def change_chunk(%Chunk{} = chunk, attrs \\ %{}) do
     Chunk.changeset(chunk, attrs)
   end

@@ -41,16 +41,14 @@ defmodule Cake.BooksTest do
       valid_attrs = %{
         title: "some title",
         metadata: %{},
-        language: "some
-      language",
+        language: "some language",
         file_size: 42,
         source_file_path: "some source_file_path",
         authors: ["option1", "option2"],
         source_format: "some source_format",
         file_hash: "some file_hash",
         isbn: "some isbn",
-        publisher: "some
-      publisher",
+        publisher: "some publisher",
         publication_date: ~D[2025-12-16],
         total_pages: 42,
         word_count: 42,
@@ -90,14 +88,11 @@ defmodule Cake.BooksTest do
         metadata: %{},
         language: "some updated language",
         file_size: 43,
-        source_file_path: "some updated
-      source_file_path",
+        source_file_path: "some updated source_file_path",
         authors: ["option1"],
-        source_format: "some updated
-      source_format",
+        source_format: "some updated source_format",
         file_hash: "some updated file_hash",
-        isbn: "some updated
-      isbn",
+        isbn: "some updated isbn",
         publisher: "some updated publisher",
         publication_date: ~D[2025-12-17],
         total_pages: 43,

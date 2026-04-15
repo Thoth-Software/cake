@@ -138,7 +138,7 @@ defmodule Cake.Accounts.User do
   @doc """
   Confirms the account by setting `confirmed_at`.
   """
-  @spec confirm_changeset(%__MODULE__{}) :: Ecto.Changeset.t()
+  @spec confirm_changeset(%__MODULE__{} | Ecto.Changeset.t()) :: Ecto.Changeset.t()
   def confirm_changeset(user) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
     change(user, confirmed_at: now)

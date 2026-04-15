@@ -39,8 +39,8 @@ defmodule Cake.Documents.Pipeline do
   @type context :: %{behaviour: String.t(), implementation: String.t(), version: String.t()}
 
   @callback download(context()) :: {:ok, [String.t()]} | {:error, :download, any()}
-  @callback persist_raw_docs([String.t()], context()) :: :ok | {:error, :persist_raw_docs, any()}
-  @callback parse(String.t()) :: {:ok, Enumerable.t()} | {:error, :parse, any()}
+  @callback persist_raw_docs([String.t()], context()) :: Enumerable.t()
+  @callback parse(Enumerable.t()) :: Enumerable.t()
   @callback source() :: String.t()
   @callback success_message(context()) :: String.t()
   @callback retry_from_raw(input_identifier :: String.t(), String.t()) ::
@@ -124,7 +124,7 @@ defmodule Cake.Documents.Pipeline do
   persist failures re-run from the raw source doc; embed/index failures resume
   from the existing ParsedDocument.
   """
-  @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
+  @spec retry(struct(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, any()}
   def retry(
         %Cake.FailedIngests.FailedIngest{step: "docs.persist"} = failure,

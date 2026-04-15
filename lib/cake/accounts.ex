@@ -24,7 +24,7 @@ defmodule Cake.Accounts do
       nil
 
   """
-  @spec get_user_by_email(String.t()) :: User.t() | nil
+  @spec get_user_by_email(String.t()) :: struct() | nil
   def get_user_by_email(email) when is_binary(email) do
     Repo.get_by(User, email: email)
   end
@@ -41,7 +41,7 @@ defmodule Cake.Accounts do
       nil
 
   """
-  @spec get_user_by_email_and_password(String.t(), String.t()) :: User.t() | nil
+  @spec get_user_by_email_and_password(String.t(), String.t()) :: struct() | nil
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
     user = Repo.get_by(User, email: email)
@@ -62,7 +62,7 @@ defmodule Cake.Accounts do
       ** (Ecto.NoResultsError)
 
   """
-  @spec get_user!(binary()) :: User.t()
+  @spec get_user!(binary()) :: struct()
   def get_user!(id), do: Repo.get!(User, id)
 
   ## User registration
@@ -79,7 +79,7 @@ defmodule Cake.Accounts do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec register_user(map()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  @spec register_user(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def register_user(attrs) do
     %User{}
     |> User.registration_changeset(attrs)
@@ -95,7 +95,7 @@ defmodule Cake.Accounts do
       %Ecto.Changeset{data: %User{}}
 
   """
-  @spec change_user_registration(User.t(), map()) :: Ecto.Changeset.t()
+  @spec change_user_registration(struct(), map()) :: Ecto.Changeset.t()
   def change_user_registration(%User{} = user, attrs \\ %{}) do
     User.registration_changeset(user, attrs, hash_password: false, validate_email: false)
   end
@@ -111,7 +111,7 @@ defmodule Cake.Accounts do
       %Ecto.Changeset{data: %User{}}
 
   """
-  @spec change_user_email(User.t(), map()) :: Ecto.Changeset.t()
+  @spec change_user_email(struct(), map()) :: Ecto.Changeset.t()
   def change_user_email(user, attrs \\ %{}) do
     User.email_changeset(user, attrs, validate_email: false)
   end
@@ -129,8 +129,8 @@ defmodule Cake.Accounts do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec apply_user_email(User.t(), String.t(), map()) ::
-          {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  @spec apply_user_email(struct(), String.t(), map()) ::
+          {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def apply_user_email(user, password, attrs) do
     user
     |> User.email_changeset(attrs)
@@ -144,7 +144,7 @@ defmodule Cake.Accounts do
   If the token matches, the user email is updated and the token is deleted.
   The confirmed_at date is also updated to the current time.
   """
-  @spec update_user_email(User.t(), String.t()) :: :ok | :error
+  @spec update_user_email(struct(), String.t()) :: :ok | :error
   def update_user_email(user, token) do
     context = "change:#{user.email}"
 
@@ -177,7 +177,7 @@ defmodule Cake.Accounts do
       {:ok, %{to: ..., body: ...}}
 
   """
-  @spec deliver_user_update_email_instructions(User.t(), String.t(), (String.t() -> String.t())) ::
+  @spec deliver_user_update_email_instructions(struct(), String.t(), (String.t() -> String.t())) ::
           {:ok, map()}
   def deliver_user_update_email_instructions(%User{} = user, current_email, update_email_url_fun)
       when is_function(update_email_url_fun, 1) do
@@ -196,7 +196,7 @@ defmodule Cake.Accounts do
       %Ecto.Changeset{data: %User{}}
 
   """
-  @spec change_user_password(User.t(), map()) :: Ecto.Changeset.t()
+  @spec change_user_password(struct(), map()) :: Ecto.Changeset.t()
   def change_user_password(user, attrs \\ %{}) do
     User.password_changeset(user, attrs, hash_password: false)
   end
@@ -213,8 +213,8 @@ defmodule Cake.Accounts do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec update_user_password(User.t(), String.t(), map()) ::
-          {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  @spec update_user_password(struct(), String.t(), map()) ::
+          {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def update_user_password(user, password, attrs) do
     changeset =
       user
@@ -238,7 +238,7 @@ defmodule Cake.Accounts do
   @doc """
   Generates a session token.
   """
-  @spec generate_user_session_token(User.t()) :: binary()
+  @spec generate_user_session_token(struct()) :: binary()
   def generate_user_session_token(user) do
     {token, user_token} = UserToken.build_session_token(user)
     Repo.insert!(user_token)
@@ -248,7 +248,7 @@ defmodule Cake.Accounts do
   @doc """
   Gets the user with the given signed token.
   """
-  @spec get_user_by_session_token(binary()) :: User.t() | nil
+  @spec get_user_by_session_token(binary()) :: struct() | nil
   def get_user_by_session_token(token) do
     {:ok, query} = UserToken.verify_session_token_query(token)
     Repo.one(query)
@@ -277,7 +277,7 @@ defmodule Cake.Accounts do
       {:error, :already_confirmed}
 
   """
-  @spec deliver_user_confirmation_instructions(User.t(), (String.t() -> String.t())) ::
+  @spec deliver_user_confirmation_instructions(struct(), (String.t() -> String.t())) ::
           {:ok, map()} | {:error, :already_confirmed}
   def deliver_user_confirmation_instructions(%User{} = user, confirmation_url_fun)
       when is_function(confirmation_url_fun, 1) do
@@ -296,7 +296,7 @@ defmodule Cake.Accounts do
   If the token matches, the user account is marked as confirmed
   and the token is deleted.
   """
-  @spec confirm_user(binary()) :: {:ok, User.t()} | :error
+  @spec confirm_user(binary()) :: {:ok, struct()} | :error
   def confirm_user(token) do
     with {:ok, query} <- UserToken.verify_email_token_query(token, "confirm"),
          %User{} = user <- Repo.one(query),
@@ -324,7 +324,7 @@ defmodule Cake.Accounts do
       {:ok, %{to: ..., body: ...}}
 
   """
-  @spec deliver_user_reset_password_instructions(User.t(), (String.t() -> String.t())) ::
+  @spec deliver_user_reset_password_instructions(struct(), (String.t() -> String.t())) ::
           {:ok, map()}
   def deliver_user_reset_password_instructions(%User{} = user, reset_password_url_fun)
       when is_function(reset_password_url_fun, 1) do
@@ -345,7 +345,7 @@ defmodule Cake.Accounts do
       nil
 
   """
-  @spec get_user_by_reset_password_token(binary()) :: User.t() | nil
+  @spec get_user_by_reset_password_token(binary()) :: struct() | nil
   def get_user_by_reset_password_token(token) do
     with {:ok, query} <- UserToken.verify_email_token_query(token, "reset_password"),
          %User{} = user <- Repo.one(query) do
@@ -367,7 +367,7 @@ defmodule Cake.Accounts do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec reset_user_password(User.t(), map()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  @spec reset_user_password(struct(), map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def reset_user_password(user, attrs) do
     result =
       Ecto.Multi.new()
