@@ -54,17 +54,44 @@ defmodule Cake.Conversation do
   # First turn: no search results yet — embed, search, then query LLM
   @impl GenServer
   def handle_cast({:question, question}, %{search_results: []} = state) do
+    case run_first_turn(question, state) do
+      {:ok, {response, citations, new_state}} ->
+        send(state.reply_to, {:convo_response, response, citations})
+        {:noreply, new_state}
+
+      {:error, error} ->
+        send(state.reply_to, {:convo_error, error})
+        {:noreply, %{state | errors: [error | state.errors]}}
+    end
+  end
+
+  defp run_first_turn(question, state) do
+    with {:ok, expanded_chunks} <- embed_and_search(question, state),
+         {:ok, %{response: response, chunk_map: chunk_map}} <-
+           Cake.Responses.query_llm(:openai, expanded_chunks, question, state.response_model) do
+      citations = Cake.Citations.extract(response, chunk_map)
+
+      new_state = %{
+        state
+        | search_results: expanded_chunks,
+          message_history: [question, response],
+          chunk_map: chunk_map,
+          citations: citations
+      }
+
+      {:ok, {response, citations, new_state}}
+    end
+  end
+
+  defp embed_and_search(question, state) do
     %{
       cluster: cluster,
       embedder: embedding_model,
       index: index,
-      response_model: response_model,
       provider: provider,
       search_type: search_type,
       fields: fields
     } = state
-
-    keyword_weight = 0.8
 
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Embeddings.embed(provider, %{input: question}, embedding_model),
@@ -72,52 +99,40 @@ defmodule Cake.Conversation do
            cluster.search(search_type, index, %{
              keywords: question,
              embedding: embedding,
-             keyword_weight: keyword_weight,
+             keyword_weight: 0.8,
              fields: fields
-           }),
-         chunks = Books.chunks_for_hits(hits),
-         expanded_chunks = Books.expand_with_neighbors(chunks, 2),
-         {:ok, %{response: response, chunk_map: chunk_map}} <-
-           Cake.Responses.query_llm(:openai, expanded_chunks, question, response_model) do
-      citations = Cake.Citations.extract(response, chunk_map)
-
-      send(state.reply_to, {:convo_response, response, citations})
-
-      {:noreply,
-       %{
-         state
-         | search_results: expanded_chunks,
-           message_history: [question, response],
-           chunk_map: chunk_map,
-           citations: citations
-       }}
-    else
-      {:error, error} ->
-        send(state.reply_to, {:convo_error, error})
-        {:noreply, %{state | errors: [error | state.errors]}}
+           }) do
+      {:ok, Books.expand_with_neighbors(Books.chunks_for_hits(hits), 2)}
     end
   end
 
   # Subsequent turns: search results already populated — skip search, continue conversation
   @impl GenServer
   def handle_cast({:question, question}, %{search_results: search_results} = state) do
+    case run_subsequent_turn(question, search_results, state) do
+      {:ok, {response, citations, new_state}} ->
+        send(state.reply_to, {:convo_response, response, citations})
+        {:noreply, new_state}
+
+      {:error, error} ->
+        send(state.reply_to, {:convo_error, error})
+        {:noreply, %{state | errors: [error | state.errors]}}
+    end
+  end
+
+  defp run_subsequent_turn(question, search_results, state) do
     with {:ok, %{response: response, chunk_map: chunk_map}} <-
            Cake.Responses.query_llm(:openai, search_results, question, state.response_model) do
       citations = Cake.Citations.extract(response, chunk_map)
 
-      send(state.reply_to, {:convo_response, response, citations})
+      new_state = %{
+        state
+        | message_history: state.message_history ++ [question, response],
+          chunk_map: chunk_map,
+          citations: citations
+      }
 
-      {:noreply,
-       %{
-         state
-         | message_history: state.message_history ++ [question, response],
-           chunk_map: chunk_map,
-           citations: citations
-       }}
-    else
-      {:error, error} ->
-        send(state.reply_to, {:convo_error, error})
-        {:noreply, %{state | errors: [error | state.errors]}}
+      {:ok, {response, citations, new_state}}
     end
   end
 
