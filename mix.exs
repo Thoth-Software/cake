@@ -91,7 +91,10 @@ defmodule Cake.MixProject do
         "phx.digest"
       ],
       quality: ["compile --warnings-as-errors", "credo --strict", "dialyzer"],
-      "quality.fast": ["compile --warnings-as-errors", "credo --strict"]
+      "quality.fast": ["compile --warnings-as-errors", "credo --strict"],
+      "hooks.install": [
+        "cmd cp priv/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push"
+      ]
     ]
   end
 
