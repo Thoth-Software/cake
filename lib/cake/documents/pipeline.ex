@@ -276,7 +276,7 @@ defmodule Cake.Documents.Pipeline do
                ParsedDocuments.create_parsed_doc!(attrs)
              end),
            :ok <- embed_and_index(persisted_docs, embedding_service, embedding_model) do
-        Cake.FailedIngests.delete_failed_ingest(failure)
+        _ = Cake.FailedIngests.delete_failed_ingest(failure)
         {:ok, :retried}
       end
     else
@@ -291,7 +291,7 @@ defmodule Cake.Documents.Pipeline do
 
       doc ->
         with :ok <- embed_and_index([doc], embedding_service, embedding_model) do
-          Cake.FailedIngests.delete_failed_ingest(failure)
+          _ = Cake.FailedIngests.delete_failed_ingest(failure)
           {:ok, :retried}
         end
     end

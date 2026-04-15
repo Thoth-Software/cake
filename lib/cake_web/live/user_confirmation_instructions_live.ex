@@ -38,12 +38,15 @@ defmodule CakeWeb.UserConfirmationInstructionsLive do
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("send_instructions", %{"user" => %{"email" => email}}, socket) do
-    if user = Accounts.get_user_by_email(email) do
+    email
+    |> Accounts.get_user_by_email()
+    |> List.wrap()
+    |> Enum.each(fn user ->
       Accounts.deliver_user_confirmation_instructions(
         user,
         &url(~p"/users/confirm/#{&1}")
       )
-    end
+    end)
 
     info =
       "If your email is in our system and it has not been confirmed yet, you will receive an email with instructions shortly."
