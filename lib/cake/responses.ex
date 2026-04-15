@@ -40,7 +40,7 @@ defmodule Cake.Responses do
 
     # Build chunk_map: index -> metadata
     chunks = build_chunk_map(context_docs)
-    message = system_message(chunk)
+    message = system_message(chunks)
 
     messages = [
       %{role: "system", content: message},
@@ -114,7 +114,7 @@ defmodule Cake.Responses do
   defp system_message(chunk_map) do
     context_text = Enum.map_join(chunk_map, "\n---\n", fn {_idx, text, _meta} -> text end)
 
-    system_message = """
+    """
     You are a helpful assistant. Use the provided context to answer the user's question.
     Use inline citations like [1], [2] when drawing from a specific chunk. Each number corresponds to a numbered chunk above.
     If multiple chunks support a claim, cite all of them like [1][3].

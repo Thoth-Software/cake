@@ -11,7 +11,8 @@ defmodule Cake.Documents.Hexdocs.Downloads do
     System.cmd("git", ["clone", "https://github.com/elixir-lang/elixir.git", @dir])
     System.cmd("git", ["checkout v#{version}"])
 
-    list_files("elixir/lib/elixir/lib")
+    "elixir/lib/elixir/lib"
+    |> list_files()
     |> List.flatten()
     |> Enum.filter(fn filename -> String.ends_with?(filename, ".ex") end)
     |> Enum.map(fn relative_file_path ->

@@ -34,10 +34,9 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
            @dir
          ]) do
       {_, 0} ->
-        Path.join(@dir, "lib/elixir/lib") |> Path.expand() |> File.ls()
-
         paths =
-          Path.join(@dir, "lib/elixir/lib")
+          @dir
+          |> Path.join("lib/elixir/lib")
           |> Path.expand()
           |> list_files()
           |> List.flatten()

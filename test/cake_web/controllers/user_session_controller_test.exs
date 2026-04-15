@@ -18,8 +18,8 @@ defmodule CakeWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/"
 
       # Now do a logged in request and assert on the menu
-      conn = get(conn, ~p"/")
-      response = html_response(conn, 200)
+      logged_in_conn = get(conn, ~p"/")
+      response = html_response(logged_in_conn, 200)
       assert response =~ user.email
       assert response =~ ~p"/users/settings"
       assert response =~ ~p"/users/log_out"

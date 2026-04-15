@@ -247,21 +247,21 @@ defmodule CakeWeb.UserAuthTest do
       assert halted_conn.halted
       assert get_session(halted_conn, :user_return_to) == "/foo"
 
-      halted_conn =
+      halted_conn_with_query =
         %{conn | path_info: ["foo"], query_string: "bar=baz"}
         |> fetch_flash()
         |> UserAuth.require_authenticated_user([])
 
-      assert halted_conn.halted
-      assert get_session(halted_conn, :user_return_to) == "/foo?bar=baz"
+      assert halted_conn_with_query.halted
+      assert get_session(halted_conn_with_query, :user_return_to) == "/foo?bar=baz"
 
-      halted_conn =
+      halted_conn_post =
         %{conn | path_info: ["foo"], query_string: "bar", method: "POST"}
         |> fetch_flash()
         |> UserAuth.require_authenticated_user([])
 
-      assert halted_conn.halted
-      refute get_session(halted_conn, :user_return_to)
+      assert halted_conn_post.halted
+      refute get_session(halted_conn_post, :user_return_to)
     end
 
     test "does not redirect if user is authenticated", %{conn: conn, user: user} do

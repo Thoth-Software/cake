@@ -38,7 +38,7 @@ defmodule CakeWeb.ChatLive do
 
       {:noreply,
        assign(socket,
-         messages: socket.assigns.messages ++ [%{role: :user, text: question}],
+         messages: [%{role: :user, text: question} | socket.assigns.messages],
          loading: true,
          form: to_form(%{"question" => ""})
        )}
@@ -50,7 +50,7 @@ defmodule CakeWeb.ChatLive do
   def handle_info({:convo_response, response, citations}, socket) do
     {:noreply,
      assign(socket,
-       messages: socket.assigns.messages ++ [%{role: :assistant, text: response, citations: citations}],
+       messages: [%{role: :assistant, text: response, citations: citations} | socket.assigns.messages],
        loading: false,
        citations: citations
      )}
@@ -59,8 +59,7 @@ defmodule CakeWeb.ChatLive do
   def handle_info({:convo_error, error}, socket) do
     {:noreply,
      assign(socket,
-       messages:
-         socket.assigns.messages ++ [%{role: :assistant, text: "Error: #{inspect(error)}"}],
+       messages: [%{role: :assistant, text: "Error: #{inspect(error)}"} | socket.assigns.messages],
        loading: false
      )}
   end
@@ -68,9 +67,10 @@ defmodule CakeWeb.ChatLive do
   def handle_info({:DOWN, _ref, :process, _pid, reason}, socket) do
     {:noreply,
      assign(socket,
-       messages:
-         socket.assigns.messages ++
-           [%{role: :assistant, text: "Error: conversation process crashed (#{inspect(reason)})"}],
+       messages: [
+         %{role: :assistant, text: "Error: conversation process crashed (#{inspect(reason)})"}
+         | socket.assigns.messages
+       ],
        loading: false
      )}
   end
@@ -83,7 +83,7 @@ defmodule CakeWeb.ChatLive do
 
       <div class="space-y-4 mb-8">
         <div
-          :for={{msg, i} <- Enum.with_index(@messages)}
+          :for={{msg, i} <- Enum.with_index(Enum.reverse(@messages))}
           id={"msg-#{i}"}
           class={[
             "p-3 rounded-lg max-w-xl",

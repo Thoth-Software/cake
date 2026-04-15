@@ -65,6 +65,20 @@ defmodule Cake.Conversation do
     end
   end
 
+  # Subsequent turns: search results already populated — skip search, continue conversation
+  @impl GenServer
+  def handle_cast({:question, question}, %{search_results: search_results} = state) do
+    case run_subsequent_turn(question, search_results, state) do
+      {:ok, {response, citations, new_state}} ->
+        send(state.reply_to, {:convo_response, response, citations})
+        {:noreply, new_state}
+
+      {:error, error} ->
+        send(state.reply_to, {:convo_error, error})
+        {:noreply, %{state | errors: [error | state.errors]}}
+    end
+  end
+
   defp run_first_turn(question, state) do
     with {:ok, expanded_chunks} <- embed_and_search(question, state),
          {:ok, %{response: response, chunk_map: chunk_map}} <-
@@ -103,20 +117,6 @@ defmodule Cake.Conversation do
              fields: fields
            }) do
       {:ok, Books.expand_with_neighbors(Books.chunks_for_hits(hits), 2)}
-    end
-  end
-
-  # Subsequent turns: search results already populated — skip search, continue conversation
-  @impl GenServer
-  def handle_cast({:question, question}, %{search_results: search_results} = state) do
-    case run_subsequent_turn(question, search_results, state) do
-      {:ok, {response, citations, new_state}} ->
-        send(state.reply_to, {:convo_response, response, citations})
-        {:noreply, new_state}
-
-      {:error, error} ->
-        send(state.reply_to, {:convo_error, error})
-        {:noreply, %{state | errors: [error | state.errors]}}
     end
   end
 
@@ -170,10 +170,10 @@ defmodule Cake.Conversation do
   @spec print_hierarchy(map(), list()) :: list()
   def print_hierarchy(map, prefix \\ []) do
     for {key, value} <- map do
-      IO.puts("#{Enum.join(prefix, ".")}#{key}")
+      Logger.debug("#{Enum.join(Enum.reverse(prefix), ".")}#{key}")
 
       if is_map(value) do
-        print_hierarchy(value, prefix ++ [key])
+        print_hierarchy(value, [key | prefix])
       end
     end
   end
