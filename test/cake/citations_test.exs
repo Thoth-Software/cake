@@ -9,21 +9,24 @@ defmodule Cake.CitationsTest do
       section_title: "Enum",
       page_number: 42,
       chunk_index: 10,
-      chunk_preview: "The Enum module provides a set of algorithms to work with enumerables."
+      chunk_preview: "The Enum module provides a set of algorithms to work with enumerables.",
+      source_file_path: "assets/static/programming_elixir.pdf"
     },
     2 => %{
       book_title: "Programming Elixir",
       section_title: "Streams",
       page_number: 55,
       chunk_index: 15,
-      chunk_preview: "Streams are lazy enumerables that allow you to compose operations."
+      chunk_preview: "Streams are lazy enumerables that allow you to compose operations.",
+      source_file_path: "assets/static/programming_elixir.pdf"
     },
     3 => %{
       book_title: "Elixir in Action",
       section_title: "Tasks",
       page_number: 101,
       chunk_index: 40,
-      chunk_preview: "Tasks are processes meant to execute one particular action throughout their lifetime."
+      chunk_preview: "Tasks are processes meant to execute one particular action throughout their lifetime.",
+      source_file_path: "assets/static/elixir_in_action.pdf"
     }
   }
 
@@ -37,7 +40,8 @@ defmodule Cake.CitationsTest do
                section_title: "Enum",
                page_number: 42,
                chunk_index: 10,
-               chunk_preview: "The Enum module provides a set of algorithms to work with enumerables."
+               chunk_preview: "The Enum module provides a set of algorithms to work with enumerables.",
+               source_file_path: "assets/static/programming_elixir.pdf"
              },
              %{
                index: 3,
@@ -46,7 +50,8 @@ defmodule Cake.CitationsTest do
                page_number: 101,
                chunk_index: 40,
                chunk_preview:
-                 "Tasks are processes meant to execute one particular action throughout their lifetime."
+                 "Tasks are processes meant to execute one particular action throughout their lifetime.",
+               source_file_path: "assets/static/elixir_in_action.pdf"
              }
            ]
   end
@@ -61,7 +66,8 @@ defmodule Cake.CitationsTest do
                section_title: "Enum",
                page_number: 42,
                chunk_index: 10,
-               chunk_preview: "The Enum module provides a set of algorithms to work with enumerables."
+               chunk_preview: "The Enum module provides a set of algorithms to work with enumerables.",
+               source_file_path: "assets/static/programming_elixir.pdf"
              }
            ]
   end
@@ -82,7 +88,8 @@ defmodule Cake.CitationsTest do
                section_title: "Enum",
                page_number: 42,
                chunk_index: 10,
-               chunk_preview: "The Enum module provides a set of algorithms to work with enumerables."
+               chunk_preview: "The Enum module provides a set of algorithms to work with enumerables.",
+               source_file_path: "assets/static/programming_elixir.pdf"
              }
            ]
   end

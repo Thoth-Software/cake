@@ -6,14 +6,12 @@ defmodule Cake.Embeddings.Behaviour do
   embeddings from parsed documents.
   """
 
-  alias Cake.Documents.ParsedDocument
-
   @type embedding_result :: %{
           usage: map(),
-          parsed_document: ParsedDocument.t(),
+          parsed_document: struct(),
           attrs: %{embedding: [float()]}
         }
 
-  @callback embed(atom(), ParsedDocument.t(), String.t()) ::
+  @callback embed(atom(), struct(), String.t()) ::
               {:ok, embedding_result()} | {:error, String.t()}
 end

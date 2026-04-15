@@ -36,33 +36,28 @@ defmodule Cake.Documents.Pipeline do
   @index "docs"
 
   @type version :: {integer(), integer(), integer()}
+  @type context :: %{behaviour: String.t(), implementation: String.t(), version: String.t()}
 
-  @callback download(String.t()) :: {:ok, [String.t()]} | {:error, :download, any()}
-  @callback persist_raw_docs([String.t()], String.t()) :: :ok | {:error, :persist_raw_docs, any()}
-  @callback parse(String.t()) :: {:ok, Enumerable.t()} | {:error, :parse, any()}
+  @callback download(context()) :: {:ok, [String.t()]} | {:error, :download, any()}
+  @callback persist_raw_docs([String.t()], context()) :: Enumerable.t()
+  @callback parse(Enumerable.t()) :: Enumerable.t()
   @callback source() :: String.t()
-  @callback success_message(String.t()) :: String.t()
+  @callback success_message(context()) :: String.t()
   @callback retry_from_raw(input_identifier :: String.t(), String.t()) ::
               {:ok, [map()]} | {:error, any()}
 
   @optional_callbacks [retry_from_raw: 2]
 
   @spec ingest(atom(), atom(), version(), String.t()) :: {:ok, String.t()} | {:error, any()}
-  def ingest(embedding_service, source_pipeline, {major, minor, patch}, embedding_model) do
+  def ingest(embedding_service, source_pipeline, version_tuple, embedding_model) do
     # TODO: Track per-step success/error counts and return a summary
     #   e.g. {:ok, %{persisted: 142, embedded: 138, indexed: 138, errors: 4}}
     # TODO: Partial success should not be reported as full success —
     #   the success_message should reflect how many items actually made it through
-    version = Enum.join([major, minor, patch], ".")
+    ctx = Pipelines.build_context(__MODULE__, source_pipeline, version_tuple)
 
-    ctx = %Pipelines.Context{
-      behaviour: "Cake.Documents.Pipeline",
-      implementation: inspect(source_pipeline),
-      version: version
-    }
-
-    with {:ok, file_paths} <- source_pipeline.download(version),
-         raw_docs_stream <- source_pipeline.persist_raw_docs(file_paths, version),
+    with {:ok, file_paths} <- source_pipeline.download(ctx),
+         raw_docs_stream <- source_pipeline.persist_raw_docs(file_paths, ctx),
          parsed_docs_attrs_stream <- source_pipeline.parse(raw_docs_stream),
          persisted_parsed_docs_stream <- persist_parsed_docs(parsed_docs_attrs_stream, ctx),
          docs_with_embeddings_stream <-
@@ -76,22 +71,9 @@ defmodule Cake.Documents.Pipeline do
          opensearch_docs_stream <-
            Pipelines.add_to_opensearch(docs_with_embeddings_stream, @index, @cluster, ctx),
          :ok <- Stream.run(opensearch_docs_stream) do
-      {:ok, source_pipeline.success_message(version)}
+      {:ok, source_pipeline.success_message(ctx)}
     else
-      error ->
-        Logger.warning("[documents.ingest] Pipeline-fatal error: #{inspect(error)}")
-
-        Cake.FailedIngests.create_failed_ingest(%{
-          pipeline_behaviour: ctx.behaviour,
-          pipeline_implementation: ctx.implementation,
-          step: "ingest",
-          version: ctx.version,
-          error_text: inspect(error),
-          input_identifier: nil,
-          pipeline_fatal: true
-        })
-
-        error
+      error -> Pipelines.handle_ingest_error(error, ctx)
     end
   end
 
@@ -102,6 +84,9 @@ defmodule Cake.Documents.Pipeline do
   Options:
     - :max_sweeps — maximum number of retry passes (default: 2)
   """
+  @spec ingest_with_sweep(atom(), atom(), {integer(), integer(), integer()}, String.t(), [
+          {:max_sweeps, integer()}
+        ]) :: {:ok, String.t()} | {:error, any()}
   def ingest_with_sweep(
         embedding_service,
         source_pipeline,
@@ -139,6 +124,8 @@ defmodule Cake.Documents.Pipeline do
   persist failures re-run from the raw source doc; embed/index failures resume
   from the existing ParsedDocument.
   """
+  @spec retry(struct(), atom(), atom(), String.t()) ::
+          {:ok, :retried} | {:error, any()}
   def retry(
         %Cake.FailedIngests.FailedIngest{step: "docs.persist"} = failure,
         source_pipeline,
@@ -158,12 +145,15 @@ defmodule Cake.Documents.Pipeline do
     retry_embed_failure(failure, embedding_service, embedding_model)
   end
 
-  # There seems to be a flaw here. If we use the context function to get all the parsed documents for a given source and version, then we are NOT getting those docs one at a time after their embeddings have been added. Interdasting...
+  # There seems to be a flaw here. If we use the context function to get all the
+  # parsed documents for a given source and version, then we are NOT getting
+  # those docs one at a time after their embeddings have been added.
+  # Interdasting...
+  @spec add_to_opensearch(Enumerable.t()) :: Enumerable.t()
   def add_to_opensearch(docs_with_embeddings_stream) do
     if skip_opensearch?() do
       # In test mode, just pass through the documents without calling OpenSearch
-      docs_with_embeddings_stream
-      |> Stream.map(fn doc ->
+      Stream.map(docs_with_embeddings_stream, fn doc ->
         Logger.debug("Skipping OpenSearch insert for document #{doc.id} (test mode)")
         doc
       end)
@@ -201,6 +191,8 @@ defmodule Cake.Documents.Pipeline do
   # Cake.Documents.Pipeline.batch_embed(:openai, Cake.Documents.Hexdocs.Pipeline, "text-embedding-ada-002", "1.18.3")
   # Need some way of passing parsed docs out one at a time to be persisted to Opensearch
   # What do we use besides Enum.each if we want this to return parsed docs?
+  # #TODO a ctx custom type the Dialyzer can expect
+  @spec batch_embed(Enumerable.t(), atom(), atom(), String.t(), map()) :: Enumerable.t()
   def batch_embed(
         persisted_parsed_docs_stream,
         embedding_service,
@@ -276,9 +268,7 @@ defmodule Cake.Documents.Pipeline do
   end
 
   defp retry_persist_failure(failure, source_pipeline, embedding_service, embedding_model) do
-    unless function_exported?(source_pipeline, :retry_from_raw, 2) do
-      {:error, {:retry_not_implemented, source_pipeline}}
-    else
+    if function_exported?(source_pipeline, :retry_from_raw, 2) do
       with {:ok, parsed_attrs_list} <-
              source_pipeline.retry_from_raw(failure.input_identifier, failure.version),
            persisted_docs <-
@@ -289,6 +279,8 @@ defmodule Cake.Documents.Pipeline do
         Cake.FailedIngests.delete_failed_ingest(failure)
         {:ok, :retried}
       end
+    else
+      {:error, {:retry_not_implemented, source_pipeline}}
     end
   end
 
@@ -311,21 +303,13 @@ defmodule Cake.Documents.Pipeline do
     Enum.reduce_while(docs, :ok, fn doc, :ok ->
       embed_input = %{input: "#{doc.title}\n\n#{doc.text}", struct: doc}
 
-      case embeddings_module.embed(embedding_service, embed_input, embedding_model) do
-        {:ok, %{struct: struct, attrs: attrs}} ->
-          case ParsedDocuments.update_parsed_document(struct, attrs) do
-            {:ok, updated} ->
-              case index_single(updated) do
-                :ok -> {:cont, :ok}
-                error -> {:halt, error}
-              end
-
-            error ->
-              {:halt, error}
-          end
-
-        {:error, _} = error ->
-          {:halt, error}
+      with {:ok, %{struct: struct, attrs: attrs}} <-
+             embeddings_module.embed(embedding_service, embed_input, embedding_model),
+           {:ok, updated} <- ParsedDocuments.update_parsed_document(struct, attrs),
+           :ok <- index_single(updated) do
+        {:cont, :ok}
+      else
+        error -> {:halt, error}
       end
     end)
   end
@@ -340,12 +324,4 @@ defmodule Cake.Documents.Pipeline do
       end
     end
   end
-
-  # defp persist_to_opensearch(parsed_doc_stream, cluster_name, index_name) do
-  #   Task.async_stream(parsed_doc_stream, fn doc ->
-  #     dbg(doc)
-  #     Snap.Document.add(cluster_name, index_name, doc)
-  #   end)
-  #   |> Stream.run()
-  # end
 end

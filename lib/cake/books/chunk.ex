@@ -1,8 +1,4 @@
 defmodule Cake.Books.Chunk do
-  use Cake.Schema
-  import Ecto.Changeset
-  import Ecto.Query
-
   @moduledoc """
   A searchable chunk of a book. These go onto the OpenSearch instance as documents.
 
@@ -18,6 +14,10 @@ defmodule Cake.Books.Chunk do
     :word_count,         # Computed from text, always available
     :char_count          # ut supra
   """
+
+  use Cake.Schema
+  import Ecto.Changeset
+  import Ecto.Query
 
   @derive {Jason.Encoder, except: [:__meta__, :parsed_book]}
   schema "chunks" do
@@ -35,10 +35,12 @@ defmodule Cake.Books.Chunk do
   end
 
   @doc false
+  @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(chunk, attrs) do
     chunk
     |> cast(attrs, [
       :parsed_book_id,
+      :embedding,
       :page_number,
       :chunk_index,
       :section_title,
@@ -57,16 +59,20 @@ defmodule Cake.Books.Chunk do
     |> sanitize_text_fields()
   end
 
+  @spec base_query() :: Ecto.Query.t()
   def base_query(), do: from(c in __MODULE__)
 
+  @spec by_book(Ecto.Query.t(), binary()) :: Ecto.Query.t()
   def by_book(query, parsed_book_id) do
     from c in query, where: c.parsed_book_id == ^parsed_book_id
   end
 
+  @spec on_page(Ecto.Query.t(), integer()) :: Ecto.Query.t()
   def on_page(query, page_number) do
     from c in query, where: c.page_number == ^page_number
   end
 
+  @spec within_pages(Ecto.Query.t(), integer(), integer()) :: Ecto.Query.t()
   def within_pages(query, center_page, range) do
     first_page = center_page - range
     last_page = center_page + range
@@ -76,6 +82,7 @@ defmodule Cake.Books.Chunk do
       where: c.page_number >= ^first_page and c.page_number <= ^last_page
   end
 
+  @spec by_section(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_section(query, section_title) do
     from c in query, where: c.section_title == ^section_title
   end

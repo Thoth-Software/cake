@@ -14,6 +14,7 @@ defmodule Cake.Citations do
   Returns a deduplicated, sorted list of citation maps for each valid [N]
   reference found in the text.
   """
+  @spec extract(String.t(), map()) :: [map()]
   def extract(response_text, chunk_map) do
     @citation_pattern
     |> Regex.scan(response_text)
@@ -28,7 +29,8 @@ defmodule Cake.Citations do
            page_number: page_number,
            section_title: section_title,
            chunk_index: chunk_index,
-           chunk_preview: chunk_preview
+           chunk_preview: chunk_preview,
+           source_file_path: source_file_path
          }} ->
           [
             %{
@@ -37,7 +39,8 @@ defmodule Cake.Citations do
               page_number: page_number,
               section_title: section_title,
               chunk_index: chunk_index,
-              chunk_preview: chunk_preview
+              chunk_preview: chunk_preview,
+              source_file_path: source_file_path
             }
           ]
 

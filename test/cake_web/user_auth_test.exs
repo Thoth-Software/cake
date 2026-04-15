@@ -1,10 +1,11 @@
 defmodule CakeWeb.UserAuthTest do
   use CakeWeb.ConnCase, async: true
 
-  alias Phoenix.LiveView
+  import Cake.AccountsFixtures
+
   alias Cake.Accounts
   alias CakeWeb.UserAuth
-  import Cake.AccountsFixtures
+  alias Phoenix.LiveView
 
   @remember_me_cookie "_cake_web_user_remember_me"
 
@@ -139,7 +140,7 @@ defmodule CakeWeb.UserAuthTest do
     end
 
     test "assigns nil to current_user assign if there isn't a user_token", %{conn: conn} do
-      session = conn |> get_session()
+      session = get_session(conn)
 
       {:cont, updated_socket} =
         UserAuth.on_mount(:mount_current_user, %{}, session, %LiveView.Socket{})
@@ -173,7 +174,7 @@ defmodule CakeWeb.UserAuthTest do
     end
 
     test "redirects to login page if there isn't a user_token", %{conn: conn} do
-      session = conn |> get_session()
+      session = get_session(conn)
 
       socket = %LiveView.Socket{
         endpoint: CakeWeb.Endpoint,
@@ -200,7 +201,7 @@ defmodule CakeWeb.UserAuthTest do
     end
 
     test "doesn't redirect if there is no authenticated user", %{conn: conn} do
-      session = conn |> get_session()
+      session = get_session(conn)
 
       assert {:cont, _updated_socket} =
                UserAuth.on_mount(
@@ -246,21 +247,21 @@ defmodule CakeWeb.UserAuthTest do
       assert halted_conn.halted
       assert get_session(halted_conn, :user_return_to) == "/foo"
 
-      halted_conn =
+      halted_conn_with_query =
         %{conn | path_info: ["foo"], query_string: "bar=baz"}
         |> fetch_flash()
         |> UserAuth.require_authenticated_user([])
 
-      assert halted_conn.halted
-      assert get_session(halted_conn, :user_return_to) == "/foo?bar=baz"
+      assert halted_conn_with_query.halted
+      assert get_session(halted_conn_with_query, :user_return_to) == "/foo?bar=baz"
 
-      halted_conn =
+      halted_conn_post =
         %{conn | path_info: ["foo"], query_string: "bar", method: "POST"}
         |> fetch_flash()
         |> UserAuth.require_authenticated_user([])
 
-      assert halted_conn.halted
-      refute get_session(halted_conn, :user_return_to)
+      assert halted_conn_post.halted
+      refute get_session(halted_conn_post, :user_return_to)
     end
 
     test "does not redirect if user is authenticated", %{conn: conn, user: user} do

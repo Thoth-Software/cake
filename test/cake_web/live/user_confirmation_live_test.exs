@@ -41,34 +41,32 @@ defmodule CakeWeb.UserConfirmationLiveTest do
       assert Repo.all(Accounts.UserToken) == []
 
       # when not logged in
-      {:ok, lv, _html} = live(conn, ~p"/users/confirm/#{token}")
+      {:ok, not_logged_in_lv, _html} = live(conn, ~p"/users/confirm/#{token}")
 
-      result =
-        lv
+      not_logged_in_result =
+        not_logged_in_lv
         |> form("#confirmation_form")
         |> render_submit()
         |> follow_redirect(conn, "/")
 
-      assert {:ok, conn} = result
+      assert {:ok, not_logged_in_conn} = not_logged_in_result
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
+      assert Phoenix.Flash.get(not_logged_in_conn.assigns.flash, :error) =~
                "User confirmation link is invalid or it has expired"
 
       # when logged in
-      conn =
-        build_conn()
-        |> log_in_user(user)
+      logged_in_conn = log_in_user(build_conn(), user)
 
-      {:ok, lv, _html} = live(conn, ~p"/users/confirm/#{token}")
+      {:ok, logged_in_lv, _html} = live(logged_in_conn, ~p"/users/confirm/#{token}")
 
-      result =
-        lv
+      logged_in_result =
+        logged_in_lv
         |> form("#confirmation_form")
         |> render_submit()
-        |> follow_redirect(conn, "/")
+        |> follow_redirect(logged_in_conn, "/")
 
-      assert {:ok, conn} = result
-      refute Phoenix.Flash.get(conn.assigns.flash, :error)
+      assert {:ok, confirmed_conn} = logged_in_result
+      refute Phoenix.Flash.get(confirmed_conn.assigns.flash, :error)
     end
 
     test "does not confirm email with invalid token", %{conn: conn, user: user} do

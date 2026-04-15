@@ -28,6 +28,9 @@ cake-*.tar
 # Ignore assets that are produced by build tools.
 /priv/static/assets/
 
+/assets/static/
+/assets/logs/
+
 # Ignore digested assets cache.
 /priv/static/cache_manifest.json
 
@@ -41,6 +44,9 @@ npm-debug.log
 # Rust binary artifacts
 /target/
 /priv/native
+
+# Dialyzer PLT files (large, machine-specific)
+priv/plts/
 
 # emacs config
 

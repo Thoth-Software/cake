@@ -7,6 +7,7 @@ defmodule Cake.ParsedDocumentFixtures do
   @doc """
   Generate a parsed_documents.
   """
+  @spec parsed_documents_fixture(map()) :: Cake.Documents.ParsedDocument.t()
   def parsed_documents_fixture(attrs \\ %{}) do
     {:ok, parsed_documents} =
       attrs

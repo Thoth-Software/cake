@@ -18,9 +18,11 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
     timestamps(type: :utc_datetime)
   end
 
+  @spec doc_attrs() :: %{source: String.t(), language: String.t()}
   def doc_attrs(), do: %{source: @source, language: @language}
 
   @doc false
+  @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(hexdoc, attrs) do
     hexdoc
     |> cast(attrs, [:version, :module, :core, :url, :content])
@@ -28,13 +30,16 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
     |> sanitize_text_fields()
   end
 
+  @spec base_query() :: Ecto.Query.t()
   def base_query(), do: from(h in __MODULE__)
 
+  @spec by_version(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_version(query, version) do
     from h in query,
       where: h.version == ^version
   end
 
+  @spec to_parsed_docs({:ok, %__MODULE__{}} | %__MODULE__{}) :: [map()]
   def to_parsed_docs({:ok, hexdoc}), do: to_parsed_docs(hexdoc)
 
   def to_parsed_docs(
@@ -67,13 +72,11 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
   end
 
   defp extract_from_module_ast({:defmodule, _, [_name, [do: {:__block__, _, lines}]]}) do
-    extract_docs_and_defs(lines, nil, [])
-    |> Enum.reverse()
+    Enum.reverse(extract_docs_and_defs(lines, nil, []))
   end
 
   defp extract_from_module_ast({:defmodule, _, [_name, [do: single]]}) do
-    extract_docs_and_defs([single], nil, [])
-    |> Enum.reverse()
+    Enum.reverse(extract_docs_and_defs([single], nil, []))
   end
 
   defp extract_from_module_ast({:__block__, _, list}) do

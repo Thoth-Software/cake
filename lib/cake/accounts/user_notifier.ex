@@ -20,6 +20,7 @@ defmodule Cake.Accounts.UserNotifier do
   @doc """
   Deliver instructions to confirm account.
   """
+  @spec deliver_confirmation_instructions(%Cake.Accounts.User{}, String.t()) :: {:ok, Swoosh.Email.t()}
   def deliver_confirmation_instructions(user, url) do
     deliver(user.email, "Confirmation instructions", """
 
@@ -40,6 +41,7 @@ defmodule Cake.Accounts.UserNotifier do
   @doc """
   Deliver instructions to reset a user password.
   """
+  @spec deliver_reset_password_instructions(%Cake.Accounts.User{}, String.t()) :: {:ok, Swoosh.Email.t()}
   def deliver_reset_password_instructions(user, url) do
     deliver(user.email, "Reset password instructions", """
 
@@ -60,6 +62,7 @@ defmodule Cake.Accounts.UserNotifier do
   @doc """
   Deliver instructions to update a user email.
   """
+  @spec deliver_update_email_instructions(%Cake.Accounts.User{}, String.t()) :: {:ok, Swoosh.Email.t()}
   def deliver_update_email_instructions(user, url) do
     deliver(user.email, "Update email instructions", """
 

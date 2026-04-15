@@ -7,6 +7,7 @@ defmodule Cake.FailedIngestsFixtures do
   @doc """
   Generate a failed_ingest.
   """
+  @spec failed_ingest_fixture(map()) :: Cake.FailedIngests.FailedIngest.t()
   def failed_ingest_fixture(attrs \\ %{}) do
     {:ok, failed_ingest} =
       attrs

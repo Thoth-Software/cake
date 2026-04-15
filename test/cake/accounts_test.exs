@@ -1,10 +1,11 @@
 defmodule Cake.AccountsTest do
   use Cake.DataCase
 
-  alias Cake.Accounts
-
   import Cake.AccountsFixtures
-  alias Cake.Accounts.{User, UserToken}
+
+  alias Cake.Accounts
+  alias Cake.Accounts.User
+  alias Cake.Accounts.UserToken
 
   describe "get_user_by_email/1" do
     test "does not return the user if the email does not exist" do
@@ -80,8 +81,8 @@ defmodule Cake.AccountsTest do
       assert "has already been taken" in errors_on(changeset).email
 
       # Now try with the upper cased email too, to check that email case is ignored.
-      {:error, changeset} = Accounts.register_user(%{email: String.upcase(email)})
-      assert "has already been taken" in errors_on(changeset).email
+      {:error, upcased_changeset} = Accounts.register_user(%{email: String.upcase(email)})
+      assert "has already been taken" in errors_on(upcased_changeset).email
     end
 
     test "registers users with a hashed password" do
@@ -180,12 +181,12 @@ defmodule Cake.AccountsTest do
     end
 
     test "sends token through notification", %{user: user} do
-      token =
+      encoded_token =
         extract_user_token(fn url ->
           Accounts.deliver_user_update_email_instructions(user, "current@example.com", url)
         end)
 
-      {:ok, token} = Base.url_decode64(token, padding: false)
+      {:ok, token} = Base.url_decode64(encoded_token, padding: false)
       assert user_token = Repo.get_by(UserToken, token: :crypto.hash(:sha256, token))
       assert user_token.user_id == user.id
       assert user_token.sent_to == user.email
@@ -368,12 +369,12 @@ defmodule Cake.AccountsTest do
     end
 
     test "sends token through notification", %{user: user} do
-      token =
+      encoded_token =
         extract_user_token(fn url ->
           Accounts.deliver_user_confirmation_instructions(user, url)
         end)
 
-      {:ok, token} = Base.url_decode64(token, padding: false)
+      {:ok, token} = Base.url_decode64(encoded_token, padding: false)
       assert user_token = Repo.get_by(UserToken, token: :crypto.hash(:sha256, token))
       assert user_token.user_id == user.id
       assert user_token.sent_to == user.email
@@ -421,12 +422,12 @@ defmodule Cake.AccountsTest do
     end
 
     test "sends token through notification", %{user: user} do
-      token =
+      encoded_token =
         extract_user_token(fn url ->
           Accounts.deliver_user_reset_password_instructions(user, url)
         end)
 
-      {:ok, token} = Base.url_decode64(token, padding: false)
+      {:ok, token} = Base.url_decode64(encoded_token, padding: false)
       assert user_token = Repo.get_by(UserToken, token: :crypto.hash(:sha256, token))
       assert user_token.user_id == user.id
       assert user_token.sent_to == user.email
