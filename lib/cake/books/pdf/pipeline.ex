@@ -9,9 +9,22 @@ defmodule Cake.Books.Pdf.Pipeline do
   @behaviour Cake.Books.Pipeline
 
   alias Cake.Books.Chunk
+  alias Cake.Books.PageContent
   alias Cake.Books.ParsedBook
+  alias Cake.Books.SkippedPage
 
   require Logger
+
+  @typep extraction() :: %{
+           pages: [PageContent.t()],
+           skipped: [SkippedPage.t()],
+           title: String.t(),
+           source_file_path: String.t(),
+           file_hash: String.t(),
+           file_size: non_neg_integer(),
+           total_pages: non_neg_integer(),
+           word_count: non_neg_integer()
+         }
 
   @impl Cake.Books.Pipeline
   def load_binary(path) do
@@ -22,23 +35,14 @@ defmodule Cake.Books.Pdf.Pipeline do
   end
 
   @impl Cake.Books.Pipeline
-  @spec parse({any(), binary()}) :: {struct(), [struct()]}
+  @spec parse({any(), binary()}) :: {ParsedBook.t(), [Chunk.t()]}
   def parse({path, binary}) do
     extracted = extract(path, binary)
     warn_skipped(extracted)
     {build_parsed_book(extracted), build_chunks(extracted.pages)}
   end
 
-  @spec extract(any(), binary()) :: %{
-          pages: list(),
-          skipped: list(),
-          title: binary(),
-          source_file_path: any(),
-          file_hash: binary(),
-          file_size: non_neg_integer(),
-          total_pages: non_neg_integer(),
-          word_count: non_neg_integer()
-        }
+  @spec extract(String.t(), binary()) :: extraction()
   defp extract(path, binary) do
     {:ok, %{pages: pages, skipped: skipped, title: metadata_title}} =
       Cake.ParseBooks.extract_pdf(binary)
@@ -64,7 +68,7 @@ defmodule Cake.Books.Pdf.Pipeline do
     }
   end
 
-  @spec warn_skipped(map()) :: :ok
+  @spec warn_skipped(extraction()) :: :ok
   defp warn_skipped(%{skipped: []}), do: :ok
 
   defp warn_skipped(%{source_file_path: path, skipped: skipped}) do
@@ -75,7 +79,7 @@ defmodule Cake.Books.Pdf.Pipeline do
     )
   end
 
-  @spec build_parsed_book(map()) :: struct()
+  @spec build_parsed_book(extraction()) :: ParsedBook.t()
   defp build_parsed_book(extracted) do
     %ParsedBook{
       title: extracted.title,
@@ -90,7 +94,7 @@ defmodule Cake.Books.Pdf.Pipeline do
     }
   end
 
-  @spec build_chunks(list()) :: [struct()]
+  @spec build_chunks([PageContent.t()]) :: [Chunk.t()]
   defp build_chunks(pages) do
     pages
     |> Enum.with_index()
