@@ -59,7 +59,7 @@ defmodule Cake.FailingTestPipeline do
 
   @impl Cake.Documents.Pipeline
   def download(_version) do
-    {:error, "Network error"}
+    {:error, :download, "Network error"}
   end
 
   @impl Cake.Documents.Pipeline
