@@ -15,11 +15,11 @@ defmodule Cake.Pipelines do
     with full provenance. Also carries a keyword list of opts.
     """
     @type t :: %__MODULE__{
-      behaviour: String.t(),
-      implementation: String.t(),
-      version: String.t(),
-      opts: keyword()
-    }
+            behaviour: String.t(),
+            implementation: String.t(),
+            version: String.t(),
+            opts: keyword()
+          }
     defstruct [:behaviour, :implementation, :version, :opts]
   end
 
@@ -86,12 +86,12 @@ defmodule Cake.Pipelines do
 
       {:error, reason} ->
         Logger.warning("[#{step_name}] Item failed: #{inspect(reason)}")
-        persist_failure(ctx, step_name, reason)
+        _ = persist_failure(ctx, step_name, reason)
         false
 
       other ->
         Logger.warning("[#{step_name}] Unexpected value: #{inspect(other)}")
-        persist_failure(ctx, step_name, other)
+        _ = persist_failure(ctx, step_name, other)
         false
     end)
     |> Stream.map(fn {:ok, value} -> value end)
@@ -233,7 +233,7 @@ defmodule Cake.Pipelines do
     }
   end
 
-  @spec handle_ingest_error({:error, any()}, context()) :: FailedIngest.failed_ingest()
+  @spec handle_ingest_error({:error, any()}, context()) :: any()
   def handle_ingest_error({:error, error}, ctx) do
     Logger.warning(Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error: #{inspect(error)}"))
 

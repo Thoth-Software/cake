@@ -7,9 +7,9 @@ defmodule Cake.Documents.Hexdocs.Downloads do
 
   @spec clone_and_get_module_paths(String.t()) :: [String.t()]
   def clone_and_get_module_paths(version) do
-    File.mkdir_p(@dir)
-    System.cmd("git", ["clone", "https://github.com/elixir-lang/elixir.git", @dir], env: [])
-    System.cmd("git", ["checkout v#{version}"], env: [])
+    _ = File.mkdir_p(@dir)
+    _ = System.cmd("git", ["clone", "https://github.com/elixir-lang/elixir.git", @dir], env: [])
+    _ = System.cmd("git", ["checkout v#{version}"], env: [])
 
     "elixir/lib/elixir/lib"
     |> list_files()
@@ -27,7 +27,7 @@ defmodule Cake.Documents.Hexdocs.Downloads do
   """
   @spec download_tarball(String.t()) :: {:ok, String.t()} | {:error, any()}
   def download_tarball(version) do
-    File.mkdir_p(@dir)
+    _ = File.mkdir_p(@dir)
     url = "https://repo.hex.pm/docs/elixir-#{version}.tar.gz"
     tar_path = Path.join(@dir, "elixir-#{version}.tar.gz")
 
@@ -36,18 +36,18 @@ defmodule Cake.Documents.Hexdocs.Downloads do
         {File.write(tar_path, body), tar_path}
 
       {:ok, %Req.Response{status: code}} ->
-        File.rm_rf!(@dir)
+        _ = File.rm_rf!(@dir)
         {:error, "Failed with status #{code} \n Files removed:"}
 
       {:error, %{reason: reason}} ->
-        File.rm_rf!(@dir)
+        _ = File.rm_rf!(@dir)
         {:error, reason}
     end
   end
 
   @spec html_file_paths({:ok, String.t()} | {term(), term()}) :: {:ok, [String.t()]} | term()
   def html_file_paths({:ok, tar_path}) do
-    :erl_tar.extract(tar_path, [:compressed, {:cwd, @dir}, :verbose])
+    _ = :erl_tar.extract(tar_path, [:compressed, {:cwd, @dir}, :verbose])
 
     paths =
       @dir

@@ -4,5 +4,11 @@ defmodule Cake.Books.PdfExtraction do
   Rustler decodes into this automatically via NifStruct.
   """
 
+  @type t :: %__MODULE__{
+          pages: [Cake.Books.PageContent.t()],
+          title: String.t() | nil,
+          skipped: [Cake.Books.SkippedPage.t()]
+        }
+
   defstruct [:pages, :title, skipped: []]
 end

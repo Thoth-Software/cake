@@ -37,12 +37,16 @@ defmodule CakeWeb.UserForgotPasswordLive do
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("send_email", %{"user" => %{"email" => email}}, socket) do
-    if user = Accounts.get_user_by_email(email) do
+    email
+    |> Accounts.get_user_by_email()
+    # Turns a user into [user] or nil into []
+    |> List.wrap()
+    |> Enum.each(fn user ->
       Accounts.deliver_user_reset_password_instructions(
         user,
         &url(~p"/users/reset_password/#{&1}")
       )
-    end
+    end)
 
     info =
       "If your email is in our system, you will receive instructions to reset your password shortly."

@@ -1,13 +1,13 @@
-defmodule Cake.Books.PageContent do
+defmodule Cake.Books.SkippedPage do
   @moduledoc """
-  Elixir-side struct for the Rust NIF's PageContent.
+  Elixir-side struct for the Rust NIF's SkippedPage.
   Rustler decodes into this automatically via NifStruct.
   """
 
   @type t :: %__MODULE__{
           page_number: non_neg_integer(),
-          text: String.t()
+          reason: String.t()
         }
 
-  defstruct [:page_number, :text]
+  defstruct [:page_number, :reason]
 end

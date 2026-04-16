@@ -54,6 +54,30 @@ defmodule Cake.Books.ParsedBook do
     timestamps(type: :utc_datetime)
   end
 
+  @type t :: %__MODULE__{
+          __meta__: Ecto.Schema.Metadata.t(),
+          id: Ecto.UUID.t() | nil,
+          title: String.t(),
+          metadata: map() | nil,
+          language: String.t() | nil,
+          file_size: integer(),
+          source_file_path: String.t(),
+          authors: [String.t()] | nil,
+          source_format: String.t(),
+          file_hash: String.t(),
+          isbn: String.t() | nil,
+          publisher: String.t() | nil,
+          publication_date: Date.t() | nil,
+          total_pages: integer() | nil,
+          word_count: integer(),
+          table_of_contents: map() | nil,
+          parsed_at: DateTime.t(),
+          embedding_status: :pending | :processing | :completed | :failed,
+          chunks: [Cake.Books.Chunk.t()] | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
+
   @type book() :: %{
           title: String.t(),
           metadata: map(),

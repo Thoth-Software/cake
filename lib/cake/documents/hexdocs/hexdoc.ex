@@ -18,6 +18,20 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
     timestamps(type: :utc_datetime)
   end
 
+  @type t :: %__MODULE__{
+          __meta__: Ecto.Schema.Metadata.t(),
+          id: Ecto.UUID.t() | nil,
+          module: String.t(),
+          version: String.t(),
+          core: boolean(),
+          url: String.t(),
+          content: String.t(),
+          source: String.t(),
+          language: String.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
+
   @spec doc_attrs() :: %{source: String.t(), language: String.t()}
   def doc_attrs(), do: %{source: @source, language: @language}
 

@@ -47,14 +47,15 @@ defmodule Cake.Responses do
       %{role: "user", content: question}
     ]
 
-    %{
+    [
       url: response_url,
       json: %{model: model, input: messages},
       auth: {:bearer, api_key},
       receive_timeout: @api_timeout,
       retry: :transient,
       max_retries: 3
-    }
+    ]
+    |> Req.new()
     |> Req.post()
     |> handle_response(chunks)
   end

@@ -34,6 +34,22 @@ defmodule Cake.Books.Chunk do
     timestamps(type: :utc_datetime)
   end
 
+  @type t :: %__MODULE__{
+          __meta__: Ecto.Schema.Metadata.t(),
+          id: Ecto.UUID.t() | nil,
+          text: String.t(),
+          page_number: integer() | nil,
+          chunk_index: integer(),
+          section_title: String.t() | nil,
+          word_count: integer(),
+          char_count: integer(),
+          embedding: [float()] | nil,
+          parsed_book_id: Ecto.UUID.t(),
+          parsed_book: Cake.Books.ParsedBook.t() | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
+
   @doc false
   @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(chunk, attrs) do

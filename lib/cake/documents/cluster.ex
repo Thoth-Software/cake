@@ -53,7 +53,7 @@ defmodule Cake.Documents.Cluster do
 
   @spec init(keyword()) :: {:ok, keyword()}
   def init(config) do
-    Task.start_link(fn -> create_indexes_unless_exist(nil) end)
+    _ = Task.start_link(fn -> create_indexes_unless_exist(nil) end)
     {:ok, config}
   end
 
@@ -69,8 +69,8 @@ defmodule Cake.Documents.Cluster do
     existing_indices = get_existing_indices()
 
     # Create both indices
-    create_index_if_missing(existing_indices, "docs", Cake.Documents.ParsedDocument)
-    create_index_if_missing(existing_indices, "chunks_of_books", Cake.Books.Chunk)
+    _ = create_index_if_missing(existing_indices, "docs", Cake.Documents.ParsedDocument)
+    _ = create_index_if_missing(existing_indices, "chunks_of_books", Cake.Books.Chunk)
   end
 
   defp get_existing_indices() do
@@ -99,9 +99,10 @@ defmodule Cake.Documents.Cluster do
 
   # Cake.Documents.Cluster.search(:keyword, "chunks_of_books")
   @spec search(:keyword | :vector | :hybrid, String.t(), %{
-          keywords: List.t(),
-          embedding: List.t(),
-          keyword_weight: Float.t()
+          keywords: String.t(),
+          embedding: [float()],
+          keyword_weight: float(),
+          fields: [String.t()]
         }) :: {:ok, map()} | {:error, any()}
   def search(:keyword, index, %{keywords: keywords, fields: fields}) do
     query = %{
@@ -191,8 +192,11 @@ defmodule Cake.Documents.Cluster do
     end
   end
 
-  defp ensure_index_exists({:error, %Snap.HTTPClient.Response{status: status, body: body}}, index) do
-    raise "Transport-layer error creating index '#{index}': Status #{status}, Body: #{body}"
+  defp ensure_index_exists(
+         {:error, %Snap.HTTPClient.Error{reason: reason, origin: origin}},
+         index
+       ) do
+    raise "Transport-layer error creating index '#{index}': Reason #{reason}, Origin: #{origin}"
   end
 
   defp ensure_index_exists({:error, %Snap.ResponseError{status: status, message: message}}, index) do

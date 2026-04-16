@@ -22,8 +22,8 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
 
   @impl Cake.Documents.Pipeline
   def download(%{version: version}) do
-    File.rm_rf!(@dir)
-    File.mkdir_p(@dir)
+    _ = File.rm_rf!(@dir)
+    _ = File.mkdir_p(@dir)
 
     case System.cmd(
            "git",

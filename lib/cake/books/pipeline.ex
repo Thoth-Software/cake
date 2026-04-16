@@ -27,7 +27,7 @@ defmodule Cake.Books.Pipeline do
   @index "chunks_of_books"
 
   @callback load_binary(String.t()) :: {:ok, {String.t(), binary()}} | {:error, any()}
-  @callback parse({String.t(), binary()}) :: {struct(), [struct()]}
+  @callback parse({String.t(), binary()}) :: {ParsedBook.t(), [Chunk.t()]}
   @callback format() :: atom()
   @callback success_message() :: String.t()
 
