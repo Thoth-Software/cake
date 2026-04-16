@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+# Code that fails CI checks, by definition, does not belong in prod. That also
+# means no mising variables and no failing commands. 
+set -euo
+
+echo "==> Compiling..."
+
+if ! mix compile --force --warnings-as-errors; then
+    echo ""
+    echo "!! Push rejected: Your code doesn't even COMPILE without warings, bro."
+    exit 1
+fi
+
+echo "==> Code compiles with no errors."
+echo "==> Running Credo (pre-push gate)..."
+
+if ! mix credo --strict; then
+  echo ""
+  echo "WHAT IS YOUR MAJOR MALFUNCTION, PRIVATE PYLE!?"
+  echo "DID YOUR MOMMA NOT TEACH YOU TO RUN CREDO BEFORE TRYING TO MERGE YOUR PRS!?"
+  echo "!! Merge rejected: Credo found issues."
+  echo "!! See Github logs"
+  exit 1
+fi
+
+echo "==> Credo passed."
+echo "==> Running Dialyzer..."
+
+if ! mix dialyzer; then
+    echo ""
+    echo "Lucky you! You get to fix Dialyzer errors today!"
+    echo "Merge rejected: Dialyzer found issues."
+    echo "!! See Github logs."
+    exit 1
+fi

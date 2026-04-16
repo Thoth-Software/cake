@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "==> Running Credo (pre-push gate)..."
+echo "==> Running 'mix compile --force --warnings-as-errors'"
+echo "==> Compiling..."
+
+if ! mix compile --force --warnings-as-errors; then
+    echo ""
+    echo "!! Push rejected: Your code doesn't even COMPILE without warings, bro."
+    exit 1
+fi
+
+echo "==> Code compiles with no errors."
+echo "==> Running Credo (pre-push gate 2)..."
 
 if ! mix credo --strict; then
   echo ""
