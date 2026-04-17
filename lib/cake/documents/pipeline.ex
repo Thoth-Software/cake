@@ -28,7 +28,6 @@ defmodule Cake.Documents.Pipeline do
 
   alias Cake.Documents.ParsedDocument
   alias Cake.Documents.ParsedDocuments
-  alias Cake.Documents.Pipeline
   alias Cake.Pipelines.Context
   alias Cake.Repo
   require Logger
@@ -38,8 +37,8 @@ defmodule Cake.Documents.Pipeline do
 
   @type version :: {integer(), integer(), integer()}
 
-  @callback download(context()) :: {:ok, [String.t()]} | {:error, :download, any()}
-  @callback persist_raw_docs([String.t()], context()) :: Enumerable.t()
+  @callback download(Context.t()) :: {:ok, [String.t()]} | {:error, :download, any()}
+  @callback persist_raw_docs([String.t()], Context.t()) :: Enumerable.t()
   @callback parse(Enumerable.t()) :: Enumerable.t()
   @callback source() :: String.t()
   @callback success_message(Context.t()) :: String.t()
