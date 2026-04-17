@@ -1,161 +1,129 @@
 ---
 title: "CLAUDE.md — Operational Contract for AI Sessions on Cake"
-tags: [claude-code, ai-instructions, architecture, conventions, quality-gates]
-date: 2026-04-12
+tags: [claude-code, ai-instructions, conventions, quality-gates]
+date: 2026-04-15
 domain: development, ai-workflow
 source: project-maintainer
-last_verified: 2026-04-12
+last_verified: 2026-04-15
 ---
 
 # CLAUDE.md — Operational Contract for Cake
 
-This file is the primary context document for any AI assistant working on the Cake codebase. Read it in full before making changes. It defines the rules, conventions, architecture, and quality gates that govern all modifications. If something in this file contradicts what you infer from the code, **this file wins** — flag the discrepancy to the user rather than silently following the code.
+This file governs how you work on Cake. The README describes what things are and why; this file tells you what you must do. Read both before making changes. If this file contradicts what you infer from the code, **this file wins** — flag the discrepancy to the user rather than silently following the code.
+
+For architecture, module responsibilities, data schemas, and the RAG loop, read the README. Do not duplicate that understanding here — reference it.
 
 ---
 
-## Dynamic Refdoc Protocol: How This File Stays Current
+## Dynamic Refdoc Protocol
 
-This file is a living document. After completing any task that changes Cake's architecture, module boundaries, conventions, or tooling, you must do the following:
+After completing any task that changes architecture, module boundaries, conventions, or tooling:
 
-1. Review this file and README.md for sections that are now stale or incomplete.
-2. Propose specific edits to the user. Frame them as: "I changed X, which means section Y in CLAUDE.md should be updated. Here's what I'd change: [diff]."
-3. If the user approves, make the edits before closing the task.
+1. Review both this file and README.md for sections that are now stale.
+2. Propose specific edits: "I changed X, which means section Y should be updated. Here's what I'd change: [diff]."
+3. Make approved edits before closing the task.
 4. If unsure whether a change warrants a doc update, ask.
 
-The goal is that any future AI session reading this file gets an accurate picture of the codebase as it exists *now*, not as it existed when this file was last manually edited. Architectural drift without documentation drift is the failure mode this protocol prevents.
+---
+
+## Quality Gates
+
+Run in this order. Every gate must pass before presenting changes.
+
+```bash
+mix compile --warnings-as-errors --force  # Zero warnings. Hard gate.
+mix credo --strict                         # Zero issues. No inline disables without approval.
+mix test                                   # Zero failures, zero warnings.
+mix coveralls.json                         # Must not reduce coverage below threshold.
+```
+
+`mix quality.fast` (compile + credo) is the minimum local check. `mix quality` adds dialyzer. Tests run with `MIX_ENV=test`; the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first.
+
+Dialyzer is not yet a hard gate (the config line is commented out) but do not introduce new warnings.
 
 ---
 
-## Quality Gates: Compile, Lint, Types, Tests, Coverage
+## Conventions
 
-Every change must pass all of the following before being considered complete. Run them in this order because earlier gates are faster and catch different classes of issues:
+### Dependency Injection
 
-`mix compile --warnings-as-errors --force` must produce zero warnings. This is a hard gate. Warnings are not acceptable even with explanations.
+Modules that depend on external services accept collaborator modules as arguments — for Mox testability, not runtime polymorphism. `Conversation` takes `caller` (the cluster module). Pipelines read the embeddings module from application config. When adding new external-service dependencies, follow this pattern: define a behaviour, implement it, pass the module as an argument or read it from config.
 
-`mix credo --strict` must produce zero issues. Credo is configured in `.credo.exs`. If a new check triggers that you believe should be suppressed, explain why to the user and propose a config change — do not add `# credo:disable-for-this-file` without approval.
+### Result Tuples and Pipeline Error Handling
 
-(not this one yet)
-<!-- `mix dialyzer` must produce zero warnings beyond those listed in `.dialyzer_ignore.exs`. If your change introduces a new Dialyzer warning, either fix the underlying issue or propose adding the suppression with a comment explaining why. -->
+All pipeline callbacks return `{:ok, _}` or `{:error, _}`. Stream steps use `Pipelines.detuple_with_logging/3` — never the silent `detuple/1`. Step names follow `"pipeline.step"` convention (e.g., `"books.parse"`, `"docs.embed"`). Pipeline-fatal errors go in the `else` branch of the `with` chain in each behaviour's `ingest` function.
 
-`mix test` must pass with zero failures and zero warnings. Tests run with `MIX_ENV=test`. The test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` before the test suite.
+### Schemas
 
-`mix coveralls.json` enforces a minimum coverage threshold (configured in `coveralls.json`). If your change reduces coverage below the threshold, add tests to compensate.
+Every Ecto schema must `use Cake.Schema` (not `Ecto.Schema`). Every changeset for a schema with string fields must call `sanitize_text_fields/1`. UUIDs are binary, not string.
 
-The shortcut aliases: `mix quality.fast` runs compile + credo. `mix quality` runs compile + credo + dialyzer. Always run at least `mix quality.fast` before presenting changes.
+### Tests
 
----
+Use `Cake.Factory` (ExMachina) for test data, imported via `DataCase`, `ConnCase`, or `ObanCase`. Ecto-backed factories use `insert/1`; non-Ecto domain objects use `build/1`. New domain structs need a corresponding factory.
 
-## Module Architecture: What Exists and What Owns What
+Property tests (StreamData) go in `*_property_test.exs`. When fixing a bug found by a property test, add a corresponding example test in the standard file.
 
-Cake is a RAG framework with two parallel ingestion subsystems (documents and books) feeding into a shared conversation layer. The following module map describes the current state. Modules are grouped by responsibility.
-
-### Ingestion Layer: How Raw Data Becomes Searchable Content
-
-`Cake.Documents.Pipeline` is a behaviour module that defines the contract for ingesting programming documentation (hexdocs, javadocs, etc). It also contains the `ingest/4` orchestrator function that sequences download → persist → parse → embed → index. Implementations live under `Cake.Documents.Hexdocs.Pipeline` (and future ones for other sources). The orchestrator uses `Pipelines.detuple_with_logging/3` at every stream transformation step.
-
-`Cake.Books.Pipeline` is a parallel behaviour for ingesting books/ebooks. It follows the same pattern: `load_binary/1` → `parse/1` → persist → embed → index. The PDF implementation uses a Rustler NIF (`parsebooks` crate via `pdf-extract`). Implementations live under `Cake.Books.Pdf.Pipeline` (and future ones for EPUB, etc).
-
-`Cake.Pipelines` contains shared helpers: `detuple_with_logging/3` (filters errors from streams, logs them, persists to FailedIngest), `add_to_opensearch/4`, `sweep/5` (retry loop for failed items), and `Context` struct (carries pipeline identity through a run).
-
-`Cake.FailedIngests` is the context module for the `failed_ingests` table. Every item-level pipeline failure is persisted here with behaviour, implementation, step, version, error text, and input identifier. Pipeline-fatal errors are logged in the `else` branch of each behaviour's `ingest` function.
-
-### Storage and Search Layer: Where Data Lives and How It's Retrieved
-
-`Cake.Documents.Cluster` is a `Snap.Cluster` GenServer managing the OpenSearch connection. It provides `search/3` with three modes: `:keyword` (multi_match on fields), `:vector` (k-NN with cosine similarity via FAISS), and `:hybrid` (vector as `must`, keyword as `should` boost). It also handles index creation at startup via `create_indexes_unless_exist/1`. The index schema uses 1536-dimension knn_vector fields (matching OpenAI ada-002) with HNSW.
-
-`Cake.Repo` is the Ecto repo for Postgres. All Ecto schemas use `Cake.Schema` (not `Ecto.Schema` directly) which provides `sanitize_text_fields/1` in changesets and uses binary UUIDs as primary keys.
-
-### Conversation Layer: The RAG Loop
-
-`Cake.Conversation` is a GenServer managing multi-turn RAG conversations. State includes `search_results`, `message_history`, `chunk_map`, `citations`, and `errors`. It has a two-phase lifecycle: the first `ask/3` call embeds the question, searches, queries the LLM, and stores results. Subsequent `ask/2` calls reuse the stored search results and only query the LLM. The cluster module is passed as the `caller` argument (dependency injection for testability, not multi-cluster support).
-
-`Cake.Responses` calls the LLM API with retrieved context. Currently implements OpenAI only (`:openai` clause); Anthropic clause is a TODO stub. It builds a numbered context format with chunk metadata, constructs the `chunk_map` (index → metadata), and returns `{:ok, %{response, chunk_map, usage}}`.
-
-`Cake.Citations` parses `[N]` markers from LLM response text, resolves them against the chunk_map, drops hallucinated citations (indices not in the map), deduplicates, and sorts. Pure function, no side effects.
-
-`Cake.Embeddings` calls the OpenAI embeddings API. Implements `Cake.Embeddings.Behaviour` for Mox testability. Prepends title to text before embedding.
-
-### Web Layer: How Users Interact
-
-`CakeWeb.ChatLive` is the LiveView chat interface. It uses a polling pattern: `handle_info/2` + `Process.send_after` to periodically check the Conversation GenServer for new messages (via `Conversation.get_messages/1` → `handle_call(:messages, ...)`). PubSub replacement for polling is a planned TODO.
-
-Phoenix auth scaffolding (`Accounts`, `UserAuth`, settings/registration/login LiveViews) is standard `mix phx.gen.auth` output with minimal customization.
-
-### Data Schemas: The Shape of Things
-
-`Cake.Documents.ParsedDocument` — universal schema for indexed documentation. Fields: source, version, package, language, title, text, url, embedding, core.
-
-`Cake.Books.ParsedBook` — book metadata. Fields: title, authors, source_format, file_hash, file_size, word_count, total_pages, parsed_at, embedding_status, metadata (map for format-specific extras), table_of_contents.
-
-`Cake.Books.Chunk` — searchable chunk of a book. Fields: text, page_number, chunk_index, section_title, word_count, char_count, embedding. Belongs to ParsedBook.
-
-`Cake.Documents.Hexdocs.Hexdoc` — intermediate storage for raw Elixir source code before parsing. Fields: module, version, content, url.
-
-`Cake.FailedIngests.FailedIngest` — error tracking. Fields: pipeline_behaviour, pipeline_implementation, step, version, error_text, input_identifier, pipeline_fatal, retry_count, last_retried_at.
-
----
-
-## Conventions: Patterns You Must Follow
-
-### Dependency Injection via Module Arguments
-
-Several modules accept collaborator modules as arguments rather than hardcoding them. This is for Mox testability, not for runtime polymorphism. `Conversation` takes `caller` (the cluster module). `Pipeline.ingest/4` reads the embeddings module from application config. When adding new modules that depend on external services, follow this pattern: define a behaviour, implement it, and pass the module as an argument or read it from config.
-
-### Result Tuples and Error Handling in Pipelines
-
-All pipeline callbacks return `{:ok, _}` or `{:error, _}` tuples. Stream transformation steps use `Pipelines.detuple_with_logging/3` (not the silent `detuple/1`) to filter errors, log them, and persist them to FailedIngest. Step names follow the convention `"pipeline.step"` (e.g., `"books.parse"`, `"docs.embed"`). Pipeline-fatal errors are handled in the `else` branch of the `with` chain in each behaviour's `ingest` function.
-
-### Schema Conventions
-
-Every new Ecto schema must `use Cake.Schema` (not `Ecto.Schema`). Every changeset for a schema with string fields must call `sanitize_text_fields/1`. UUIDs are binary, not string.
-
-### Test Conventions
-
-Use `Cake.Factory` (ExMachina) for test data. Import it via the case templates (`DataCase`, `ConnCase`, `ObanCase`). Ecto-backed factories use `insert/1`; non-Ecto domain objects (chunk_maps, embedding responses, LLM responses) use `build/1`. When adding new domain structs, add a corresponding factory.
-
-Property tests (StreamData) go in files named `*_property_test.exs`. When fixing a bug found by a property test, add a corresponding example test in the standard test file.
-
-Mox expectations are set up in individual tests, not in setup blocks, to keep each test self-describing.
+Mox expectations go in individual tests, not setup blocks.
 
 ### OpenSearch Test Isolation
 
-`Application.put_env(:cake, :skip_opensearch, true)` is set in `test_helper.exs`. Pipeline code checks this flag before making OpenSearch calls. Tests that need search behavior mock the cluster module via Mox or pass a test module implementing the same function signature.
+`test_helper.exs` sets `Application.put_env(:cake, :skip_opensearch, true)`. Pipeline code checks this flag. Tests that need search behavior mock the cluster via Mox or a test module with the same function signature.
 
 ---
 
-## Infrastructure: Docker Compose Development Environment
+## Infrastructure Gotchas
 
-The dev environment runs three containers via `docker-compose.yml`: `cake_app` (Elixir/Phoenix), `cake_db` (Postgres 14), `cake_opensearch` (OpenSearch, single-node, security disabled).
+The dev environment runs three containers via `docker-compose.yml`: `cake_app`, `cake_db` (Postgres 14), `cake_opensearch`.
 
-The `entrypoint.sh` script waits for OpenSearch health (yellow/green), runs `mix deps.get`, forces recompilation of Rust NIFs (`rm -f priv/native/*.so && mix deps.compile --force bcrypt_elixir && mix compile --force`), runs migrations, seeds, and starts Phoenix with `--sname dev`.
+**NIF clobbering.** The `.:/app` bind mount overlays macOS binaries onto the Linux container. `entrypoint.sh` forces recompilation (`rm -f priv/native/*.so && mix deps.compile --force bcrypt_elixir && mix compile --force`). The diagnostic for this failure is "module not available" — not `:nif_not_loaded`.
 
-The `.:/app` bind mount means macOS-compiled binaries overlay onto the Linux container. This is why `entrypoint.sh` forces NIF recompilation — without it, macOS Mach-O `.so` files would be loaded instead of Linux ELF, causing "module not available" errors (not `:nif_not_loaded`, which is the non-obvious diagnostic).
+**Colima FD limits.** Default 1024 is too low for concurrent `Task.async_stream` fan-out. Raise via provision script.
 
-The dev environment runs inside a Colima VM on macOS. Known instability vectors: default 1024 FD limit (raise via provision script), `portForwarder: ssh` saturates under burst traffic (use `grpc`), heavy virtiofs I/O through the bind mount (copy to `/tmp` inside container on hot paths), and leaked CLOSED socket FDs in `limactl` port forwarder (fix: `colima start --network-address`).
+**Colima port forwarder leak.** `limactl` accumulates CLOSED socket FDs. Fix: `colima start --network-address`.
 
----
+**Colima port forwarder saturation.** `portForwarder: ssh` saturates under burst traffic. Use `grpc`.
 
-## Current TODOs and Deferred Work
-
-These items are acknowledged technical debt or planned work. If your task touches any of these areas, flag it to the user rather than silently resolving or ignoring the TODO.
-
-Replace polling with Phoenix.PubSub in ChatLive and Conversation. TODOs are placed in both files.
-
-Extract `Cake.Responses.Behaviour` for Mox testability. Preferred approach: pass the responses module as an argument (consistent with how the cluster is already passed via `caller`).
-
-Extract `search_fields/0` callback into a behaviour on the pipeline generics, so schemas declare their own searchable fields rather than callers passing a fields list.
-
-`Responses.query_llm/4` is currently hardcoded to `Cake.Books.Chunk` struct shape. It needs to be made agnostic about what struct is passed in, likely mirroring the search callback pattern.
-
-Post-demo document formats: Word, Excel, CSV, JPG pipelines are explicitly deferred.
-
-`Conversation.start_link/6` should eventually expect a `Conversation` struct. For now, it takes positional arguments.
-
-The Conversation error handling in the first-turn `handle_cast` has a known issue: the error variable in the `else` branch contains a full error tuple that's being wrapped in another tuple. Comment in code: "Fix ya shit."
+**Bind mount hot paths.** Heavy virtiofs I/O through the mount is slow. Copy to `/tmp` inside the container on hot paths.
 
 ---
 
-## File Map: Where to Find Things
+## Known Defects and Deferred Work
+
+If your task touches any of these, flag it to the user rather than silently resolving or ignoring it.
+
+- **Polling → PubSub**: `ChatLive` and `Conversation` both have TODO markers for replacing `Process.send_after` polling with Phoenix.PubSub.
+- **`Responses.Behaviour`**: Not yet extracted. Preferred approach: pass the responses module as an argument, consistent with how `caller` works.
+- **`search_fields/0` callback**: Each GDS should declare its own searchable fields rather than callers passing a `fields` list. TODO comment in `Cluster.search/3`.
+- **`Responses.query_llm/4` hardcoded to Chunk**: Needs to become GDS-agnostic.
+- **`Conversation.start_link/6` positional args**: Should eventually accept a struct.
+- **First-turn error wrapping bug**: The `else` branch in the first-turn `handle_cast` double-wraps the error tuple. Comment in code: "Fix ya shit." Do not silently fix this — discuss with user first.
+- **Post-demo formats**: Word, Excel, CSV, JPG pipelines are explicitly deferred.
+
+---
+
+## Reference Loading Rules
+
+All reference files live in `priv/reference/`. Load them **before** making changes. Read the full file, then proceed.
+
+### Always load
+
+- `priv/reference/naming-conventions.md` — at the start of any task involving naming (modules, functions, variables, atoms).
+- `priv/reference/enum-cheat.md` — before writing any collection transformation. If you're about to write explicit recursion over a list, check this first.
+
+### Load by trigger
+
+| When you're about to... | Load these |
+|---|---|
+| Refactor function bodies, change pattern matching, modify string/list/map logic, add parameters, change arity, modify exception handling, introduce boolean/flag params | `code-anti-patterns.md` + `patterns-and-guards.md` |
+| Create/rename/move modules, restructure directories, define new public APIs or behaviours, add/change structs or schemas, introduce dependencies, change module call graphs, add config | `design-anti-patterns.md` |
+| Write/modify macros, `use` declarations, `quote`/`unquote`, DSLs, compile-time code generation | `macro-anti-patterns.md` + `macros.md` + `quote-and-unquote.md` |
+| Create/modify/supervise GenServers/Agents/Tasks, modify supervision tree, use spawn/Task.async, work with Registry/PubSub/message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` (add `dynamic-supervisor.md` if dynamic spawning) |
+| Write/modify `@type`, `@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
+| Write/modify public API for external consumption, design behaviours for third-party use | `library-guidelines.md` |
+
+---
+
+## File Map
 
 ```
 lib/
@@ -186,7 +154,6 @@ lib/
     live/
       chat_live.ex         # LiveView chat UI
     user_auth.ex           # Auth plugs
-    # ... standard Phoenix web scaffolding
 
 test/
   support/
@@ -196,8 +163,8 @@ test/
     oban_case.ex           # Oban testing helpers
     test_pipeline.ex       # Mock pipeline implementations
   cake/
-    citations_test.exs           # Example-based citation tests
-    citations_property_test.exs  # StreamData property tests
+    citations_test.exs
+    citations_property_test.exs
 
 config/
   dev.exs      # Dev config (live reload, logging)
@@ -206,90 +173,3 @@ config/
 
 native/parsebooks/   # Rust crate for PDF parsing via Rustler
 ```
-
-
-## Reference Loading Rules
-
-All reference files live in `priv/reference/`. Load them **before** making changes, not after. Read the full file, internalize it, then proceed.
-
-### Always available
-
-Read `priv/reference/naming-conventions.md` at the start of every task that involves creating or renaming modules, functions, variables, or atoms. Follow its conventions exactly. Do not import naming habits from other languages.
-
-Read `priv/reference/enum-cheat.md` before writing any list, map, or collection transformation. Prefer existing `Enum` and `Stream` functions over manual recursion or multi-step filter/map chains. If you are about to write explicit recursion over a list, check this file first — there is almost certainly an existing function that does what you need.
-
-### Anti-pattern references
-
-Load `priv/reference/code-anti-patterns.md` when you are about to:
-
-- Refactor or rewrite the body of an existing function
-- Add or change pattern matching in function heads or case/cond/with blocks
-- Introduce or modify string/list/map manipulation logic
-- Work with atoms, particularly if constructing them from external input or converting from strings
-- Add parameters to a function signature or change a function's arity
-- Write or modify exception handling (try/rescue/catch)
-- Modify data validation, parsing, or transformation pipelines
-- Introduce boolean or flag parameters that branch behavior inside a function
-
-Load `priv/reference/design-anti-patterns.md` when you are about to:
-
-- Create a new module or rename/move an existing module
-- Create or modify a directory under `lib/`
-- Define a new public API boundary between modules (especially Phoenix contexts)
-- Add, remove, or restructure a `defstruct` or schema
-- Introduce a new dependency or library wrapper
-- Change how modules reference or call each other
-- Define a behaviour, protocol, or callback interface
-- Add application-level configuration (`config/`)
-- Expose or return internal data structures across module boundaries
-
-Load `priv/reference/macro-anti-patterns.md` when you are about to:
-
-- Write or modify any `defmacro` or `defmacrop`
-- Add or change a `use` declaration in any module
-- Work with `quote`, `unquote`, or `Macro` module functions
-- Create or modify a DSL or declarative interface
-- Generate functions or module attributes at compile time
-- Reach for metaprogramming to solve a problem that might be solvable with higher-order functions
-
-Load `priv/reference/process-anti-patterns.md` when you are about to:
-
-- Create, modify, or supervise a GenServer, Agent, or Task
-- Add a child to a supervision tree or modify `application.ex`
-- Use `spawn`, `spawn_link`, `Task.async`, or `Task.start`
-- Introduce or modify process-based state (any state that lives in a process rather than a data structure)
-- Work with Registry, named processes, or dynamic supervisors
-- Add or modify PubSub, message passing, or inter-process communication
-- Reach for a process to solve a problem that might be solvable with a plain module and functions
-
-### Positive references (load alongside their anti-pattern counterpart)
-
-When `priv/reference/macro-anti-patterns.md` is loaded, also load:
-
-- `priv/reference/macros.md` — the correct way to write macros when one is warranted
-- `priv/reference/quote-and-unquote.md` — correct AST manipulation patterns
-
-When `priv/reference/process-anti-patterns.md` is loaded, also load:
-
-- `priv/reference/genservers.md` — correct GenServer structure and API design
-- `priv/reference/supervisor-and-application.md` — correct supervision tree patterns
-- `priv/reference/dynamic-supervisor.md` — correct dynamic process creation (only if the task involves dynamic/runtime process spawning)
-
-When `priv/reference/code-anti-patterns.md` is loaded, also load:
-
-- `priv/reference/patterns-and-guards.md` — authoritative reference for legal guard expressions and pattern matching forms
-
-### Rare references (load only on specific triggers)
-
-Load `priv/reference/gradual-set-theoretic-types.md` and `priv/reference/typespecs.md` together when you are about to:
-
-- Write or modify `@type`, `@typep`, or `@opaque` attributes
-- Write or modify `@spec` attributes
-- Address type-related compiler warnings
-- Design a new data type or revise the shape of an existing one
-
-Load `priv/reference/library-guidelines.md` only when:
-
-- The task involves writing or modifying public API meant for external consumption
-- You are designing a behaviour or protocol intended for third-party implementation
-- The task explicitly mentions library design or packaging concerns
