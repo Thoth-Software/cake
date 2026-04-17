@@ -45,8 +45,8 @@ defmodule Cake.TestPipeline do
   end
 
   @impl Cake.Documents.Pipeline
-  def success_message(version) do
-    "Successfully ingested test documents for version #{version}"
+  def success_message(%Cake.Pipelines.Context{implementation: impl, version: version}) do
+    "Successfully ingested test documents (#{impl}) for version #{version}"
   end
 end
 
@@ -78,7 +78,7 @@ defmodule Cake.FailingTestPipeline do
   end
 
   @impl Cake.Documents.Pipeline
-  def success_message(version) do
-    "This should not be called - version #{version}"
+  def success_message(%Cake.Pipelines.Context{implementation: impl}) do
+    "This should not be called - #{impl}"
   end
 end
