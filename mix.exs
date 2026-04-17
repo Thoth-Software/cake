@@ -67,7 +67,8 @@ defmodule Cake.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:oban, "~> 2.0"},
       {:rustler, "~> 0.37.1"},
-      {:periscope, "~> 0.7.0"}
+      {:periscope, "~> 0.7.0"},
+      {:mix_test_watch, "~> 1.0", only: :dev, runtime: false}
     ]
   end
 
