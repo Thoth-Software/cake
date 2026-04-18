@@ -20,4 +20,13 @@ if ! mix credo --strict; then
   exit 1
 fi
 
-echo "==> Credo passed. Pushing."
+echo "==> Credo passed. Running tests (pre-push gate 3)..."
+
+if ! mix test; then
+  echo ""
+  echo "!! Push rejected: Tests are failing."
+  echo "!! Run 'mix test' to see details, fix them, then push again."
+  exit 1
+fi
+
+echo "==> Tests passed. Pushing."

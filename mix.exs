@@ -68,6 +68,7 @@ defmodule Cake.MixProject do
       {:oban, "~> 2.0"},
       {:rustler, "~> 0.37.1"},
       {:periscope, "~> 0.7.0"},
+      {:mix_test_watch, "~> 1.0", only: :dev, runtime: false},
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:ex_machina, "~> 2.8", only: :test}
     ]
