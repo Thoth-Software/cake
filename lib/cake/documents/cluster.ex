@@ -43,14 +43,6 @@ defmodule Cake.Documents.Cluster do
     }
   end
 
-  @spec start_convo(map()) :: pid() | {:error, any()}
-  def start_convo(opts) do
-    case Cake.Conversation.start_link(opts) do
-      {:ok, pid} -> pid
-      error_tuple -> error_tuple
-    end
-  end
-
   @spec init(keyword()) :: {:ok, keyword()}
   def init(config) do
     _ = Task.start_link(fn -> create_indexes_unless_exist(nil) end)
@@ -78,105 +70,6 @@ defmodule Cake.Documents.Cluster do
       {:ok, indices} -> indices
       {:error, error} -> raise error
     end
-  end
-
-  @spec enable_conversational_search() :: nil
-  def enable_conversational_search(), do: nil
-
-  @spec all_documents() :: {:ok, Snap.SearchResponse.t()} | {:error, any()}
-  def all_documents() do
-    query = %{query: %{match_all: %{}}}
-    Snap.Search.search(__MODULE__, "docs", query)
-  end
-
-  # TODO: Extract a `search_fields/0` callback into a behaviour, most likely on the
-  # pipeline behaviours keyed to generics. Each schema (ParsedDocument, Chunk,
-  # etc.) should declare which of its fields are searchable and how they should be
-  # weighted, rather than requiring callers to pass a fields list. The search
-  # function would then take a schema module as a parameter and call
-  # schema.search_fields() to build the query. For now, callers pass `fields`
-  # explicitly as a stopgap.
-
-  # Cake.Documents.Cluster.search(:keyword, "chunks_of_books")
-  @spec search(:keyword | :vector | :hybrid, String.t(), %{
-          keywords: String.t(),
-          embedding: [float()],
-          keyword_weight: float(),
-          fields: [String.t()]
-        }) :: {:ok, map()} | {:error, any()}
-  def search(:keyword, index, %{keywords: keywords, fields: fields}) do
-    query = %{
-      query: %{
-        multi_match: %{
-          query: keywords,
-          fields: fields
-        }
-      }
-    }
-
-    Snap.Search.search(__MODULE__, index, query)
-  end
-
-  def search(:vector, index, %{embedding: embedding}) do
-    query = %{
-      size: 30,
-      query: %{
-        knn: %{
-          embedding: %{
-            vector: embedding,
-            k: 30
-          }
-        }
-      }
-    }
-
-    Snap.Search.search(__MODULE__, index, query)
-  end
-
-  def search(:hybrid, index, %{
-        keywords: keywords,
-        fields: fields,
-        embedding: embedding,
-        keyword_weight: keyword_weight
-      }) do
-    query = %{
-      size: 30,
-      query: %{
-        bool: %{
-          must: [
-            %{
-              knn: %{
-                embedding: %{
-                  vector: embedding,
-                  k: 30,
-                  method_parameters: %{
-                    ef_search: 256
-                  }
-                }
-              }
-            }
-          ],
-          should: [
-            %{
-              multi_match: %{
-                query: keywords,
-                fields: fields,
-                boost: keyword_weight
-              }
-            }
-          ]
-        }
-      }
-    }
-
-    Snap.Search.search(__MODULE__, index, query)
-  end
-
-  @spec hits_text({:ok, Snap.SearchResponse.t()}) :: [String.t() | nil]
-  def hits_text({:ok, %Snap.SearchResponse{hits: hits}}) do
-    Enum.map(hits, fn hit ->
-      hit.source["text"]
-    end)
   end
 
   defp create_index_if_missing(existing_indices, index_name, schema) do
