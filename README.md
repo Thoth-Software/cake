@@ -48,17 +48,25 @@ Cake has two pipeline behaviours because, as of now, we have only two GDS. The s
 
 **`Cake.Repo`** (Ecto/Postgres) stores all structured data: parsed documents, parsed books, chunks, users, failed ingests, and Oban jobs. All schemas use binary UUIDs via `Cake.Schema` and include `sanitize_text_fields/1` in their changesets.
 
-**`Cake.Documents.Cluster`** (Snap/OpenSearch) manages the search index. It's a GenServer that creates indices at startup and exposes `search/3` with three modes:
+**`Cake.Documents.Cluster`** (Snap/OpenSearch) manages connection configuration and index lifecycle. It's a GenServer that creates indices at startup. It no longer contains search logic — that has moved to `Cake.Search`.
 
-- **Keyword search** uses BM25 `multi_match` across configurable fields with optional boost weights.
-- **Vector search** uses k-NN with k=30, cosine similarity, and HNSW via the FAISS engine, with `ef_search: 256` for recall quality.
-- **Hybrid search** (the default and recommended mode) puts vector similarity in `must` and keyword matching in `should` with a configurable boost weight.
+**`Cake.Search`** is the search API for the application. It is a behaviour module (callbacks only) — callers ask it for search results and it figures out how to get them. The real implementation is `Cake.Search.OpenSearch`, which wraps query construction and execution. In tests, `Cake.Search.Mock` (Mox) satisfies the same contract. The abstraction boundary means that if OpenSearch is ever replaced, `Cake.Search` stays (ideally with the same public API) while the cluster and query internals change.
+
+`Cake.Search.OpenSearch` exposes three search entry points:
+- `search_chunks/4` — searches the `chunks_of_books` index, returns raw OpenSearch hits.
+- `search_chunks_with_context/5` — same, then expands each hit with neighboring chunks from Postgres via `Books.chunks_for_hits/1` + `Books.expand_with_neighbors/2`. This is the default path for conversational retrieval.
+- `search_docs/4` — searches the `docs` index, returns raw hits.
+
+All three support three modes via a `search_type` argument:
+- **`:keyword`** uses BM25 `multi_match` across configurable fields with optional boost weights.
+- **`:vector`** uses k-NN with k=30, cosine similarity, and HNSW via the FAISS engine, with `ef_search: 256` for recall quality.
+- **`:hybrid`** (the default and recommended mode) puts vector similarity in `must` and keyword matching in `should` with a configurable boost weight.
 
 Hybrid exists because pure vector search struggles with exact identifiers, rare terms, and precise patterns that BM25 handles well, while pure keyword search misses semantic similarity. The balance between the two modes — and indeed the entire search design — is intended to be bespoke per customer, guided by the question: *Why does the customer want to see this document in particular?*
 
-Tenant isolation uses multiple OpenSearch indices against a shared backend cluster, with bespoke frontends per client — not multiple clusters. The index schema uses 1536-dimension `knn_vector` fields (matching OpenAI `text-embedding-ada-002`) with HNSW. There is a known TODO to extract a `search_fields/0` callback into a behaviour on the pipeline generics, so that each GDS declares which of its fields are searchable and how they should be weighted, rather than requiring callers to pass a `fields` list.
+Query construction lives in `Cake.Search.Query`, a struct with `build/3` and `to_opensearch/1`. The struct holds all search parameters (`search_type`, `index`, `keywords`, `embedding`, `fields`, `size`, `k`, `ef_search`, `keyword_weight`, `cluster`); `to_opensearch/1` converts it to the map `Snap.Search.search/3` expects.
 
-`Cluster.search/3` is treated as a low-level capability. The conversation layer never calls it directly; it goes through `Cake.Retrieval` (described below), which composes search with scoring, reranking, and other retrieval-strategy concerns.
+Tenant isolation uses multiple OpenSearch indices against a shared backend cluster, with bespoke frontends per client — not multiple clusters. The index schema uses 1536-dimension `knn_vector` fields (matching OpenAI `text-embedding-ada-002`) with HNSW. There is a known TODO to extract a `search_fields/0` callback into a behaviour on the pipeline generics, so that each GDS declares which of its fields are searchable and how they should be weighted.
 
 ### Conversation Layer: Stateful Multi-Turn RAG
 
@@ -66,7 +74,7 @@ This layer is organized around a single principle: **`Cake.Conversation` is the 
 
 ```
 Conversation → Prompt → Generation
-Conversation → Retrieval → Cluster
+Conversation → Search (Cake.Search behaviour → Cake.Search.OpenSearch → Cluster)
 Conversation → Embeddings
 Conversation → Generation
 Conversation → Responses
@@ -76,7 +84,7 @@ Conversation → Responses
 
 `Conversation` is deliberately the only module that knows the full shape of a turn. It assembles message history, owns the chunk map, and decides which service to call next. Service modules are agnostic about conversational state — they receive their inputs and return their outputs, and `Conversation` handles everything in between.
 
-The cluster module is passed as the `caller` argument to `start_link/6`. This is dependency injection for testability (Mox), not for supporting multiple clusters at runtime. A known TODO notes that `start_link/6` should eventually accept a `Conversation` struct rather than positional arguments.
+The `search` module (a `Cake.Search` implementation) is passed as an argument to `start_link/1` via the opts map. This is dependency injection for testability (Mox), not for supporting multiple search backends at runtime — the pattern mirrors how `cluster` was previously injected. A known TODO notes that `start_link/1` should eventually accept a `Conversation` struct rather than a plain map.
 
 **`Cake.Prompt`** owns prompt engineering. It builds the message lists that get sent to the LLM (system prompt, conversation history, retrieved context formatted as a numbered block, the new user question) and handles query decomposition — the optional pre-retrieval step of breaking a complex question into sub-queries. `Prompt` decides whether decomposition is needed for a given question and, when it is, calls `Generation` for the decomposition LLM round-trip. This is the only horizontal dependency in the layer, and it's appropriate: `Generation` is a low-level capability (text-in, text-out), and `Prompt` is one of its clients in exactly the same way `Conversation` is.
 
@@ -282,12 +290,12 @@ See `feature_roadmap.md` for the full research-backed roadmap. The short version
 
 **Post-demo planned:**
 
-- Refactor the conversation layer into the six-module decomposition described in the Architecture section (`Conversation`, `Prompt`, `Retrieval`, `Embeddings`, `Generation`, `Responses`). The current codebase has `Conversation` plus `Responses` plus `Embeddings`; the structural work is extracting `Prompt`, `Retrieval`, and `Generation` into their own modules and collapsing the existing `Cake.Responses` into its post-processing role (`query_llm` moves out to `Generation`, prompt assembly moves out to `Prompt`).
+- Refactor the conversation layer into the six-module decomposition described in the Architecture section (`Conversation`, `Prompt`, `Retrieval`, `Embeddings`, `Generation`, `Responses`). `Cake.Search` now owns retrieval and chunk expansion. The remaining structural work: extracting `Prompt`, and `Generation` into their own modules; collapsing the existing `Cake.Responses` into its post-processing role (`query_llm` moves out to `Generation`, prompt assembly moves out to `Prompt`).
 - Replace the polling pattern between `CakeWeb.ChatLive` and `Cake.Conversation` with Phoenix.PubSub. TODO markers already exist in both modules.
 - Expand test coverage per the four-tier plan.
 - Extract `Cake.Generation.Behaviour` for Mox substitution in tests, mirroring `Cake.Embeddings.Behaviour` and the injection pattern already used for `Cake.Documents.Cluster`.
 - Generalize `Cake.Responses` post-processing (chunk map construction, citation resolution) beyond `Cake.Books.Chunk` to work with any GDS' atomic unit, likely mirroring the `search_fields/0` callback pattern.
-- Extract a `search_fields/0` callback into a behaviour on the GDS pipeline generics, so each GDS declares which of its fields are searchable and how they should be weighted, rather than requiring callers to pass a `fields` list to `Cluster.search/3`.
+- Extract a `search_fields/0` callback into a behaviour on the GDS pipeline generics, so each GDS declares which of its fields are searchable and how they should be weighted, rather than requiring callers to pass a `fields` list to `Cake.Search.OpenSearch`.
 - Change `Cake.Conversation.start_link/6` to accept a `Conversation` struct rather than positional arguments.
 - Word, Excel, CSV, and JPG ingestion pipelines.
 
