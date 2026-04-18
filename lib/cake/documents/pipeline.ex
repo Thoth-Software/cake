@@ -28,6 +28,7 @@ defmodule Cake.Documents.Pipeline do
 
   alias Cake.Documents.ParsedDocument
   alias Cake.Documents.ParsedDocuments
+  alias Cake.Pipelines
   alias Cake.Pipelines.Context
   alias Cake.Repo
   require Logger
