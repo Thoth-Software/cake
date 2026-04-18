@@ -8,6 +8,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   import Ecto.Query, warn: false
   alias Cake.Documents.Hexdocs.Hexdoc
   alias Cake.Pipelines
+  alias Cake.Pipelines.Context
   alias Cake.Repo
 
   require Logger
@@ -15,7 +16,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   @type version :: Cake.Documents.Pipeline.version()
 
   @impl Cake.Documents.Pipeline
-  def success_message(%Pipelines.Context{version: version}),
+  def success_message(%Context{version: version}),
     do: "Successfully ingested Elixir docs from Hexdocs for version #{version}"
 
   @dir Path.join(System.tmp_dir!(), "hexdocs/")
