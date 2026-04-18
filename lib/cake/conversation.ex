@@ -1,7 +1,6 @@
 defmodule Cake.Conversation do
   use GenServer
 
-  alias Cake.Books
   alias Cake.Embeddings
 
   require Logger
@@ -28,14 +27,11 @@ defmodule Cake.Conversation do
   @impl GenServer
   def init(opts) do
     state = %{
-      cluster: opts.cluster,
+      search: opts.search,
       reply_to: opts.reply_to,
       embedder: opts.embedder,
-      index: opts.index,
       response_model: opts.response_model,
       provider: opts.provider,
-      search_type: opts.search_type,
-      fields: opts.fields,
       search_results: [],
       message_history: [],
       chunk_map: %{},
@@ -98,25 +94,13 @@ defmodule Cake.Conversation do
   end
 
   defp embed_and_search(question, state) do
-    %{
-      cluster: cluster,
-      embedder: embedding_model,
-      index: index,
-      provider: provider,
-      search_type: search_type,
-      fields: fields
-    } = state
+    %{search: search, provider: provider, embedder: embedder} = state
 
     with {:ok, %{attrs: %{embedding: embedding}}} <-
-           Embeddings.embed(provider, %{input: question}, embedding_model),
-         {:ok, %{hits: hits}} <-
-           cluster.search(search_type, index, %{
-             keywords: question,
-             embedding: embedding,
-             keyword_weight: 0.8,
-             fields: fields
-           }) do
-      {:ok, Books.expand_with_neighbors(Books.chunks_for_hits(hits), 2)}
+           Embeddings.embed(provider, %{input: question}, embedder),
+         {:ok, expanded_chunks} <-
+           search.search_chunks_with_context(:hybrid, question, embedding) do
+      {:ok, expanded_chunks}
     end
   end
 

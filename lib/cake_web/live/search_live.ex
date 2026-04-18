@@ -34,16 +34,10 @@ defmodule CakeWeb.SearchLive do
   defp run_search(query) do
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Cake.Embeddings.embed(:openai, %{input: query}, "text-embedding-ada-002"),
-         {:ok, %{hits: hits}} <-
-           Cake.Documents.Cluster.search(:hybrid, "chunks_of_books", %{
-             keywords: query,
-             embedding: embedding,
-             keyword_weight: 0.8,
-             fields: ["section_title^2", "text"]
-           }) do
+         {:ok, chunks} <-
+           Cake.Search.OpenSearch.search_chunks_with_context(:hybrid, query, embedding) do
       results =
-        hits
-        |> Cake.Books.chunks_for_hits()
+        chunks
         |> Enum.group_by(fn chunk -> chunk.parsed_book end)
         |> Enum.map(&build_book_result/1)
         |> Enum.sort_by(& &1.hit_count, :desc)

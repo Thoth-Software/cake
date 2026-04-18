@@ -5,14 +5,11 @@ defmodule CakeWeb.ChatLive do
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
     opts = %{
-      cluster: Cake.Documents.Cluster,
+      search: Cake.Search.OpenSearch,
       reply_to: self(),
       embedder: "text-embedding-ada-002",
-      index: "chunks_of_books",
       response_model: "gpt-4o-mini",
-      provider: :openai,
-      search_type: :hybrid,
-      fields: ["section_title^2", "text"]
+      provider: :openai
     }
 
     {:ok, pid} = Cake.Conversation.start(opts)
