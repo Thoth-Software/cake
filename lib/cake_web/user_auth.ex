@@ -79,7 +79,7 @@ defmodule CakeWeb.UserAuth do
     user_token && Accounts.delete_user_session_token(user_token)
 
     live_socket_id = get_session(conn, :live_socket_id)
-    _ = CakeWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
+    _ = if live_socket_id, do: CakeWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
 
     conn
     |> renew_session()

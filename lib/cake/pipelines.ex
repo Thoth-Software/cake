@@ -233,7 +233,24 @@ defmodule Cake.Pipelines do
     }
   end
 
-  @spec handle_ingest_error({:error, any()}, context()) :: any()
+  @spec handle_ingest_error({:error, any()} | {:error, atom(), any()}, context()) :: any()
+  def handle_ingest_error({:error, step, error}, ctx) when is_atom(step) do
+    Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error at #{step}: #{inspect(error)}")
+
+    _ =
+      Cake.FailedIngests.create_failed_ingest(%{
+        pipeline_behaviour: ctx.behaviour,
+        pipeline_implementation: ctx.implementation,
+        step: Atom.to_string(step),
+        version: ctx.version,
+        error_text: inspect(error),
+        input_identifier: "",
+        pipeline_fatal: true
+      })
+
+    {:error, {step, error}}
+  end
+
   def handle_ingest_error({:error, error}, ctx) do
     Logger.warning(Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error: #{inspect(error)}"))
 
