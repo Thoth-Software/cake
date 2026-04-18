@@ -46,36 +46,26 @@ defmodule Cake.Search.OpenSearch do
   @spec doc_fields() :: [String.t()]
   def doc_fields, do: @doc_fields
 
-  @doc "Execute an arbitrary `%Query{}`. Escape hatch for callers that need full query control."
+  @doc "Execute an arbitrary `%Query{}` against the default cluster."
   @impl Cake.Search
   @spec search(Query.t()) :: {:ok, Snap.SearchResponse.t()} | {:error, any()}
   def search(%Query{} = query) do
-    cluster = query.cluster || @default_cluster
-    Snap.Search.search(cluster, query.index, Query.to_opensearch(query))
+    Snap.Search.search(@default_cluster, query.index, Query.to_query_map(query))
   end
 
   @doc """
   Search the chunks_of_books index.
 
-  Options: `:size`, `:k`, `:ef_search`, `:keyword_weight`, `:fields`, `:cluster`.
+  Options: `:size`, `:k`, `:keyword_weight`, `:fields`, `:cluster`.
   `embedding` may be nil for keyword-only search.
   """
   @impl Cake.Search
   @spec search_chunks(:keyword | :vector | :hybrid, String.t(), [float()] | nil, keyword()) ::
           {:ok, Snap.SearchResponse.t()} | {:error, any()}
   def search_chunks(search_type, keywords, embedding \\ nil, opts \\ []) do
-    search(
-      Query.build(search_type, @chunks_index, %{
-        keywords: keywords,
-        embedding: embedding,
-        fields: Keyword.get(opts, :fields, @chunk_fields),
-        size: Keyword.get(opts, :size, @default_size),
-        k: Keyword.get(opts, :k, @default_k),
-        ef_search: Keyword.get(opts, :ef_search, @default_ef_search),
-        keyword_weight: Keyword.get(opts, :keyword_weight, @default_keyword_weight),
-        cluster: Keyword.get(opts, :cluster, @default_cluster)
-      })
-    )
+    cluster = Keyword.get(opts, :cluster, @default_cluster)
+    query = build_query(search_type, @chunks_index, keywords, embedding, opts, @chunk_fields)
+    Snap.Search.search(cluster, @chunks_index, Query.to_query_map(query))
   end
 
   @doc """
@@ -110,17 +100,32 @@ defmodule Cake.Search.OpenSearch do
   @spec search_docs(:keyword | :vector | :hybrid, String.t(), [float()] | nil, keyword()) ::
           {:ok, Snap.SearchResponse.t()} | {:error, any()}
   def search_docs(search_type, keywords, embedding \\ nil, opts \\ []) do
-    search(
-      Query.build(search_type, @docs_index, %{
-        keywords: keywords,
-        embedding: embedding,
-        fields: Keyword.get(opts, :fields, @doc_fields),
-        size: Keyword.get(opts, :size, @default_size),
-        k: Keyword.get(opts, :k, @default_k),
-        ef_search: Keyword.get(opts, :ef_search, @default_ef_search),
-        keyword_weight: Keyword.get(opts, :keyword_weight, @default_keyword_weight),
-        cluster: Keyword.get(opts, :cluster, @default_cluster)
-      })
-    )
+    cluster = Keyword.get(opts, :cluster, @default_cluster)
+    query = build_query(search_type, @docs_index, keywords, embedding, opts, @doc_fields)
+    Snap.Search.search(cluster, @docs_index, Query.to_query_map(query))
+  end
+
+  defp build_query(:keyword, index, keywords, _embedding, opts, default_fields) do
+    fields = Keyword.get(opts, :fields, default_fields)
+    size = Keyword.get(opts, :size, @default_size)
+    Query.match(Query.new(index, size: size), keywords, fields)
+  end
+
+  defp build_query(:vector, index, _keywords, embedding, opts, _default_fields) do
+    k = Keyword.get(opts, :k, @default_k)
+    size = Keyword.get(opts, :size, @default_size)
+    Query.knn(Query.new(index, size: size), "embedding", embedding, k)
+  end
+
+  defp build_query(:hybrid, index, keywords, embedding, opts, default_fields) do
+    fields = Keyword.get(opts, :fields, default_fields)
+    size = Keyword.get(opts, :size, @default_size)
+    k = Keyword.get(opts, :k, @default_k)
+    keyword_weight = Keyword.get(opts, :keyword_weight, @default_keyword_weight)
+    base = Query.new(index, size: size)
+
+    base
+    |> Query.knn("embedding", embedding, k)
+    |> Query.match(keywords, fields, boost: keyword_weight)
   end
 end
