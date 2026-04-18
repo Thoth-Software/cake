@@ -8,6 +8,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   import Ecto.Query, warn: false
   alias Cake.Documents.Hexdocs.Hexdoc
   alias Cake.Pipelines
+  alias Cake.Pipelines.Context
   alias Cake.Repo
 
   require Logger
