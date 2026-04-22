@@ -12,6 +12,7 @@ defmodule Cake.Search.OpenSearch do
   alias Cake.Books
   alias Cake.Search.Query
 
+  # TODO make these defaults into config vars
   @default_size 30
   @default_k 30
   @default_ef_search 256
@@ -70,7 +71,9 @@ defmodule Cake.Search.OpenSearch do
 
   @doc """
   Search the chunks_of_books index, then expand each hit by fetching neighboring
-  chunks from Postgres. Returns `[%Chunk{}]` with `:parsed_book` preloaded.
+  chunks from Postgres. Returns tagged tuples `{%Chunk{}, %{os_score: float() | nil}}`
+  with `:parsed_book` preloaded. Direct hits carry their OpenSearch `_score`; expanded
+  neighbors receive `os_score: nil`.
 
   `expand` is the neighbor offset: how many chunks on each side of a hit to include.
   Accepts all the same opts as `search_chunks/4`.
@@ -82,7 +85,9 @@ defmodule Cake.Search.OpenSearch do
           [float()] | nil,
           non_neg_integer(),
           keyword()
-        ) :: {:ok, [Cake.Books.Chunk.t()]} | {:error, any()}
+        ) ::
+          {:ok, [{Cake.Books.Chunk.t(), %{os_score: float() | nil}}]}
+          | {:error, any()}
   def search_chunks_with_context(
         search_type,
         keywords,
@@ -91,8 +96,35 @@ defmodule Cake.Search.OpenSearch do
         opts \\ []
       ) do
     with {:ok, %{hits: hits}} <- search_chunks(search_type, keywords, embedding, opts) do
-      {:ok, hits |> Books.chunks_for_hits() |> Books.expand_with_neighbors(expand)}
+      {:ok, hits |> scored_chunks_for_hits() |> scored_expand_with_neighbors(expand)}
     end
+  end
+
+  @spec scored_chunks_for_hits(%Snap.Hits{} | [Snap.Hit.t()]) ::
+          [{Cake.Books.Chunk.t(), %{os_score: float()}}]
+  defp scored_chunks_for_hits(hits) do
+    scores_by_id = Map.new(hits, fn hit -> {hit.source["id"], hit.score} end)
+    chunks = Books.chunks_for_hits(hits)
+    Enum.map(chunks, fn chunk -> {chunk, %{os_score: Map.get(scores_by_id, chunk.id)}} end)
+  end
+
+  @spec scored_expand_with_neighbors(
+          [{Cake.Books.Chunk.t(), %{os_score: float()}}],
+          non_neg_integer()
+        ) :: [{Cake.Books.Chunk.t(), %{os_score: float() | nil}}]
+  defp scored_expand_with_neighbors(scored_chunks, offset) do
+    plain_chunks = Enum.map(scored_chunks, &elem(&1, 0))
+    original_ids = MapSet.new(plain_chunks, & &1.id)
+    all_expanded = Books.expand_with_neighbors(plain_chunks, offset)
+    scores_by_id = Map.new(scored_chunks, fn {chunk, scores} -> {chunk.id, scores} end)
+
+    Enum.map(all_expanded, fn chunk ->
+      if MapSet.member?(original_ids, chunk.id) do
+        {chunk, Map.get(scores_by_id, chunk.id, %{os_score: nil})}
+      else
+        {chunk, %{os_score: nil}}
+      end
+    end)
   end
 
   @doc "Search the docs index. Same option shape as `search_chunks/4`."
@@ -114,7 +146,10 @@ defmodule Cake.Search.OpenSearch do
   defp build_query(:vector, index, _keywords, embedding, opts, _default_fields) do
     k = Keyword.get(opts, :k, @default_k)
     size = Keyword.get(opts, :size, @default_size)
-    Query.knn(Query.new(index, size: size), "embedding", embedding, k)
+
+    index
+    |> Query.new(size: size)
+    |> Query.knn("embedding", embedding, k)
   end
 
   defp build_query(:hybrid, index, keywords, embedding, opts, default_fields) do

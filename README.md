@@ -50,11 +50,13 @@ Cake has two pipeline behaviours because, as of now, we have only two GDS. The s
 
 **`Cake.Documents.Cluster`** (Snap/OpenSearch) manages connection configuration and index lifecycle. It's a GenServer that creates indices at startup. It no longer contains search logic — that has moved to `Cake.Search`.
 
-**`Cake.Search`** is the search API for the application. It is a behaviour module (callbacks only) — callers ask it for search results and it figures out how to get them. The real implementation is `Cake.Search.OpenSearch`, which wraps query construction and execution. In tests, `Cake.Search.Mock` (Mox) satisfies the same contract. The abstraction boundary means that if OpenSearch is ever replaced, `Cake.Search` stays (ideally with the same public API) while the cluster and query internals change.
+**`Cake.Search`** defines the behaviour contract (`@callback` declarations) AND provides shared scoring utilities (cosine similarity, score normalization, threshold filtering, and result sorting) as regular public functions. This follows the same pattern as `GenServer`, which defines callbacks alongside public functions like `GenServer.call/3`. The real implementation is `Cake.Search.OpenSearch`, which wraps query construction and execution. In tests, `Cake.Search.Mock` (Mox) satisfies the same contract. The boundary test: if it needs a network call or a database query, it belongs in the implementation module. If it's math on data already in memory, it belongs in `Cake.Search`. The abstraction boundary means that if OpenSearch is ever replaced, `Cake.Search` stays (ideally with the same public API) while the cluster and query internals change.
+
+**Confidence scoring** uses two signals: OpenSearch's fused hybrid `_score` (available on direct hits) and cosine similarity between the query embedding and each chunk's embedding (available on all chunks including expanded neighbors). Scores are per-query — represented as tagged tuples `{chunk, scores_map}` that exist only during the query lifecycle. `Cake.Search` normalizes, combines, and filters these scores. `Conversation` strips them before handing chunks to `Prompt` and `Responses`. Future signals (cross-encoder reranking, SVM classifiers trained on user feedback) will slot into the same scoring pipeline as additional inputs to the composite relevance score.
 
 `Cake.Search.OpenSearch` exposes three search entry points:
 - `search_chunks/4` — searches the `chunks_of_books` index, returns raw OpenSearch hits.
-- `search_chunks_with_context/5` — same, then expands each hit with neighboring chunks from Postgres via `Books.chunks_for_hits/1` + `Books.expand_with_neighbors/2`. This is the default path for conversational retrieval.
+- `search_chunks_with_context/5` — same, then expands each hit with neighboring chunks from Postgres via `Books.chunks_for_hits/1` + `Books.expand_with_neighbors/2`. Returns tagged tuples `{chunk, %{os_score: float() | nil}}` — direct hits carry the OpenSearch `_score`, expanded neighbors receive `os_score: nil`. This is the default path for conversational retrieval.
 - `search_docs/4` — searches the `docs` index, returns raw hits.
 
 All three support three modes via a `search_type` argument:
@@ -302,8 +304,8 @@ See `feature_roadmap.md` for the full research-backed roadmap. The short version
 **Longer-term:**
 
 - Query decomposition (lives in `Cake.Prompt`; calls `Cake.Generation` for the decomposition round-trip when a question is complex enough to need sub-queries).
-- Confidence/relevance scoring and autorating (live in `Cake.Retrieval`; autorating may graduate to its own module if it develops enough configuration and strategy complexity to warrant it).
-- Cross-encoder re-ranking pipelines (`Cake.Retrieval`).
+- Autorating — deciding whether retrieved context is sufficient to answer a question, likely via SVM or small neural net. Future home is `Cake.Search` or a dedicated module if it grows complex enough.
+- Cross-encoder re-ranking (`Cake.Search`) — a second-pass reranker over the already-scored results from `normalize_and_combine/1`.
 - Query expansion, HyDE-style (spans `Cake.Prompt` for hypothetical-answer generation and `Cake.Retrieval` for searching over the expanded query).
 - Multi-index search and result merging (`Cake.Retrieval`).
 - Semantic chunking with overlap (ingestion pipelines — specifically each `Cake.Books.Pipeline` implementation).

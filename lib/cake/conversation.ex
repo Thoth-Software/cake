@@ -76,14 +76,15 @@ defmodule Cake.Conversation do
   end
 
   defp run_first_turn(question, state) do
-    with {:ok, expanded_chunks} <- embed_and_search(question, state),
+    with {:ok, scored_results} <- embed_and_search(question, state),
+         chunks = Cake.Search.unzip_results(scored_results),
          {:ok, %{response: response, chunk_map: chunk_map}} <-
-           Cake.Responses.query_llm(:openai, expanded_chunks, question, state.response_model) do
+           Cake.Responses.query_llm(:openai, chunks, question, state.response_model) do
       citations = Cake.Citations.extract(response, chunk_map)
 
       new_state = %{
         state
-        | search_results: expanded_chunks,
+        | search_results: chunks,
           message_history: [question, response],
           chunk_map: chunk_map,
           citations: citations
@@ -98,10 +99,26 @@ defmodule Cake.Conversation do
 
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Embeddings.embed(provider, %{input: question}, embedder),
-         {:ok, expanded_chunks} <-
+         {:ok, scored_hits} <-
            search.search_chunks_with_context(:hybrid, question, embedding) do
-      {:ok, expanded_chunks}
+      scored_results =
+        scored_hits
+        |> Cake.Search.score_results(embedding)
+        |> Cake.Search.normalize_and_combine()
+        |> Cake.Search.sort_by_relevance()
+
+      Logger.debug(
+        "Scored #{length(scored_results)} results. " <>
+          "Relevance range: #{inspect(score_range(scored_results))}"
+      )
+
+      {:ok, scored_results}
     end
+  end
+
+  defp score_range(scored_results) do
+    scores = Enum.map(scored_results, fn {_, %{relevance_score: s}} -> s end)
+    {Enum.min(scores, fn -> 0.0 end), Enum.max(scores, fn -> 0.0 end)}
   end
 
   defp run_subsequent_turn(question, search_results, state) do
