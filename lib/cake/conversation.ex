@@ -1,7 +1,6 @@
 defmodule Cake.Conversation do
   use GenServer
 
-  alias Cake.Books
   alias Cake.Embeddings
 
   require Logger
@@ -28,14 +27,11 @@ defmodule Cake.Conversation do
   @impl GenServer
   def init(opts) do
     state = %{
-      cluster: opts.cluster,
+      search: opts.search,
       reply_to: opts.reply_to,
       embedder: opts.embedder,
-      index: opts.index,
       response_model: opts.response_model,
       provider: opts.provider,
-      search_type: opts.search_type,
-      fields: opts.fields,
       search_results: [],
       message_history: [],
       chunk_map: %{},
@@ -80,14 +76,15 @@ defmodule Cake.Conversation do
   end
 
   defp run_first_turn(question, state) do
-    with {:ok, expanded_chunks} <- embed_and_search(question, state),
+    with {:ok, scored_results} <- embed_and_search(question, state),
+         chunks = Cake.Search.unzip_results(scored_results),
          {:ok, %{response: response, chunk_map: chunk_map}} <-
-           Cake.Responses.query_llm(:openai, expanded_chunks, question, state.response_model) do
+           Cake.Responses.query_llm(:openai, chunks, question, state.response_model) do
       citations = Cake.Citations.extract(response, chunk_map)
 
       new_state = %{
         state
-        | search_results: expanded_chunks,
+        | search_results: chunks,
           message_history: [question, response],
           chunk_map: chunk_map,
           citations: citations
@@ -98,26 +95,30 @@ defmodule Cake.Conversation do
   end
 
   defp embed_and_search(question, state) do
-    %{
-      cluster: cluster,
-      embedder: embedding_model,
-      index: index,
-      provider: provider,
-      search_type: search_type,
-      fields: fields
-    } = state
+    %{search: search, provider: provider, embedder: embedder} = state
 
     with {:ok, %{attrs: %{embedding: embedding}}} <-
-           Embeddings.embed(provider, %{input: question}, embedding_model),
-         {:ok, %{hits: hits}} <-
-           cluster.search(search_type, index, %{
-             keywords: question,
-             embedding: embedding,
-             keyword_weight: 0.8,
-             fields: fields
-           }) do
-      {:ok, Books.expand_with_neighbors(Books.chunks_for_hits(hits), 2)}
+           Embeddings.embed(provider, %{input: question}, embedder),
+         {:ok, scored_hits} <-
+           search.search_chunks_with_context(:hybrid, question, embedding) do
+      scored_results =
+        scored_hits
+        |> Cake.Search.score_results(embedding)
+        |> Cake.Search.normalize_and_combine()
+        |> Cake.Search.sort_by_relevance()
+
+      Logger.debug(
+        "Scored #{length(scored_results)} results. " <>
+          "Relevance range: #{inspect(score_range(scored_results))}"
+      )
+
+      {:ok, scored_results}
     end
+  end
+
+  defp score_range(scored_results) do
+    scores = Enum.map(scored_results, fn {_, %{relevance_score: s}} -> s end)
+    {Enum.min(scores, fn -> 0.0 end), Enum.max(scores, fn -> 0.0 end)}
   end
 
   defp run_subsequent_turn(question, search_results, state) do

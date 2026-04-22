@@ -115,7 +115,13 @@ defmodule Cake.Search.QueryTest do
              ]
 
       assert result.query.bool.should == [
-               %{"multi_match" => %{"query" => "Supervisor", "fields" => ["title"], "boost" => 1.0}}
+               %{
+                 "multi_match" => %{
+                   "query" => "Supervisor",
+                   "fields" => ["title"],
+                   "boost" => 1.0
+                 }
+               }
              ]
 
       assert result.query.bool.filter == [%{"term" => %{"language" => "Elixir"}}]

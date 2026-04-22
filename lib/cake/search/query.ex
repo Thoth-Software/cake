@@ -1,28 +1,28 @@
 defmodule Cake.Search.Query do
   @moduledoc """
-  Composable query builder for OpenSearch queries.
+  Composable query builder for OpenSearch bool queries.
 
-  Builders operate on a `%Query{}` struct. Each builder either appends a clause
-  to one of the bool lists or sets a scalar field. `to_query_map/1` converts the
-  struct to the nested map OpenSearch expects.
+  Each builder function returns a new `%Query{}` with a clause appended or a
+  scalar field overwritten. `to_query_map/1` converts the struct to the nested
+  map that `Snap.Search.search/3` expects.
 
   The outer query envelope uses atom keys for compile-time safety. Clause
-  contents are plain maps whose schema belongs to OpenSearch, not to this module.
+  contents use string keys because their schema belongs to OpenSearch, not to
+  this module.
 
   ## Example
 
       alias Cake.Search.Query
 
-      Query.new("docs", size: 20)
-      |> Query.knn("embedding", my_vector, 10)
-      |> Query.match("GenServer", ["title", "text"], boost: 2.0)
+      Query.new("chunks_of_books", size: 30)
+      |> Query.knn("embedding", my_vector, 30)
+      |> Query.match("GenServer", ["section_title^2", "text"], boost: 0.8)
       |> Query.filter_term("language", "Elixir")
-      |> Query.min_score(0.5)
       |> Query.to_query_map()
   """
 
   @enforce_keys [:index]
-  defstruct [:index, size: 10, must: [], should: [], filter: [], min_score: nil]
+  defstruct [:index, :min_score, size: 10, must: [], should: [], filter: []]
 
   @type t :: %__MODULE__{
           index: String.t(),
