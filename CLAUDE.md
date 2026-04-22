@@ -93,7 +93,7 @@ If your task touches any of these, flag it to the user rather than silently reso
 
 - **Polling → PubSub**: `ChatLive` and `Conversation` both have TODO markers for replacing `Process.send_after` polling with Phoenix.PubSub.
 - **`Responses.Behaviour`**: Not yet extracted. Preferred approach: pass the responses module as an argument, consistent with how `caller` works.
-- **`search_fields/0` callback**: Each GDS should declare its own searchable fields rather than callers passing a `fields` list. TODO comment in `Cluster.search/3`.
+- **`search_fields/0` callback**: Each GDS should declare its own searchable fields rather than callers passing a `fields` list. TODO comment in `Cake.Search.OpenSearch`.
 - **`Responses.query_llm/4` hardcoded to Chunk**: Needs to become GDS-agnostic.
 - **`Conversation.start_link/6` positional args**: Should eventually accept a struct.
 - **First-turn error wrapping bug**: The `else` branch in the first-turn `handle_cast` double-wraps the error tuple. Comment in code: "Fix ya shit." Do not silently fix this — discuss with user first.
@@ -135,7 +135,7 @@ lib/
       pipeline.ex          # Books.Pipeline behaviour + orchestrator
       pdf/pipeline.ex      # PDF implementation (Rustler NIF)
     documents/             # Documentation ingestion subsystem
-      cluster.ex           # OpenSearch Snap.Cluster + search/3
+      cluster.ex           # OpenSearch Snap.Cluster (connection + index lifecycle only)
       parsed_document.ex   # ParsedDocument schema
       parsed_documents.ex  # ParsedDocuments context (CRUD)
       pipeline.ex          # Documents.Pipeline behaviour + orchestrator
@@ -144,6 +144,10 @@ lib/
         hexdoc.ex          # Raw hexdoc schema
         pipeline.ex        # Hexdocs.Pipeline implementation
     failed_ingests/        # FailedIngest schema + context
+    search.ex              # Cake.Search behaviour (contract only)
+    search/
+      query.ex             # Query struct: build/3, to_opensearch/1
+      open_search.ex       # Cake.Search.OpenSearch — real implementation
     conversation.ex        # Conversation GenServer
     citations.ex           # Citation parser (pure function)
     embeddings.ex          # OpenAI embeddings client + Behaviour
