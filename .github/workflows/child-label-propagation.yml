@@ -1,0 +1,59 @@
+name: Child-to-parent label propagation
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  propagate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const labelName = context.payload.label.name;
+
+            // Don't propagate epic-level labels upward — they describe
+            // the issue's own depth in the hierarchy, not its children's.
+            const skipLabels = ['epic-1', 'epic-2', 'epic-3', 'epic-4'];
+            if (skipLabels.includes(labelName)) {
+              console.log(`Skipping propagation of "${labelName}"`);
+              return;
+            }
+
+            const childNumber = context.payload.issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Search for open issues whose body references this child issue.
+            // The query looks for the literal string "#123" in issue bodies.
+            const query = `repo:${owner}/${repo} #${childNumber} in:body is:issue is:open`;
+
+            let parentIssues = [];
+            try {
+              const result = await github.rest.search.issuesAndPullRequests({ q: query });
+              parentIssues = result.data.items.filter(
+                item => item.number !== childNumber && !item.pull_request
+              );
+            } catch (e) {
+              console.log(`Search failed: ${e.message}`);
+              return;
+            }
+
+            if (parentIssues.length === 0) {
+              console.log(`No parent issues found referencing #${childNumber}`);
+              return;
+            }
+
+            for (const parent of parentIssues) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: parent.number,
+                  labels: [labelName],
+                });
+                console.log(`Applied "${labelName}" to parent #${parent.number}`);
+              } catch (e) {
+                console.log(`Failed to label #${parent.number}: ${e.message}`);
+              }
+            }

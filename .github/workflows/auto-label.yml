@@ -1,0 +1,49 @@
+name: Auto-label issues
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || '';
+            const title = context.payload.issue.title || '';
+            const text = `${title} ${body}`;
+
+            const mappings = {
+              '#!back-end': 'back-end',
+              '#!backburner': 'backburner',
+              '#!bug': 'bug',
+              '#!devops': 'devops',
+              '#!docs': 'documentation',
+              '#!enhancement': 'enhancement',
+              '#!epic-1': 'epic-1',
+              '#!epic-2': 'epic-2',
+              '#!epic-3': 'epic-3',
+              '#!epic-4': 'epic-4',
+              '#!front-end': 'front-end',
+              '#!fire': 'HOUSE ON FIRE',
+              '#!opensearch': 'opensearch',
+              '#!priority': 'priority',
+              '#!refactor': 'refactor',
+              '#!research': 'research',
+              '#!rust': 'Rust',
+              '#!testing': 'testing',
+            };
+
+            const labelsToAdd = Object.entries(mappings)
+              .filter(([tag]) => text.includes(tag))
+              .map(([, label]) => label);
+
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: labelsToAdd,
+              });
+            }
