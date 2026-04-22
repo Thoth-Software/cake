@@ -90,12 +90,8 @@ defmodule Cake.Search do
     compute_cosine(dot, mag_sq_a, mag_sq_b)
   end
 
-  defp compute_cosine(_dot, 0.0, _msb), do: 0.0
-  defp compute_cosine(_dot, _msa, 0.0), do: 0.0
-
-  defp compute_cosine(dot, mag_sq_a, mag_sq_b) do
-    dot / (:math.sqrt(max(0.0, mag_sq_a)) * :math.sqrt(max(0.0, mag_sq_b)))
-  end
+  defp compute_cosine(_dot, mag_a, mag_b) when mag_a == 0.0 or mag_b == 0.0, do: 0.0
+  defp compute_cosine(dot, mag_a, mag_b), do: dot / :math.sqrt(mag_a * mag_b)
 
   @doc """
   Attaches cosine similarity scores to a list of scored results.
