@@ -56,6 +56,8 @@ Dialyzer is not yet a hard push gate (the config line is commented out). Dialyze
 
 Modules that depend on external services accept collaborator modules as arguments — for Mox testability, not runtime polymorphism. `Conversation` takes `caller` (the cluster module). Pipelines read the embeddings module from application config. When adding new external-service dependencies, follow this pattern: define a behaviour, implement it, pass the module as an argument or read it from config. In the testing environment, a mock should be available.
 
+`Cake.Conversation` additionally requires a `:gds` opt (a `Cake.GDS` module) that threads through to `Cake.Search.OpenSearch`. Required, not defaulted — `init/1` validates before spawn. `Cake.Search.OpenSearch.search_chunks_with_context/5` and friends read the target index, search fields, hit hydration, and neighbor expansion from this module. Follow the same required-opt pattern for any future orchestration-layer module that dispatches across GDSes.
+
 *Certified accurate by caleb-bb on 2026-04-16*
 
 ### Result Tuples and Pipeline Error Handling
@@ -111,7 +113,6 @@ The dev environment runs three containers via `docker-compose.yml`: `cake_app`, 
 If your task touches any of these, flag it to the user rather than silently resolving or ignoring it.
 
 - **Polling → PubSub**: `ChatLive` and `Conversation` both have TODO markers for replacing `Process.send_after` polling with Phoenix.PubSub.
-- **`Cake.GDS` + `Cake.Promptable` — contract-only, Phase 1 tests red**: Both modules exist (`lib/cake/gds.ex`, `lib/cake/promptable.ex`) but no schema/struct implements them yet. Phase 2 of epic #125 wires up `ParsedBook`, `ParsedDocument`, and `Chunk`. Phase 1 (#127) landed 30 pre-written red tests in `test/cake/{books,documents,search}/`, `test/cake/{prompt,conversation}_test.exs`, and `test/support/fixture_gds.ex` — each names its Phase 2 target via the failure message. Do not merge Phase 2 commits that don't turn specific ones green. If your task touches retrieval, prompt assembly, or either of these two modules, check whether the epic is still open before inventing parallel abstractions.
 - **`Conversation.start_link/6` positional args**: Should eventually accept a struct.
 - **First-turn error wrapping bug**: The `else` branch in the first-turn `handle_cast` double-wraps the error tuple. Comment in code: "Fix ya shit." Do not silently fix this — discuss with user first.
 - **Post-demo formats**: Word, Excel, CSV, JPG pipelines are explicitly deferred.
@@ -145,7 +146,7 @@ Load these **before** making changes. Read the full file, then proceed.
 | Create/modify/supervise GenServers/Agents/Tasks, modify supervision tree, use spawn/Task.async, work with Registry/PubSub/message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` (add `dynamic-supervisor.md` if dynamic spawning) |
 | Write/modify `@type`, `@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
 | Write/modify public API for external consumption, design behaviours for third-party use | `library-guidelines.md` |
-| Add a new GDS, modify an existing GDS's contract, or implement `Cake.GDS` / `Cake.Promptable` on a schema or struct | README's "Cardinality: How GDSes, Data Structures, and Pipelines Relate" section + `design-anti-patterns.md` |
+| Add a new GDS, modify an existing GDS's contract, or implement `Cake.GDS` / `Cake.Promptable` / `Cake.Citable` on a schema or struct | README's "Cardinality" + "Adding a New GDS" sections; `lib/cake/gds.ex` + `lib/cake/promptable.ex` + `lib/cake/citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md`. |
 
 *Certified accurate by caleb-bb on 2026-04-16*
 
@@ -177,8 +178,8 @@ lib/
       query.ex             # Query struct: build/3, to_opensearch/1
       open_search.ex       # Cake.Search.OpenSearch — real implementation
     conversation.ex        # Conversation GenServer
-    gds.ex                 # Cake.GDS behaviour (module-level GDS contract; no impls yet)
-    promptable.ex          # Cake.Promptable protocol (value-level prompt-context contract; no impls yet)
+    gds.ex                 # Cake.GDS behaviour (module-level GDS contract; impl'd by ParsedBook, ParsedDocument)
+    promptable.ex          # Cake.Promptable protocol (value-level prompt-context contract; impl'd by Chunk, ParsedDocument)
     citable.ex             # Cake.Citable protocol (citation-metadata contract across GDS types)
     citations.ex           # Parses [N] markers; returns {citations, hallucinated}
     embeddings.ex          # OpenAI embeddings client + Behaviour
