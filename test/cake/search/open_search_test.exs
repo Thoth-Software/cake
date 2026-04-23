@@ -1,7 +1,8 @@
 defmodule Cake.Search.OpenSearchTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Cake.Search.OpenSearch
+  alias Cake.Support.FixtureGDS
 
   describe "default accessors" do
     test "default_size/0" do
@@ -30,6 +31,68 @@ defmodule Cake.Search.OpenSearchTest do
 
     test "doc_fields/0" do
       assert OpenSearch.doc_fields() == ["title^3", "text"]
+    end
+  end
+
+  describe "dispatch is parameterized on :gds" do
+    # These tests pin the Phase 2 contract: search_chunks_with_context/5 reads
+    # its target index, searchable fields, and hit-hydration logic from the
+    # :gds module rather than hardcoding Cake.Books. Currently the :gds opt is
+    # ignored; Phase 2 refactors the impl to route through `gds.index_name/0`,
+    # `gds.search_fields/0`, and `gds.load_from_hits/1`.
+    #
+    # FixtureGDS records its callback invocations via Process.put so we can
+    # assert dispatch without mocking OpenSearch-side traffic.
+
+    setup do
+      FixtureGDS.reset_calls()
+      :ok
+    end
+
+    test "routes index_name/0 through the :gds module" do
+      _ =
+        try do
+          OpenSearch.search_chunks_with_context(:keyword, "anything", nil, 0,
+            gds: FixtureGDS
+          )
+        rescue
+          _ -> :rescued
+        catch
+          _, _ -> :caught
+        end
+
+      assert :index_name in FixtureGDS.calls(),
+             "expected search_chunks_with_context to call FixtureGDS.index_name/0, " <>
+               "but recorded calls were #{inspect(FixtureGDS.calls())}"
+    end
+
+    test "routes search_fields/0 through the :gds module" do
+      _ =
+        try do
+          OpenSearch.search_chunks_with_context(:keyword, "anything", nil, 0,
+            gds: FixtureGDS
+          )
+        rescue
+          _ -> :rescued
+        catch
+          _, _ -> :caught
+        end
+
+      assert :search_fields in FixtureGDS.calls(),
+             "expected search_chunks_with_context to call FixtureGDS.search_fields/0, " <>
+               "but recorded calls were #{inspect(FixtureGDS.calls())}"
+    end
+
+    test "FixtureGDS is a valid Cake.GDS" do
+      behaviours = FixtureGDS.__info__(:attributes)[:behaviour] || []
+      assert Cake.GDS in behaviours
+      assert FixtureGDS.index_name() == "fixture_index"
+      assert FixtureGDS.search_fields() == ["body"]
+
+      hits = [%Snap.Hit{source: %{"id" => "a", "body" => "body-a"}}]
+      [record] = FixtureGDS.load_from_hits(hits)
+      assert record.id == "a"
+      assert record.body == "body-a"
     end
   end
 end
