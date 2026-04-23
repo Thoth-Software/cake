@@ -597,4 +597,43 @@ defmodule Cake.ConversationTest do
       assert state.errors == [{:rate_limited, nil}]
     end
   end
+
+  describe "zero chunks" do
+    test "empty cluster results: LLM is still called (no short-circuit), Responses receives empty indexed_chunks, turn completes" do
+      test_pid = self()
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, []}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, indexed_chunks, _opts ->
+        send(test_pid, {:responses_indexed_chunks, indexed_chunks})
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_handler(pid, fn messages, _model ->
+        send(test_pid, {:prompt_captured, messages})
+        {:ok, %{text: "x", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      Conversation.ask(pid, "q with no matching chunks")
+
+      assert_receive {:prompt_captured, _messages}, 500
+      assert_receive {:responses_indexed_chunks, indexed_chunks}, 500
+      assert_receive {:convo_response, _, _}, 500
+
+      assert indexed_chunks == []
+    end
+  end
 end
