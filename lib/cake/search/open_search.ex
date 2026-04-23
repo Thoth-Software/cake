@@ -5,11 +5,16 @@ defmodule Cake.Search.OpenSearch do
   Builds queries via `Cake.Search.Query` and executes them against the cluster
   via `Snap.Search.search/3`. Owns retrieval and chunk expansion. Does not own
   munging — that's `Prompt`'s province.
+
+  Retrieval is parameterized on a `Cake.GDS` module passed via the `:gds` opt.
+  The GDS module supplies the target index (`index_name/0`), default search
+  fields (`search_fields/0`), hit hydration (`load_from_hits/1`), and optional
+  neighbor expansion (`expand_with_neighbors/2`). OpenSearch is GDS-agnostic —
+  adding a new GDS does not require changes here.
   """
 
   @behaviour Cake.Search
 
-  alias Cake.Books
   alias Cake.Search.Query
 
   # TODO make these defaults into config vars
@@ -19,12 +24,6 @@ defmodule Cake.Search.OpenSearch do
   @default_keyword_weight 0.8
   @default_cluster Cake.Documents.Cluster
   @default_expand_offset 2
-
-  @chunks_index "chunks_of_books"
-  @docs_index "docs"
-
-  @chunk_fields ["section_title^2", "text"]
-  @doc_fields ["title^3", "text"]
 
   @spec default_size() :: pos_integer()
   def default_size, do: @default_size
@@ -41,12 +40,6 @@ defmodule Cake.Search.OpenSearch do
   @spec default_expand_offset() :: non_neg_integer()
   def default_expand_offset, do: @default_expand_offset
 
-  @spec chunk_fields() :: [String.t()]
-  def chunk_fields, do: @chunk_fields
-
-  @spec doc_fields() :: [String.t()]
-  def doc_fields, do: @doc_fields
-
   @doc "Execute an arbitrary `%Query{}` against the default cluster."
   @impl Cake.Search
   @spec search(Query.t()) :: {:ok, Snap.SearchResponse.t()} | {:error, any()}
@@ -55,28 +48,31 @@ defmodule Cake.Search.OpenSearch do
   end
 
   @doc """
-  Search the chunks_of_books index.
+  Run a keyword/vector/hybrid search against the GDS's index.
 
-  Options: `:size`, `:k`, `:keyword_weight`, `:fields`, `:cluster`.
-  `embedding` may be nil for keyword-only search.
+  Required opt: `:gds` — a module implementing `Cake.GDS`. Other opts:
+  `:size`, `:k`, `:keyword_weight`, `:fields`, `:cluster`. `embedding` may be
+  nil for keyword-only search.
   """
   @impl Cake.Search
   @spec search_chunks(:keyword | :vector | :hybrid, String.t(), [float()] | nil, keyword()) ::
           {:ok, Snap.SearchResponse.t()} | {:error, any()}
   def search_chunks(search_type, keywords, embedding \\ nil, opts \\ []) do
+    gds = Keyword.fetch!(opts, :gds)
     cluster = Keyword.get(opts, :cluster, @default_cluster)
-    query = build_query(search_type, @chunks_index, keywords, embedding, opts, @chunk_fields)
-    Snap.Search.search(cluster, @chunks_index, Query.to_query_map(query))
+    index = gds.index_name()
+    query = build_query(search_type, index, keywords, embedding, opts, gds.search_fields())
+    Snap.Search.search(cluster, index, Query.to_query_map(query))
   end
 
   @doc """
-  Search the chunks_of_books index, then expand each hit by fetching neighboring
-  chunks from Postgres. Returns tagged tuples `{%Chunk{}, %{os_score: float() | nil}}`
-  with `:parsed_book` preloaded. Direct hits carry their OpenSearch `_score`; expanded
-  neighbors receive `os_score: nil`.
+  Search the GDS's index, then expand each hit by fetching neighboring records
+  via `gds.expand_with_neighbors/2`. Returns tagged tuples
+  `{record, %{os_score: float() | nil}}`. Direct hits carry their OpenSearch
+  `_score`; expanded neighbors receive `os_score: nil`.
 
-  `expand` is the neighbor offset: how many chunks on each side of a hit to include.
-  Accepts all the same opts as `search_chunks/4`.
+  `expand` is the neighbor offset. Accepts all the same opts as
+  `search_chunks/4`, including the required `:gds` opt.
   """
   @impl Cake.Search
   @spec search_chunks_with_context(
@@ -85,9 +81,7 @@ defmodule Cake.Search.OpenSearch do
           [float()] | nil,
           non_neg_integer(),
           keyword()
-        ) ::
-          {:ok, [{Cake.Books.Chunk.t(), %{os_score: float() | nil}}]}
-          | {:error, any()}
+        ) :: {:ok, [{struct(), %{os_score: float() | nil}}]} | {:error, any()}
   def search_chunks_with_context(
         search_type,
         keywords,
@@ -95,46 +89,51 @@ defmodule Cake.Search.OpenSearch do
         expand \\ @default_expand_offset,
         opts \\ []
       ) do
+    gds = Keyword.fetch!(opts, :gds)
+
     with {:ok, %{hits: hits}} <- search_chunks(search_type, keywords, embedding, opts) do
-      {:ok, hits |> scored_chunks_for_hits() |> scored_expand_with_neighbors(expand)}
+      {:ok, hits |> scored_units_for_hits(gds) |> scored_expand_with_neighbors(gds, expand)}
     end
   end
 
-  @spec scored_chunks_for_hits(%Snap.Hits{} | [Snap.Hit.t()]) ::
-          [{Cake.Books.Chunk.t(), %{os_score: float()}}]
-  defp scored_chunks_for_hits(hits) do
+  @spec scored_units_for_hits(%Snap.Hits{} | [Snap.Hit.t()], module()) ::
+          [{struct(), %{os_score: float()}}]
+  defp scored_units_for_hits(hits, gds) do
     scores_by_id = Map.new(hits, fn hit -> {hit.source["id"], hit.score} end)
-    chunks = Books.chunks_for_hits(hits)
-    Enum.map(chunks, fn chunk -> {chunk, %{os_score: Map.get(scores_by_id, chunk.id)}} end)
+    units = gds.load_from_hits(hits)
+    Enum.map(units, fn unit -> {unit, %{os_score: Map.get(scores_by_id, unit.id)}} end)
   end
 
   @spec scored_expand_with_neighbors(
-          [{Cake.Books.Chunk.t(), %{os_score: float()}}],
+          [{struct(), %{os_score: float()}}],
+          module(),
           non_neg_integer()
-        ) :: [{Cake.Books.Chunk.t(), %{os_score: float() | nil}}]
-  defp scored_expand_with_neighbors(scored_chunks, offset) do
-    plain_chunks = Enum.map(scored_chunks, &elem(&1, 0))
-    original_ids = MapSet.new(plain_chunks, & &1.id)
-    all_expanded = Books.expand_with_neighbors(plain_chunks, offset)
-    scores_by_id = Map.new(scored_chunks, fn {chunk, scores} -> {chunk.id, scores} end)
+        ) :: [{struct(), %{os_score: float() | nil}}]
+  defp scored_expand_with_neighbors(scored_units, gds, offset) do
+    plain_units = Enum.map(scored_units, &elem(&1, 0))
+    original_ids = MapSet.new(plain_units, & &1.id)
+    all_expanded = gds.expand_with_neighbors(plain_units, offset)
+    scores_by_id = Map.new(scored_units, fn {unit, scores} -> {unit.id, scores} end)
 
-    Enum.map(all_expanded, fn chunk ->
-      if MapSet.member?(original_ids, chunk.id) do
-        {chunk, Map.get(scores_by_id, chunk.id, %{os_score: nil})}
+    Enum.map(all_expanded, fn unit ->
+      if MapSet.member?(original_ids, unit.id) do
+        {unit, Map.get(scores_by_id, unit.id, %{os_score: nil})}
       else
-        {chunk, %{os_score: nil}}
+        {unit, %{os_score: nil}}
       end
     end)
   end
 
-  @doc "Search the docs index. Same option shape as `search_chunks/4`."
+  @doc "Search the GDS's index. Same option shape as `search_chunks/4`."
   @impl Cake.Search
   @spec search_docs(:keyword | :vector | :hybrid, String.t(), [float()] | nil, keyword()) ::
           {:ok, Snap.SearchResponse.t()} | {:error, any()}
   def search_docs(search_type, keywords, embedding \\ nil, opts \\ []) do
+    gds = Keyword.fetch!(opts, :gds)
     cluster = Keyword.get(opts, :cluster, @default_cluster)
-    query = build_query(search_type, @docs_index, keywords, embedding, opts, @doc_fields)
-    Snap.Search.search(cluster, @docs_index, Query.to_query_map(query))
+    index = gds.index_name()
+    query = build_query(search_type, index, keywords, embedding, opts, gds.search_fields())
+    Snap.Search.search(cluster, index, Query.to_query_map(query))
   end
 
   defp build_query(:keyword, index, keywords, _embedding, opts, default_fields) do

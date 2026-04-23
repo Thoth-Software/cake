@@ -16,17 +16,34 @@ defmodule Cake.Conversation do
 
   @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
-    GenServer.start_link(__MODULE__, opts)
+    with {:ok, _gds} <- fetch_gds(opts) do
+      GenServer.start_link(__MODULE__, opts)
+    end
   end
 
   @spec start(map()) :: GenServer.on_start()
   def start(opts) when is_map(opts) do
-    GenServer.start(__MODULE__, opts)
+    with {:ok, _gds} <- fetch_gds(opts) do
+      GenServer.start(__MODULE__, opts)
+    end
   end
 
   @impl GenServer
   def init(opts) do
-    state = %{
+    {:ok, gds} = fetch_gds(opts)
+    {:ok, build_state(opts, gds)}
+  end
+
+  defp fetch_gds(opts) do
+    case Map.fetch(opts, :gds) do
+      {:ok, nil} -> {:error, %KeyError{key: :gds, term: opts}}
+      {:ok, gds} -> {:ok, gds}
+      :error -> {:error, %KeyError{key: :gds, term: opts}}
+    end
+  end
+
+  defp build_state(opts, gds) do
+    %{
       search: opts.search,
       reply_to: opts.reply_to,
       embedder: opts.embedder,
@@ -34,14 +51,13 @@ defmodule Cake.Conversation do
       provider: opts.provider,
       responses: Map.get(opts, :responses, Cake.Responses),
       generation: Map.get(opts, :generation, Cake.Generation.OpenAI),
+      gds: gds,
       search_results: [],
       message_history: [],
       chunk_map: %{},
       citations: [],
       errors: []
     }
-
-    {:ok, state}
   end
 
   @spec ask(pid(), String.t()) :: :ok
@@ -103,12 +119,18 @@ defmodule Cake.Conversation do
   end
 
   defp embed_and_search(question, state) do
-    %{search: search, provider: provider, embedder: embedder} = state
+    %{search: search, provider: provider, embedder: embedder, gds: gds} = state
 
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Embeddings.embed(provider, %{input: question}, embedder),
          {:ok, scored_hits} <-
-           search.search_chunks_with_context(:hybrid, question, embedding) do
+           search.search_chunks_with_context(
+             :hybrid,
+             question,
+             embedding,
+             Cake.Search.OpenSearch.default_expand_offset(),
+             gds: gds
+           ) do
       scored_results =
         scored_hits
         |> Cake.Search.score_results(embedding)

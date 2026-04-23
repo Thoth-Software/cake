@@ -104,6 +104,18 @@ defmodule Cake.Books.Chunk do
   end
 end
 
+defimpl Cake.Promptable, for: Cake.Books.Chunk do
+  @spec prompt_context(Cake.Books.Chunk.t()) :: String.t()
+  def prompt_context(chunk) do
+    """
+    Book: #{chunk.parsed_book.title} | Page: #{chunk.page_number}
+    Section: #{chunk.section_title || "(none)"}
+
+    #{chunk.text}\
+    """
+  end
+end
+
 defimpl Cake.Citable, for: Cake.Books.Chunk do
   alias Cake.Books.ParsedBook
 

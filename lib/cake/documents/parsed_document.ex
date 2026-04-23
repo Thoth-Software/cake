@@ -14,7 +14,23 @@ defmodule Cake.Documents.ParsedDocument do
   """
 
   use Cake.Schema
+  use Cake.GDS
+
   import Ecto.Changeset
+
+  # Cake.GDS callbacks
+
+  @impl Cake.GDS
+  def index_name, do: "docs"
+
+  @impl Cake.GDS
+  def search_fields, do: ["title^3", "text"]
+
+  @impl Cake.GDS
+  defdelegate load_from_hits(hits), to: Cake.Documents.ParsedDocuments
+
+  # expand_with_neighbors/2 inherited from `use Cake.GDS` default (identity).
+  # ParsedDocument has no ordering concept.
 
   @derive {Jason.Encoder, except: [:__meta__]}
   schema "parsed_documents" do
@@ -124,5 +140,35 @@ defmodule Cake.Documents.ParsedDocument do
   @spec doc_attrs() :: map()
   def doc_attrs do
     %{}
+  end
+end
+
+defimpl Cake.Promptable, for: Cake.Documents.ParsedDocument do
+  @spec prompt_context(Cake.Documents.ParsedDocument.t()) :: String.t()
+  def prompt_context(doc) do
+    "Package: #{doc.package} | Function: #{doc.title}\n" <>
+      "URL: #{doc.url}\n\n" <>
+      doc.text
+  end
+end
+
+defimpl Cake.Citable, for: Cake.Documents.ParsedDocument do
+  @preview_length 200
+
+  @spec metadata(Cake.Documents.ParsedDocument.t()) :: Cake.Citable.metadata()
+  def metadata(doc) do
+    %{
+      id: doc.id,
+      label: "#{doc.package} — #{doc.title}",
+      source_ref: doc.url,
+      preview: String.slice(doc.text, 0, @preview_length),
+      extras: %{
+        package: doc.package,
+        title: doc.title,
+        version: doc.version,
+        language: doc.language,
+        source: doc.source
+      }
+    }
   end
 end
