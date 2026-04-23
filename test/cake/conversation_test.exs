@@ -532,4 +532,33 @@ defmodule Cake.ConversationTest do
       assert is_list(Conversation.print_hierarchy(%{a: 1, b: %{c: 2}}))
     end
   end
+
+  describe "cluster error" do
+    test "cluster {:error, _} delivers {:convo_error, reason} to reply_to without crashing the GenServer" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:error, :timeout}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      ref = Process.monitor(pid)
+
+      Conversation.ask(pid, "q")
+
+      assert_receive {:convo_error, :timeout}, 500
+
+      refute_receive {:DOWN, ^ref, :process, ^pid, _}, 100
+
+      state = :sys.get_state(pid)
+      assert state.errors == [:timeout]
+    end
+  end
 end
