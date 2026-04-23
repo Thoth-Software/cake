@@ -312,4 +312,99 @@ defmodule Cake.ConversationTest do
       assert_receive {:convo_response, _, _}, 500
     end
   end
+
+  describe "citation threading" do
+    test "the five metadata fields and citation indexes thread from chunks to the cited response" do
+      chunks = [
+        %ConvoChunk{
+          embedding: [0.1, 0.2, 0.3],
+          prompt_text: "alpha text",
+          metadata: %{
+            id: "id-1",
+            label: "Alpha label",
+            preview: "alpha preview",
+            source_ref: "src:alpha",
+            extras: %{
+              book_title: "Book Alpha",
+              page_number: 11,
+              section_title: "Section Alpha",
+              chunk_index: 101
+            }
+          }
+        },
+        %ConvoChunk{
+          embedding: [0.4, 0.5, 0.6],
+          prompt_text: "beta text",
+          metadata: %{
+            id: "id-2",
+            label: "Beta label",
+            preview: "beta preview",
+            source_ref: "src:beta",
+            extras: %{
+              book_title: "Book Beta",
+              page_number: 22,
+              section_title: "Section Beta",
+              chunk_index: 202
+            }
+          }
+        }
+      ]
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, Enum.map(chunks, fn c -> {c, %{os_score: 1.0}} end)}
+      end)
+
+      # NOTE: deliberately NOT mocking Cake.Responses — we want the real
+      # process/3 so the citation transformations are part of the pin.
+      {:ok, pid} =
+        start_supervised({Conversation, mocked_opts(%{responses: Cake.Responses})})
+
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(
+        pid,
+        {:ok, %{text: "answer references [2] and then [1].", usage: %{}}}
+      )
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      Conversation.ask(pid, "q")
+
+      assert_receive {:convo_response, _response, citations}, 500
+
+      assert length(citations) == 2
+
+      [first, second] = citations
+
+      assert first.new_index == 1
+      assert first.old_index == 2
+      assert first.id == "id-2"
+      assert first.label == "Beta label"
+      assert first.preview == "beta preview"
+      assert first.source_ref == "src:beta"
+      assert first.extras.book_title == "Book Beta"
+      assert first.extras.page_number == 22
+      assert first.extras.section_title == "Section Beta"
+      assert first.extras.chunk_index == 202
+
+      assert second.new_index == 2
+      assert second.old_index == 1
+      assert second.id == "id-1"
+      assert second.label == "Alpha label"
+      assert second.preview == "alpha preview"
+      assert second.source_ref == "src:alpha"
+      assert second.extras.book_title == "Book Alpha"
+      assert second.extras.page_number == 11
+      assert second.extras.section_title == "Section Alpha"
+      assert second.extras.chunk_index == 101
+
+      refute Map.has_key?(first, :chunk_preview)
+      refute Map.has_key?(second, :chunk_preview)
+    end
+  end
 end
