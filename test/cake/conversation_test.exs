@@ -636,4 +636,42 @@ defmodule Cake.ConversationTest do
       assert indexed_chunks == []
     end
   end
+
+  describe "uncited LLM output" do
+    test "LLM text with no [N] markers yields citations: [] in the convo_response message" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      {:ok, pid} =
+        start_supervised({Conversation, mocked_opts(%{responses: Cake.Responses})})
+
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(
+        pid,
+        {:ok, %{text: "answer with no citation markers", usage: %{}}}
+      )
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      Conversation.ask(pid, "q")
+
+      assert_receive {:convo_response, response, citations}, 500
+
+      assert is_binary(response)
+      assert citations == []
+    end
+  end
 end
