@@ -93,6 +93,7 @@ If your task touches any of these, flag it to the user rather than silently reso
 
 - **Polling → PubSub**: `ChatLive` and `Conversation` both have TODO markers for replacing `Process.send_after` polling with Phoenix.PubSub.
 - **`Responses.Behaviour`**: Not yet extracted. Preferred approach: pass the responses module as an argument, consistent with how `caller` works.
+- **`Conversation` still calls `Cake.Responses.query_llm_raw/3`**: `Cake.Generation` behaviour and `Cake.Generation.OpenAI` implementation exist and are green, but `Conversation` has not been wired to them yet. Next phase: add `:generation` to Conversation state (default `Cake.Generation.OpenAI`), replace both `query_llm_raw` call sites with `state.generation.complete/3`, adjust the destructure from `%{response: _}` to `%{text: _}`, then slim `Cake.Responses` and migrate its config keys to `Cake.Generation.OpenAI`.
 - **`search_fields/0` callback**: Each GDS should declare its own searchable fields rather than callers passing a `fields` list. TODO comment in `Cake.Search.OpenSearch`.
 - **`Responses.query_llm/4` hardcoded to Chunk**: Needs to become GDS-agnostic.
 - **`Conversation.start_link/6` positional args**: Should eventually accept a struct.
@@ -151,8 +152,12 @@ lib/
     conversation.ex        # Conversation GenServer
     citations.ex           # Citation parser (pure function)
     embeddings.ex          # OpenAI embeddings client + Behaviour
+    generation.ex          # Cake.Generation behaviour (contract only)
+    generation/
+      open_ai.ex           # Cake.Generation.OpenAI — real implementation
+      anthropic.ex         # Cake.Generation.Anthropic — placeholder stub
     pipelines.ex           # Shared pipeline helpers + Context
-    responses.ex           # LLM response generation
+    responses.ex           # Post-processing on LLM responses
     schema.ex              # Base schema (use Cake.Schema)
   cake_web/
     live/
