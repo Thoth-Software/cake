@@ -41,3 +41,8 @@ config :phoenix_live_view,
 
 # config/test.exs
 config :cake, Oban, testing: :manual
+
+config :cake, Cake.Generation.OpenAI,
+  openai_key: "test-key-not-real",
+  response_url: "http://localhost/v1/responses",
+  plug: {Req.Test, Cake.Generation.OpenAI}
