@@ -142,3 +142,12 @@ defmodule Cake.Documents.ParsedDocument do
     %{}
   end
 end
+
+defimpl Cake.Promptable, for: Cake.Documents.ParsedDocument do
+  @spec prompt_context(Cake.Documents.ParsedDocument.t()) :: String.t()
+  def prompt_context(doc) do
+    "Package: #{doc.package} | Function: #{doc.title}\n" <>
+      "URL: #{doc.url}\n\n" <>
+      doc.text
+  end
+end
