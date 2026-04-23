@@ -158,4 +158,98 @@ defmodule Cake.ConversationTest do
       assert_receive {:convo_response, _response, _citations}, 500
     end
   end
+
+  describe "response shape" do
+    test "{:convo_response, final_text, citations} — final_text is a string, citations is a list of maps with the documented keys" do
+      chunks =
+        Enum.map(1..3, fn i ->
+          %ConvoChunk{
+            embedding: [0.1 * i, 0.2 * i, 0.3 * i],
+            prompt_text: "chunk #{i}",
+            metadata: %{
+              id: "id-#{i}",
+              label: "Book #{i}, p. #{i}",
+              preview: "preview #{i}",
+              source_ref: "book:#{i}#chunk:#{i}",
+              extras: %{
+                book_title: "Book #{i}",
+                page_number: i,
+                section_title: "Section #{i}",
+                chunk_index: i
+              }
+            }
+          }
+        end)
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, Enum.map(chunks, fn c -> {c, %{os_score: 1.0}} end)}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
+        citations =
+          Enum.map(Enum.with_index(chunks, 1), fn {c, idx} ->
+            %{
+              old_index: idx,
+              new_index: idx,
+              id: c.metadata.id,
+              label: c.metadata.label,
+              preview: c.metadata.preview,
+              source_ref: c.metadata.source_ref,
+              extras: c.metadata.extras
+            }
+          end)
+
+        chunk_map =
+          chunks
+          |> Enum.with_index(1)
+          |> Map.new(fn {c, i} -> {i, c.metadata} end)
+
+        %Cake.Responses.Result{
+          raw_text: "answer [1] with [2] and [3]",
+          final_text: "answer [1] with [2] and [3]",
+          chunk_map: chunk_map,
+          citations: citations,
+          warnings: []
+        }
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "answer [1] with [2] and [3]", usage: %{}}})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      Conversation.ask(pid, "test question")
+
+      assert_receive {:convo_response, response, citations}, 500
+
+      assert is_binary(response)
+      assert is_list(citations)
+      assert length(citations) == 3
+
+      Enum.each(citations, fn citation ->
+        assert is_map(citation)
+        assert Map.has_key?(citation, :old_index)
+        assert Map.has_key?(citation, :new_index)
+        assert Map.has_key?(citation, :id)
+        assert Map.has_key?(citation, :label)
+        assert Map.has_key?(citation, :preview)
+        assert Map.has_key?(citation, :source_ref)
+        assert Map.has_key?(citation, :extras)
+
+        assert is_integer(citation.old_index)
+        assert is_integer(citation.new_index)
+        assert is_binary(citation.label)
+        assert is_binary(citation.preview)
+        assert is_map(citation.extras)
+      end)
+    end
+  end
 end
