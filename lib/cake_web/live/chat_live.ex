@@ -9,7 +9,8 @@ defmodule CakeWeb.ChatLive do
       reply_to: self(),
       embedder: "text-embedding-ada-002",
       response_model: "gpt-4o-mini",
-      provider: :openai
+      provider: :openai,
+      gds: Cake.Books.ParsedBook
     }
 
     {:ok, pid} = Cake.Conversation.start(opts)
