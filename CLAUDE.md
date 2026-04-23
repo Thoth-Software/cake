@@ -5,6 +5,7 @@ date: 2026-04-15
 domain: development, ai-workflow
 source: project-maintainer
 last_verified: 2026-04-15
+last_reviewed: 2026-04-16 [caleb-bb]
 ---
 
 # CLAUDE.md — Operational Contract for Cake
@@ -12,6 +13,8 @@ last_verified: 2026-04-15
 This file governs how you work on Cake. The README describes what things are and why; this file tells you what you must do. Read both before making changes. If this file contradicts what you infer from the code, **this file wins** — flag the discrepancy to the user rather than silently following the code.
 
 For architecture, module responsibilities, data schemas, and the RAG loop, read the README. Do not duplicate that understanding here — reference it.
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ---
 
@@ -23,6 +26,8 @@ After completing any task that changes architecture, module boundaries, conventi
 2. Propose specific edits: "I changed X, which means section Y should be updated. Here's what I'd change: [diff]."
 3. Make approved edits before closing the task.
 4. If unsure whether a change warrants a doc update, ask.
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ---
 
@@ -39,7 +44,9 @@ mix coveralls.json                         # Must not reduce coverage below thre
 
 `mix quality.fast` (compile + credo) is the minimum local check. `mix quality` adds dialyzer. Tests run with `MIX_ENV=test`; the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first.
 
-Dialyzer is not yet a hard gate (the config line is commented out) but do not introduce new warnings.
+Dialyzer is not yet a hard push gate (the config line is commented out). Dialyzer is, however, a hard *merge* gate.
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ---
 
@@ -47,15 +54,21 @@ Dialyzer is not yet a hard gate (the config line is commented out) but do not in
 
 ### Dependency Injection
 
-Modules that depend on external services accept collaborator modules as arguments — for Mox testability, not runtime polymorphism. `Conversation` takes `caller` (the cluster module). Pipelines read the embeddings module from application config. When adding new external-service dependencies, follow this pattern: define a behaviour, implement it, pass the module as an argument or read it from config.
+Modules that depend on external services accept collaborator modules as arguments — for Mox testability, not runtime polymorphism. `Conversation` takes `caller` (the cluster module). Pipelines read the embeddings module from application config. When adding new external-service dependencies, follow this pattern: define a behaviour, implement it, pass the module as an argument or read it from config. In the testing environment, a mock should be available.
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ### Result Tuples and Pipeline Error Handling
 
 All pipeline callbacks return `{:ok, _}` or `{:error, _}`. Stream steps use `Pipelines.detuple_with_logging/3` — never the silent `detuple/1`. Step names follow `"pipeline.step"` convention (e.g., `"books.parse"`, `"docs.embed"`). Pipeline-fatal errors go in the `else` branch of the `with` chain in each behaviour's `ingest` function.
 
+*Certified accurate by caleb-bb on 2026-04-16*
+
 ### Schemas
 
-Every Ecto schema must `use Cake.Schema` (not `Ecto.Schema`). Every changeset for a schema with string fields must call `sanitize_text_fields/1`. UUIDs are binary, not string.
+Every Ecto schema must `use Cake.Schema` (not `Ecto.Schema`). Every changeset for a schema with string fields must call `sanitize_text_fields/1`. UUIDs are binary, not string. 
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ### Tests
 
@@ -65,9 +78,13 @@ Property tests (StreamData) go in `*_property_test.exs`. When fixing a bug found
 
 Mox expectations go in individual tests, not setup blocks.
 
+*Certified accurate by caleb-bb on 2026-04-16*
+
 ### OpenSearch Test Isolation
 
 `test_helper.exs` sets `Application.put_env(:cake, :skip_opensearch, true)`. Pipeline code checks this flag. Tests that need search behavior mock the cluster via Mox or a test module with the same function signature.
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ---
 
@@ -85,6 +102,8 @@ The dev environment runs three containers via `docker-compose.yml`: `cake_app`, 
 
 **Bind mount hot paths.** Heavy virtiofs I/O through the mount is slow. Copy to `/tmp` inside the container on hot paths.
 
+*Certified accurate by caleb-bb on 2026-04-16*
+
 ---
 
 ## Known Defects and Deferred Work
@@ -92,22 +111,29 @@ The dev environment runs three containers via `docker-compose.yml`: `cake_app`, 
 If your task touches any of these, flag it to the user rather than silently resolving or ignoring it.
 
 - **Polling → PubSub**: `ChatLive` and `Conversation` both have TODO markers for replacing `Process.send_after` polling with Phoenix.PubSub.
-- **`search_fields/0` callback**: Each GDS should declare its own searchable fields rather than callers passing a `fields` list. TODO comment in `Cake.Search.OpenSearch`. Note: the `search_fields/0` callback now lives on `Cake.GDS` (contract-only as of Phase 0 of epic #125); wiring callers to it is Phase 2 work.
 - **`Cake.GDS` + `Cake.Promptable` — contract-only**: Both modules exist (`lib/cake/gds.ex`, `lib/cake/promptable.ex`) but no schema/struct implements them yet. Phase 2 of epic #125 wires up `ParsedBook`, `ParsedDocument`, and `Chunk`. If your task touches retrieval, prompt assembly, or either of these two modules, check whether the epic is still open before inventing parallel abstractions.
 - **`Conversation.start_link/6` positional args**: Should eventually accept a struct.
 - **First-turn error wrapping bug**: The `else` branch in the first-turn `handle_cast` double-wraps the error tuple. Comment in code: "Fix ya shit." Do not silently fix this — discuss with user first.
 - **Post-demo formats**: Word, Excel, CSV, JPG pipelines are explicitly deferred.
 
+*Certified accurate by caleb-bb on 2026-04-16*
+
 ---
 
 ## Reference Loading Rules
 
-All reference files live in `priv/reference/`. Load them **before** making changes. Read the full file, then proceed.
+All reference files live in `priv/reference/`. 
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ### Always load
 
+Load these **before** making changes. Read the full file, then proceed.
+
 - `priv/reference/naming-conventions.md` — at the start of any task involving naming (modules, functions, variables, atoms).
 - `priv/reference/enum-cheat.md` — before writing any collection transformation. If you're about to write explicit recursion over a list, check this first.
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ### Load by trigger
 
@@ -120,6 +146,8 @@ All reference files live in `priv/reference/`. Load them **before** making chang
 | Write/modify `@type`, `@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
 | Write/modify public API for external consumption, design behaviours for third-party use | `library-guidelines.md` |
 | Add a new GDS, modify an existing GDS's contract, or implement `Cake.GDS` / `Cake.Promptable` on a schema or struct | README's "Cardinality: How GDSes, Data Structures, and Pipelines Relate" section + `design-anti-patterns.md` |
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ---
 
@@ -187,3 +215,5 @@ config/
 
 native/parsebooks/   # Rust crate for PDF parsing via Rustler
 ```
+
+*Certified accurate by caleb-bb on 2026-04-16*
