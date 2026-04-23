@@ -151,3 +151,24 @@ defimpl Cake.Promptable, for: Cake.Documents.ParsedDocument do
       doc.text
   end
 end
+
+defimpl Cake.Citable, for: Cake.Documents.ParsedDocument do
+  @preview_length 200
+
+  @spec metadata(Cake.Documents.ParsedDocument.t()) :: Cake.Citable.metadata()
+  def metadata(doc) do
+    %{
+      id: doc.id,
+      label: "#{doc.package} — #{doc.title}",
+      source_ref: doc.url,
+      preview: String.slice(doc.text, 0, @preview_length),
+      extras: %{
+        package: doc.package,
+        title: doc.title,
+        version: doc.version,
+        language: doc.language,
+        source: doc.source
+      }
+    }
+  end
+end
