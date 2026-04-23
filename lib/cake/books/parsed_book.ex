@@ -25,8 +25,24 @@ defmodule Cake.Books.ParsedBook do
   """
 
   use Cake.Schema
+  use Cake.GDS
+
   import Ecto.Changeset
   import Ecto.Query
+
+  # Cake.GDS callbacks
+
+  @impl Cake.GDS
+  def index_name, do: "chunks_of_books"
+
+  @impl Cake.GDS
+  def search_fields, do: ["section_title^2", "text"]
+
+  @impl Cake.GDS
+  defdelegate load_from_hits(hits), to: Cake.Books, as: :chunks_for_hits
+
+  @impl Cake.GDS
+  defdelegate expand_with_neighbors(chunks, offset), to: Cake.Books
 
   schema "parsed_books" do
     field :title, :string
