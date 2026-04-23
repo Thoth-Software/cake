@@ -103,3 +103,39 @@ defmodule Cake.Books.Chunk do
     from c in query, where: c.section_title == ^section_title
   end
 end
+
+defimpl Cake.Citable, for: Cake.Books.Chunk do
+  alias Cake.Books.ParsedBook
+
+  @preview_length 200
+
+  @doc """
+  Builds citation metadata for a Books.Chunk.
+
+  Requires that `:parsed_book` be preloaded; pattern-matches on
+  `%ParsedBook{}` in the association slot and will raise `FunctionClauseError`
+  if the association is `%Ecto.Association.NotLoaded{}`. This is intentional —
+  missing preload at this layer is a caller bug and should crash loudly under
+  supervision rather than silently producing garbage metadata.
+  """
+  @spec metadata(Cake.Books.Chunk.t()) :: Cake.Citable.metadata()
+  def metadata(%@for{parsed_book: %ParsedBook{} = book} = chunk) do
+    %{
+      id: chunk.id,
+      label: format_label(book.title, chunk.page_number, chunk.section_title),
+      preview: String.slice(chunk.text, 0, @preview_length),
+      source_ref: book.source_file_path,
+      extras: %{
+        book_title: book.title,
+        page_number: chunk.page_number,
+        section_title: chunk.section_title,
+        chunk_index: chunk.chunk_index
+      }
+    }
+  end
+
+  defp format_label(title, nil, nil), do: title
+  defp format_label(title, page, nil), do: "#{title}, p. #{page}"
+  defp format_label(title, nil, section), do: "#{title} — #{section}"
+  defp format_label(title, page, section), do: "#{title}, p. #{page} — #{section}"
+end
