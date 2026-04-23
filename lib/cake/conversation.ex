@@ -76,21 +76,28 @@ defmodule Cake.Conversation do
   end
 
   defp run_first_turn(question, state) do
-    with {:ok, scored_results} <- embed_and_search(question, state),
-         chunks = Cake.Search.unzip_results(scored_results),
-         {:ok, %{response: response, chunk_map: chunk_map}} <-
-           Cake.Responses.query_llm(:openai, chunks, question, state.response_model) do
-      citations = Cake.Citations.extract(response, chunk_map)
+    with {:ok, scored_results} <- embed_and_search(question, state) do
+      {indexed_chunks, _context_quality} = Cake.Prompt.prepare_context(scored_results)
+      messages = Cake.Prompt.build(indexed_chunks, question, [])
 
-      new_state = %{
-        state
-        | search_results: chunks,
-          message_history: [question, response],
-          chunk_map: chunk_map,
-          citations: citations
-      }
+      case Cake.Responses.query_llm_raw(:openai, messages, state.response_model) do
+        {:ok, %{response: response, usage: _usage}} ->
+          chunk_map = Cake.Responses.build_citation_map(indexed_chunks)
+          citations = Cake.Citations.extract(response, chunk_map)
 
-      {:ok, {response, citations, new_state}}
+          new_state = %{
+            state
+            | search_results: scored_results,
+              message_history: [question, response],
+              chunk_map: chunk_map,
+              citations: citations
+          }
+
+          {:ok, {response, citations, new_state}}
+
+        {:error, _} = error ->
+          error
+      end
     end
   end
 
@@ -121,19 +128,26 @@ defmodule Cake.Conversation do
     {Enum.min(scores, fn -> 0.0 end), Enum.max(scores, fn -> 0.0 end)}
   end
 
-  defp run_subsequent_turn(question, search_results, state) do
-    with {:ok, %{response: response, chunk_map: chunk_map}} <-
-           Cake.Responses.query_llm(:openai, search_results, question, state.response_model) do
-      citations = Cake.Citations.extract(response, chunk_map)
+  defp run_subsequent_turn(question, scored_results, state) do
+    {indexed_chunks, _context_quality} = Cake.Prompt.prepare_context(scored_results)
+    messages = Cake.Prompt.build(indexed_chunks, question, state.message_history)
 
-      new_state = %{
-        state
-        | message_history: state.message_history ++ [question, response],
-          chunk_map: chunk_map,
-          citations: citations
-      }
+    case Cake.Responses.query_llm_raw(:openai, messages, state.response_model) do
+      {:ok, %{response: response, usage: _usage}} ->
+        chunk_map = Cake.Responses.build_citation_map(indexed_chunks)
+        citations = Cake.Citations.extract(response, chunk_map)
 
-      {:ok, {response, citations, new_state}}
+        new_state = %{
+          state
+          | message_history: state.message_history ++ [question, response],
+            chunk_map: chunk_map,
+            citations: citations
+        }
+
+        {:ok, {response, citations, new_state}}
+
+      {:error, _} = error ->
+        error
     end
   end
 
