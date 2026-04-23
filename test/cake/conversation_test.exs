@@ -407,4 +407,69 @@ defmodule Cake.ConversationTest do
       refute Map.has_key?(second, :chunk_preview)
     end
   end
+
+  describe "history accumulation" do
+    test "turn 2's prompt contains turn 1's question and response; turn 2 reuses search results" do
+      turn_one_q = "QUESTION_ONE_#{:erlang.unique_integer([:positive])}"
+      turn_one_a = "RESPONSE_ONE_#{:erlang.unique_integer([:positive])}"
+      turn_two_q = "QUESTION_TWO_#{:erlang.unique_integer([:positive])}"
+
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "static chunk",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      # `expect/3` with no count means exactly once across the test. If turn 2
+      # called embed or search again, Mox would fail — that implicitly pins
+      # "subsequent turns skip embed and search."
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      test_pid = self()
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      GenerationStub.set_handler(pid, fn messages, _model ->
+        send(test_pid, {:prompt_captured, messages})
+        call_num = Agent.get_and_update(counter, fn n -> {n, n + 1} end)
+        text = if call_num == 0, do: turn_one_a, else: "RESPONSE_TWO"
+        {:ok, %{text: text, usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      Conversation.ask(pid, turn_one_q)
+      assert_receive {:prompt_captured, turn_one_messages}, 500
+      assert_receive {:convo_response, _, _}, 500
+
+      Conversation.ask(pid, turn_two_q)
+      assert_receive {:prompt_captured, turn_two_messages}, 500
+      assert_receive {:convo_response, _, _}, 500
+
+      turn_one_serialized = Enum.map_join(turn_one_messages, "\n", & &1.content)
+      turn_two_serialized = Enum.map_join(turn_two_messages, "\n", & &1.content)
+
+      assert turn_one_serialized =~ turn_one_q
+      refute turn_one_serialized =~ turn_one_a
+      refute turn_one_serialized =~ turn_two_q
+
+      assert turn_two_serialized =~ turn_one_q
+      assert turn_two_serialized =~ turn_one_a
+      assert turn_two_serialized =~ turn_two_q
+    end
+  end
 end
