@@ -11,8 +11,8 @@ config :cake, Cake.Repo,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
-# Config for responses
-config :cake, Cake.Responses,
+# Config for LLM completion (Cake.Generation.OpenAI)
+config :cake, Cake.Generation.OpenAI,
   openai_key: System.get_env("OPENAI_KEY"),
   response_url: "https://api.openai.com/v1/responses"
 
