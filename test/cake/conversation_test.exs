@@ -252,4 +252,64 @@ defmodule Cake.ConversationTest do
       end)
     end
   end
+
+  describe "chunks in prompt" do
+    test "retrieved chunk content is threaded into the LLM prompt" do
+      marker = "UNIQUE_MARKER_#{:erlang.unique_integer([:positive])}"
+
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: marker,
+        metadata: %{
+          id: "c1",
+          label: "L",
+          preview: "p",
+          source_ref: nil,
+          extras: %{}
+        }
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{
+          raw_text: "ok",
+          final_text: "ok",
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      test_pid = self()
+
+      GenerationStub.set_handler(pid, fn messages, _model ->
+        send(test_pid, {:prompt_captured, messages})
+        {:ok, %{text: "ok", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      Conversation.ask(pid, "q")
+
+      assert_receive {:prompt_captured, messages}, 500
+
+      serialized = Enum.map_join(messages, "\n", & &1.content)
+      assert serialized =~ marker
+
+      # Wait for the full turn to complete before the test exits, so Mox
+      # verify_on_exit! sees the Responses.Mock invocation.
+      assert_receive {:convo_response, _, _}, 500
+    end
+  end
 end
