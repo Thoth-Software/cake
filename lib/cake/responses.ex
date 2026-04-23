@@ -2,13 +2,55 @@ defmodule Cake.Responses do
   @moduledoc """
   Post-generation processing for the conversation layer.
 
-  Builds citation metadata maps from indexed chunks, delegates citation
-  parsing to Cake.Citations, and structures the final response for the
-  frontend. Does not build prompts (see Cake.Prompt) or call the LLM
-  (see Cake.Generation, future).
+  Step 2 implementation: `process/3` consolidates the existing helpers
+  (`build_citation_map/1` + `Cake.Citations.extract/2`) behind a single
+  `Result`-returning entry point. Pipeline semantics (renumbering, text
+  rewriting, actions, formatting) land in Step 3.
   """
 
+  @behaviour Cake.Responses.Behaviour
+
+  alias Cake.Citations
+  alias Cake.Responses.Result
+
   @api_timeout 120_000
+
+  @impl Cake.Responses.Behaviour
+  @spec process(String.t(), Cake.Responses.Behaviour.indexed_chunks(), keyword()) :: Result.t()
+  def process(raw_text, indexed_chunks, _opts \\ []) do
+    chunk_map = build_citation_map(indexed_chunks)
+    parsed_citations = Citations.extract(raw_text, chunk_map)
+
+    citations =
+      Enum.map(parsed_citations, fn c ->
+        %{
+          old_index: c.index,
+          new_index: c.index,
+          id: {c.source_file_path, c.chunk_index},
+          label: c.book_title,
+          preview: c.chunk_preview,
+          source_ref: c.source_file_path,
+          extras: %{
+            book_title: c.book_title,
+            page_number: c.page_number,
+            section_title: c.section_title,
+            chunk_index: c.chunk_index
+          }
+        }
+      end)
+
+    %Result{
+      raw_text: raw_text,
+      final_text: raw_text,
+      chunk_map: chunk_map,
+      citations: citations
+    }
+  end
+
+  # --- Deprecated-for-Step-3/4 helpers below ---
+  # These remain public until later steps replace the pipeline internals
+  # (build_citation_map in Step 3) and extract query_llm_raw out to
+  # Cake.Generation (Step 4). Do not add new callers.
 
   @spec build_citation_map(list({pos_integer(), {struct(), map()}})) :: map()
   def build_citation_map(indexed_chunks) do
