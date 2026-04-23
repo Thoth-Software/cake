@@ -33,9 +33,7 @@ defmodule Cake.Conversation do
       response_model: opts.response_model,
       provider: opts.provider,
       responses: Map.get(opts, :responses, Cake.Responses),
-      # Step 2: generation defaults to Cake.Responses because query_llm_raw/3
-      # still lives there. Step 4 flips the default to Cake.Generation.
-      generation: Map.get(opts, :generation, Cake.Responses),
+      generation: Map.get(opts, :generation, Cake.Generation.OpenAI),
       search_results: [],
       message_history: [],
       chunk_map: %{},
@@ -84,8 +82,8 @@ defmodule Cake.Conversation do
       {indexed_chunks, _context_quality} = Cake.Prompt.prepare_context(scored_results)
       messages = Cake.Prompt.build(indexed_chunks, question, [])
 
-      case state.generation.query_llm_raw(:openai, messages, state.response_model) do
-        {:ok, %{response: response, usage: _usage}} ->
+      case state.generation.complete(messages, state.response_model) do
+        {:ok, %{text: response, usage: _usage}} ->
           result = state.responses.process(response, indexed_chunks, [])
 
           new_state = %{
@@ -135,8 +133,8 @@ defmodule Cake.Conversation do
     {indexed_chunks, _context_quality} = Cake.Prompt.prepare_context(scored_results)
     messages = Cake.Prompt.build(indexed_chunks, question, state.message_history)
 
-    case state.generation.query_llm_raw(:openai, messages, state.response_model) do
-      {:ok, %{response: response, usage: _usage}} ->
+    case state.generation.complete(messages, state.response_model) do
+      {:ok, %{text: response, usage: _usage}} ->
         result = state.responses.process(response, indexed_chunks, [])
 
         new_state = %{

@@ -99,14 +99,14 @@ defmodule CakeWeb.ChatLive do
             <div class="space-y-1">
               <div :for={cite <- msg.citations} class="relative group inline-block">
                 <a
-                  href={"/books/download/#{cite.source_file_path}"}
+                  href={"/books/download/#{cite.source_ref}"}
                   class="text-blue-600 hover:underline"
                 >
-                  [<%= cite.index %>] <%= cite.book_title %>, p. <%= cite.page_number %>
+                  [<%= cite.new_index %>] <%= cite.label %>
                 </a>
                 <%!-- Hover tooltip --%>
                 <div class="hidden group-hover:block absolute z-10 bottom-full left-0 mb-1 w-80 p-3 bg-gray-800 text-white text-xs rounded shadow-lg">
-                  <%= cite.chunk_preview %>
+                  <%= cite.preview %>
                 </div>
               </div>
             </div>

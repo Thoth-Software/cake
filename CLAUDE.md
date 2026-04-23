@@ -92,10 +92,7 @@ The dev environment runs three containers via `docker-compose.yml`: `cake_app`, 
 If your task touches any of these, flag it to the user rather than silently resolving or ignoring it.
 
 - **Polling → PubSub**: `ChatLive` and `Conversation` both have TODO markers for replacing `Process.send_after` polling with Phoenix.PubSub.
-- **`Responses.Behaviour`**: Not yet extracted. Preferred approach: pass the responses module as an argument, consistent with how `caller` works.
-- **`Conversation` still calls `Cake.Responses.query_llm_raw/3`**: `Cake.Generation` behaviour and `Cake.Generation.OpenAI` implementation exist and are green, but `Conversation` has not been wired to them yet. Next phase: add `:generation` to Conversation state (default `Cake.Generation.OpenAI`), replace both `query_llm_raw` call sites with `state.generation.complete/3`, adjust the destructure from `%{response: _}` to `%{text: _}`, then slim `Cake.Responses` and migrate its config keys to `Cake.Generation.OpenAI`.
 - **`search_fields/0` callback**: Each GDS should declare its own searchable fields rather than callers passing a `fields` list. TODO comment in `Cake.Search.OpenSearch`.
-- **`Responses.query_llm/4` hardcoded to Chunk**: Needs to become GDS-agnostic.
 - **`Conversation.start_link/6` positional args**: Should eventually accept a struct.
 - **First-turn error wrapping bug**: The `else` branch in the first-turn `handle_cast` double-wraps the error tuple. Comment in code: "Fix ya shit." Do not silently fix this — discuss with user first.
 - **Post-demo formats**: Word, Excel, CSV, JPG pipelines are explicitly deferred.
@@ -150,14 +147,18 @@ lib/
       query.ex             # Query struct: build/3, to_opensearch/1
       open_search.ex       # Cake.Search.OpenSearch — real implementation
     conversation.ex        # Conversation GenServer
-    citations.ex           # Citation parser (pure function)
+    citable.ex             # Cake.Citable protocol (citation-metadata contract across GDS types)
+    citations.ex           # Parses [N] markers; returns {citations, hallucinated}
     embeddings.ex          # OpenAI embeddings client + Behaviour
     generation.ex          # Cake.Generation behaviour (contract only)
     generation/
       open_ai.ex           # Cake.Generation.OpenAI — real implementation
       anthropic.ex         # Cake.Generation.Anthropic — placeholder stub
     pipelines.ex           # Shared pipeline helpers + Context
-    responses.ex           # Post-processing on LLM responses
+    responses.ex           # Post-processing pipeline (resolve → renumber → rewrite → media → actions → format)
+    responses/
+      behaviour.ex         # Cake.Responses.Behaviour (contract)
+      result.ex            # Cake.Responses.Result struct
     schema.ex              # Base schema (use Cake.Schema)
   cake_web/
     live/
