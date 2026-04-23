@@ -1,8 +1,6 @@
 defmodule Cake.Conversation do
   use GenServer
 
-  alias Cake.Embeddings
-
   require Logger
 
   @spec child_spec(map()) :: Supervisor.child_spec()
@@ -49,6 +47,7 @@ defmodule Cake.Conversation do
       embedder: opts.embedder,
       response_model: opts.response_model,
       provider: opts.provider,
+      embeddings: Map.get(opts, :embeddings, Cake.Embeddings),
       responses: Map.get(opts, :responses, Cake.Responses),
       generation: Map.get(opts, :generation, Cake.Generation.OpenAI),
       gds: gds,
@@ -119,10 +118,16 @@ defmodule Cake.Conversation do
   end
 
   defp embed_and_search(question, state) do
-    %{search: search, provider: provider, embedder: embedder, gds: gds} = state
+    %{
+      search: search,
+      provider: provider,
+      embedder: embedder,
+      gds: gds,
+      embeddings: embeddings
+    } = state
 
     with {:ok, %{attrs: %{embedding: embedding}}} <-
-           Embeddings.embed(provider, %{input: question}, embedder),
+           embeddings.embed(provider, %{input: question}, embedder),
          {:ok, scored_hits} <-
            search.search_chunks_with_context(
              :hybrid,
