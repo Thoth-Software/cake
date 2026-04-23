@@ -674,4 +674,81 @@ defmodule Cake.ConversationTest do
       assert citations == []
     end
   end
+
+  describe "push-message contract" do
+    # The push-message contract IS the seam between Conversation and any
+    # consumer (currently CakeWeb.ChatLive). The "polling interface" the
+    # issue spec referenced does not exist — ChatLive uses
+    # handle_info({:convo_response, _, _}, _) on a process Conversation
+    # pushes to via send/2. These tests pin that seam by configuring a
+    # distinct process as :reply_to and asserting the push lands there
+    # (not in the caller's mailbox).
+
+    setup do
+      parent = self()
+
+      reply_to =
+        spawn_link(fn ->
+          receive do
+            msg -> send(parent, {:reply_to_received, msg})
+          end
+        end)
+
+      {:ok, reply_to: reply_to}
+    end
+
+    test "successful turn pushes {:convo_response, _, _} to the configured reply_to, not the caller", %{reply_to: reply_to} do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts(%{reply_to: reply_to})})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      Conversation.ask(pid, "q")
+
+      assert_receive {:reply_to_received, {:convo_response, _response, _citations}}, 500
+      refute_received {:convo_response, _, _}
+    end
+
+    test "failed turn pushes {:convo_error, reason} to the configured reply_to, not the caller", %{reply_to: reply_to} do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:error, :boom}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts(%{reply_to: reply_to})})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      Conversation.ask(pid, "q")
+
+      assert_receive {:reply_to_received, {:convo_error, :boom}}, 500
+      refute_received {:convo_error, _}
+    end
+  end
 end
