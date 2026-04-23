@@ -14,7 +14,23 @@ defmodule Cake.Documents.ParsedDocument do
   """
 
   use Cake.Schema
+  use Cake.GDS
+
   import Ecto.Changeset
+
+  # Cake.GDS callbacks
+
+  @impl Cake.GDS
+  def index_name, do: "docs"
+
+  @impl Cake.GDS
+  def search_fields, do: ["title^3", "text"]
+
+  @impl Cake.GDS
+  defdelegate load_from_hits(hits), to: Cake.Documents.ParsedDocuments
+
+  # expand_with_neighbors/2 inherited from `use Cake.GDS` default (identity).
+  # ParsedDocument has no ordering concept.
 
   @derive {Jason.Encoder, except: [:__meta__]}
   schema "parsed_documents" do

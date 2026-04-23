@@ -97,4 +97,28 @@ defmodule Cake.Documents.ParsedDocuments do
     |> ParsedDocument.by_version(version)
     |> Repo.all(log: false)
   end
+
+  @doc """
+  Hydrates `ParsedDocument` records from a list of OpenSearch hits.
+
+  Used by the `Cake.GDS` `load_from_hits/1` callback on `ParsedDocument`.
+  Preserves hit order so downstream ranking is respected.
+  """
+  @spec load_from_hits([Snap.Hit.t()]) :: [ParsedDocument.t()]
+  def load_from_hits(hits) do
+    ids = Enum.map(hits, fn hit -> hit.source["id"] end)
+
+    docs_by_id =
+      ParsedDocument
+      |> where([d], d.id in ^ids)
+      |> Repo.all()
+      |> Map.new(&{&1.id, &1})
+
+    Enum.flat_map(ids, fn id ->
+      case Map.get(docs_by_id, id) do
+        nil -> []
+        doc -> [doc]
+      end
+    end)
+  end
 end
