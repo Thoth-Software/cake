@@ -33,6 +33,34 @@ There is deliberately no `Cake.Ingestion` behaviour that unifies `Cake.Books.Pip
 
 ---
 
+## Adding a New GDS
+
+The question to ask when designing a new GDS is *Why is the customer interested in this kind of documentation, and what is the atomic unit they'd want returned from a search?* The answer determines whether your GDS is a single schema (retrieval unit is the GDS itself) or a parent/child pair (retrieval unit is the child). Everything downstream follows from this.
+
+The steps below describe the minimum surface area a new GDS must cover before it can be threaded through `Cake.Conversation` and surfaced in an end-user answer. Existing GDSes (`Cake.Books.ParsedBook` + `Chunk` and `Cake.Documents.ParsedDocument`) are the reference implementations.
+
+1. **Design the schema(s).** Decide single-schema (`ParsedDocument`-like) vs. parent/child (`ParsedBook` + `Chunk`-like). Use `Cake.Schema` (not `Ecto.Schema`). Every changeset with string fields must call `sanitize_text_fields/1`. UUIDs are binary.
+
+2. **Declare `use Cake.GDS` on the retrieval-unit schema.** The retrieval unit is whichever schema maps one-to-one to OpenSearch documents — for parent/child GDSes, that's the child. Implement `index_name/0` and `search_fields/0` directly on the schema: they are compile-time constants the schema has full knowledge of.
+
+3. **Implement `load_from_hits/1`.** Add a context-module function that fetches records by hit IDs in a single Repo query, preserving hit order so downstream ranking is respected. Delegate from the schema via `defdelegate load_from_hits(hits), to: MyContext`.
+
+4. **Implement `expand_with_neighbors/2` only if the GDS has ordering.** If records have a natural neighbor concept (e.g. `Chunk.chunk_index`), override the callback with a real neighbor fetch. Otherwise inherit the identity default supplied by `use Cake.GDS` — no code needed.
+
+5. **Implement `Cake.Promptable` for the retrieval unit.** Return the text block that will be injected into the LLM prompt for a single hit. Keep it audience-specific: prompt-text for the model, not display metadata for the user.
+
+6. **Implement `Cake.Citable` for the retrieval unit.** Return the five-key metadata map (`:id`, `:label`, `:source_ref`, `:preview`, `:extras`) that surfaces in end-user citations. Match the key set of existing impls — the contract is what makes citation display code polymorphic.
+
+7. **Build an ingestion pipeline.** Define a pipeline behaviour under your GDS namespace (e.g. `Cake.MyGDS.Pipeline`) with callbacks tailored to your data sources, and at least one concrete implementation. Ingestion shape is the GDS author's concern — there is no framework-level `Cake.Ingestion` to satisfy.
+
+8. **Thread through `Conversation`.** Pass `gds: YourSchema` in the `:gds` opt wherever a `Cake.Conversation` is started. The opt is required; there is no default. `Cake.Search.OpenSearch` reads the target index, search fields, hit hydration, and neighbor expansion entirely from the GDS module — adding a new GDS does not require touching the search or conversation layers.
+
+9. **Write tests.** Use `Cake.Support.FixtureGDS` (in `test/support/`) as a structural reference. Assert each `Cake.GDS` callback's return shape on your schema; assert the `Promptable` and `Citable` impls produce the expected output for representative records.
+
+See the [Cardinality](#cardinality-how-gdses-data-structures-and-pipelines-relate) section above for the invariants a new GDS must respect, and `lib/cake/books/parsed_book.ex` + `lib/cake/documents/parsed_document.ex` for worked examples of the ordered-parent/child and unordered-single-schema shapes respectively.
+
+---
+
 ## How the RAG Loop Works End to End
 
 Cake's core loop proceeds through six stages. Understanding this flow is essential context for working on any part of the system, because each module's design is shaped by its position in this sequence. The ingestion half (stages 1–4) happens offline, typically via Oban jobs. The query half (stages 5–6) happens live when a user asks a question.
