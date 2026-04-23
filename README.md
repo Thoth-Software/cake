@@ -10,6 +10,29 @@ The immediate use case is a document Q&A tool for enterprise customers whose doc
 
 ---
 
+## Cardinality: How GDSes, Data Structures, and Pipelines Relate
+
+The three concepts above — generic data structures, ingestion pipelines, and the schemas each pipeline produces — relate to each other through four cardinalities. They're stated explicitly here because the rest of the architecture assumes them, and because the distinctions get subtle once more than one GDS is in play.
+
+**GDS ↔ ingestion pipeline behaviour: 1:1.** Each GDS has exactly one pipeline behaviour that targets it, and each pipeline behaviour produces exactly one GDS. `Cake.Books.Pipeline` targets the `ParsedBook` + `Chunk` GDS; `Cake.Documents.Pipeline` targets the `ParsedDocument` GDS. This is why no framework-level `Cake.Ingestion` master behaviour exists — the GDS *is* the unit of pipeline grouping, and there's nothing useful to say about "all ingestion" that isn't more precisely said at the per-GDS level.
+
+**GDS → data structures: 1:many.** A GDS can be composed of multiple related Ecto schemas. The `ParsedBook` + `Chunk` GDS has two data structures, a parent and a child, where `Chunk` is the retrieval unit that maps one-to-one to OpenSearch documents. The `ParsedDocument` GDS has one data structure, and it is its own retrieval unit. Framework-level contracts (the forthcoming `Cake.GDS` behaviour, for example) stay indifferent to this distinction — retrieval callbacks return `[struct()]` regardless of whether that's chunks or documents.
+
+**Data structure → pipeline implementation: 1:1 per source.** Each pipeline implementation produces records of exactly one data structure shape per run. `Cake.Books.Pdf.Pipeline` produces `ParsedBook` + `Chunk` records from a specific PDF. A future `Cake.Books.Epub.Pipeline` produces the same shape from an EPUB. The implementation varies with the source format; the data structure shape, fixed by the GDS, does not.
+
+**Pipeline behaviour → implementations: 1:many.** Each pipeline behaviour can have any number of concrete implementations. `Cake.Books.Pipeline` currently has one implementation (`Cake.Books.Pdf.Pipeline`) and will grow more (`Epub`, `Docx`). `Cake.Documents.Pipeline` currently has one (`Cake.Documents.Hexdocs.Pipeline`) and will grow more (`Rustdocs`, `Pydocs`). Adding a new source format is an additive operation against a stable behaviour; it never reshapes the GDS.
+
+### Worked examples
+
+- **`ParsedBook` + `Chunk`:** One GDS, two data structures (parent/child), one pipeline behaviour (`Cake.Books.Pipeline`), currently one implementation (`Cake.Books.Pdf.Pipeline`). Retrieval unit is `Chunk`, not `ParsedBook` — the book-level record holds metadata; the chunk is what search returns and what citations point at.
+- **`ParsedDocument`:** One GDS, one data structure, one pipeline behaviour (`Cake.Documents.Pipeline`), currently one implementation (`Cake.Documents.Hexdocs.Pipeline`). The GDS is its own retrieval unit — there is no parent-level record because a documentation entry is already atomic.
+
+### No framework-level Ingestion behaviour
+
+There is deliberately no `Cake.Ingestion` behaviour that unifies `Cake.Books.Pipeline` and `Cake.Documents.Pipeline` under a shared parent. The two pipeline behaviours have different callback shapes because they answer different questions — book-like ingestion hinges on `load_binary` and chunk emission; documentation ingestion hinges on `download`, `persist_raw_docs`, and a source identifier. Forcing a common ancestor would require collapsing those shapes into a lowest-common-denominator contract that served neither well. Each GDS owns its own ingestion contract, and that situation holds until some cross-cutting reason to unify them appears. It is deferred indefinitely, not scheduled.
+
+---
+
 ## How the RAG Loop Works End to End
 
 Cake's core loop proceeds through six stages. Understanding this flow is essential context for working on any part of the system, because each module's design is shaped by its position in this sequence. The ingestion half (stages 1–4) happens offline, typically via Oban jobs. The query half (stages 5–6) happens live when a user asks a question.
