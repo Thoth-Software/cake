@@ -780,4 +780,76 @@ defmodule Cake.ConversationTest do
       refute_received {:convo_error, _}
     end
   end
+
+  describe "concurrent asks" do
+    test "two ask/2 calls are serialized by the GenServer mailbox: cast 2 cannot start until cast 1 returns" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      test_pid = self()
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_handler(pid, fn _messages, _model ->
+        case Agent.get_and_update(counter, fn n -> {n, n + 1} end) do
+          0 ->
+            send(test_pid, :first_started)
+
+            receive do
+              :release_first -> :ok
+            after
+              2_000 -> raise "first call never released"
+            end
+
+            send(test_pid, :first_returning)
+            {:ok, %{text: "first", usage: %{}}}
+
+          1 ->
+            send(test_pid, :second_started)
+            {:ok, %{text: "second", usage: %{}}}
+        end
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.ask(pid, "q1")
+      assert :ok = Conversation.ask(pid, "q2")
+
+      # Cast 1's handler has started.
+      assert_receive :first_started, 500
+
+      # Cast 2's handler has NOT started — it's queued behind cast 1 in
+      # the GenServer mailbox. This is the load-bearing assertion: it
+      # rules out an accidental Task.async / parallel-handle introduction.
+      refute_receive :second_started, 100
+
+      # Release cast 1; cast 1 returns; cast 2's handler now runs.
+      send(pid, :release_first)
+      assert_receive :first_returning, 500
+      assert_receive :second_started, 500
+
+      # Both responses delivered, in the order they were asked.
+      assert_receive {:convo_response, _, _}, 500
+      assert_receive {:convo_response, _, _}, 500
+    end
+  end
 end

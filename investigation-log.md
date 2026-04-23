@@ -96,8 +96,7 @@ Built by `build_state/2`. Every field is a map key (no struct).
 
 ### Error branches
 
-- `embed_and_search/2` returning `{:error, _}`: falls out of the `with` chain in `run_first_turn/2`, returns the error tuple. `handle_cast/2` then sends `{:convo_error, error}` and pushes onto `state.errors`.
-  - **Known bug** (flagged in CLAUDE.md): the first-turn error path double-wraps the error tuple. Not fixing here; pin the current behavior.
+- `embed_and_search/2` returning `{:error, _}`: falls out of the `with` chain in `run_first_turn/2`, returns the error tuple. `handle_cast/2` then sends `{:convo_error, error}` and pushes onto `state.errors`. The inner reason is forwarded as-is — no double wrap. (Earlier versions of CLAUDE.md and this log referenced a "Fix ya shit" double-wrap bug here; Commit 8 of the characterization tests confirmed empirically that no such bug exists in the current code.)
 - `generation.complete/2` returning `{:error, _}`: returned from the `case` in `run_first_turn/2` / `run_subsequent_turn/3`. Same downstream handling.
 - If `Cake.Responses.process/3` raises, it will crash the GenServer (no catch). No current test exercises this.
 
@@ -157,8 +156,7 @@ Fields that the issue spec calls out ("book_title, page_number, section_title, c
 
 `search.search_chunks_with_context/5` returns `{:error, reason}`:
 - falls out of the `with` in `embed_and_search/2` and bubbles up through `run_first_turn/2`.
-- `handle_cast/2` first-turn error branch: `send(reply_to, {:convo_error, error})`, push onto `state.errors`.
-- **Known double-wrap bug** on first turn: look at lines 76–79 of `conversation.ex`; the `error` variable here already is `{:error, reason}`. No production change; pin as-is.
+- `handle_cast/2` first-turn error branch: `send(reply_to, {:convo_error, error})`, push onto `state.errors`. The inner reason is forwarded — see Commit 8 of the characterization tests.
 
 ### Embeddings failure
 
