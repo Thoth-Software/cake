@@ -751,4 +751,33 @@ defmodule Cake.ConversationTest do
       refute_received {:convo_error, _}
     end
   end
+
+  describe "cluster exception" do
+    test "cluster raising propagates and crashes the GenServer (no catch)" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        raise "boom"
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      ref = Process.monitor(pid)
+
+      Conversation.ask(pid, "q")
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, reason}, 500
+
+      assert match?({%RuntimeError{message: "boom"}, _stacktrace}, reason)
+
+      refute_received {:convo_response, _, _}
+      refute_received {:convo_error, _}
+    end
+  end
 end
