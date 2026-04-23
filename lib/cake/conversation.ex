@@ -107,8 +107,15 @@ defmodule Cake.Conversation do
 
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Embeddings.embed(provider, %{input: question}, embedder),
+         # TODO(Phase 2 Commit 8): pull :gds from state instead of hardcoding.
          {:ok, scored_hits} <-
-           search.search_chunks_with_context(:hybrid, question, embedding) do
+           search.search_chunks_with_context(
+             :hybrid,
+             question,
+             embedding,
+             Cake.Search.OpenSearch.default_expand_offset(),
+             gds: Cake.Books.ParsedBook
+           ) do
       scored_results =
         scored_hits
         |> Cake.Search.score_results(embedding)

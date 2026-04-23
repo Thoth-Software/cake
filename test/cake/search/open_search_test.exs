@@ -24,14 +24,6 @@ defmodule Cake.Search.OpenSearchTest do
     test "default_expand_offset/0" do
       assert OpenSearch.default_expand_offset() == 2
     end
-
-    test "chunk_fields/0" do
-      assert OpenSearch.chunk_fields() == ["section_title^2", "text"]
-    end
-
-    test "doc_fields/0" do
-      assert OpenSearch.doc_fields() == ["title^3", "text"]
-    end
   end
 
   describe "dispatch is parameterized on :gds" do
