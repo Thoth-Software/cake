@@ -472,4 +472,64 @@ defmodule Cake.ConversationTest do
       assert turn_two_serialized =~ turn_two_q
     end
   end
+
+  describe "public API contract" do
+    test "child_spec/1 returns a supervisor child spec with restart: :temporary" do
+      opts = valid_opts()
+      spec = Conversation.child_spec(opts)
+
+      assert spec == %{
+               id: Cake.Conversation,
+               start: {Cake.Conversation, :start_link, [opts]},
+               restart: :temporary
+             }
+    end
+
+    test "start/1 accepts valid opts and returns {:ok, pid}" do
+      {:ok, pid} = Conversation.start(valid_opts())
+      on_exit(fn -> if Process.alive?(pid), do: GenServer.stop(pid) end)
+
+      assert is_pid(pid)
+    end
+
+    test "start/1 rejects opts missing :gds with a KeyError" do
+      opts = Map.delete(valid_opts(), :gds)
+
+      case Conversation.start(opts) do
+        {:error, %KeyError{key: :gds}} -> :ok
+        other -> flunk("expected {:error, KeyError}, got: #{inspect(other)}")
+      end
+    end
+
+    test "ask/2 returns :ok synchronously (fire-and-forget cast)" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, []}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.ask(pid, "hello")
+
+      assert_receive {:convo_response, _, _}, 500
+    end
+
+    test "print_hierarchy/2 returns a list (logging-only helper)" do
+      assert is_list(Conversation.print_hierarchy(%{a: 1, b: %{c: 2}}))
+    end
+  end
 end
