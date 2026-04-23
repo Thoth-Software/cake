@@ -561,4 +561,40 @@ defmodule Cake.ConversationTest do
       assert state.errors == [:timeout]
     end
   end
+
+  describe "generation error" do
+    test "generation {:error, _} delivers {:convo_error, reason} to reply_to without crashing" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:error, {:rate_limited, nil}})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      ref = Process.monitor(pid)
+
+      Conversation.ask(pid, "q")
+
+      assert_receive {:convo_error, {:rate_limited, nil}}, 500
+      refute_receive {:DOWN, ^ref, :process, ^pid, _}, 100
+
+      state = :sys.get_state(pid)
+      assert state.errors == [{:rate_limited, nil}]
+    end
+  end
 end
