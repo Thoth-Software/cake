@@ -113,7 +113,19 @@ defmodule Cake.Conversation do
     end
   end
 
-  # --- Turn pipeline ---
+  # --- Manual mode ---
+
+  @spec manualask(pid(), String.t()) :: {:ok, [Cake.Search.scored_result()]} | {:error, term()}
+  def manualask(pid, question) do
+    GenServer.call(pid, {:manualask, question})
+  end
+
+  @spec select_docs(pid(), [String.t()]) :: :ok | {:error, term()}
+  def select_docs(pid, doc_ids) do
+    GenServer.call(pid, {:select, doc_ids})
+  end
+
+  # --- Auto-mode turn pipeline ---
 
   defp run_turn(question, %State{} = s) do
     with {:ok, scored_results} <- resolve_search_results(question, s),
@@ -122,6 +134,17 @@ defmodule Cake.Conversation do
          {:ok, response} <- generate(messages, s),
          {:ok, result} <- process_response(response, indexed_chunks, s) do
       finalize_turn(s, scored_results, question, response, result)
+    end
+  end
+
+  # --- Manual-mode turn pipeline ---
+
+  defp run_manual_turn(question, candidates, doc_ids, %State{} = s) do
+    with {:ok, indexed_chunks} <- apply_selection(candidates, doc_ids),
+         {:ok, messages} <- build_prompt(indexed_chunks, question, s.message_history),
+         {:ok, response} <- generate(messages, s),
+         {:ok, result} <- process_response(response, indexed_chunks, s) do
+      finalize_turn(s, candidates, question, response, result)
     end
   end
 
@@ -143,7 +166,36 @@ defmodule Cake.Conversation do
     embed_and_search(question, s)
   end
 
-  # --- Stage 1: select ---
+  # --- Stage 1a: apply_selection (manual mode) ---
+
+  @doc false
+  @spec apply_selection([Cake.Search.scored_result()], [String.t()]) ::
+          {:ok, [Cake.Prompt.indexed_chunk()]} | {:error, term()}
+  def apply_selection(candidates, doc_ids) do
+    available_ids =
+      MapSet.new(candidates, fn {chunk, _scores} ->
+        Cake.Citable.metadata(chunk).id
+      end)
+
+    requested = MapSet.new(doc_ids)
+    unknown = MapSet.difference(requested, available_ids)
+
+    if MapSet.size(unknown) > 0 do
+      {:error, {:unknown_doc_ids, MapSet.to_list(unknown)}}
+    else
+      selected =
+        candidates
+        |> Enum.filter(fn {chunk, _scores} ->
+          Cake.Citable.metadata(chunk).id in doc_ids
+        end)
+        |> Enum.with_index(1)
+        |> Enum.map(fn {scored_chunk, idx} -> {idx, scored_chunk} end)
+
+      {:ok, selected}
+    end
+  end
+
+  # --- Stage 1b: select (auto mode) ---
 
   @doc false
   @spec select([Cake.Search.scored_result()]) :: {:ok, [Cake.Prompt.indexed_chunk()]}
@@ -231,6 +283,38 @@ defmodule Cake.Conversation do
   defp score_range(scored_results) do
     scores = Enum.map(scored_results, fn {_, %{relevance_score: s}} -> s end)
     {Enum.min(scores, fn -> 0.0 end), Enum.max(scores, fn -> 0.0 end)}
+  end
+
+  # --- Manual-mode handlers ---
+
+  @impl GenServer
+  def handle_call({:manualask, question}, _from, %State{state: :idle} = s) do
+    case embed_and_search(question, s) do
+      {:ok, candidates} ->
+        pending = %{question: question, candidates: candidates}
+        new_state = %{s | state: :awaiting_selection, pending: pending}
+        {:reply, {:ok, candidates}, new_state}
+
+      {:error, _} = error ->
+        {:reply, error, s}
+    end
+  end
+
+  @impl GenServer
+  def handle_call({:select, doc_ids}, _from, %State{state: :awaiting_selection} = s) do
+    %{question: question, candidates: candidates} = s.pending
+
+    case run_manual_turn(question, candidates, doc_ids, s) do
+      {:ok, {response, citations, new_state}} ->
+        new_state = %{new_state | state: :idle, pending: nil}
+        send(s.reply_to, {:convo_response, response, citations})
+        {:reply, :ok, new_state}
+
+      {:error, error} ->
+        new_state = %{s | state: :idle, pending: nil, errors: [error | s.errors]}
+        send(s.reply_to, {:convo_error, error})
+        {:reply, {:error, error}, new_state}
+    end
   end
 
   # --- Read-only accessors ---

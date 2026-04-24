@@ -1079,4 +1079,184 @@ defmodule Cake.ConversationTest do
       assert_receive {:convo_response, "x", []}, 500
     end
   end
+
+  describe "apply_selection/2" do
+    test "filters candidates to selected IDs and assigns 1-based indices" do
+      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      c2 = %ConvoChunk{prompt_text: "b", metadata: %{id: "id-2", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      c3 = %ConvoChunk{prompt_text: "c", metadata: %{id: "id-3", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+
+      candidates = [
+        {c1, %{os_score: 1.0}},
+        {c2, %{os_score: 0.9}},
+        {c3, %{os_score: 0.8}}
+      ]
+
+      assert {:ok, indexed} = Conversation.apply_selection(candidates, ["id-1", "id-3"])
+      assert length(indexed) == 2
+      assert {1, {^c1, _}} = Enum.at(indexed, 0)
+      assert {2, {^c3, _}} = Enum.at(indexed, 1)
+    end
+
+    test "selecting all candidates returns all with indices" do
+      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      candidates = [{c1, %{os_score: 1.0}}]
+
+      assert {:ok, [{1, {^c1, _}}]} = Conversation.apply_selection(candidates, ["id-1"])
+    end
+
+    test "errors on unknown doc IDs" do
+      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      candidates = [{c1, %{os_score: 1.0}}]
+
+      assert {:error, {:unknown_doc_ids, unknown}} = Conversation.apply_selection(candidates, ["id-1", "id-999"])
+      assert "id-999" in unknown
+    end
+
+    test "empty doc_ids returns empty indexed list" do
+      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      candidates = [{c1, %{os_score: 1.0}}]
+
+      assert {:error, {:unknown_doc_ids, _}} = Conversation.apply_selection(candidates, ["nonexistent"])
+    end
+  end
+
+  describe "manual mode end-to-end" do
+    test "full flow: manualask returns candidates, select completes the turn" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "manual chunk",
+        metadata: %{id: "c1", label: "Manual", preview: "manual", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
+        %Cake.Responses.Result{raw_text: "answer", final_text: "answer", citations: [], warnings: []}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "answer", usage: %{}}})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      # Step 1: manualask returns candidates
+      assert {:ok, candidates} = Conversation.manualask(pid, "manual question")
+      assert candidates != []
+
+      # State is now awaiting_selection
+      pre_select = :sys.get_state(pid)
+      assert pre_select.state == :awaiting_selection
+      assert pre_select.pending != nil
+
+      # Step 2: select with chunk IDs completes the turn
+      doc_ids = Enum.map(candidates, fn {c, _} -> Cake.Citable.metadata(c).id end)
+      assert :ok = Conversation.select_docs(pid, doc_ids)
+
+      # Response pushed to reply_to
+      assert_receive {:convo_response, "answer", []}, 500
+
+      # State back to idle
+      post_select = :sys.get_state(pid)
+      assert post_select.state == :idle
+      assert post_select.pending == nil
+    end
+
+    test "manualask search error returns error and stays idle" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:error, :embed_failed}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+
+      assert {:error, :embed_failed} = Conversation.manualask(pid, "q")
+
+      state = :sys.get_state(pid)
+      assert state.state == :idle
+    end
+
+    test "select with unknown doc IDs returns error and resets to idle" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      {:ok, _candidates} = Conversation.manualask(pid, "q")
+      assert {:error, {:unknown_doc_ids, _}} = Conversation.select_docs(pid, ["nonexistent"])
+
+      state = :sys.get_state(pid)
+      assert state.state == :idle
+      assert state.pending == nil
+    end
+  end
+
+  describe "invalid transitions" do
+    test "select in idle state crashes the GenServer" do
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      ref = Process.monitor(pid)
+
+      catch_exit(Conversation.select_docs(pid, ["some_id"]))
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 500
+    end
+
+    test "manualask in awaiting_selection state crashes the GenServer" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      {:ok, _} = Conversation.manualask(pid, "q")
+
+      ref = Process.monitor(pid)
+      catch_exit(Conversation.manualask(pid, "q2"))
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 500
+    end
+  end
 end
