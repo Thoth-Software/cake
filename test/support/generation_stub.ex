@@ -35,10 +35,11 @@ defmodule Cake.Test.GenerationStub do
   """
   @spec setup_table() :: :ok
   def setup_table do
-    case :ets.whereis(@table) do
-      :undefined -> :ets.new(@table, [:public, :named_table, :set])
-      _ref -> :ok
-    end
+    _ =
+      case :ets.whereis(@table) do
+        :undefined -> :ets.new(@table, [:public, :named_table, :set])
+        _ref -> :ok
+      end
 
     :ok
   end
