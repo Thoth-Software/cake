@@ -64,10 +64,9 @@ defmodule Cake.Conversation do
     GenServer.cast(pid, {:question, question})
   end
 
-  # First turn: no search results yet — embed, search, then query LLM
   @impl GenServer
-  def handle_cast({:question, question}, %{search_results: []} = state) do
-    case run_first_turn(question, state) do
+  def handle_cast({:question, question}, state) do
+    case run_turn(question, state) do
       {:ok, {response, citations, new_state}} ->
         send(state.reply_to, {:convo_response, response, citations})
         {:noreply, new_state}
@@ -78,44 +77,90 @@ defmodule Cake.Conversation do
     end
   end
 
-  # Subsequent turns: search results already populated — skip search, continue conversation
-  @impl GenServer
-  def handle_cast({:question, question}, %{search_results: search_results} = state) do
-    case run_subsequent_turn(question, search_results, state) do
-      {:ok, {response, citations, new_state}} ->
-        send(state.reply_to, {:convo_response, response, citations})
-        {:noreply, new_state}
+  # --- Turn pipeline ---
 
-      {:error, error} ->
-        send(state.reply_to, {:convo_error, error})
-        {:noreply, %{state | errors: [error | state.errors]}}
+  defp run_turn(question, state) do
+    with {:ok, scored_results} <- resolve_search_results(question, state),
+         {:ok, indexed_chunks} <- select(scored_results),
+         {:ok, messages} <- build_prompt(indexed_chunks, question, state.message_history),
+         {:ok, response} <- generate(messages, state),
+         {:ok, result} <- process_response(response, indexed_chunks, state) do
+      new_state = update_state(state, scored_results, question, response, result)
+      {:ok, {result.final_text, result.citations, new_state}}
     end
   end
 
-  defp run_first_turn(question, state) do
-    with {:ok, scored_results} <- embed_and_search(question, state) do
-      {indexed_chunks, _context_quality} = Cake.Prompt.prepare_context(scored_results)
-      messages = Cake.Prompt.build(indexed_chunks, question, [])
+  # --- Stage 0: resolve search results (search on first turn, reuse on subsequent) ---
 
-      case state.generation.complete(messages, state.response_model) do
-        {:ok, %{text: response, usage: _usage}} ->
-          result = state.responses.process(response, indexed_chunks, [])
+  @doc false
+  @spec resolve_search_results(String.t(), map()) ::
+          {:ok, [Cake.Search.scored_result()]} | {:error, term()}
+  def resolve_search_results(_question, %{search_results: results}) when results != [] do
+    {:ok, results}
+  end
 
-          new_state = %{
-            state
-            | search_results: scored_results,
-              message_history: [question, response],
-              chunk_map: result.chunk_map,
-              citations: result.citations
-          }
+  def resolve_search_results(question, state) do
+    embed_and_search(question, state)
+  end
 
-          {:ok, {result.final_text, result.citations, new_state}}
+  # --- Stage 1: select ---
 
-        {:error, _} = error ->
-          error
+  @doc false
+  @spec select([Cake.Search.scored_result()]) :: {:ok, [Cake.Prompt.indexed_chunk()]}
+  def select(scored_results) do
+    {indexed_chunks, _context_quality} = Cake.Prompt.prepare_context(scored_results)
+    {:ok, indexed_chunks}
+  end
+
+  # --- Stage 2: prompt ---
+
+  @doc false
+  @spec build_prompt([Cake.Prompt.indexed_chunk()], String.t(), [String.t()]) ::
+          {:ok, [Cake.Prompt.message()]}
+  def build_prompt(indexed_chunks, question, history) do
+    {:ok, Cake.Prompt.build(indexed_chunks, question, history)}
+  end
+
+  # --- Stage 3: generate ---
+
+  @doc false
+  @spec generate([Cake.Prompt.message()], map()) ::
+          {:ok, String.t()} | {:error, term()}
+  def generate(messages, state) do
+    case state.generation.complete(messages, state.response_model) do
+      {:ok, %{text: response, usage: _usage}} -> {:ok, response}
+      {:error, _} = error -> error
+    end
+  end
+
+  # --- Stage 4: process response (cite) ---
+
+  @doc false
+  @spec process_response(String.t(), [Cake.Prompt.indexed_chunk()], map()) ::
+          {:ok, Cake.Responses.Result.t()}
+  def process_response(response, indexed_chunks, state) do
+    {:ok, state.responses.process(response, indexed_chunks, [])}
+  end
+
+  # --- State update ---
+
+  defp update_state(state, scored_results, question, response, result) do
+    history =
+      case state.search_results do
+        [] -> [question, response]
+        _ -> state.message_history ++ [question, response]
       end
-    end
+
+    %{
+      state
+      | search_results: scored_results,
+        message_history: history,
+        chunk_map: result.chunk_map,
+        citations: result.citations
+    }
   end
+
+  # --- Search internals ---
 
   defp embed_and_search(question, state) do
     %{
@@ -156,27 +201,7 @@ defmodule Cake.Conversation do
     {Enum.min(scores, fn -> 0.0 end), Enum.max(scores, fn -> 0.0 end)}
   end
 
-  defp run_subsequent_turn(question, scored_results, state) do
-    {indexed_chunks, _context_quality} = Cake.Prompt.prepare_context(scored_results)
-    messages = Cake.Prompt.build(indexed_chunks, question, state.message_history)
-
-    case state.generation.complete(messages, state.response_model) do
-      {:ok, %{text: response, usage: _usage}} ->
-        result = state.responses.process(response, indexed_chunks, [])
-
-        new_state = %{
-          state
-          | message_history: state.message_history ++ [question, response],
-            chunk_map: result.chunk_map,
-            citations: result.citations
-        }
-
-        {:ok, {result.final_text, result.citations, new_state}}
-
-      {:error, _} = error ->
-        error
-    end
-  end
+  # --- Read-only accessors ---
 
   @impl GenServer
   def handle_call(:search_results, {from, _}, %{search_results: chunks} = state)

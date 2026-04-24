@@ -852,4 +852,7 @@ defmodule Cake.ConversationTest do
       assert_receive {:convo_response, _, _}, 500
     end
   end
+
+  describe "pipeline stages" do
+  end
 end
