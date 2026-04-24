@@ -1259,4 +1259,108 @@ defmodule Cake.ConversationTest do
       assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 500
     end
   end
+
+  describe "broadcasts" do
+    test "auto turn emits :state_change and :response_ready broadcasts" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      conv_id = "bcast-#{:erlang.unique_integer([:positive])}"
+      {:ok, pid} = start_supervised({Conversation, mocked_opts(%{id: conv_id})})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
+
+      Conversation.ask(pid, "q")
+
+      assert_receive {:state_change, :generating}, 1_000
+      assert_receive {:response_ready, %{response: "x", citations: []}}, 1_000
+      assert_receive {:state_change, :idle}, 1_000
+    end
+
+    test "auto turn error emits :error and :state_change broadcasts" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:error, :embed_failed}
+      end)
+
+      conv_id = "bcast-err-#{:erlang.unique_integer([:positive])}"
+      {:ok, pid} = start_supervised({Conversation, mocked_opts(%{id: conv_id})})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+
+      Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
+
+      Conversation.ask(pid, "q")
+
+      assert_receive {:state_change, :generating}, 1_000
+      assert_receive {:error, :embed_failed}, 1_000
+      assert_receive {:state_change, :idle}, 1_000
+    end
+
+    test "manual mode emits candidates_ready and state_change broadcasts" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      conv_id = "bcast-manual-#{:erlang.unique_integer([:positive])}"
+      {:ok, pid} = start_supervised({Conversation, mocked_opts(%{id: conv_id})})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
+
+      {:ok, candidates} = Conversation.manualask(pid, "q")
+
+      assert_receive {:candidates_ready, ^candidates}, 1_000
+      assert_receive {:state_change, :awaiting_selection}, 1_000
+
+      doc_ids = Enum.map(candidates, fn {c, _} -> Cake.Citable.metadata(c).id end)
+      :ok = Conversation.select_docs(pid, doc_ids)
+
+      assert_receive {:state_change, :generating}, 1_000
+      assert_receive {:response_ready, %{response: "x"}}, 1_000
+      assert_receive {:state_change, :idle}, 1_000
+    end
+  end
 end
