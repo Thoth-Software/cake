@@ -4,7 +4,10 @@ defmodule CakeWeb.ChatLive do
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
+    conversation_id = Ecto.UUID.generate()
+
     opts = %{
+      id: conversation_id,
       search: Cake.Search.OpenSearch,
       reply_to: self(),
       embedder: "text-embedding-ada-002",

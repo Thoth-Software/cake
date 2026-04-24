@@ -32,6 +32,7 @@ defmodule Cake.ConversationTest do
   defp valid_opts(overrides \\ %{}) do
     Map.merge(
       %{
+        id: "test-#{:erlang.unique_integer([:positive])}",
         search: Cake.Search.OpenSearch,
         reply_to: self(),
         embedder: "text-embedding-ada-002",
