@@ -114,7 +114,6 @@ If your task touches any of these, flag it to the user rather than silently reso
 
 - **Polling → PubSub**: `ChatLive` and `Conversation` both have TODO markers for replacing `Process.send_after` polling with Phoenix.PubSub.
 - **`Conversation.start_link/6` positional args**: Should eventually accept a struct.
-- **First-turn error wrapping bug**: The `else` branch in the first-turn `handle_cast` double-wraps the error tuple. Comment in code: "Fix ya shit." Do not silently fix this — discuss with user first.
 - **Post-demo formats**: Word, Excel, CSV, JPG pipelines are explicitly deferred.
 
 *Certified accurate by caleb-bb on 2026-04-16*
