@@ -6,14 +6,12 @@ defmodule Cake.Conversation.Events do
   """
 
   @type response_ready :: {:response_ready, %{response: String.t(), citations: list(map())}}
+  @type candidates_ready :: {:candidates_ready, candidates :: list()}
+  @type state_change :: {:state_change, Cake.Conversation.State.state_name()}
   @type error :: {:error, reason :: term()}
 
-  @type t :: response_ready() | error()
+  @type t :: response_ready() | candidates_ready() | state_change() | error()
 
   @spec topic(String.t()) :: String.t()
   def topic(conversation_id), do: "conversation:#{conversation_id}"
-
-  # Future events (Issue 4 — state machine):
-  # - {:state_change, new_state}
-  # - {:candidates_ready, grouped_candidates}
 end

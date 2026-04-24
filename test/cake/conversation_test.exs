@@ -154,7 +154,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      assert :ok = Conversation.ask(pid, "what is two plus two?")
+      assert :ok = Conversation.autoask(pid, "what is two plus two?")
 
       assert_receive {:convo_response, _response, _citations}, 500
     end
@@ -227,7 +227,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, "test question")
+      Conversation.autoask(pid, "test question")
 
       assert_receive {:convo_response, response, citations}, 500
 
@@ -301,7 +301,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:prompt_captured, messages}, 500
 
@@ -374,7 +374,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:convo_response, _response, citations}, 500
 
@@ -453,11 +453,11 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, turn_one_q)
+      Conversation.autoask(pid, turn_one_q)
       assert_receive {:prompt_captured, turn_one_messages}, 500
       assert_receive {:convo_response, _, _}, 500
 
-      Conversation.ask(pid, turn_two_q)
+      Conversation.autoask(pid, turn_two_q)
       assert_receive {:prompt_captured, turn_two_messages}, 500
       assert_receive {:convo_response, _, _}, 500
 
@@ -524,7 +524,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      assert :ok = Conversation.ask(pid, "hello")
+      assert :ok = Conversation.autoask(pid, "hello")
 
       assert_receive {:convo_response, _, _}, 500
     end
@@ -552,7 +552,7 @@ defmodule Cake.ConversationTest do
 
       ref = Process.monitor(pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:convo_error, :timeout}, 500
 
@@ -589,7 +589,7 @@ defmodule Cake.ConversationTest do
 
       ref = Process.monitor(pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:convo_error, {:rate_limited, nil}}, 500
       refute_receive {:DOWN, ^ref, :process, ^pid, _}, 100
@@ -628,7 +628,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, "q with no matching chunks")
+      Conversation.autoask(pid, "q with no matching chunks")
 
       assert_receive {:prompt_captured, _messages}, 500
       assert_receive {:responses_indexed_chunks, indexed_chunks}, 500
@@ -667,7 +667,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:convo_response, response, citations}, 500
 
@@ -725,7 +725,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:reply_to_received, {:convo_response, _response, _citations}}, 500
       refute_received {:convo_response, _, _}
@@ -746,7 +746,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:reply_to_received, {:convo_error, :boom}}, 500
       refute_received {:convo_error, _}
@@ -771,7 +771,7 @@ defmodule Cake.ConversationTest do
 
       ref = Process.monitor(pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:DOWN, ^ref, :process, ^pid, reason}, 500
 
@@ -832,8 +832,8 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      assert :ok = Conversation.ask(pid, "q1")
-      assert :ok = Conversation.ask(pid, "q2")
+      assert :ok = Conversation.autoask(pid, "q1")
+      assert :ok = Conversation.autoask(pid, "q2")
 
       # Cast 1's handler has started.
       assert_receive :first_started, 500
@@ -857,7 +857,11 @@ defmodule Cake.ConversationTest do
   describe "pipeline stages" do
     test "resolve_search_results/2 returns cached results when search_results is non-empty" do
       cached = [{%ConvoChunk{prompt_text: "cached"}, %{os_score: 1.0, cosine_score: 0.9, relevance_score: 0.95}}]
-      state = %{search_results: cached}
+
+      state =
+        struct!(Cake.Conversation.State,
+          Map.merge(mocked_opts(), %{search_results: cached})
+        )
 
       assert {:ok, ^cached} = Conversation.resolve_search_results("ignored", state)
     end
@@ -895,7 +899,7 @@ defmodule Cake.ConversationTest do
 
       allow(Cake.Responses.Mock, self(), pid)
       GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
       assert_receive {:convo_response, _, _}, 500
     end
 
@@ -909,7 +913,7 @@ defmodule Cake.ConversationTest do
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
       assert_receive {:convo_error, :embed_failed}, 500
     end
 
@@ -997,7 +1001,10 @@ defmodule Cake.ConversationTest do
         %Cake.Responses.Result{raw_text: "raw text", final_text: "processed", citations: [], warnings: []}
       end)
 
-      state = %{responses: Cake.Responses.Mock}
+      state =
+        struct!(Cake.Conversation.State,
+          Map.put(mocked_opts(), :responses, Cake.Responses.Mock)
+        )
 
       assert {:ok, %Cake.Responses.Result{final_text: "processed"}} =
                Conversation.process_response("raw text", [], state)
@@ -1015,7 +1022,7 @@ defmodule Cake.ConversationTest do
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
       assert_receive {:convo_error, :embed_failed}, 500
     end
 
@@ -1042,7 +1049,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
       assert_receive {:convo_error, :generation_failed}, 500
     end
 
@@ -1068,8 +1075,292 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
       assert_receive {:convo_response, "x", []}, 500
+    end
+  end
+
+  describe "apply_selection/2" do
+    test "filters candidates to selected IDs and assigns 1-based indices" do
+      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      c2 = %ConvoChunk{prompt_text: "b", metadata: %{id: "id-2", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      c3 = %ConvoChunk{prompt_text: "c", metadata: %{id: "id-3", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+
+      candidates = [
+        {c1, %{os_score: 1.0}},
+        {c2, %{os_score: 0.9}},
+        {c3, %{os_score: 0.8}}
+      ]
+
+      assert {:ok, indexed} = Conversation.apply_selection(candidates, ["id-1", "id-3"])
+      assert length(indexed) == 2
+      assert {1, {^c1, _}} = Enum.at(indexed, 0)
+      assert {2, {^c3, _}} = Enum.at(indexed, 1)
+    end
+
+    test "selecting all candidates returns all with indices" do
+      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      candidates = [{c1, %{os_score: 1.0}}]
+
+      assert {:ok, [{1, {^c1, _}}]} = Conversation.apply_selection(candidates, ["id-1"])
+    end
+
+    test "errors on unknown doc IDs" do
+      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      candidates = [{c1, %{os_score: 1.0}}]
+
+      assert {:error, {:unknown_doc_ids, unknown}} = Conversation.apply_selection(candidates, ["id-1", "id-999"])
+      assert "id-999" in unknown
+    end
+
+    test "empty doc_ids returns empty indexed list" do
+      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      candidates = [{c1, %{os_score: 1.0}}]
+
+      assert {:error, {:unknown_doc_ids, _}} = Conversation.apply_selection(candidates, ["nonexistent"])
+    end
+  end
+
+  describe "manual mode end-to-end" do
+    test "full flow: manualask returns candidates, select completes the turn" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "manual chunk",
+        metadata: %{id: "c1", label: "Manual", preview: "manual", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
+        %Cake.Responses.Result{raw_text: "answer", final_text: "answer", citations: [], warnings: []}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "answer", usage: %{}}})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      # Step 1: manualask returns candidates
+      assert {:ok, candidates} = Conversation.manualask(pid, "manual question")
+      assert candidates != []
+
+      # State is now awaiting_selection
+      pre_select = :sys.get_state(pid)
+      assert pre_select.state == :awaiting_selection
+      assert pre_select.pending != nil
+
+      # Step 2: select with chunk IDs completes the turn
+      doc_ids = Enum.map(candidates, fn {c, _} -> Cake.Citable.metadata(c).id end)
+      assert :ok = Conversation.select_docs(pid, doc_ids)
+
+      # Response pushed to reply_to
+      assert_receive {:convo_response, "answer", []}, 500
+
+      # State back to idle
+      post_select = :sys.get_state(pid)
+      assert post_select.state == :idle
+      assert post_select.pending == nil
+    end
+
+    test "manualask search error returns error and stays idle" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:error, :embed_failed}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+
+      assert {:error, :embed_failed} = Conversation.manualask(pid, "q")
+
+      state = :sys.get_state(pid)
+      assert state.state == :idle
+    end
+
+    test "select with unknown doc IDs returns error and resets to idle" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      {:ok, _candidates} = Conversation.manualask(pid, "q")
+      assert {:error, {:unknown_doc_ids, _}} = Conversation.select_docs(pid, ["nonexistent"])
+
+      state = :sys.get_state(pid)
+      assert state.state == :idle
+      assert state.pending == nil
+    end
+  end
+
+  describe "invalid transitions" do
+    test "select in idle state crashes the GenServer" do
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      ref = Process.monitor(pid)
+
+      catch_exit(Conversation.select_docs(pid, ["some_id"]))
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 500
+    end
+
+    test "manualask in awaiting_selection state crashes the GenServer" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      {:ok, _} = Conversation.manualask(pid, "q")
+
+      ref = Process.monitor(pid)
+      catch_exit(Conversation.manualask(pid, "q2"))
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 500
+    end
+  end
+
+  describe "broadcasts" do
+    test "auto turn emits :state_change and :response_ready broadcasts" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      conv_id = "bcast-#{:erlang.unique_integer([:positive])}"
+      {:ok, pid} = start_supervised({Conversation, mocked_opts(%{id: conv_id})})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
+
+      Conversation.autoask(pid, "q")
+
+      assert_receive {:state_change, :generating}, 1_000
+      assert_receive {:response_ready, %{response: "x", citations: []}}, 1_000
+      assert_receive {:state_change, :idle}, 1_000
+    end
+
+    test "auto turn error emits :error and :state_change broadcasts" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:error, :embed_failed}
+      end)
+
+      conv_id = "bcast-err-#{:erlang.unique_integer([:positive])}"
+      {:ok, pid} = start_supervised({Conversation, mocked_opts(%{id: conv_id})})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+
+      Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
+
+      Conversation.autoask(pid, "q")
+
+      assert_receive {:state_change, :generating}, 1_000
+      assert_receive {:error, :embed_failed}, 1_000
+      assert_receive {:state_change, :idle}, 1_000
+    end
+
+    test "manual mode emits candidates_ready and state_change broadcasts" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      conv_id = "bcast-manual-#{:erlang.unique_integer([:positive])}"
+      {:ok, pid} = start_supervised({Conversation, mocked_opts(%{id: conv_id})})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
+
+      {:ok, candidates} = Conversation.manualask(pid, "q")
+
+      assert_receive {:candidates_ready, ^candidates}, 1_000
+      assert_receive {:state_change, :awaiting_selection}, 1_000
+
+      doc_ids = Enum.map(candidates, fn {c, _} -> Cake.Citable.metadata(c).id end)
+      :ok = Conversation.select_docs(pid, doc_ids)
+
+      assert_receive {:state_change, :generating}, 1_000
+      assert_receive {:response_ready, %{response: "x"}}, 1_000
+      assert_receive {:state_change, :idle}, 1_000
     end
   end
 end

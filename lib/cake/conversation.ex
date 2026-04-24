@@ -2,27 +2,39 @@ defmodule Cake.Conversation do
   @moduledoc """
   Conversation orchestrator: the sole module that composes the turn pipeline.
 
-  ## Turn pipeline
+  ## State machine
 
-  A turn executes the following stages in order via `run_turn/2`:
+      :idle --{:autoask, q}-->       :generating        --> :idle
+      :idle --{:manualask, q}-->     :awaiting_selection
+      :awaiting_selection --{:select, ids}--> :generating --> :idle
 
-    1. `resolve_search_results/2` — retrieve or reuse scored chunks
-    2. `select/1`                 — filter by relevance, assign 1..N indices
-    3. `build_prompt/3`           — assemble the LLM message list
-    4. `generate/2`               — invoke the LLM
-    5. `process_response/3`       — citation resolution, renumbering, formatting
+  Invalid transitions crash the GenServer (no defensive clauses; the UI
+  is expected to prevent invalid messages).
 
-  The pipeline is called from `handle_cast({:question, _}, _)`. Stages are
-  `@doc false` public functions for direct testability; they are not intended
-  for use outside this module.
+  ## Pipelines
+
+  - `run_turn/2` — full auto-mode pipeline (search → select → prompt →
+    generate → cite).
+  - `run_manual_turn/4` — manual-mode back-half (apply_selection → prompt →
+    generate → cite) after user picks documents.
+
+  Stages are `@doc false` public functions for direct testability.
 
   ## Dependencies
 
   Search, embeddings, generation, and responses modules are passed as opts at
   `start_link/1` time to support Mox-based testing.
+
+  ## Broadcasts
+
+  See `Cake.Conversation.Events` for event shapes emitted on the
+  `"conversation:\#{id}"` topic.
   """
 
   use GenServer
+
+  alias Cake.Conversation.Events
+  alias Cake.Conversation.State
 
   require Logger
 
@@ -53,9 +65,7 @@ defmodule Cake.Conversation do
 
   @impl GenServer
   def init(opts) do
-    {:ok, id} = fetch_required(opts, :id)
-    {:ok, gds} = fetch_required(opts, :gds)
-    {:ok, build_state(opts, id, gds)}
+    {:ok, build_state(opts)}
   end
 
   defp fetch_required(opts, key) do
@@ -66,9 +76,9 @@ defmodule Cake.Conversation do
     end
   end
 
-  defp build_state(opts, id, gds) do
-    %{
-      id: id,
+  defp build_state(opts) do
+    %State{
+      id: opts.id,
       search: opts.search,
       reply_to: opts.reply_to,
       embedder: opts.embedder,
@@ -77,60 +87,117 @@ defmodule Cake.Conversation do
       embeddings: Map.get(opts, :embeddings, Cake.Embeddings),
       responses: Map.get(opts, :responses, Cake.Responses),
       generation: Map.get(opts, :generation, Cake.Generation.OpenAI),
-      gds: gds,
-      search_results: [],
-      message_history: [],
-      chunk_map: %{},
-      citations: [],
-      errors: []
+      gds: opts.gds
     }
   end
 
-  @spec ask(pid(), String.t()) :: :ok
-  def ask(pid, question) do
-    GenServer.cast(pid, {:question, question})
+  @spec autoask(pid(), String.t()) :: :ok
+  def autoask(pid, question) do
+    GenServer.cast(pid, {:autoask, question})
   end
 
   @impl GenServer
-  def handle_cast({:question, question}, state) do
-    case run_turn(question, state) do
+  def handle_cast({:autoask, question}, %State{state: :idle} = s) do
+    do_auto_turn(question, s)
+  end
+
+  defp do_auto_turn(question, %State{} = s) do
+    _ = broadcast(s, {:state_change, :generating})
+
+    case run_turn(question, s) do
       {:ok, {response, citations, new_state}} ->
-        send(state.reply_to, {:convo_response, response, citations})
+        _ = emit_response(s, response, citations)
         {:noreply, new_state}
 
       {:error, error} ->
-        send(state.reply_to, {:convo_error, error})
-        {:noreply, %{state | errors: [error | state.errors]}}
+        _ = emit_error(s, error)
+        {:noreply, %{s | errors: [error | s.errors]}}
     end
   end
 
-  # --- Turn pipeline ---
+  # --- Manual mode ---
 
-  defp run_turn(question, state) do
-    with {:ok, scored_results} <- resolve_search_results(question, state),
+  @spec manualask(pid(), String.t()) :: {:ok, [Cake.Search.scored_result()]} | {:error, term()}
+  def manualask(pid, question) do
+    GenServer.call(pid, {:manualask, question})
+  end
+
+  @spec select_docs(pid(), [String.t()]) :: :ok | {:error, term()}
+  def select_docs(pid, doc_ids) do
+    GenServer.call(pid, {:select, doc_ids})
+  end
+
+  # --- Auto-mode turn pipeline ---
+
+  defp run_turn(question, %State{} = s) do
+    with {:ok, scored_results} <- resolve_search_results(question, s),
          {:ok, indexed_chunks} <- select(scored_results),
-         {:ok, messages} <- build_prompt(indexed_chunks, question, state.message_history),
-         {:ok, response} <- generate(messages, state),
-         {:ok, result} <- process_response(response, indexed_chunks, state) do
-      new_state = update_state(state, scored_results, question, response, result)
-      {:ok, {result.final_text, result.citations, new_state}}
+         {:ok, messages} <- build_prompt(indexed_chunks, question, s.message_history),
+         {:ok, response} <- generate(messages, s),
+         {:ok, result} <- process_response(response, indexed_chunks, s) do
+      finalize_turn(s, scored_results, question, response, result)
     end
+  end
+
+  # --- Manual-mode turn pipeline ---
+
+  defp run_manual_turn(question, candidates, doc_ids, %State{} = s) do
+    with {:ok, indexed_chunks} <- apply_selection(candidates, doc_ids),
+         {:ok, messages} <- build_prompt(indexed_chunks, question, s.message_history),
+         {:ok, response} <- generate(messages, s),
+         {:ok, result} <- process_response(response, indexed_chunks, s) do
+      finalize_turn(s, candidates, question, response, result)
+    end
+  end
+
+  defp finalize_turn(%State{} = s, scored_results, question, response, result) do
+    new_state = update_state(s, scored_results, question, response, result)
+    {:ok, {result.final_text, result.citations, new_state}}
   end
 
   # --- Stage 0: resolve search results (search on first turn, reuse on subsequent) ---
 
   @doc false
-  @spec resolve_search_results(String.t(), map()) ::
+  @spec resolve_search_results(String.t(), State.t()) ::
           {:ok, [Cake.Search.scored_result()]} | {:error, term()}
-  def resolve_search_results(_question, %{search_results: results}) when results != [] do
+  def resolve_search_results(_question, %State{search_results: results}) when results != [] do
     {:ok, results}
   end
 
-  def resolve_search_results(question, state) do
-    embed_and_search(question, state)
+  def resolve_search_results(question, %State{} = s) do
+    embed_and_search(question, s)
   end
 
-  # --- Stage 1: select ---
+  # --- Stage 1a: apply_selection (manual mode) ---
+
+  @doc false
+  @spec apply_selection([Cake.Search.scored_result()], [String.t()]) ::
+          {:ok, [Cake.Prompt.indexed_chunk()]} | {:error, term()}
+  def apply_selection(candidates, doc_ids) do
+    available_ids =
+      MapSet.new(candidates, fn {chunk, _scores} ->
+        Cake.Citable.metadata(chunk).id
+      end)
+
+    requested = MapSet.new(doc_ids)
+    unknown = MapSet.difference(requested, available_ids)
+
+    if MapSet.size(unknown) > 0 do
+      {:error, {:unknown_doc_ids, MapSet.to_list(unknown)}}
+    else
+      selected =
+        candidates
+        |> Enum.filter(fn {chunk, _scores} ->
+          Cake.Citable.metadata(chunk).id in doc_ids
+        end)
+        |> Enum.with_index(1)
+        |> Enum.map(fn {scored_chunk, idx} -> {idx, scored_chunk} end)
+
+      {:ok, selected}
+    end
+  end
+
+  # --- Stage 1b: select (auto mode) ---
 
   @doc false
   @spec select([Cake.Search.scored_result()]) :: {:ok, [Cake.Prompt.indexed_chunk()]}
@@ -151,10 +218,10 @@ defmodule Cake.Conversation do
   # --- Stage 3: generate ---
 
   @doc false
-  @spec generate([Cake.Prompt.message()], map()) ::
+  @spec generate([Cake.Prompt.message()], State.t()) ::
           {:ok, String.t()} | {:error, term()}
-  def generate(messages, state) do
-    case state.generation.complete(messages, state.response_model) do
+  def generate(messages, %State{} = s) do
+    case s.generation.complete(messages, s.response_model) do
       {:ok, %{text: response, usage: _usage}} -> {:ok, response}
       {:error, _} = error -> error
     end
@@ -163,23 +230,23 @@ defmodule Cake.Conversation do
   # --- Stage 4: process response (cite) ---
 
   @doc false
-  @spec process_response(String.t(), [Cake.Prompt.indexed_chunk()], map()) ::
+  @spec process_response(String.t(), [Cake.Prompt.indexed_chunk()], State.t()) ::
           {:ok, Cake.Responses.Result.t()}
-  def process_response(response, indexed_chunks, state) do
-    {:ok, state.responses.process(response, indexed_chunks, [])}
+  def process_response(response, indexed_chunks, %State{} = s) do
+    {:ok, s.responses.process(response, indexed_chunks, [])}
   end
 
   # --- State update ---
 
-  defp update_state(state, scored_results, question, response, result) do
+  defp update_state(%State{} = s, scored_results, question, response, result) do
     history =
-      case state.search_results do
+      case s.search_results do
         [] -> [question, response]
-        _ -> state.message_history ++ [question, response]
+        _ -> s.message_history ++ [question, response]
       end
 
     %{
-      state
+      s
       | search_results: scored_results,
         message_history: history,
         chunk_map: result.chunk_map,
@@ -189,24 +256,16 @@ defmodule Cake.Conversation do
 
   # --- Search internals ---
 
-  defp embed_and_search(question, state) do
-    %{
-      search: search,
-      provider: provider,
-      embedder: embedder,
-      gds: gds,
-      embeddings: embeddings
-    } = state
-
+  defp embed_and_search(question, %State{} = s) do
     with {:ok, %{attrs: %{embedding: embedding}}} <-
-           embeddings.embed(provider, %{input: question}, embedder),
+           s.embeddings.embed(s.provider, %{input: question}, s.embedder),
          {:ok, scored_hits} <-
-           search.search_chunks_with_context(
+           s.search.search_chunks_with_context(
              :hybrid,
              question,
              embedding,
              Cake.Search.OpenSearch.default_expand_offset(),
-             gds: gds
+             gds: s.gds
            ) do
       scored_results =
         scored_hits
@@ -228,37 +287,73 @@ defmodule Cake.Conversation do
     {Enum.min(scores, fn -> 0.0 end), Enum.max(scores, fn -> 0.0 end)}
   end
 
+  # --- Manual-mode handlers ---
+
+  @impl GenServer
+  def handle_call({:manualask, question}, _from, %State{state: :idle} = s) do
+    case embed_and_search(question, s) do
+      {:ok, candidates} ->
+        pending = %{question: question, candidates: candidates}
+        new_state = %{s | state: :awaiting_selection, pending: pending}
+        _ = broadcast(s, {:candidates_ready, candidates})
+        _ = broadcast(s, {:state_change, :awaiting_selection})
+        {:reply, {:ok, candidates}, new_state}
+
+      {:error, _} = error ->
+        _ = broadcast(s, {:error, elem(error, 1)})
+        {:reply, error, s}
+    end
+  end
+
+  @impl GenServer
+  def handle_call({:select, doc_ids}, _from, %State{state: :awaiting_selection} = s) do
+    %{question: question, candidates: candidates} = s.pending
+    _ = broadcast(s, {:state_change, :generating})
+
+    case run_manual_turn(question, candidates, doc_ids, s) do
+      {:ok, {response, citations, new_state}} ->
+        new_state = %{new_state | state: :idle, pending: nil}
+        _ = emit_response(s, response, citations)
+        {:reply, :ok, new_state}
+
+      {:error, error} ->
+        new_state = %{s | state: :idle, pending: nil, errors: [error | s.errors]}
+        _ = emit_error(s, error)
+        {:reply, {:error, error}, new_state}
+    end
+  end
+
   # --- Read-only accessors ---
 
   @impl GenServer
-  def handle_call(:search_results, {from, _}, %{search_results: chunks} = state)
+  def handle_call(:search_results, {from, _}, %State{search_results: chunks} = s)
       when is_list(chunks) and chunks != [] do
     Logger.debug(
       "search_results requested by #{inspect(from)}, returning #{length(chunks)} chunks"
     )
 
-    {:reply, chunks, state}
+    {:reply, chunks, s}
   end
 
   @impl GenServer
-  def handle_call(:search_results, {_from, _}, %{search_results: []} = state) do
+  def handle_call(:search_results, {_from, _}, %State{search_results: []} = s) do
     Logger.debug("search_results requested but none available yet")
-    {:reply, [], state}
+    {:reply, [], s}
   end
 
   @impl GenServer
-  def handle_call(:chunk_map, _from, %{chunk_map: chunk_map} = state) do
-    {:reply, chunk_map, state}
+  def handle_call(:chunk_map, _from, %State{chunk_map: chunk_map} = s) do
+    {:reply, chunk_map, s}
   end
 
   @impl GenServer
-  def handle_call(:citations, _from, %{citations: citations} = state) do
-    {:reply, citations, state}
+  def handle_call(:citations, _from, %State{citations: citations} = s) do
+    {:reply, citations, s}
   end
 
   @impl GenServer
-  def handle_call(:inspect, _from, state) do
-    {:reply, state, state}
+  def handle_call(:inspect, _from, %State{} = s) do
+    {:reply, s, s}
   end
 
   @spec print_hierarchy(map(), list()) :: list()
@@ -270,5 +365,21 @@ defmodule Cake.Conversation do
         print_hierarchy(value, [key | prefix])
       end
     end
+  end
+
+  defp emit_response(%State{} = s, response, citations) do
+    send(s.reply_to, {:convo_response, response, citations})
+    _ = broadcast(s, {:response_ready, %{response: response, citations: citations}})
+    broadcast(s, {:state_change, :idle})
+  end
+
+  defp emit_error(%State{} = s, error) do
+    send(s.reply_to, {:convo_error, error})
+    _ = broadcast(s, {:error, error})
+    broadcast(s, {:state_change, :idle})
+  end
+
+  defp broadcast(%State{id: id}, event) do
+    Phoenix.PubSub.broadcast(Cake.PubSub, Events.topic(id), event)
   end
 end

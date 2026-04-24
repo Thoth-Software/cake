@@ -35,7 +35,7 @@ defmodule CakeWeb.ChatLive do
     if String.trim(question) == "" do
       {:noreply, socket}
     else
-      Cake.Conversation.ask(socket.assigns.convo_pid, question)
+      Cake.Conversation.autoask(socket.assigns.convo_pid, question)
 
       {:noreply,
        assign(socket,
