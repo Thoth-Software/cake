@@ -86,8 +86,22 @@ defmodule Cake.Conversation do
     GenServer.cast(pid, {:question, question})
   end
 
+  @spec autoask(pid(), String.t()) :: :ok
+  def autoask(pid, question) do
+    GenServer.cast(pid, {:autoask, question})
+  end
+
   @impl GenServer
   def handle_cast({:question, question}, %State{state: :idle} = s) do
+    do_auto_turn(question, s)
+  end
+
+  @impl GenServer
+  def handle_cast({:autoask, question}, %State{state: :idle} = s) do
+    do_auto_turn(question, s)
+  end
+
+  defp do_auto_turn(question, %State{} = s) do
     case run_turn(question, s) do
       {:ok, {response, citations, new_state}} ->
         send(s.reply_to, {:convo_response, response, citations})
