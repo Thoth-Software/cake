@@ -853,4 +853,223 @@ defmodule Cake.ConversationTest do
       assert_receive {:convo_response, _, _}, 500
     end
   end
+
+  describe "pipeline stages" do
+    test "resolve_search_results/2 returns cached results when search_results is non-empty" do
+      cached = [{%ConvoChunk{prompt_text: "cached"}, %{os_score: 1.0, cosine_score: 0.9, relevance_score: 0.95}}]
+      state = %{search_results: cached}
+
+      assert {:ok, ^cached} = Conversation.resolve_search_results("ignored", state)
+    end
+
+    test "resolve_search_results/2 calls embed_and_search when search_results is empty" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      # Call from within the GenServer process via a handler
+      state = :sys.get_state(pid)
+      assert state.search_results == []
+
+      # Verify indirectly: a full turn exercises resolve_search_results
+      # and the embed/search mocks being called exactly once confirms it.
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      allow(Cake.Responses.Mock, self(), pid)
+      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+      Conversation.ask(pid, "q")
+      assert_receive {:convo_response, _, _}, 500
+    end
+
+    test "resolve_search_results/2 propagates embed error" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:error, :embed_failed}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+
+      Conversation.ask(pid, "q")
+      assert_receive {:convo_error, :embed_failed}, 500
+    end
+
+    test "select/1 returns indexed chunks from scored results" do
+      scored = [
+        {%ConvoChunk{prompt_text: "a"}, %{relevance_score: 0.9}},
+        {%ConvoChunk{prompt_text: "b"}, %{relevance_score: 0.8}}
+      ]
+
+      assert {:ok, indexed} = Conversation.select(scored)
+      assert length(indexed) == 2
+      assert {1, _} = hd(indexed)
+    end
+
+    test "select/1 filters below relevance floor" do
+      scored = [
+        {%ConvoChunk{prompt_text: "a"}, %{relevance_score: 0.1}}
+      ]
+
+      assert {:ok, []} = Conversation.select(scored)
+    end
+
+    test "select/1 handles empty input" do
+      assert {:ok, []} = Conversation.select([])
+    end
+
+    test "build_prompt/3 includes question and chunk content" do
+      marker = "UNIQUE_#{:erlang.unique_integer([:positive])}"
+
+      chunk = %ConvoChunk{prompt_text: marker}
+      scored = {chunk, %{relevance_score: 0.9}}
+      indexed = [{1, scored}]
+
+      assert {:ok, messages} = Conversation.build_prompt(indexed, "my question", [])
+      serialized = Enum.map_join(messages, "\n", & &1.content)
+
+      assert serialized =~ marker
+      assert serialized =~ "my question"
+    end
+
+    test "build_prompt/3 includes history" do
+      assert {:ok, messages} = Conversation.build_prompt([], "q2", ["q1", "a1"])
+      serialized = Enum.map_join(messages, "\n", & &1.content)
+
+      assert serialized =~ "q1"
+      assert serialized =~ "a1"
+      assert serialized =~ "q2"
+    end
+
+    test "generate/2 returns response text on success" do
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "hello", usage: %{}}})
+
+      test_pid = self()
+      messages = [%{role: "user", content: "q"}]
+
+      :sys.replace_state(pid, fn s ->
+        send(test_pid, {:gen_result, Conversation.generate(messages, s)})
+        s
+      end)
+
+      assert_receive {:gen_result, {:ok, "hello"}}, 500
+    end
+
+    test "generate/2 propagates error" do
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:error, :rate_limited})
+
+      test_pid = self()
+
+      :sys.replace_state(pid, fn s ->
+        send(test_pid, {:gen_result, Conversation.generate([%{role: "user", content: "q"}], s)})
+        s
+      end)
+
+      assert_receive {:gen_result, {:error, :rate_limited}}, 500
+    end
+
+    test "process_response/3 wraps Responses.process result in :ok tuple" do
+      expect(Cake.Responses.Mock, :process, fn "raw text", [], [] ->
+        %Cake.Responses.Result{raw_text: "raw text", final_text: "processed", citations: [], warnings: []}
+      end)
+
+      state = %{responses: Cake.Responses.Mock}
+
+      assert {:ok, %Cake.Responses.Result{final_text: "processed"}} =
+               Conversation.process_response("raw text", [], state)
+    end
+  end
+
+  describe "pipeline integration" do
+    test "search failure short-circuits: generate and responses never called" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:error, :embed_failed}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+
+      Conversation.ask(pid, "q")
+      assert_receive {:convo_error, :embed_failed}, 500
+    end
+
+    test "generate failure short-circuits: responses never called" do
+      chunk = %ConvoChunk{
+        embedding: [0.1, 0.2, 0.3],
+        prompt_text: "x",
+        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [{chunk, %{os_score: 1.0}}]}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:error, :generation_failed})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+
+      Conversation.ask(pid, "q")
+      assert_receive {:convo_error, :generation_failed}, 500
+    end
+
+    test "zero chunks: pipeline completes without short-circuit" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, []}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      on_exit(fn -> GenerationStub.clear(pid) end)
+
+      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      Conversation.ask(pid, "q")
+      assert_receive {:convo_response, "x", []}, 500
+    end
+  end
 end
