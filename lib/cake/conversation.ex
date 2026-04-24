@@ -102,15 +102,15 @@ defmodule Cake.Conversation do
   end
 
   defp do_auto_turn(question, %State{} = s) do
-    broadcast(s, {:state_change, :generating})
+    _ = broadcast(s, {:state_change, :generating})
 
     case run_turn(question, s) do
       {:ok, {response, citations, new_state}} ->
-        emit_response(s, response, citations)
+        _ = emit_response(s, response, citations)
         {:noreply, new_state}
 
       {:error, error} ->
-        emit_error(s, error)
+        _ = emit_error(s, error)
         {:noreply, %{s | errors: [error | s.errors]}}
     end
   end
@@ -295,12 +295,12 @@ defmodule Cake.Conversation do
       {:ok, candidates} ->
         pending = %{question: question, candidates: candidates}
         new_state = %{s | state: :awaiting_selection, pending: pending}
-        broadcast(s, {:candidates_ready, candidates})
-        broadcast(s, {:state_change, :awaiting_selection})
+        _ = broadcast(s, {:candidates_ready, candidates})
+        _ = broadcast(s, {:state_change, :awaiting_selection})
         {:reply, {:ok, candidates}, new_state}
 
       {:error, _} = error ->
-        broadcast(s, {:error, elem(error, 1)})
+        _ = broadcast(s, {:error, elem(error, 1)})
         {:reply, error, s}
     end
   end
@@ -308,17 +308,17 @@ defmodule Cake.Conversation do
   @impl GenServer
   def handle_call({:select, doc_ids}, _from, %State{state: :awaiting_selection} = s) do
     %{question: question, candidates: candidates} = s.pending
-    broadcast(s, {:state_change, :generating})
+    _ = broadcast(s, {:state_change, :generating})
 
     case run_manual_turn(question, candidates, doc_ids, s) do
       {:ok, {response, citations, new_state}} ->
         new_state = %{new_state | state: :idle, pending: nil}
-        emit_response(s, response, citations)
+        _ = emit_response(s, response, citations)
         {:reply, :ok, new_state}
 
       {:error, error} ->
         new_state = %{s | state: :idle, pending: nil, errors: [error | s.errors]}
-        emit_error(s, error)
+        _ = emit_error(s, error)
         {:reply, {:error, error}, new_state}
     end
   end
@@ -369,13 +369,13 @@ defmodule Cake.Conversation do
 
   defp emit_response(%State{} = s, response, citations) do
     send(s.reply_to, {:convo_response, response, citations})
-    broadcast(s, {:response_ready, %{response: response, citations: citations}})
+    _ = broadcast(s, {:response_ready, %{response: response, citations: citations}})
     broadcast(s, {:state_change, :idle})
   end
 
   defp emit_error(%State{} = s, error) do
     send(s.reply_to, {:convo_error, error})
-    broadcast(s, {:error, error})
+    _ = broadcast(s, {:error, error})
     broadcast(s, {:state_change, :idle})
   end
 
