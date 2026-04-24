@@ -154,7 +154,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      assert :ok = Conversation.ask(pid, "what is two plus two?")
+      assert :ok = Conversation.autoask(pid, "what is two plus two?")
 
       assert_receive {:convo_response, _response, _citations}, 500
     end
@@ -227,7 +227,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, "test question")
+      Conversation.autoask(pid, "test question")
 
       assert_receive {:convo_response, response, citations}, 500
 
@@ -301,7 +301,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:prompt_captured, messages}, 500
 
@@ -374,7 +374,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:convo_response, _response, citations}, 500
 
@@ -453,11 +453,11 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, turn_one_q)
+      Conversation.autoask(pid, turn_one_q)
       assert_receive {:prompt_captured, turn_one_messages}, 500
       assert_receive {:convo_response, _, _}, 500
 
-      Conversation.ask(pid, turn_two_q)
+      Conversation.autoask(pid, turn_two_q)
       assert_receive {:prompt_captured, turn_two_messages}, 500
       assert_receive {:convo_response, _, _}, 500
 
@@ -524,7 +524,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      assert :ok = Conversation.ask(pid, "hello")
+      assert :ok = Conversation.autoask(pid, "hello")
 
       assert_receive {:convo_response, _, _}, 500
     end
@@ -552,7 +552,7 @@ defmodule Cake.ConversationTest do
 
       ref = Process.monitor(pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:convo_error, :timeout}, 500
 
@@ -589,7 +589,7 @@ defmodule Cake.ConversationTest do
 
       ref = Process.monitor(pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:convo_error, {:rate_limited, nil}}, 500
       refute_receive {:DOWN, ^ref, :process, ^pid, _}, 100
@@ -628,7 +628,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, "q with no matching chunks")
+      Conversation.autoask(pid, "q with no matching chunks")
 
       assert_receive {:prompt_captured, _messages}, 500
       assert_receive {:responses_indexed_chunks, indexed_chunks}, 500
@@ -667,7 +667,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:convo_response, response, citations}, 500
 
@@ -725,7 +725,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:reply_to_received, {:convo_response, _response, _citations}}, 500
       refute_received {:convo_response, _, _}
@@ -746,7 +746,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:reply_to_received, {:convo_error, :boom}}, 500
       refute_received {:convo_error, _}
@@ -771,7 +771,7 @@ defmodule Cake.ConversationTest do
 
       ref = Process.monitor(pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:DOWN, ^ref, :process, ^pid, reason}, 500
 
@@ -832,8 +832,8 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      assert :ok = Conversation.ask(pid, "q1")
-      assert :ok = Conversation.ask(pid, "q2")
+      assert :ok = Conversation.autoask(pid, "q1")
+      assert :ok = Conversation.autoask(pid, "q2")
 
       # Cast 1's handler has started.
       assert_receive :first_started, 500
@@ -899,7 +899,7 @@ defmodule Cake.ConversationTest do
 
       allow(Cake.Responses.Mock, self(), pid)
       GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
       assert_receive {:convo_response, _, _}, 500
     end
 
@@ -913,7 +913,7 @@ defmodule Cake.ConversationTest do
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
       assert_receive {:convo_error, :embed_failed}, 500
     end
 
@@ -1022,7 +1022,7 @@ defmodule Cake.ConversationTest do
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
       assert_receive {:convo_error, :embed_failed}, 500
     end
 
@@ -1049,7 +1049,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
       assert_receive {:convo_error, :generation_failed}, 500
     end
 
@@ -1075,7 +1075,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
       assert_receive {:convo_response, "x", []}, 500
     end
   end
@@ -1292,7 +1292,7 @@ defmodule Cake.ConversationTest do
 
       Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:state_change, :generating}, 1_000
       assert_receive {:response_ready, %{response: "x", citations: []}}, 1_000
@@ -1312,7 +1312,7 @@ defmodule Cake.ConversationTest do
 
       Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
 
-      Conversation.ask(pid, "q")
+      Conversation.autoask(pid, "q")
 
       assert_receive {:state_change, :generating}, 1_000
       assert_receive {:error, :embed_failed}, 1_000

@@ -2,24 +2,33 @@ defmodule Cake.Conversation do
   @moduledoc """
   Conversation orchestrator: the sole module that composes the turn pipeline.
 
-  ## Turn pipeline
+  ## State machine
 
-  A turn executes the following stages in order via `run_turn/2`:
+      :idle --{:autoask, q}-->       :generating        --> :idle
+      :idle --{:manualask, q}-->     :awaiting_selection
+      :awaiting_selection --{:select, ids}--> :generating --> :idle
 
-    1. `resolve_search_results/2` — retrieve or reuse scored chunks
-    2. `select/1`                 — filter by relevance, assign 1..N indices
-    3. `build_prompt/3`           — assemble the LLM message list
-    4. `generate/2`               — invoke the LLM
-    5. `process_response/3`       — citation resolution, renumbering, formatting
+  Invalid transitions crash the GenServer (no defensive clauses; the UI
+  is expected to prevent invalid messages).
 
-  The pipeline is called from `handle_cast({:question, _}, _)`. Stages are
-  `@doc false` public functions for direct testability; they are not intended
-  for use outside this module.
+  ## Pipelines
+
+  - `run_turn/2` — full auto-mode pipeline (search → select → prompt →
+    generate → cite).
+  - `run_manual_turn/4` — manual-mode back-half (apply_selection → prompt →
+    generate → cite) after user picks documents.
+
+  Stages are `@doc false` public functions for direct testability.
 
   ## Dependencies
 
   Search, embeddings, generation, and responses modules are passed as opts at
   `start_link/1` time to support Mox-based testing.
+
+  ## Broadcasts
+
+  See `Cake.Conversation.Events` for event shapes emitted on the
+  `"conversation:\#{id}"` topic.
   """
 
   use GenServer
@@ -82,19 +91,9 @@ defmodule Cake.Conversation do
     }
   end
 
-  @spec ask(pid(), String.t()) :: :ok
-  def ask(pid, question) do
-    GenServer.cast(pid, {:question, question})
-  end
-
   @spec autoask(pid(), String.t()) :: :ok
   def autoask(pid, question) do
     GenServer.cast(pid, {:autoask, question})
-  end
-
-  @impl GenServer
-  def handle_cast({:question, question}, %State{state: :idle} = s) do
-    do_auto_turn(question, s)
   end
 
   @impl GenServer
