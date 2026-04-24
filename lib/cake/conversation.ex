@@ -1,4 +1,27 @@
 defmodule Cake.Conversation do
+  @moduledoc """
+  Conversation orchestrator: the sole module that composes the turn pipeline.
+
+  ## Turn pipeline
+
+  A turn executes the following stages in order via `run_turn/2`:
+
+    1. `resolve_search_results/2` — retrieve or reuse scored chunks
+    2. `select/1`                 — filter by relevance, assign 1..N indices
+    3. `build_prompt/3`           — assemble the LLM message list
+    4. `generate/2`               — invoke the LLM
+    5. `process_response/3`       — citation resolution, renumbering, formatting
+
+  The pipeline is called from `handle_cast({:question, _}, _)`. Stages are
+  `@doc false` public functions for direct testability; they are not intended
+  for use outside this module.
+
+  ## Dependencies
+
+  Search, embeddings, generation, and responses modules are passed as opts at
+  `start_link/1` time to support Mox-based testing.
+  """
+
   use GenServer
 
   require Logger
