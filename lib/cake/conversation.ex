@@ -14,34 +14,38 @@ defmodule Cake.Conversation do
 
   @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
-    with {:ok, _gds} <- fetch_gds(opts) do
+    with {:ok, _id} <- fetch_required(opts, :id),
+         {:ok, _gds} <- fetch_required(opts, :gds) do
       GenServer.start_link(__MODULE__, opts)
     end
   end
 
   @spec start(map()) :: GenServer.on_start()
   def start(opts) when is_map(opts) do
-    with {:ok, _gds} <- fetch_gds(opts) do
+    with {:ok, _id} <- fetch_required(opts, :id),
+         {:ok, _gds} <- fetch_required(opts, :gds) do
       GenServer.start(__MODULE__, opts)
     end
   end
 
   @impl GenServer
   def init(opts) do
-    {:ok, gds} = fetch_gds(opts)
-    {:ok, build_state(opts, gds)}
+    {:ok, id} = fetch_required(opts, :id)
+    {:ok, gds} = fetch_required(opts, :gds)
+    {:ok, build_state(opts, id, gds)}
   end
 
-  defp fetch_gds(opts) do
-    case Map.fetch(opts, :gds) do
-      {:ok, nil} -> {:error, %KeyError{key: :gds, term: opts}}
-      {:ok, gds} -> {:ok, gds}
-      :error -> {:error, %KeyError{key: :gds, term: opts}}
+  defp fetch_required(opts, key) do
+    case Map.fetch(opts, key) do
+      {:ok, nil} -> {:error, %KeyError{key: key, term: opts}}
+      {:ok, value} -> {:ok, value}
+      :error -> {:error, %KeyError{key: key, term: opts}}
     end
   end
 
-  defp build_state(opts, gds) do
+  defp build_state(opts, id, gds) do
     %{
+      id: id,
       search: opts.search,
       reply_to: opts.reply_to,
       embedder: opts.embedder,
