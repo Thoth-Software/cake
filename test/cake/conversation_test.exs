@@ -857,7 +857,11 @@ defmodule Cake.ConversationTest do
   describe "pipeline stages" do
     test "resolve_search_results/2 returns cached results when search_results is non-empty" do
       cached = [{%ConvoChunk{prompt_text: "cached"}, %{os_score: 1.0, cosine_score: 0.9, relevance_score: 0.95}}]
-      state = %{search_results: cached}
+
+      state =
+        struct!(Cake.Conversation.State,
+          Map.merge(mocked_opts(), %{search_results: cached})
+        )
 
       assert {:ok, ^cached} = Conversation.resolve_search_results("ignored", state)
     end
@@ -997,7 +1001,10 @@ defmodule Cake.ConversationTest do
         %Cake.Responses.Result{raw_text: "raw text", final_text: "processed", citations: [], warnings: []}
       end)
 
-      state = %{responses: Cake.Responses.Mock}
+      state =
+        struct!(Cake.Conversation.State,
+          Map.put(mocked_opts(), :responses, Cake.Responses.Mock)
+        )
 
       assert {:ok, %Cake.Responses.Result{final_text: "processed"}} =
                Conversation.process_response("raw text", [], state)
