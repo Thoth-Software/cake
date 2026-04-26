@@ -5,33 +5,48 @@ date: 2026-04-15
 domain: development, ai-workflow
 source: project-maintainer
 last_verified: 2026-04-15
-last_reviewed: 2026-04-16 [caleb-bb]
+last_reviewed: 2026-04-23 [jasper]
 ---
 
 # CLAUDE.md — Operational Contract for Cake
 
 This file governs how you work on Cake. The README describes what things are and why; this file tells you what you must do. Read both before making changes. If this file contradicts what you infer from the code, **this file wins** — flag the discrepancy to the user rather than silently following the code.
 
-For architecture, module responsibilities, data schemas, and the RAG loop, read the README. Do not duplicate that understanding here — reference it.
+For architecture, module responsibilities, data schemas, domain model, cardinality mappings, behaviours, protocols, and the RAG loop, read the README. Do not duplicate that understanding here — reference it.
 
 *Certified accurate by caleb-bb on 2026-04-16*
 
 ---
 
-## Dynamic Refdoc Protocol
+## Context Loading: What to Read and When
 
-After completing any task that changes architecture, module boundaries, conventions, or tooling:
+### Always load before any task
 
-1. Review both this file and README.md for sections that are now stale.
-2. Propose specific edits: "I changed X, which means section Y should be updated. Here's what I'd change: [diff]."
-3. Make approved edits before closing the task.
-4. If unsure whether a change warrants a doc update, ask.
+Read these files in full before making any changes:
+
+- `README.md` — the architecture reference. Understand the domain model and module boundaries before touching code.
+- `priv/reference/naming-conventions.md` — at the start of any task involving naming (modules, functions, variables, atoms).
+- `priv/reference/enum-cheat.md` — before writing any collection transformation. If you're about to write explicit recursion over a list, check this first.
+
+### Load by trigger
+
+These reference files in `priv/reference/` should be loaded when the task matches the trigger condition. Load the full file before proceeding.
+
+| When you're about to... | Load these |
+|---|---|
+| Refactor function bodies, change pattern matching, modify string/list/map logic, add parameters, change arity, modify exception handling, introduce boolean/flag params | `code-anti-patterns.md` + `patterns-and-guards.md` |
+| Create/rename/move modules, restructure directories, define new public APIs or behaviours, add/change structs or schemas, introduce dependencies, change module call graphs, add config | `design-anti-patterns.md` |
+| Write/modify macros, `use` declarations, `quote`/`unquote`, DSLs, compile-time code generation | `macro-anti-patterns.md` + `macros.md` + `quote-and-unquote.md` |
+| Create/modify/supervise GenServers/Agents/Tasks, modify supervision tree, use spawn/Task.async, work with Registry/PubSub/message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` (add `dynamic-supervisor.md` if dynamic spawning) |
+| Write/modify `@type`, `@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
+| Write/modify public API for external consumption, design behaviours for third-party use | `library-guidelines.md` |
+| Add a new GDS, modify an existing GDS's contract, or implement `Cake.GDS` / `Cake.Promptable` / `Cake.Citable` on a schema or struct | README's "Cardinality" + "Adding a New GDS" sections; `lib/cake/gds.ex` + `lib/cake/promptable.ex` + `lib/cake/citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md` |
 
 *Certified accurate by caleb-bb on 2026-04-16*
 
 ---
 
-## Quality Gates
+## Quality Gates: When to Run and What Must Pass
 
 Run in this order. Every gate must pass before presenting changes.
 
@@ -46,45 +61,119 @@ mix coveralls.json                         # Must not reduce coverage below thre
 
 Dialyzer is not yet a hard push gate (the config line is commented out). Dialyzer is, however, a hard *merge* gate.
 
+---
+
+## When to Stop and Ask the User
+
+Stop work and ask before proceeding in any of these situations:
+
+- **Ambiguous scope.** If a task could be interpreted multiple ways and the difference affects which modules are touched, ask which interpretation is intended.
+- **Architecture boundary change.** If you need to move a responsibility from one module to another, add a new module, or change the public API of an existing module, describe what you'd change and why before doing it.
+- **Behaviour or protocol modification.** If you need to add, remove, or change a callback on an existing behaviour or protocol, flag it. Existing implementations will need updating.
+- **CLAUDE.md or README contradicts code.** This file wins. Flag the discrepancy rather than silently following the code.
+- **Known defect adjacency.** If your task touches a known defect or deferred work item (listed below), flag it rather than silently resolving or ignoring it.
+- **Uncertain doc update.** If you're unsure whether a change warrants a README or CLAUDE.md update, ask.
+- **Credo disable request.** No inline `# credo:disable-for-this-file` or `# credo:disable-for-next-line` without explicit user approval.
+
+---
+
+## Policies for Creating New Things
+
+### New ingestion pipeline (for an existing GDS)
+
+Consult the README sections "Adding a New Ingestion Pipeline" and "Requirements for All Pipeline Implementations" before starting. The short version:
+
+- Implement the behaviour for the target GDS (`Cake.Books.Pipeline` or `Cake.Documents.Pipeline`).
+- All callbacks return `{:ok, _}` or `{:error, _}`.
+- Use `Pipelines.detuple_with_logging/3` with a descriptive step name — never the silent `detuple/1`.
+- Step names follow `"pipeline.step"` convention (e.g., `"books.parse"`, `"docs.embed"`).
+- Pipeline-fatal errors go in the `else` branch of the `with` chain in the behaviour's `ingest` function.
+- Schemas must `use Cake.Schema` (not `Ecto.Schema`) and call `sanitize_text_fields/1` in changesets with string fields.
+- UUIDs are binary, not string.
+
+### New GDS
+
+Consult the README section "Adding a New GDS" before starting. The checklist includes designing schemas, declaring `use Cake.GDS`, implementing `Cake.Promptable` and `Cake.Citable`, designing a pipeline behaviour, creating an OpenSearch index mapping, and threading the GDS through `Cake.Conversation`.
+
+### New behaviour
+
+- Define callbacks with `@callback` and full typespecs.
+- Every callback must have `@doc`.
+- Add the behaviour to the README's "Behaviours and Implementations" section.
+- Create at least one implementation. If the behaviour replaces a hardcoded module, the existing code becomes the first implementation.
+
+### New protocol
+
+- Define with `@doc` on each function.
+- Implement for at least one struct.
+- Add the protocol and its implementations to the README's "Protocols and Implementations" section.
+
+### New Ecto schema
+
+- `use Cake.Schema` (not `Ecto.Schema`).
+- Call `sanitize_text_fields/1` in every changeset with string fields.
+- UUIDs are binary.
+- Define a `@type t :: %__MODULE__{}` with all fields spelled out.
+- Add a factory in `test/support/factory.ex` (Ecto-backed: `insert/1`; non-Ecto: `build/1`).
+- Add the schema to the README's "Custom Structs" section.
+
+### New custom struct (non-Ecto)
+
+- Define a `@type t :: %__MODULE__{}` with all fields spelled out.
+- Add a factory via `build/1` in `test/support/factory.ex`.
+- Add the struct to the README's "Custom Structs" section.
+
 *Certified accurate by caleb-bb on 2026-04-16*
 
 ---
 
-## Conventions
+## Typespec Policies
 
-### Dependency Injection
+- **Every public function must have a `@spec`.** No exceptions.
+- **Every custom struct must define `@type t :: %__MODULE__{}`** with all fields and their types explicitly listed. This type must be used wherever the struct appears in any typespec — never use `%MyStruct{}` in a spec, always `MyStruct.t()`.
+- **Behaviour callbacks must have full typespecs** via `@callback`.
+- **Protocol functions must have full typespecs** via `@spec` in the protocol definition.
+- **Retrieval callbacks return `[struct()]`**, not a specific struct type. This is deliberate — see the GDS behaviour documentation in the README.
 
-Modules that depend on external services accept collaborator modules as arguments — for Mox testability, not runtime polymorphism. `Conversation` takes `caller` (the cluster module). Pipelines read the embeddings module from application config. When adding new external-service dependencies, follow this pattern: define a behaviour, implement it, pass the module as an argument or read it from config. In the testing environment, a mock should be available.
+---
 
-`Cake.Conversation` additionally requires a `:gds` opt (a `Cake.GDS` module) that threads through to `Cake.Search.OpenSearch`. Required, not defaulted — `init/1` validates before spawn. `Cake.Search.OpenSearch.search_chunks_with_context/5` and friends read the target index, search fields, hit hydration, and neighbor expansion from this module. Follow the same required-opt pattern for any future orchestration-layer module that dispatches across GDSes.
+## Dependency Injection Conventions
 
-*Certified accurate by caleb-bb on 2026-04-16*
+Modules that depend on external services accept collaborator modules as arguments — for Mox testability, not runtime polymorphism. When adding new external-service dependencies, follow this pattern: define a behaviour, implement it, pass the module as an argument or read it from config. In the testing environment, a mock should be available.
 
-### Result Tuples and Pipeline Error Handling
+`Cake.Conversation` requires a `:gds` opt (a `Cake.GDS` module) that threads through to `Cake.Search.OpenSearch`. Required, not defaulted — `init/1` validates before spawn. Follow the same required-opt pattern for any future orchestration-layer module that dispatches across GDSes.
 
-All pipeline callbacks return `{:ok, _}` or `{:error, _}`. Stream steps use `Pipelines.detuple_with_logging/3` — never the silent `detuple/1`. Step names follow `"pipeline.step"` convention (e.g., `"books.parse"`, `"docs.embed"`). Pipeline-fatal errors go in the `else` branch of the `with` chain in each behaviour's `ingest` function.
+---
 
-*Certified accurate by caleb-bb on 2026-04-16*
+## Result Tuples and Pipeline Error Handling
 
-### Schemas
-
-Every Ecto schema must `use Cake.Schema` (not `Ecto.Schema`). Every changeset for a schema with string fields must call `sanitize_text_fields/1`. UUIDs are binary, not string. 
-
-*Certified accurate by caleb-bb on 2026-04-16*
-
-### Tests
-
-Use `Cake.Factory` (ExMachina) for test data, imported via `DataCase`, `ConnCase`, or `ObanCase`. Ecto-backed factories use `insert/1`; non-Ecto domain objects use `build/1`. New domain structs need a corresponding factory.
-
-Property tests (StreamData) go in `*_property_test.exs`. When fixing a bug found by a property test, add a corresponding example test in the standard file.
-
-Mox expectations go in individual tests, not setup blocks.
+All pipeline callbacks return `{:ok, _}` or `{:error, _}`. Stream steps use `Pipelines.detuple_with_logging/3` — never the silent `detuple/1`. Step names follow `"pipeline.step"` convention. Pipeline-fatal errors go in the `else` branch of the `with` chain in each behaviour's `ingest` function.
 
 *Certified accurate by caleb-bb on 2026-04-16*
 
-### OpenSearch Test Isolation
+---
 
-`test_helper.exs` sets `Application.put_env(:cake, :skip_opensearch, true)`. Pipeline code checks this flag. Tests that need search behavior mock the cluster via Mox or a test module with the same function signature.
+## Test Conventions
+
+- Use `Cake.Factory` (ExMachina) for test data, imported via `DataCase`, `ConnCase`, or `ObanCase`.
+- Ecto-backed factories use `insert/1`; non-Ecto domain objects use `build/1`.
+- New domain structs need a corresponding factory.
+- Property tests (StreamData) go in `*_property_test.exs`. When fixing a bug found by a property test, add a corresponding example test in the standard file.
+- Mox expectations go in individual tests, not setup blocks.
+- `test_helper.exs` sets `Application.put_env(:cake, :skip_opensearch, true)`. Tests that need search behavior mock the cluster via Mox or a test module.
+
+---
+
+## README Update Protocol
+
+After completing any task that changes architecture, module boundaries, conventions, or tooling:
+
+1. Review both this file and README.md for sections that are now stale.
+2. Propose specific edits: "I changed X, which means section Y should be updated. Here's what I'd change: [diff]."
+3. Make approved edits before closing the task.
+4. If unsure whether a change warrants a doc update, ask.
+
+**The enumeration rule:** If the README contains a list of things (behaviours, protocols, structs, implementations, pipeline implementations, etc.) and you create a new instance of that kind of thing, add it to the list. For example: if you create a new behaviour, add it to the "Behaviours and Implementations" section. If you implement a protocol for a new struct, add the implementation to the "Protocols and Implementations" section. If you create a new schema, add it to the "Custom Structs" section.
 
 *Certified accurate by caleb-bb on 2026-04-16*
 
@@ -104,8 +193,6 @@ The dev environment runs three containers via `docker-compose.yml`: `cake_app`, 
 
 **Bind mount hot paths.** Heavy virtiofs I/O through the mount is slow. Copy to `/tmp` inside the container on hot paths.
 
-*Certified accurate by caleb-bb on 2026-04-16*
-
 ---
 
 ## Known Defects and Deferred Work
@@ -115,105 +202,6 @@ If your task touches any of these, flag it to the user rather than silently reso
 - **Polling → PubSub**: `ChatLive` and `Conversation` both have TODO markers for replacing `Process.send_after` polling with Phoenix.PubSub.
 - **`Conversation.start_link/6` positional args**: Should eventually accept a struct.
 - **Post-demo formats**: Word, Excel, CSV, JPG pipelines are explicitly deferred.
-
-*Certified accurate by caleb-bb on 2026-04-16*
-
----
-
-## Reference Loading Rules
-
-All reference files live in `priv/reference/`. 
-
-*Certified accurate by caleb-bb on 2026-04-16*
-
-### Always load
-
-Load these **before** making changes. Read the full file, then proceed.
-
-- `priv/reference/naming-conventions.md` — at the start of any task involving naming (modules, functions, variables, atoms).
-- `priv/reference/enum-cheat.md` — before writing any collection transformation. If you're about to write explicit recursion over a list, check this first.
-
-*Certified accurate by caleb-bb on 2026-04-16*
-
-### Load by trigger
-
-| When you're about to... | Load these |
-|---|---|
-| Refactor function bodies, change pattern matching, modify string/list/map logic, add parameters, change arity, modify exception handling, introduce boolean/flag params | `code-anti-patterns.md` + `patterns-and-guards.md` |
-| Create/rename/move modules, restructure directories, define new public APIs or behaviours, add/change structs or schemas, introduce dependencies, change module call graphs, add config | `design-anti-patterns.md` |
-| Write/modify macros, `use` declarations, `quote`/`unquote`, DSLs, compile-time code generation | `macro-anti-patterns.md` + `macros.md` + `quote-and-unquote.md` |
-| Create/modify/supervise GenServers/Agents/Tasks, modify supervision tree, use spawn/Task.async, work with Registry/PubSub/message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` (add `dynamic-supervisor.md` if dynamic spawning) |
-| Write/modify `@type`, `@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
-| Write/modify public API for external consumption, design behaviours for third-party use | `library-guidelines.md` |
-| Add a new GDS, modify an existing GDS's contract, or implement `Cake.GDS` / `Cake.Promptable` / `Cake.Citable` on a schema or struct | README's "Cardinality" + "Adding a New GDS" sections; `lib/cake/gds.ex` + `lib/cake/promptable.ex` + `lib/cake/citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md`. |
-
-*Certified accurate by caleb-bb on 2026-04-16*
-
----
-
-## File Map
-
-```
-lib/
-  cake/
-    accounts/              # Phoenix auth (User, UserToken, UserNotifier)
-    books/                 # Book ingestion subsystem
-      chunk.ex             # Chunk schema
-      parsed_book.ex       # ParsedBook schema
-      pipeline.ex          # Books.Pipeline behaviour + orchestrator
-      pdf/pipeline.ex      # PDF implementation (Rustler NIF)
-    documents/             # Documentation ingestion subsystem
-      cluster.ex           # OpenSearch Snap.Cluster (connection + index lifecycle only)
-      parsed_document.ex   # ParsedDocument schema
-      parsed_documents.ex  # ParsedDocuments context (CRUD)
-      pipeline.ex          # Documents.Pipeline behaviour + orchestrator
-      hexdocs/             # Hexdocs implementation
-        downloads.ex       # Tarball fetching
-        hexdoc.ex          # Raw hexdoc schema
-        pipeline.ex        # Hexdocs.Pipeline implementation
-    failed_ingests/        # FailedIngest schema + context
-    search.ex              # Cake.Search behaviour (contract only)
-    search/
-      query.ex             # Query struct: build/3, to_opensearch/1
-      open_search.ex       # Cake.Search.OpenSearch — real implementation
-    conversation.ex        # Conversation GenServer
-    gds.ex                 # Cake.GDS behaviour (module-level GDS contract; impl'd by ParsedBook, ParsedDocument)
-    promptable.ex          # Cake.Promptable protocol (value-level prompt-context contract; impl'd by Chunk, ParsedDocument)
-    citable.ex             # Cake.Citable protocol (citation-metadata contract across GDS types)
-    citations.ex           # Parses [N] markers; returns {citations, hallucinated}
-    embeddings.ex          # OpenAI embeddings client + Behaviour
-    generation.ex          # Cake.Generation behaviour (contract only)
-    generation/
-      open_ai.ex           # Cake.Generation.OpenAI — real implementation
-      anthropic.ex         # Cake.Generation.Anthropic — placeholder stub
-    pipelines.ex           # Shared pipeline helpers + Context
-    responses.ex           # Post-processing pipeline (resolve → renumber → rewrite → media → actions → format)
-    responses/
-      behaviour.ex         # Cake.Responses.Behaviour (contract)
-      result.ex            # Cake.Responses.Result struct
-    schema.ex              # Base schema (use Cake.Schema)
-  cake_web/
-    live/
-      chat_live.ex         # LiveView chat UI
-    user_auth.ex           # Auth plugs
-
-test/
-  support/
-    factory.ex             # ExMachina test data factories
-    data_case.ex           # Ecto sandbox setup
-    conn_case.ex           # Phoenix conn setup
-    oban_case.ex           # Oban testing helpers
-    test_pipeline.ex       # Mock pipeline implementations
-  cake/
-    citations_test.exs
-    citations_property_test.exs
-
-config/
-  dev.exs      # Dev config (live reload, logging)
-  test.exs     # Test config (sandbox, Oban manual mode)
-  runtime.exs  # Runtime config (reads env vars)
-
-native/parsebooks/   # Rust crate for PDF parsing via Rustler
-```
-
-*Certified accurate by caleb-bb on 2026-04-16*
+- **`Responses` hardcoded to `Chunk`**: Generalizing post-processing beyond `Cake.Books.Chunk` to work with any GDS's atomic unit is a known TODO.
+- **`search_fields/0` behaviour extraction**: TODO to extract into a behaviour on the pipeline generics so each GDS declares its searchable fields.
+- **`Generation.Behaviour` extraction**: Needed for Mox substitution, mirroring `Embeddings.Behaviour`.
