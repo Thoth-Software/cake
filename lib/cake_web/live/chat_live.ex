@@ -28,6 +28,7 @@ defmodule CakeWeb.ChatLive do
        messages: [],
        loading: false,
        citations: [],
+       conversation_state: :idle,
        form: to_form(%{"question" => ""})
      )}
   end
@@ -70,8 +71,8 @@ defmodule CakeWeb.ChatLive do
      )}
   end
 
-  def handle_info({:state_change, _state}, socket) do
-    {:noreply, socket}
+  def handle_info({:state_change, new_state}, socket) do
+    {:noreply, assign(socket, conversation_state: new_state)}
   end
 
   def handle_info({:candidates_ready, _candidates}, socket) do
@@ -139,14 +140,24 @@ defmodule CakeWeb.ChatLive do
         </div>
       </div>
 
-      <div :if={@loading} class="text-gray-500 italic mb-4">Thinking...</div>
+      <%= case @conversation_state do %>
+        <% :generating -> %>
+          <div class="flex items-center gap-2 text-gray-500 italic mb-4">
+            <span class="inline-block h-2 w-2 rounded-full bg-gray-400 animate-pulse"></span>
+            Thinking...
+          </div>
 
-      <.simple_form for={@form} phx-submit="submit">
-        <.input field={@form[:question]} type="text" placeholder="Ask a question..." />
-        <:actions>
-          <.button type="submit" disabled={@loading}>Send</.button>
-        </:actions>
-      </.simple_form>
+        <% :awaiting_selection -> %>
+          <div class="text-gray-500 italic mb-4">Selection pending...</div>
+
+        <% _idle -> %>
+          <.simple_form for={@form} phx-submit="submit">
+            <.input field={@form[:question]} type="text" placeholder="Ask a question..." />
+            <:actions>
+              <.button type="submit" disabled={@loading}>Send</.button>
+            </:actions>
+          </.simple_form>
+      <% end %>
     </div>
     """
   end
