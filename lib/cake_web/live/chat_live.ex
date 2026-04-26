@@ -1,6 +1,8 @@
 defmodule CakeWeb.ChatLive do
   use CakeWeb, :live_view
 
+  alias Cake.Conversation.Events
+
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
@@ -18,6 +20,7 @@ defmodule CakeWeb.ChatLive do
 
     {:ok, pid} = Cake.Conversation.start(opts)
     Process.monitor(pid)
+    Phoenix.PubSub.subscribe(Cake.PubSub, Events.topic(conversation_id))
 
     {:ok,
      assign(socket,
@@ -65,6 +68,22 @@ defmodule CakeWeb.ChatLive do
        messages: [%{role: :assistant, text: "Error: #{inspect(error)}"} | socket.assigns.messages],
        loading: false
      )}
+  end
+
+  def handle_info({:state_change, _state}, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_info({:candidates_ready, _candidates}, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_info({:response_ready, _payload}, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_info({:error, _reason}, socket) do
+    {:noreply, socket}
   end
 
   def handle_info({:DOWN, _ref, :process, _pid, reason}, socket) do

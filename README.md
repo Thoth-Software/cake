@@ -134,7 +134,7 @@ On follow-up turns, retrieval is skipped — cached chunks are reused with the n
 
 ### Layer 4: Web — Phoenix LiveView Chat Interface
 
-**`CakeWeb.ChatLive`** is the user-facing chat UI. It starts a `Conversation` GenServer, sends user messages via `Conversation.ask/2|3`, and polls for responses via `Process.send_after`. A known TODO replaces polling with Phoenix.PubSub.
+**`CakeWeb.ChatLive`** is the user-facing chat UI. It starts a `Conversation` GenServer and subscribes to its PubSub topic for state-change, candidates-ready, response-ready, and error broadcasts. Two embedded-schema form modules live under `chat_live/`: **`QuestionForm`** (question + mode validation) and **`SelectionForm`** (document-selection validation with subset checking against available IDs).
 
 **`CakeWeb.UserAuth`** provides authentication plugs.
 
@@ -350,6 +350,9 @@ lib/
   cake_web/
     live/
       chat_live.ex           # LiveView chat UI
+      chat_live/
+        question_form.ex     #   Embedded schema for question + mode validation
+        selection_form.ex    #   Embedded schema for document selection validation
     user_auth.ex             # Auth plugs
 
 test/
