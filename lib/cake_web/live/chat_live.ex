@@ -3,6 +3,7 @@ defmodule CakeWeb.ChatLive do
 
   alias Cake.Conversation.Events
   alias CakeWeb.ChatLive.QuestionForm
+  alias CakeWeb.ChatLive.SelectionForm
 
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
@@ -30,7 +31,10 @@ defmodule CakeWeb.ChatLive do
        loading: false,
        citations: [],
        conversation_state: :idle,
-       question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto}))
+       question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto})),
+       candidates: %{},
+       available_doc_ids: [],
+       selection_form: nil
      )}
   end
 
@@ -41,14 +45,24 @@ defmodule CakeWeb.ChatLive do
 
     if changeset.valid? do
       question = Ecto.Changeset.get_change(changeset, :question)
-      Cake.Conversation.autoask(socket.assigns.convo_pid, question)
+      mode = Ecto.Changeset.get_change(changeset, :mode)
 
-      {:noreply,
-       assign(socket,
-         messages: [%{role: :user, text: question} | socket.assigns.messages],
-         loading: true,
-         question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto}))
-       )}
+      socket =
+        assign(socket,
+          messages: [%{role: :user, text: question} | socket.assigns.messages],
+          loading: true,
+          question_form: to_form(QuestionForm.changeset(%{question: "", mode: mode}))
+        )
+
+      case mode do
+        :auto ->
+          Cake.Conversation.autoask(socket.assigns.convo_pid, question)
+
+        :manual ->
+          Cake.Conversation.manualask(socket.assigns.convo_pid, question)
+      end
+
+      {:noreply, socket}
     else
       {:noreply,
        assign(socket,
@@ -91,8 +105,18 @@ defmodule CakeWeb.ChatLive do
     {:noreply, assign(socket, conversation_state: new_state)}
   end
 
-  def handle_info({:candidates_ready, _candidates}, socket) do
-    {:noreply, socket}
+  def handle_info({:candidates_ready, candidates}, socket) do
+    grouped = group_candidates_by_document(candidates)
+    available_doc_ids = grouped |> Map.keys() |> Enum.map(&to_string/1)
+    selection_form = to_form(SelectionForm.changeset(%{}, available_doc_ids))
+
+    {:noreply,
+     assign(socket,
+       conversation_state: :awaiting_selection,
+       candidates: grouped,
+       available_doc_ids: available_doc_ids,
+       selection_form: selection_form
+     )}
   end
 
   def handle_info({:response_ready, _payload}, socket) do
@@ -169,7 +193,19 @@ defmodule CakeWeb.ChatLive do
         <% _idle -> %>
           <.simple_form for={@question_form} phx-submit="submit" phx-change="validate_question">
             <.input field={@question_form[:question]} type="text" placeholder="Ask a question..." />
-            <input type="hidden" name={@question_form[:mode].name} value={@question_form[:mode].value} />
+            <div class="flex items-center gap-2">
+              <input type="hidden" name={@question_form[:mode].name} value="auto" />
+              <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name={@question_form[:mode].name}
+                  value="manual"
+                  checked={to_string(@question_form[:mode].value) == "manual"}
+                  class="rounded border-gray-300"
+                />
+                Manual selection
+              </label>
+            </div>
             <:actions>
               <.button type="submit" disabled={not @question_form.source.valid?}>Send</.button>
             </:actions>
@@ -177,5 +213,11 @@ defmodule CakeWeb.ChatLive do
       <% end %>
     </div>
     """
+  end
+
+  defp group_candidates_by_document(candidates) do
+    Enum.group_by(candidates, fn {chunk, _scores} ->
+      Cake.Citable.metadata(chunk).id
+    end)
   end
 end
