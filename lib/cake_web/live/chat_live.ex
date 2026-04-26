@@ -28,7 +28,6 @@ defmodule CakeWeb.ChatLive do
      assign(socket,
        convo_pid: pid,
        messages: [],
-       loading: false,
        citations: [],
        conversation_state: :idle,
        question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto})),
@@ -50,7 +49,6 @@ defmodule CakeWeb.ChatLive do
       socket =
         assign(socket,
           messages: [%{role: :user, text: question} | socket.assigns.messages],
-          loading: true,
           question_form: to_form(QuestionForm.changeset(%{question: "", mode: mode}))
         )
 
@@ -113,24 +111,13 @@ defmodule CakeWeb.ChatLive do
 
   @spec handle_info(term(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
-  def handle_info({:convo_response, response, citations}, socket) do
-    {:noreply,
-     assign(socket,
-       messages: [
-         %{role: :assistant, text: response, citations: citations} | socket.assigns.messages
-       ],
-       loading: false,
-       citations: citations
-     )}
-  end
 
-  def handle_info({:convo_error, error}, socket) do
-    {:noreply,
-     assign(socket,
-       messages: [%{role: :assistant, text: "Error: #{inspect(error)}"} | socket.assigns.messages],
-       loading: false
-     )}
-  end
+  # TODO: Remove these two no-op handlers once the backend stops sending
+  # direct {:convo_response, ...} and {:convo_error, ...} messages via
+  # send/2. Logic now lives in the PubSub-driven :response_ready and
+  # :error handlers below.
+  def handle_info({:convo_response, _response, _citations}, socket), do: {:noreply, socket}
+  def handle_info({:convo_error, _error}, socket), do: {:noreply, socket}
 
   def handle_info({:state_change, new_state}, socket) do
     {:noreply, assign(socket, conversation_state: new_state)}
@@ -150,12 +137,33 @@ defmodule CakeWeb.ChatLive do
      )}
   end
 
-  def handle_info({:response_ready, _payload}, socket) do
-    {:noreply, socket}
+  def handle_info({:response_ready, %{response: response, citations: citations}}, socket) do
+    {:noreply,
+     assign(socket,
+       messages: [
+         %{role: :assistant, text: response, citations: citations} | socket.assigns.messages
+       ],
+       citations: citations,
+       conversation_state: :idle,
+       candidates: %{},
+       available_doc_ids: [],
+       selection_form: nil,
+       question_form: to_form(QuestionForm.changeset(%{question: "", mode: current_mode(socket)}))
+     )}
   end
 
-  def handle_info({:error, _reason}, socket) do
-    {:noreply, socket}
+  def handle_info({:error, reason}, socket) do
+    {:noreply,
+     assign(socket,
+       messages: [
+         %{role: :assistant, text: "Error: #{inspect(reason)}"} | socket.assigns.messages
+       ],
+       conversation_state: :idle,
+       candidates: %{},
+       available_doc_ids: [],
+       selection_form: nil,
+       question_form: to_form(QuestionForm.changeset(%{question: "", mode: current_mode(socket)}))
+     )}
   end
 
   def handle_info({:DOWN, _ref, :process, _pid, reason}, socket) do
@@ -165,7 +173,11 @@ defmodule CakeWeb.ChatLive do
          %{role: :assistant, text: "Error: conversation process crashed (#{inspect(reason)})"}
          | socket.assigns.messages
        ],
-       loading: false
+       conversation_state: :idle,
+       candidates: %{},
+       available_doc_ids: [],
+       selection_form: nil,
+       question_form: to_form(QuestionForm.changeset(%{question: "", mode: current_mode(socket)}))
      )}
   end
 
@@ -218,6 +230,8 @@ defmodule CakeWeb.ChatLive do
             Thinking...
           </div>
         <% :awaiting_selection -> %>
+          <%!-- TODO: "Switch to auto" button blocked on backend state machine extension.
+               Requires :autoask to be valid from :awaiting_selection. See #136. --%>
           <div class="mb-4">
             <h2 class="text-lg font-semibold mb-2">Select documents to use</h2>
             <form phx-submit="submit_selection" phx-change="validate_selection">
@@ -339,4 +353,11 @@ defmodule CakeWeb.ChatLive do
   end
 
   defp sanitize_title(nil), do: "Untitled"
+
+  defp current_mode(socket) do
+    case Ecto.Changeset.get_field(socket.assigns.question_form.source, :mode) do
+      nil -> :auto
+      mode -> mode
+    end
+  end
 end
