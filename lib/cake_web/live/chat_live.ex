@@ -2,6 +2,7 @@ defmodule CakeWeb.ChatLive do
   use CakeWeb, :live_view
 
   alias Cake.Conversation.Events
+  alias CakeWeb.ChatLive.QuestionForm
 
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
@@ -29,25 +30,40 @@ defmodule CakeWeb.ChatLive do
        loading: false,
        citations: [],
        conversation_state: :idle,
-       form: to_form(%{"question" => ""})
+       question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto}))
      )}
   end
 
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
-  def handle_event("submit", %{"question" => question}, socket) do
-    if String.trim(question) == "" do
-      {:noreply, socket}
-    else
+  def handle_event("submit", %{"question_form" => params}, socket) do
+    changeset = QuestionForm.changeset(params)
+
+    if changeset.valid? do
+      question = Ecto.Changeset.get_change(changeset, :question)
       Cake.Conversation.autoask(socket.assigns.convo_pid, question)
 
       {:noreply,
        assign(socket,
          messages: [%{role: :user, text: question} | socket.assigns.messages],
          loading: true,
-         form: to_form(%{"question" => ""})
+         question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto}))
+       )}
+    else
+      {:noreply,
+       assign(socket,
+         question_form: to_form(Map.put(changeset, :action, :validate))
        )}
     end
+  end
+
+  def handle_event("validate_question", %{"question_form" => params}, socket) do
+    changeset =
+      params
+      |> QuestionForm.changeset()
+      |> Map.put(:action, :validate)
+
+    {:noreply, assign(socket, question_form: to_form(changeset))}
   end
 
   @spec handle_info(term(), Phoenix.LiveView.Socket.t()) ::
@@ -151,10 +167,11 @@ defmodule CakeWeb.ChatLive do
           <div class="text-gray-500 italic mb-4">Selection pending...</div>
 
         <% _idle -> %>
-          <.simple_form for={@form} phx-submit="submit">
-            <.input field={@form[:question]} type="text" placeholder="Ask a question..." />
+          <.simple_form for={@question_form} phx-submit="submit" phx-change="validate_question">
+            <.input field={@question_form[:question]} type="text" placeholder="Ask a question..." />
+            <input type="hidden" name={@question_form[:mode].name} value={@question_form[:mode].value} />
             <:actions>
-              <.button type="submit" disabled={@loading}>Send</.button>
+              <.button type="submit" disabled={not @question_form.source.valid?}>Send</.button>
             </:actions>
           </.simple_form>
       <% end %>
