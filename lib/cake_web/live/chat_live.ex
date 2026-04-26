@@ -28,7 +28,6 @@ defmodule CakeWeb.ChatLive do
      assign(socket,
        convo_pid: pid,
        messages: [],
-       citations: [],
        conversation_state: :idle,
        question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto})),
        candidates: %{},
@@ -143,7 +142,6 @@ defmodule CakeWeb.ChatLive do
        messages: [
          %{role: :assistant, text: response, citations: citations} | socket.assigns.messages
        ],
-       citations: citations,
        conversation_state: :idle,
        candidates: %{},
        available_doc_ids: [],
@@ -233,21 +231,26 @@ defmodule CakeWeb.ChatLive do
           <%!-- TODO: "Switch to auto" button blocked on backend state machine extension.
                Requires :autoask to be valid from :awaiting_selection. See #136. --%>
           <div class="mb-4">
-            <h2 class="text-lg font-semibold mb-2">Select documents to use</h2>
+            <div class="flex items-baseline justify-between mb-3">
+              <h2 class="text-lg font-semibold">Select documents to use</h2>
+              <span class="text-xs text-gray-400">{map_size(@candidates)} found</span>
+            </div>
             <form phx-submit="submit_selection" phx-change="validate_selection">
-              <div class="space-y-2 mb-4">
+              <div class="space-y-2 mb-4 max-h-80 overflow-y-auto">
                 <%= for {doc_id, chunks} <- @candidates do %>
                   <% meta = candidate_metadata(chunks) %>
-                  <label class="flex items-start gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <label class="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-colors">
                     <input
                       type="checkbox"
                       name="selection_form[selected_doc_ids][]"
                       value={doc_id}
-                      class="mt-1 rounded border-gray-300"
+                      class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <div class="flex-1 min-w-0">
-                      <div class="font-medium text-sm">{sanitize_title(meta.title)}</div>
-                      <div class="text-xs text-gray-500">
+                      <div class="font-medium text-sm text-gray-900">
+                        {sanitize_title(meta.title)}
+                      </div>
+                      <div class="text-xs text-gray-500 mt-0.5">
                         {length(chunks)} chunk{if length(chunks) != 1, do: "s"}{if meta.page_label,
                           do: " · #{meta.page_label}"}
                       </div>
@@ -256,18 +259,18 @@ defmodule CakeWeb.ChatLive do
                   </label>
                 <% end %>
               </div>
-              <div class="flex gap-2">
+              <div class="flex gap-2 pt-2 border-t border-gray-100">
                 <button
                   type="submit"
                   disabled={not (@selection_form && @selection_form.source.valid?)}
-                  class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                  class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   Use selected
                 </button>
                 <button
                   type="button"
                   phx-click="use_all"
-                  class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                  class="px-4 py-2 bg-white text-gray-700 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Use all
                 </button>
@@ -330,16 +333,14 @@ defmodule CakeWeb.ChatLive do
   end
 
   defp expand_to_chunk_ids(selected_doc_ids, candidates) do
-    selected_doc_ids
-    |> Enum.flat_map(fn doc_id ->
+    Enum.flat_map(selected_doc_ids, fn doc_id ->
       chunks = Map.get(candidates, doc_id, [])
       Enum.map(chunks, fn {chunk, _scores} -> Cake.Citable.metadata(chunk).id end)
     end)
   end
 
   defp all_chunk_ids(candidates) do
-    candidates
-    |> Enum.flat_map(fn {_doc_id, chunks} ->
+    Enum.flat_map(candidates, fn {_doc_id, chunks} ->
       Enum.map(chunks, fn {chunk, _scores} -> Cake.Citable.metadata(chunk).id end)
     end)
   end
