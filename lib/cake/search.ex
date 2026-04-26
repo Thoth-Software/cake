@@ -22,13 +22,13 @@ defmodule Cake.Search do
   @type search_opts :: keyword()
   @type search_result :: {:ok, Snap.SearchResponse.t()} | {:error, any()}
 
-  @typedoc "A chunk paired with its per-query relevance scores."
-  @type scored_result :: {Cake.Books.Chunk.t(), scores_map()}
+  @typedoc "A retrieval unit paired with its per-query relevance scores."
+  @type scored_result :: {struct(), scores_map()}
 
   @typedoc """
-  Per-query scoring metadata for a chunk.
+  Per-query scoring metadata for a retrieval unit.
   - os_score: OpenSearch's fused hybrid _score. nil for expanded neighbors.
-  - cosine_score: Cosine similarity between query embedding and chunk embedding.
+  - cosine_score: Cosine similarity between query embedding and unit embedding.
   - relevance_score: Weighted composite of available signals.
   """
   @type scores_map :: %{
@@ -41,17 +41,18 @@ defmodule Cake.Search do
   @callback search(Cake.Search.Query.t()) :: search_result()
 
   @doc """
-  Search for book chunks. Returns raw OpenSearch hits.
-  `embedding` may be nil for keyword-only search.
+  Search for retrieval units (chunks, documents — determined by the GDS
+  passed via `opts[:gds]`). Returns raw OpenSearch hits. `embedding` may be
+  nil for keyword-only search.
   """
   @callback search_chunks(search_type(), String.t(), [float()] | nil, search_opts()) ::
               search_result()
 
   @doc """
-  Search for book chunks and expand results with neighboring chunks from Postgres.
-  Returns tagged tuples `{%Cake.Books.Chunk{}, %{os_score: float() | nil}}` with
-  `:parsed_book` preloaded. `expand` is the neighbor offset (e.g. 2 means fetch
-  2 chunks on each side of every hit). Expanded neighbors receive `os_score: nil`.
+  Search for retrieval units and expand results with neighboring units (where
+  the GDS supports ordering) from Postgres. Returns tagged tuples
+  `{struct(), %{os_score: float() | nil}}`. `expand` is the neighbor offset.
+  Expanded neighbors receive `os_score: nil`.
   """
   @callback search_chunks_with_context(
               search_type(),
@@ -60,10 +61,10 @@ defmodule Cake.Search do
               non_neg_integer(),
               search_opts()
             ) ::
-              {:ok, [{Cake.Books.Chunk.t(), %{os_score: float() | nil}}]}
+              {:ok, [{struct(), %{os_score: float() | nil}}]}
               | {:error, any()}
 
-  @doc "Search for parsed documents (programming docs). Same signature shape as `search_chunks/4`."
+  @doc "Alias of `search_chunks/4` retained for call-site clarity. Same signature."
   @callback search_docs(search_type(), String.t(), [float()] | nil, search_opts()) ::
               search_result()
 
@@ -96,23 +97,23 @@ defmodule Cake.Search do
   @doc """
   Attaches cosine similarity scores to a list of scored results.
   Expects each result to already have :os_score populated (or nil for expanded neighbors).
-  Computes :cosine_score from the chunk's embedding and the query embedding.
+  Computes :cosine_score from the unit's embedding and the query embedding.
   Sets :relevance_score to 0.0 as a placeholder; call `normalize_and_combine/1` to
   compute final relevance scores.
 
-  Chunks with nil embeddings receive cosine_score: 0.0.
+  Units with nil embeddings receive cosine_score: 0.0.
   """
-  @spec score_results([{Cake.Books.Chunk.t(), %{os_score: float() | nil}}], [float()]) ::
+  @spec score_results([{struct(), %{os_score: float() | nil}}], [float()]) ::
           [scored_result()]
   def score_results(results, query_embedding) do
-    Enum.map(results, fn {chunk, scores} ->
+    Enum.map(results, fn {unit, scores} ->
       cosine_score =
-        case chunk.embedding do
+        case unit.embedding do
           nil -> 0.0
           embedding -> cosine_similarity(query_embedding, embedding)
         end
 
-      {chunk, Map.merge(scores, %{cosine_score: cosine_score, relevance_score: 0.0})}
+      {unit, Map.merge(scores, %{cosine_score: cosine_score, relevance_score: 0.0})}
     end)
   end
 
@@ -132,7 +133,7 @@ defmodule Cake.Search do
     cosine_min = Enum.min(cosine_scores, fn -> 0.0 end)
     cosine_max = Enum.max(cosine_scores, fn -> 0.0 end)
 
-    Enum.map(results, fn {chunk, %{os_score: os_score, cosine_score: cosine_score} = scores} ->
+    Enum.map(results, fn {unit, %{os_score: os_score, cosine_score: cosine_score} = scores} ->
       norm_cosine = normalize(cosine_score, cosine_min, cosine_max)
 
       relevance_score =
@@ -141,7 +142,7 @@ defmodule Cake.Search do
           score -> 0.5 * normalize(score, os_min, os_max) + 0.5 * norm_cosine
         end
 
-      {chunk, %{scores | relevance_score: relevance_score}}
+      {unit, %{scores | relevance_score: relevance_score}}
     end)
   end
 
@@ -162,7 +163,7 @@ defmodule Cake.Search do
   """
   @spec filter_by_threshold([scored_result()], float()) :: [scored_result()]
   def filter_by_threshold(results, threshold) do
-    Enum.filter(results, fn {_chunk, %{relevance_score: score}} -> score >= threshold end)
+    Enum.filter(results, fn {_unit, %{relevance_score: score}} -> score >= threshold end)
   end
 
   @doc """
@@ -170,15 +171,15 @@ defmodule Cake.Search do
   """
   @spec sort_by_relevance([scored_result()]) :: [scored_result()]
   def sort_by_relevance(results) do
-    Enum.sort_by(results, fn {_chunk, %{relevance_score: score}} -> score end, :desc)
+    Enum.sort_by(results, fn {_unit, %{relevance_score: score}} -> score end, :desc)
   end
 
   @doc """
-  Strips scores, returning plain chunks. Use this at the boundary between
-  Search-layer concerns and Generation-layer concerns (i.e., in Conversation,
-  before handing chunks to Prompt/Responses).
+  Strips scores, returning plain retrieval units. Use this at the boundary
+  between Search-layer concerns and Generation-layer concerns (i.e., in
+  Conversation, before handing units to Prompt/Responses).
   """
-  @spec unzip_results([scored_result()]) :: [Cake.Books.Chunk.t()]
+  @spec unzip_results([scored_result()]) :: [struct()]
   def unzip_results(results) do
     Enum.map(results, &elem(&1, 0))
   end

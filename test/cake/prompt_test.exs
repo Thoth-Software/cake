@@ -154,7 +154,7 @@ defmodule Cake.PromptTest do
   end
 
   describe "format_chunk/1" do
-    test "basic formatting" do
+    test "prepends [N] to Cake.Promptable.prompt_context/1" do
       {chunk, scores} =
         scored_chunk(0.9,
           text: "Replace the filter every 6 months.",
@@ -163,25 +163,27 @@ defmodule Cake.PromptTest do
           book_title: "RO-400 Manual"
         )
 
-      result = Cake.Prompt.format_chunk({1, {chunk, scores}})
-      assert String.contains?(result, "[1]")
-      assert String.contains?(result, "Book: RO-400 Manual")
-      assert String.contains?(result, "Page: 42")
-      assert String.contains?(result, "Section: Maintenance")
-      assert String.contains?(result, "Replace the filter every 6 months.")
+      assert Cake.Prompt.format_chunk({3, {chunk, scores}}) ==
+               "[3] " <> Cake.Promptable.prompt_context(chunk)
     end
 
-    test "nil section title renders as (none)" do
+    test "delegates nil-section-title rendering to Promptable" do
       {chunk, scores} = scored_chunk(0.9, section_title: nil)
-      result = Cake.Prompt.format_chunk({1, {chunk, scores}})
-      assert String.contains?(result, "Section: (none)")
+
+      assert Cake.Prompt.format_chunk({1, {chunk, scores}}) ==
+               "[1] " <> Cake.Promptable.prompt_context(chunk)
     end
 
-    test "multiline text is preserved" do
-      text = "Line one.\nLine two.\nLine three."
-      {chunk, scores} = scored_chunk(0.9, text: text)
-      result = Cake.Prompt.format_chunk({1, {chunk, scores}})
-      assert String.contains?(result, text)
+    test "works polymorphically for any Promptable (ParsedDocument)" do
+      doc = %Cake.Documents.ParsedDocument{
+        package: "Enum",
+        title: "map/2",
+        url: "https://hexdocs.pm/elixir/Enum.html#map/2",
+        text: "Returns a list where each element is the result of invoking fun..."
+      }
+
+      assert Cake.Prompt.format_chunk({1, {doc, %{relevance_score: 0.9}}}) ==
+               "[1] " <> Cake.Promptable.prompt_context(doc)
     end
   end
 

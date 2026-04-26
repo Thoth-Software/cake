@@ -4,12 +4,16 @@ defmodule CakeWeb.ChatLive do
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
+    conversation_id = Ecto.UUID.generate()
+
     opts = %{
+      id: conversation_id,
       search: Cake.Search.OpenSearch,
       reply_to: self(),
       embedder: "text-embedding-ada-002",
       response_model: "gpt-4o-mini",
-      provider: :openai
+      provider: :openai,
+      gds: Cake.Books.ParsedBook
     }
 
     {:ok, pid} = Cake.Conversation.start(opts)
@@ -31,7 +35,7 @@ defmodule CakeWeb.ChatLive do
     if String.trim(question) == "" do
       {:noreply, socket}
     else
-      Cake.Conversation.ask(socket.assigns.convo_pid, question)
+      Cake.Conversation.autoask(socket.assigns.convo_pid, question)
 
       {:noreply,
        assign(socket,

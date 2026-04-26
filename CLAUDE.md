@@ -14,6 +14,8 @@ This file governs how you work on Cake. The README describes what things are and
 
 For architecture, module responsibilities, data schemas, domain model, cardinality mappings, behaviours, protocols, and the RAG loop, read the README. Do not duplicate that understanding here — reference it.
 
+*Certified accurate by caleb-bb on 2026-04-16*
+
 ---
 
 ## Context Loading: What to Read and When
@@ -39,6 +41,8 @@ These reference files in `priv/reference/` should be loaded when the task matche
 | Write/modify `@type`, `@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
 | Write/modify public API for external consumption, design behaviours for third-party use | `library-guidelines.md` |
 | Add a new GDS, modify an existing GDS's contract, or implement `Cake.GDS` / `Cake.Promptable` / `Cake.Citable` on a schema or struct | README's "Cardinality" + "Adding a New GDS" sections; `lib/cake/gds.ex` + `lib/cake/promptable.ex` + `lib/cake/citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md` |
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ---
 
@@ -119,6 +123,8 @@ Consult the README section "Adding a New GDS" before starting. The checklist inc
 - Add a factory via `build/1` in `test/support/factory.ex`.
 - Add the struct to the README's "Custom Structs" section.
 
+*Certified accurate by caleb-bb on 2026-04-16*
+
 ---
 
 ## Typespec Policies
@@ -143,6 +149,8 @@ Modules that depend on external services accept collaborator modules as argument
 
 All pipeline callbacks return `{:ok, _}` or `{:error, _}`. Stream steps use `Pipelines.detuple_with_logging/3` — never the silent `detuple/1`. Step names follow `"pipeline.step"` convention. Pipeline-fatal errors go in the `else` branch of the `with` chain in each behaviour's `ingest` function.
 
+*Certified accurate by caleb-bb on 2026-04-16*
+
 ---
 
 ## Test Conventions
@@ -166,6 +174,8 @@ After completing any task that changes architecture, module boundaries, conventi
 4. If unsure whether a change warrants a doc update, ask.
 
 **The enumeration rule:** If the README contains a list of things (behaviours, protocols, structs, implementations, pipeline implementations, etc.) and you create a new instance of that kind of thing, add it to the list. For example: if you create a new behaviour, add it to the "Behaviours and Implementations" section. If you implement a protocol for a new struct, add the implementation to the "Protocols and Implementations" section. If you create a new schema, add it to the "Custom Structs" section.
+
+*Certified accurate by caleb-bb on 2026-04-16*
 
 ---
 

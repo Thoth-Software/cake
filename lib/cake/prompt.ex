@@ -64,14 +64,8 @@ defmodule Cake.Prompt do
   end
 
   @spec format_chunk(indexed_chunk()) :: String.t()
-  def format_chunk({idx, {chunk, _scores}}) do
-    # TODO: Generalize beyond Books.Chunk (mirrors search_fields/0 pattern)
-    """
-    [#{idx}] Book: #{chunk.parsed_book.title} | Page: #{chunk.page_number}
-    Section: #{chunk.section_title || "(none)"}
-
-    #{chunk.text}\
-    """
+  def format_chunk({idx, {unit, _scores}}) do
+    "[#{idx}] " <> Cake.Promptable.prompt_context(unit)
   end
 
   @spec system_message_with_context([String.t()]) :: String.t()

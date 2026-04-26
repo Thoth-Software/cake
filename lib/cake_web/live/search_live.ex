@@ -35,7 +35,13 @@ defmodule CakeWeb.SearchLive do
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Cake.Embeddings.embed(:openai, %{input: query}, "text-embedding-ada-002"),
          {:ok, chunks} <-
-           Cake.Search.OpenSearch.search_chunks_with_context(:hybrid, query, embedding) do
+           Cake.Search.OpenSearch.search_chunks_with_context(
+             :hybrid,
+             query,
+             embedding,
+             Cake.Search.OpenSearch.default_expand_offset(),
+             gds: Cake.Books.ParsedBook
+           ) do
       results =
         chunks
         |> Enum.group_by(fn chunk -> chunk.parsed_book end)
