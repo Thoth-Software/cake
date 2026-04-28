@@ -6,9 +6,9 @@ defmodule Cake.Books.Pipeline do
 
   Bear in mind, however, that the ParsedBook schema contains everything but the actual content, so each ParsedBook is *also* persisted as a record in postgres.
 
-  assets_path = "assets/static"
+  assets_path = "assets/static/ameriwater"
   filenames = File.ls!(assets_path)
-  paths = Enum.map(filenames, &"HASHTAG{assets_path}/HASHTAG{&1}")
+  paths = Enum.map("HASHTAG{assets_path}/HASHTAG{&1}")
   Cake.Books.Pipeline.ingest(:openai, Cake.Books.Pdf.Pipeline,  "text-embedding-ada-002", paths)
   Cake.Books.Pipeline.ingest_with_sweep(:openai, Cake.Books.Pdf.Pipeline,  "text-embedding-ada-002", paths)
   {:ok, pid} = Cake.Conversation.start_link(Cake.Documents.Cluster,"text-embedding-ada-002", "chunks_of_books", "gpt-5", :openai, :keyword)

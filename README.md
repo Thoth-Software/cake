@@ -134,7 +134,7 @@ On follow-up turns, retrieval is skipped — cached chunks are reused with the n
 
 ### Layer 4: Web — Phoenix LiveView Chat Interface
 
-**`CakeWeb.ChatLive`** is the user-facing chat UI. It starts a `Conversation` GenServer and subscribes to its PubSub topic for state-change, candidates-ready, response-ready, and error broadcasts. Two embedded-schema form modules live under `chat_live/`: **`QuestionForm`** (question + mode validation) and **`SelectionForm`** (document-selection validation with subset checking against available IDs).
+**`CakeWeb.ChatLive`** is the user-facing chat UI. It starts a `Conversation` GenServer and subscribes to its PubSub topic for state-change, candidates-ready, response-ready, and error broadcasts. Domain-level candidate grouping and chunk-ID extraction are delegated to **`Cake.Candidates`**. Two embedded-schema form modules live under `chat_live/`: **`QuestionForm`** (question + mode validation) and **`SelectionForm`** (document-selection validation with subset checking against available IDs).
 
 **`CakeWeb.UserAuth`** provides authentication plugs.
 
@@ -330,6 +330,7 @@ lib/
     search/
       query.ex               #   Query struct: build/3, to_opensearch/1
       open_search.ex         #   Cake.Search.OpenSearch — real implementation
+    candidates.ex            # Pure-function candidate grouping and chunk-ID extraction
     conversation.ex          # Conversation GenServer (orchestrator)
     gds.ex                   # Cake.GDS behaviour
     promptable.ex            # Cake.Promptable protocol

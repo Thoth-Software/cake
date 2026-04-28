@@ -15,7 +15,7 @@ defmodule Cake.Books.Pdf.Pipeline do
 
   require Logger
 
-  @typep extraction() :: %{
+  @type extraction() :: %{
            pages: [PageContent.t()],
            skipped: [SkippedPage.t()],
            title: String.t(),

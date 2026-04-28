@@ -1,6 +1,7 @@
 defmodule CakeWeb.ChatLive do
   use CakeWeb, :live_view
 
+  alias Cake.Candidates
   alias Cake.Conversation.Events
   alias CakeWeb.ChatLive.QuestionForm
   alias CakeWeb.ChatLive.SelectionForm
@@ -8,32 +9,7 @@ defmodule CakeWeb.ChatLive do
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
-    conversation_id = Ecto.UUID.generate()
-
-    opts = %{
-      id: conversation_id,
-      search: Cake.Search.OpenSearch,
-      reply_to: self(),
-      embedder: "text-embedding-ada-002",
-      response_model: "gpt-4o-mini",
-      provider: :openai,
-      gds: Cake.Books.ParsedBook
-    }
-
-    {:ok, pid} = Cake.Conversation.start(opts)
-    Process.monitor(pid)
-    Phoenix.PubSub.subscribe(Cake.PubSub, Events.topic(conversation_id))
-
-    {:ok,
-     assign(socket,
-       convo_pid: pid,
-       messages: [],
-       conversation_state: :idle,
-       question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto})),
-       candidates: %{},
-       available_doc_ids: [],
-       selection_form: nil
-     )}
+    {:ok, socket |> start_conversation() |> init_ui_state()}
   end
 
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
@@ -45,21 +21,11 @@ defmodule CakeWeb.ChatLive do
       question = Ecto.Changeset.get_change(changeset, :question)
       mode = Ecto.Changeset.get_change(changeset, :mode)
 
-      socket =
-        assign(socket,
-          messages: [%{role: :user, text: question} | socket.assigns.messages],
-          question_form: to_form(QuestionForm.changeset(%{question: "", mode: mode}))
-        )
-
-      case mode do
-        :auto ->
-          Cake.Conversation.autoask(socket.assigns.convo_pid, question)
-
-        :manual ->
-          Cake.Conversation.manualask(socket.assigns.convo_pid, question)
-      end
-
-      {:noreply, socket}
+      {:noreply,
+       socket
+       |> append_message(%{role: :user, text: question})
+       |> assign(question_form: to_form(QuestionForm.changeset(%{question: "", mode: mode})))
+       |> dispatch_question(question, mode)}
     else
       {:noreply,
        assign(socket,
@@ -73,7 +39,7 @@ defmodule CakeWeb.ChatLive do
 
     if changeset.valid? do
       selected_doc_ids = Ecto.Changeset.get_change(changeset, :selected_doc_ids, [])
-      chunk_ids = expand_to_chunk_ids(selected_doc_ids, socket.assigns.candidates)
+      chunk_ids = Candidates.expand_to_chunk_ids(selected_doc_ids, socket.assigns.candidates)
       Cake.Conversation.select_docs(socket.assigns.convo_pid, chunk_ids)
       {:noreply, socket}
     else
@@ -85,7 +51,7 @@ defmodule CakeWeb.ChatLive do
   end
 
   def handle_event("use_all", _params, socket) do
-    chunk_ids = all_chunk_ids(socket.assigns.candidates)
+    chunk_ids = Candidates.all_chunk_ids(socket.assigns.candidates)
     Cake.Conversation.select_docs(socket.assigns.convo_pid, chunk_ids)
     {:noreply, socket}
   end
@@ -123,7 +89,7 @@ defmodule CakeWeb.ChatLive do
   end
 
   def handle_info({:candidates_ready, candidates}, socket) do
-    grouped = group_candidates_by_document(candidates)
+    grouped = Candidates.group_by_document(candidates)
     available_doc_ids = grouped |> Map.keys() |> Enum.map(&to_string/1)
     selection_form = to_form(SelectionForm.changeset(%{}, available_doc_ids))
 
@@ -138,45 +104,26 @@ defmodule CakeWeb.ChatLive do
 
   def handle_info({:response_ready, %{response: response, citations: citations}}, socket) do
     {:noreply,
-     assign(socket,
-       messages: [
-         %{role: :assistant, text: response, citations: citations} | socket.assigns.messages
-       ],
-       conversation_state: :idle,
-       candidates: %{},
-       available_doc_ids: [],
-       selection_form: nil,
-       question_form: to_form(QuestionForm.changeset(%{question: "", mode: current_mode(socket)}))
-     )}
+     socket
+     |> append_message(%{role: :assistant, text: response, citations: citations})
+     |> reset_to_idle()}
   end
 
   def handle_info({:error, reason}, socket) do
     {:noreply,
-     assign(socket,
-       messages: [
-         %{role: :assistant, text: "Error: #{inspect(reason)}"} | socket.assigns.messages
-       ],
-       conversation_state: :idle,
-       candidates: %{},
-       available_doc_ids: [],
-       selection_form: nil,
-       question_form: to_form(QuestionForm.changeset(%{question: "", mode: current_mode(socket)}))
-     )}
+     socket
+     |> append_message(%{role: :assistant, text: "Error: #{inspect(reason)}"})
+     |> reset_to_idle()}
   end
 
   def handle_info({:DOWN, _ref, :process, _pid, reason}, socket) do
     {:noreply,
-     assign(socket,
-       messages: [
-         %{role: :assistant, text: "Error: conversation process crashed (#{inspect(reason)})"}
-         | socket.assigns.messages
-       ],
-       conversation_state: :idle,
-       candidates: %{},
-       available_doc_ids: [],
-       selection_form: nil,
-       question_form: to_form(QuestionForm.changeset(%{question: "", mode: current_mode(socket)}))
-     )}
+     socket
+     |> append_message(%{
+       role: :assistant,
+       text: "Error: conversation process crashed (#{inspect(reason)})"
+     })
+     |> reset_to_idle()}
   end
 
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
@@ -184,99 +131,17 @@ defmodule CakeWeb.ChatLive do
     ~H"""
     <div class="max-w-2xl mx-auto p-4">
       <h1 class="text-2xl font-bold mb-4">Cake Chat</h1>
-
-      <div class="space-y-4 mb-8">
-        <div
-          :for={{msg, i} <- Enum.with_index(Enum.reverse(@messages))}
-          id={"msg-#{i}"}
-          class={[
-            "p-3 rounded-lg max-w-xl",
-            msg.role == :user && "ml-auto bg-blue-100 text-right",
-            msg.role == :assistant && "mr-auto bg-gray-100"
-          ]}
-        >
-          <span class="text-xs font-semibold text-gray-500 block mb-1">
-            {if msg.role == :user, do: "You", else: "Cake"}
-          </span>
-          <span class="text-sm whitespace-pre-wrap">{msg.text}</span>
-
-          <%!-- Citations (assistant messages only) --%>
-          <div
-            :if={msg[:citations] != nil and msg[:citations] != []}
-            class="mt-2 text-sm text-gray-600 border-t pt-2"
-          >
-            <div class="font-semibold mb-1">Sources:</div>
-            <div class="space-y-1">
-              <div :for={cite <- msg.citations} class="relative group inline-block">
-                <a href={"/books/download/#{cite.source_ref}"} class="text-blue-600 hover:underline">
-                  [{cite.new_index}] {sanitize_title(cite.label)}
-                </a>
-                <%!-- Hover tooltip --%>
-                <div class="hidden group-hover:block absolute z-10 bottom-full left-0 mb-1 w-80 p-3 bg-gray-800 text-white text-xs rounded shadow-lg">
-                  {cite.preview}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <.message_list messages={@messages} />
 
       <%= case @conversation_state do %>
         <% :generating -> %>
-          <div class="flex items-center gap-2 text-gray-500 italic mb-4">
-            <span class="inline-block h-2 w-2 rounded-full bg-gray-400 animate-pulse"></span>
-            Thinking...
-          </div>
+          <.thinking_indicator />
         <% :awaiting_selection -> %>
-          <%!-- TODO: "Switch to auto" button blocked on backend state machine extension.
-               Requires :autoask to be valid from :awaiting_selection. See #136. --%>
-          <div class="mb-4">
-            <div class="flex items-baseline justify-between mb-3">
-              <h2 class="text-lg font-semibold">Select documents to use</h2>
-              <span class="text-xs text-gray-400">{map_size(@candidates)} found</span>
-            </div>
-            <form phx-submit="submit_selection" phx-change="validate_selection">
-              <div class="space-y-2 mb-4 max-h-80 overflow-y-auto">
-                <%= for {doc_id, chunks} <- @candidates do %>
-                  <% meta = candidate_metadata(chunks) %>
-                  <label class="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-colors">
-                    <input
-                      type="checkbox"
-                      name="selection_form[selected_doc_ids][]"
-                      value={doc_id}
-                      class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <div class="flex-1 min-w-0">
-                      <div class="font-medium text-sm text-gray-900">
-                        {sanitize_title(meta.title)}
-                      </div>
-                      <div class="text-xs text-gray-500 mt-0.5">
-                        {length(chunks)} chunk{if length(chunks) != 1, do: "s"}{if meta.page_label,
-                          do: " · #{meta.page_label}"}
-                      </div>
-                      <div class="text-xs text-gray-400 truncate mt-1">{meta.preview}</div>
-                    </div>
-                  </label>
-                <% end %>
-              </div>
-              <div class="flex gap-2 pt-2 border-t border-gray-100">
-                <button
-                  type="submit"
-                  disabled={not (@selection_form && @selection_form.source.valid?)}
-                  class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Use selected
-                </button>
-                <button
-                  type="button"
-                  phx-click="use_all"
-                  class="px-4 py-2 bg-white text-gray-700 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Use all
-                </button>
-              </div>
-            </form>
-          </div>
+          <.selection_panel
+            candidates={@candidates}
+            available_doc_ids={@available_doc_ids}
+            selection_form={@selection_form}
+          />
         <% _idle -> %>
           <.simple_form for={@question_form} phx-submit="submit" phx-change="validate_question">
             <.input field={@question_form[:question]} type="text" placeholder="Ask a question..." />
@@ -301,48 +166,172 @@ defmodule CakeWeb.ChatLive do
     """
   end
 
-  defp group_candidates_by_document(candidates) do
-    Enum.group_by(candidates, fn {chunk, _scores} ->
-      meta = Cake.Citable.metadata(chunk)
-      meta.source_ref || meta.id
-    end)
+  attr :messages, :list, required: true
+
+  defp message_list(assigns) do
+    ~H"""
+    <div class="space-y-4 mb-8">
+      <div
+        :for={{msg, i} <- Enum.with_index(Enum.reverse(@messages))}
+        id={"msg-#{i}"}
+        class={[
+          "p-3 rounded-lg max-w-xl",
+          msg.role == :user && "ml-auto bg-blue-100 text-right",
+          msg.role == :assistant && "mr-auto bg-gray-100"
+        ]}
+      >
+        <span class="text-xs font-semibold text-gray-500 block mb-1">
+          {if msg.role == :user, do: "You", else: "Cake"}
+        </span>
+        <span class="text-sm whitespace-pre-wrap">{msg.text}</span>
+
+        <div
+          :if={msg[:citations] != nil and msg[:citations] != []}
+          class="mt-2 text-sm text-gray-600 border-t pt-2"
+        >
+          <div class="font-semibold mb-1">Sources:</div>
+          <div class="space-y-1">
+            <div :for={cite <- msg.citations} class="relative group inline-block">
+              <a href={"/books/download/#{cite.source_ref}"} class="text-blue-600 hover:underline">
+                [{cite.new_index}] {sanitize_title(cite.label)}
+              </a>
+              <div class="hidden group-hover:block absolute z-10 bottom-full left-0 mb-1 w-80 p-3 bg-gray-800 text-white text-xs rounded shadow-lg">
+                {cite.preview}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
   end
 
-  defp candidate_metadata(chunks) do
-    {first_chunk, _scores} = hd(chunks)
-    meta = Cake.Citable.metadata(first_chunk)
+  attr :candidates, :map, required: true
+  attr :available_doc_ids, :list, required: true
+  attr :selection_form, :any, required: true
 
-    page_numbers =
-      chunks
-      |> Enum.map(fn {chunk, _} -> Cake.Citable.metadata(chunk).extras[:page_number] end)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.sort()
+  defp selection_panel(assigns) do
+    ~H"""
+    <%!-- TODO: "Switch to auto" button blocked on backend state machine extension.
+         Requires :autoask to be valid from :awaiting_selection. See #136. --%>
+    <div class="mb-4">
+      <div class="flex items-baseline justify-between mb-3">
+        <h2 class="text-lg font-semibold">Select documents to use</h2>
+        <span class="text-xs text-gray-400">{map_size(@candidates)} found</span>
+      </div>
+      <.form for={@selection_form} phx-submit="submit_selection" phx-change="validate_selection">
+        <input type="hidden" name="selection_form[selected_doc_ids][]" value="" />
+        <div class="space-y-2 mb-4 max-h-80 overflow-y-auto">
+          <%= for {doc_id, chunks} <- @candidates do %>
+            <% meta = Candidates.document_metadata(chunks) %>
+            <label class="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-colors">
+              <input
+                type="checkbox"
+                name="selection_form[selected_doc_ids][]"
+                value={doc_id}
+                class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div class="flex-1 min-w-0">
+                <div class="font-medium text-sm text-gray-900">
+                  {sanitize_title(meta.title)}
+                </div>
+                <div class="text-xs text-gray-500 mt-0.5">
+                  {length(chunks)} chunk{if length(chunks) != 1, do: "s"}{if meta.page_label,
+                    do: " · #{meta.page_label}"}
+                </div>
+                <div class="text-xs text-gray-400 truncate mt-1">{meta.preview}</div>
+              </div>
+            </label>
+          <% end %>
+        </div>
+        <div class="flex gap-2 pt-2 border-t border-gray-100">
+          <button
+            type="submit"
+            disabled={not (@selection_form && @selection_form.source.valid?)}
+            class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Use selected
+          </button>
+          <button
+            type="button"
+            phx-click="use_all"
+            class="px-4 py-2 bg-white text-gray-700 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Use all
+          </button>
+        </div>
+      </.form>
+    </div>
+    """
+  end
 
-    page_label =
-      case page_numbers do
-        [] -> nil
-        [p] -> "PDF page #{p}"
-        pages -> "PDF pages #{List.first(pages)}-#{List.last(pages)}"
-      end
+  defp thinking_indicator(assigns) do
+    ~H"""
+    <div class="flex items-center gap-2 text-gray-500 italic mb-4">
+      <span class="inline-block h-2 w-2 rounded-full bg-gray-400 animate-pulse"></span>
+      Thinking...
+    </div>
+    """
+  end
 
-    %{
-      title: meta.extras[:book_title] || meta.label,
-      preview: String.slice(meta.preview, 0, 100),
-      page_label: page_label
+  @spec start_conversation(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  defp start_conversation(socket) do
+    conversation_id = Ecto.UUID.generate()
+
+    opts = %{
+      id: conversation_id,
+      search: Cake.Search.OpenSearch,
+      reply_to: self(),
+      embedder: "text-embedding-ada-002",
+      response_model: "gpt-4o-mini",
+      provider: :openai,
+      gds: Cake.Books.ParsedBook
     }
+
+    {:ok, pid} = Cake.Conversation.start(opts)
+    Process.monitor(pid)
+    Phoenix.PubSub.subscribe(Cake.PubSub, Events.topic(conversation_id))
+
+    assign(socket, convo_pid: pid)
   end
 
-  defp expand_to_chunk_ids(selected_doc_ids, candidates) do
-    Enum.flat_map(selected_doc_ids, fn doc_id ->
-      chunks = Map.get(candidates, doc_id, [])
-      Enum.map(chunks, fn {chunk, _scores} -> Cake.Citable.metadata(chunk).id end)
-    end)
+  @spec init_ui_state(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  defp init_ui_state(socket) do
+    assign(socket,
+      messages: [],
+      conversation_state: :idle,
+      question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto})),
+      candidates: %{},
+      available_doc_ids: [],
+      selection_form: nil
+    )
   end
 
-  defp all_chunk_ids(candidates) do
-    Enum.flat_map(candidates, fn {_doc_id, chunks} ->
-      Enum.map(chunks, fn {chunk, _scores} -> Cake.Citable.metadata(chunk).id end)
-    end)
+  @spec reset_to_idle(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  defp reset_to_idle(socket) do
+    assign(socket,
+      conversation_state: :idle,
+      candidates: %{},
+      available_doc_ids: [],
+      selection_form: nil,
+      question_form: to_form(QuestionForm.changeset(%{question: "", mode: current_mode(socket)}))
+    )
+  end
+
+  @spec append_message(Phoenix.LiveView.Socket.t(), map()) :: Phoenix.LiveView.Socket.t()
+  defp append_message(socket, message) do
+    assign(socket, messages: [message | socket.assigns.messages])
+  end
+
+  @spec dispatch_question(Phoenix.LiveView.Socket.t(), String.t(), :auto | :manual) ::
+          Phoenix.LiveView.Socket.t()
+  defp dispatch_question(socket, question, mode) do
+    case mode do
+      :auto -> Cake.Conversation.autoask(socket.assigns.convo_pid, question)
+      :manual -> Cake.Conversation.manualask(socket.assigns.convo_pid, question)
+    end
+
+    socket
   end
 
   defp sanitize_title(title) when is_binary(title) do
