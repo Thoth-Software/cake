@@ -90,7 +90,7 @@ defmodule CakeWeb.ChatLive do
 
   def handle_info({:candidates_ready, candidates}, socket) do
     grouped = Candidates.group_by_document(candidates)
-    available_doc_ids = grouped |> Map.keys() |> Enum.map(&to_string/1)
+    available_doc_ids = Enum.map(grouped, fn {doc_id, _} -> to_string(doc_id) end)
     selection_form = to_form(SelectionForm.changeset(%{}, available_doc_ids))
 
     {:noreply,
@@ -206,7 +206,7 @@ defmodule CakeWeb.ChatLive do
     """
   end
 
-  attr :candidates, :map, required: true
+  attr :candidates, :list, required: true
   attr :available_doc_ids, :list, required: true
   attr :selection_form, :any, required: true
 
@@ -217,7 +217,7 @@ defmodule CakeWeb.ChatLive do
     <div class="mb-4">
       <div class="flex items-baseline justify-between mb-3">
         <h2 class="text-lg font-semibold">Select documents to use</h2>
-        <span class="text-xs text-gray-400">{map_size(@candidates)} found</span>
+        <span class="text-xs text-gray-400">{length(@candidates)} found</span>
       </div>
       <.form for={@selection_form} phx-submit="submit_selection" phx-change="validate_selection">
         <input type="hidden" name="selection_form[selected_doc_ids][]" value="" />
@@ -247,15 +247,15 @@ defmodule CakeWeb.ChatLive do
         <div class="flex gap-2 pt-2 border-t border-gray-100">
           <button
             type="submit"
-            disabled={not (@selection_form && @selection_form.source.valid?)}
-            class="px-4 py-2 bg-white text-gray-700 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            disabled={none_selected?(@selection_form)}
+            class="px-4 py-2 bg-white text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50  disabled:cursor-not-allowed disabled:opacity-20"
           >
             Use selected
           </button>
           <button
             type="button"
             phx-click="use_all"
-            class="px-4 py-2 bg-white text-gray-700 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            class="px-4 py-2 bg-white text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Use all
           </button>
@@ -268,11 +268,20 @@ defmodule CakeWeb.ChatLive do
   defp thinking_indicator(assigns) do
     ~H"""
     <div class="flex items-center gap-2 text-gray-500 italic mb-4">
-      <span class="inline-block h-2 w-2 rounded-full bg-gray-400 animate-pulse"></span>
-      Thinking...
+      <span class="inline-block h-2 w-2 rounded-full bg-gray-400 animate-pulse"></span> Thinking...
     </div>
     """
   end
+
+  # TODO we need to hash out how the identification will work here. Creating a
+  # bespoke UUID in here under conversation_id is very hacky.
+  # TODO embedder, gds, provider, search, and response model need to become
+  # configurable and the whole app should be consistent in this regard.
+  #
+
+  defp none_selected?(nil), do: true
+  defp none_selected?(%{params: %{"selected_doc_ids" => []}}), do: true
+  defp none_selected?(_), do: false
 
   @spec start_conversation(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   defp start_conversation(socket) do
@@ -301,7 +310,7 @@ defmodule CakeWeb.ChatLive do
       messages: [],
       conversation_state: :idle,
       question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto})),
-      candidates: %{},
+      candidates: [],
       available_doc_ids: [],
       selection_form: nil
     )
@@ -311,7 +320,7 @@ defmodule CakeWeb.ChatLive do
   defp reset_to_idle(socket) do
     assign(socket,
       conversation_state: :idle,
-      candidates: %{},
+      candidates: [],
       available_doc_ids: [],
       selection_form: nil,
       question_form: to_form(QuestionForm.changeset(%{question: "", mode: current_mode(socket)}))
