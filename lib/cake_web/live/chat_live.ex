@@ -248,7 +248,7 @@ defmodule CakeWeb.ChatLive do
           <button
             type="submit"
             disabled={not (@selection_form && @selection_form.source.valid?)}
-            class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            class="px-4 py-2 bg-white text-gray-700 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Use selected
           </button>
