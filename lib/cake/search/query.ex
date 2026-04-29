@@ -43,11 +43,25 @@ defmodule Cake.Search.Query do
     }
   end
 
-  @doc "Appends a knn clause to `must`."
-  @spec knn(t(), String.t(), [float()], pos_integer()) :: t()
-  def knn(%__MODULE__{} = query, field, vector, k)
+  @doc """
+  Appends a knn clause to `must`.
+
+  Accepts `:ef_search` to set OpenSearch's per-query KNN search depth via
+  `method_parameters.ef_search`. Higher values trade latency for recall.
+  """
+  @spec knn(t(), String.t(), [float()], pos_integer(), keyword()) :: t()
+  def knn(%__MODULE__{} = query, field, vector, k, opts \\ [])
       when is_binary(field) and is_list(vector) and is_integer(k) and k > 0 do
-    clause = %{"knn" => %{field => %{"vector" => vector, "k" => k}}}
+    embedding_clause =
+      case Keyword.get(opts, :ef_search) do
+        nil ->
+          %{"vector" => vector, "k" => k}
+
+        ef when is_integer(ef) and ef > 0 ->
+          %{"vector" => vector, "k" => k, "method_parameters" => %{"ef_search" => ef}}
+      end
+
+    clause = %{"knn" => %{field => embedding_clause}}
     %{query | must: [clause | query.must]}
   end
 

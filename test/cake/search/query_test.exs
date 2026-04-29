@@ -45,6 +45,29 @@ defmodule Cake.Search.QueryTest do
 
       assert length(query.must) == 2
     end
+
+    test "embeds method_parameters.ef_search when :ef_search opt is given" do
+      vector = [0.1, 0.2]
+      query = Query.knn(Query.new("docs"), "embedding", vector, 10, ef_search: 128)
+
+      assert [clause] = query.must
+
+      assert clause == %{
+               "knn" => %{
+                 "embedding" => %{
+                   "vector" => vector,
+                   "k" => 10,
+                   "method_parameters" => %{"ef_search" => 128}
+                 }
+               }
+             }
+    end
+
+    test "omits method_parameters when :ef_search is not given" do
+      query = Query.knn(Query.new("docs"), "embedding", [0.1], 10)
+      assert [clause] = query.must
+      refute Map.has_key?(clause["knn"]["embedding"], "method_parameters")
+    end
   end
 
   describe "match/4" do

@@ -2,6 +2,7 @@ defmodule Cake.Search.OpenSearchTest do
   use ExUnit.Case, async: false
 
   alias Cake.Search.OpenSearch
+  alias Cake.Search.Query
   alias Cake.Support.FixtureGDS
 
   describe "default accessors" do
@@ -23,6 +24,56 @@ defmodule Cake.Search.OpenSearchTest do
 
     test "default_expand_offset/0" do
       assert OpenSearch.default_expand_offset() == 2
+    end
+  end
+
+  describe "build_query/6 plumbs :ef_search through to the knn clause" do
+    test ":vector reflects the :ef_search opt in the produced query map" do
+      query =
+        OpenSearch.build_query_for_test(
+          :vector,
+          "fixture_index",
+          "kw",
+          [0.1, 0.2],
+          [ef_search: 128],
+          ["body"]
+        )
+
+      assert %Query{must: [knn_clause]} = query
+      assert knn_clause["knn"]["embedding"]["method_parameters"] == %{"ef_search" => 128}
+    end
+
+    test ":hybrid reflects the :ef_search opt in the produced query map" do
+      query =
+        OpenSearch.build_query_for_test(
+          :hybrid,
+          "fixture_index",
+          "kw",
+          [0.1, 0.2],
+          [ef_search: 64],
+          ["body"]
+        )
+
+      assert %Query{must: [knn_clause]} = query
+      assert knn_clause["knn"]["embedding"]["method_parameters"] == %{"ef_search" => 64}
+    end
+
+    test ":vector falls back to default_ef_search when no opt is given" do
+      query =
+        OpenSearch.build_query_for_test(
+          :vector,
+          "fixture_index",
+          "kw",
+          [0.1, 0.2],
+          [],
+          ["body"]
+        )
+
+      assert %Query{must: [knn_clause]} = query
+
+      assert knn_clause["knn"]["embedding"]["method_parameters"] == %{
+               "ef_search" => OpenSearch.default_ef_search()
+             }
     end
   end
 

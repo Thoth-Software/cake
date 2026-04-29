@@ -17,7 +17,6 @@ defmodule Cake.Search.OpenSearch do
 
   alias Cake.Search.Query
 
-  # TODO make these defaults into config vars
   @default_size 30
   @default_k 30
   @default_ef_search 256
@@ -136,6 +135,19 @@ defmodule Cake.Search.OpenSearch do
     Snap.Search.search(cluster, index, Query.to_query_map(query))
   end
 
+  @doc false
+  @spec build_query_for_test(
+          :keyword | :vector | :hybrid,
+          String.t(),
+          String.t(),
+          [float()] | nil,
+          keyword(),
+          [String.t()]
+        ) :: Query.t()
+  def build_query_for_test(search_type, index, keywords, embedding, opts, default_fields) do
+    build_query(search_type, index, keywords, embedding, opts, default_fields)
+  end
+
   defp build_query(:keyword, index, keywords, _embedding, opts, default_fields) do
     fields = Keyword.get(opts, :fields, default_fields)
     size = Keyword.get(opts, :size, @default_size)
@@ -145,10 +157,11 @@ defmodule Cake.Search.OpenSearch do
   defp build_query(:vector, index, _keywords, embedding, opts, _default_fields) do
     k = Keyword.get(opts, :k, @default_k)
     size = Keyword.get(opts, :size, @default_size)
+    ef_search = Keyword.get(opts, :ef_search, @default_ef_search)
 
     index
     |> Query.new(size: size)
-    |> Query.knn("embedding", embedding, k)
+    |> Query.knn("embedding", embedding, k, ef_search: ef_search)
   end
 
   defp build_query(:hybrid, index, keywords, embedding, opts, default_fields) do
@@ -156,10 +169,11 @@ defmodule Cake.Search.OpenSearch do
     size = Keyword.get(opts, :size, @default_size)
     k = Keyword.get(opts, :k, @default_k)
     keyword_weight = Keyword.get(opts, :keyword_weight, @default_keyword_weight)
+    ef_search = Keyword.get(opts, :ef_search, @default_ef_search)
     base = Query.new(index, size: size)
 
     base
-    |> Query.knn("embedding", embedding, k)
+    |> Query.knn("embedding", embedding, k, ef_search: ef_search)
     |> Query.match(keywords, fields, boost: keyword_weight)
   end
 end
