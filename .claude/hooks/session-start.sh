@@ -32,27 +32,45 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
 fi
 
 ###############################################################################
-# 1. Erlang (apt) + Elixir (precompiled GitHub release).
+# 1. Erlang/OTP + Elixir (precompiled tarballs from builds.hex.pm).
 #
-# Ubuntu's `elixir` package is too old for mix.exs (`~> 1.17`), so we install
-# Erlang/OTP from apt and drop a precompiled Elixir tarball into /opt/elixir.
+# Ubuntu Noble's `erlang` apt package is OTP 25, which has a `:httpc` bug
+# that emits an empty `te:` header — the egress proxy in front of Fastly
+# rejects every such request with 503, so `mix deps.get` fails even when
+# repo.hex.pm is allowlisted. The bug is fixed in OTP 26.2.5 / 27.0+, so
+# we install a precompiled OTP tarball from builds.hex.pm (already
+# allowlisted) instead of using apt. Ubuntu's `elixir` package is also
+# too old for mix.exs (`~> 1.17`), so we drop a precompiled Elixir tarball
+# into /opt/elixir.
 ###############################################################################
+OTP_VERSION="${OTP_VERSION:-27.3.4.11}"
 ELIXIR_VERSION="${ELIXIR_VERSION:-1.17.3}"
 
 if ! command -v erl >/dev/null 2>&1; then
-  echo "==> Installing Erlang/OTP and build deps..."
+  echo "==> Installing build deps..."
   # Tolerate failing third-party PPAs; we only need the main Ubuntu archive.
   $SUDO apt-get update -y || true
   $SUDO apt-get install -y --no-install-recommends \
-    erlang \
-    erlang-dev \
-    erlang-xmerl \
-    erlang-tools \
     build-essential \
+    libssl-dev \
+    libncurses6 \
     inotify-tools \
     git \
+    curl \
     unzip \
     ca-certificates
+
+  echo "==> Installing Erlang/OTP ${OTP_VERSION} (precompiled from builds.hex.pm)..."
+  $SUDO mkdir -p /opt/otp
+  curl -fsSL \
+    "https://builds.hex.pm/builds/otp/ubuntu-24.04/OTP-${OTP_VERSION}.tar.gz" \
+    | $SUDO tar -xz -C /opt/otp --strip-components=1
+  ( cd /opt/otp && $SUDO ./Install -minimal /opt/otp )
+  for bin in erl erlc escript dialyzer ct_run epmd run_erl to_erl; do
+    if [ -x "/opt/otp/bin/${bin}" ]; then
+      $SUDO ln -sf "/opt/otp/bin/${bin}" "/usr/local/bin/${bin}"
+    fi
+  done
 fi
 
 if ! command -v elixir >/dev/null 2>&1 || ! command -v mix >/dev/null 2>&1; then
