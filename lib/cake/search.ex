@@ -18,24 +18,12 @@ defmodule Cake.Search do
   implementation module. If it's math on data already in memory, it belongs here.
   """
 
+  alias Cake.Search.Result
+
   @type search_type :: :keyword | :vector | :hybrid
   @type search_opts :: keyword()
   @type search_result :: {:ok, Snap.SearchResponse.t()} | {:error, any()}
-
-  @typedoc "A retrieval unit paired with its per-query relevance scores."
-  @type scored_result :: {struct(), scores_map()}
-
-  @typedoc """
-  Per-query scoring metadata for a retrieval unit.
-  - os_score: OpenSearch's fused hybrid _score. nil for expanded neighbors.
-  - cosine_score: Cosine similarity between query embedding and unit embedding.
-  - relevance_score: Weighted composite of available signals.
-  """
-  @type scores_map :: %{
-          os_score: float() | nil,
-          cosine_score: float(),
-          relevance_score: float()
-        }
+  @type result_list :: [Result.t()]
 
   @doc "Execute an arbitrary `%Cake.Search.Query{}` against the cluster."
   @callback search(Cake.Search.Query.t()) :: search_result()
@@ -50,9 +38,9 @@ defmodule Cake.Search do
 
   @doc """
   Search for retrieval units and expand results with neighboring units (where
-  the GDS supports ordering) from Postgres. Returns tagged tuples
-  `{struct(), %{os_score: float() | nil}}`. `expand` is the neighbor offset.
-  Expanded neighbors receive `os_score: nil`.
+  the GDS supports ordering) from Postgres. Returns a list of
+  `Cake.Search.Result.t()` structs. `expand` is the neighbor offset.
+  Expanded neighbors carry `hit_source: :expansion` and `backend_score: nil`.
   """
   @callback search_chunks_with_context(
               search_type(),
@@ -61,7 +49,7 @@ defmodule Cake.Search do
               non_neg_integer(),
               search_opts()
             ) ::
-              {:ok, [{struct(), %{os_score: float() | nil}}]}
+              {:ok, result_list()}
               | {:error, any()}
 
   @doc "Alias of `search_chunks/4` retained for call-site clarity. Same signature."
@@ -95,64 +83,58 @@ defmodule Cake.Search do
   defp compute_cosine(dot, mag_a, mag_b), do: dot / :math.sqrt(mag_a * mag_b)
 
   @doc """
-  Attaches cosine similarity scores to a list of scored results.
-  Expects each result to already have :os_score populated (or nil for expanded neighbors).
-  Computes :cosine_score from the unit's embedding and the query embedding.
-  Sets :relevance_score to 0.0 as a placeholder; call `normalize_and_combine/1` to
-  compute final relevance scores.
-
-  Units with nil embeddings receive cosine_score: 0.0.
+  Populates `cosine_score` on each Result by comparing the unit's embedding
+  to the query embedding. Units with nil embeddings receive cosine_score: 0.0.
   """
-  @spec score_results([{struct(), %{os_score: float() | nil}}], [float()]) ::
-          [scored_result()]
+  @spec score_results([Result.t()], [float()]) :: [Result.t()]
   def score_results(results, query_embedding) do
-    Enum.map(results, fn {unit, scores} ->
-      cosine_score =
+    Enum.map(results, fn %Result{retrieval_unit: unit} = result ->
+      cosine =
         case unit.embedding do
           nil -> 0.0
           embedding -> cosine_similarity(query_embedding, embedding)
         end
 
-      {unit, Map.merge(scores, %{cosine_score: cosine_score, relevance_score: 0.0})}
+      %{result | cosine_score: cosine}
     end)
   end
 
   @doc """
-  Normalizes os_score and cosine_score across the result set using min-max
-  normalization, then computes the final relevance_score as a weighted average.
+  Normalizes backend_score and cosine_score across the result set using
+  min-max normalization, then computes the final `relevance_score` as a
+  weighted average.
 
-  Results without os_score (expanded neighbors) use cosine_score alone.
-  Results with os_score use 0.5 * normalized_os_score + 0.5 * normalized_cosine_score.
-
-  Returns the list with updated scores maps.
+  Results without a backend_score (expanded neighbors) use cosine_score
+  alone. Results with a backend_score use 0.5 * normalized_backend_score
+  + 0.5 * normalized_cosine_score.
   """
-  @spec normalize_and_combine([scored_result()]) :: [scored_result()]
+  @spec normalize_and_combine([Result.t()]) :: [Result.t()]
   def normalize_and_combine(results) do
-    {os_min, os_max} = os_score_bounds(results)
-    cosine_scores = Enum.map(results, fn {_, %{cosine_score: s}} -> s end)
+    {os_min, os_max} = backend_score_bounds(results)
+    cosine_scores = Enum.map(results, & &1.cosine_score)
     cosine_min = Enum.min(cosine_scores, fn -> 0.0 end)
     cosine_max = Enum.max(cosine_scores, fn -> 0.0 end)
 
-    Enum.map(results, fn {unit, %{os_score: os_score, cosine_score: cosine_score} = scores} ->
-      norm_cosine = normalize(cosine_score, cosine_min, cosine_max)
+    Enum.map(results, fn %Result{backend_score: bs, cosine_score: cs} = result ->
+      norm_cosine = normalize(cs, cosine_min, cosine_max)
 
-      relevance_score =
-        case os_score do
+      relevance =
+        case bs do
           nil -> norm_cosine
           score -> 0.5 * normalize(score, os_min, os_max) + 0.5 * norm_cosine
         end
 
-      {unit, %{scores | relevance_score: relevance_score}}
+      %{result | relevance_score: relevance}
     end)
   end
 
-  defp os_score_bounds(results) do
-    os_scores =
+  defp backend_score_bounds(results) do
+    scores =
       results
-      |> Enum.map(fn {_, %{os_score: s}} -> s end)
+      |> Enum.map(& &1.backend_score)
       |> Enum.reject(&is_nil/1)
 
-    {Enum.min(os_scores, fn -> 0.0 end), Enum.max(os_scores, fn -> 0.0 end)}
+    {Enum.min(scores, fn -> 0.0 end), Enum.max(scores, fn -> 0.0 end)}
   end
 
   defp normalize(value, min, max) when max > min, do: (value - min) / (max - min)
@@ -161,26 +143,26 @@ defmodule Cake.Search do
   @doc """
   Removes results whose relevance_score is below the given threshold.
   """
-  @spec filter_by_threshold([scored_result()], float()) :: [scored_result()]
+  @spec filter_by_threshold([Result.t()], float()) :: [Result.t()]
   def filter_by_threshold(results, threshold) do
-    Enum.filter(results, fn {_unit, %{relevance_score: score}} -> score >= threshold end)
+    Enum.filter(results, fn %Result{relevance_score: score} -> score >= threshold end)
   end
 
   @doc """
   Sorts results by relevance_score descending.
   """
-  @spec sort_by_relevance([scored_result()]) :: [scored_result()]
+  @spec sort_by_relevance([Result.t()]) :: [Result.t()]
   def sort_by_relevance(results) do
-    Enum.sort_by(results, fn {_unit, %{relevance_score: score}} -> score end, :desc)
+    Enum.sort_by(results, & &1.relevance_score, :desc)
   end
 
   @doc """
-  Strips scores, returning plain retrieval units. Use this at the boundary
-  between Search-layer concerns and Generation-layer concerns (i.e., in
-  Conversation, before handing units to Prompt/Responses).
+  Strips Result wrappers, returning plain retrieval units. Use this at the
+  boundary between Search-layer concerns and Generation-layer concerns
+  (i.e., in Conversation, before handing units to Prompt/Responses).
   """
-  @spec unzip_results([scored_result()]) :: [struct()]
+  @spec unzip_results([Result.t()]) :: [struct()]
   def unzip_results(results) do
-    Enum.map(results, &elem(&1, 0))
+    Enum.map(results, & &1.retrieval_unit)
   end
 end
