@@ -252,7 +252,7 @@ defmodule Cake.Pipelines do
   end
 
   def handle_ingest_error({:error, error}, ctx) do
-    Logger.warning(Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error: #{inspect(error)}"))
+    Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error: #{inspect(error)}")
 
     Cake.FailedIngests.create_failed_ingest(%{
       pipeline_behaviour: ctx.behaviour,
