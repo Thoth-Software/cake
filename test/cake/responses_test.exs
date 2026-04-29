@@ -4,13 +4,12 @@ defmodule Cake.ResponsesTest do
   alias Cake.Responses
   alias Cake.Responses.Result
   alias Cake.Search.Provenance
-  alias Cake.Search.Result, as: SearchResult
   alias Cake.Test.StubChunk
 
   defp test_provenance, do: %Provenance{search_type: :hybrid, query_text: "test"}
 
   defp wrap_result(unit, opts \\ []) do
-    %SearchResult{
+    %Cake.Search.Result{
       retrieval_unit: unit,
       backend_score: Keyword.get(opts, :backend_score, 1.0),
       hit_source: Keyword.get(opts, :hit_source, :search),

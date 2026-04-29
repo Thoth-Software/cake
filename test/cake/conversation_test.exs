@@ -1221,7 +1221,9 @@ defmodule Cake.ConversationTest do
       assert pre_select.pending != nil
 
       # Step 2: select with chunk IDs completes the turn
-      doc_ids = Enum.map(candidates, fn %Result{retrieval_unit: c} -> Cake.Citable.metadata(c).id end)
+      doc_ids =
+        Enum.map(candidates, fn %Result{retrieval_unit: c} -> Cake.Citable.metadata(c).id end)
+
       assert :ok = Conversation.select_docs(pid, doc_ids)
 
       # Response pushed to reply_to
@@ -1416,7 +1418,9 @@ defmodule Cake.ConversationTest do
       assert_receive {:candidates_ready, ^candidates}, 1_000
       assert_receive {:state_change, :awaiting_selection}, 1_000
 
-      doc_ids = Enum.map(candidates, fn %Result{retrieval_unit: c} -> Cake.Citable.metadata(c).id end)
+      doc_ids =
+        Enum.map(candidates, fn %Result{retrieval_unit: c} -> Cake.Citable.metadata(c).id end)
+
       :ok = Conversation.select_docs(pid, doc_ids)
 
       assert_receive {:state_change, :generating}, 1_000

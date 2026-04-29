@@ -20,7 +20,6 @@ defmodule Cake.ResponsesPropertyTest do
   alias Cake.Responses
   alias Cake.Responses.Result
   alias Cake.Search.Provenance
-  alias Cake.Search.Result, as: SearchResult
   alias Cake.Test.StubChunk
 
   defp test_provenance, do: %Provenance{search_type: :hybrid, query_text: "test"}
@@ -42,7 +41,7 @@ defmodule Cake.ResponsesPropertyTest do
 
   defp scored_stub do
     gen all(metadata <- metadata_struct(), score <- float(min: 0.0, max: 1.0)) do
-      %SearchResult{
+      %Cake.Search.Result{
         retrieval_unit: %StubChunk{metadata: metadata},
         relevance_score: score,
         hit_source: :search,
