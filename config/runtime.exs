@@ -35,6 +35,13 @@ if config_env() == :prod do
     openai_key: System.get_env("OPENAI_KEY"),
     base_url: "https://api.openai.com/v1/embeddings"
 
+  # Config for LLM completion (Cake.Generation.OpenAI)
+  config :cake, Cake.Generation.OpenAI,
+    openai_key:
+      System.get_env("OPENAI_KEY") ||
+        raise("environment variable OPENAI_KEY is missing"),
+    response_url: "https://api.openai.com/v1/responses"
+
   config :cake, Cake.Repo,
     # ssl: true,
     url: database_url,
