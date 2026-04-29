@@ -45,8 +45,23 @@ fi
 ###############################################################################
 OTP_VERSION="${OTP_VERSION:-27.3.4.11}"
 ELIXIR_VERSION="${ELIXIR_VERSION:-1.17.3}"
+MIN_OTP_MAJOR="${MIN_OTP_MAJOR:-26}"
 
-if ! command -v erl >/dev/null 2>&1; then
+# Ubuntu Noble's apt `erlang` package installs OTP 25 to /usr/bin/erl, so a
+# bare `command -v erl` check would short-circuit and skip the OTP 27 install
+# — leaving the broken `:httpc` empty-`te:`-header behavior in place. Force
+# install whenever the visible OTP is older than MIN_OTP_MAJOR (or unreadable).
+need_otp_install=true
+if command -v erl >/dev/null 2>&1; then
+  current_otp=$(erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().' 2>/dev/null || echo "0")
+  if [ "${current_otp}" -ge "${MIN_OTP_MAJOR}" ] 2>/dev/null; then
+    need_otp_install=false
+  else
+    echo "==> Detected OTP ${current_otp} (< ${MIN_OTP_MAJOR}); installing OTP ${OTP_VERSION} to override."
+  fi
+fi
+
+if [ "$need_otp_install" = "true" ]; then
   echo "==> Installing build deps..."
   # Tolerate failing third-party PPAs; we only need the main Ubuntu archive.
   $SUDO apt-get update -y || true
@@ -73,8 +88,22 @@ if ! command -v erl >/dev/null 2>&1; then
   done
 fi
 
-if ! command -v elixir >/dev/null 2>&1 || ! command -v mix >/dev/null 2>&1; then
-  OTP_MAJOR=$(erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().')
+OTP_MAJOR=$(erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().')
+
+# If Elixir is on PATH but compiled against a different OTP than the one we
+# just selected (e.g. a stale /opt/elixir from a prior OTP 25 run), it must be
+# reinstalled — running it would crash on BEAM/abi mismatch.
+need_elixir_install=true
+if command -v elixir >/dev/null 2>&1 && command -v mix >/dev/null 2>&1; then
+  elixir_otp=$(elixir --version 2>/dev/null | sed -n 's/.*compiled with Erlang\/OTP \([0-9]*\).*/\1/p')
+  if [ -n "${elixir_otp}" ] && [ "${elixir_otp}" = "${OTP_MAJOR}" ]; then
+    need_elixir_install=false
+  else
+    echo "==> Elixir compiled with OTP ${elixir_otp:-unknown}, need OTP ${OTP_MAJOR}; reinstalling."
+  fi
+fi
+
+if [ "$need_elixir_install" = "true" ]; then
   echo "==> Detected OTP ${OTP_MAJOR}; installing Elixir ${ELIXIR_VERSION}..."
   $SUDO mkdir -p /opt/elixir
   curl -fsSL \
