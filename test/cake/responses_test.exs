@@ -3,7 +3,21 @@ defmodule Cake.ResponsesTest do
 
   alias Cake.Responses
   alias Cake.Responses.Result
+  alias Cake.Search.Provenance
+  alias Cake.Search.Result, as: SearchResult
   alias Cake.Test.StubChunk
+
+  defp test_provenance, do: %Provenance{search_type: :hybrid, query_text: "test"}
+
+  defp wrap_result(unit, opts \\ []) do
+    %SearchResult{
+      retrieval_unit: unit,
+      backend_score: Keyword.get(opts, :backend_score, 1.0),
+      hit_source: Keyword.get(opts, :hit_source, :search),
+      index: "test_index",
+      provenance: test_provenance()
+    }
+  end
 
   @meta_a %{
     id: {"a.pdf", 1},
@@ -34,7 +48,7 @@ defmodule Cake.ResponsesTest do
 
     test "returns a map keyed by positive integers with Citable-shaped values" do
       chunk = Repo.preload(chunk_fixture(), :parsed_book)
-      map = Responses.build_citation_map([{7, {chunk, %{os_score: 0.9}}}])
+      map = Responses.build_citation_map([{7, wrap_result(chunk, backend_score: 0.9)}])
 
       assert Map.keys(map) == [7]
 
@@ -46,10 +60,9 @@ defmodule Cake.ResponsesTest do
 
     test "delegates field production to Cake.Citable.metadata/1" do
       chunk = Repo.preload(chunk_fixture(), :parsed_book)
-      [{_, {c, _}}] = [{1, {chunk, %{}}}]
 
-      direct = Cake.Citable.metadata(c)
-      via_map = Map.fetch!(Responses.build_citation_map([{1, {chunk, %{}}}]), 1)
+      direct = Cake.Citable.metadata(chunk)
+      via_map = Map.fetch!(Responses.build_citation_map([{1, wrap_result(chunk)}]), 1)
 
       assert via_map == direct
     end
@@ -213,7 +226,7 @@ defmodule Cake.ResponsesTest do
   # no DB, no Books.Chunk coupling.
   defp indexed_override(_base, metadata_by_index) do
     Enum.map(metadata_by_index, fn {idx, meta} ->
-      {idx, {%StubChunk{metadata: meta}, %{os_score: 1.0}}}
+      {idx, wrap_result(%StubChunk{metadata: meta})}
     end)
   end
 
