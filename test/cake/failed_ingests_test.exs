@@ -39,7 +39,9 @@ defmodule Cake.FailedIngestsTest do
         last_retried_at: ~U[2026-04-10 01:14:00Z]
       }
 
-      assert {:ok, %FailedIngest{} = failed_ingest} = FailedIngests.create_failed_ingest(valid_attrs)
+      assert {:ok, %FailedIngest{} = failed_ingest} =
+               FailedIngests.create_failed_ingest(valid_attrs)
+
       assert failed_ingest.pipeline_behaviour == "some pipeline_behaviour"
       assert failed_ingest.pipeline_implementation == "some pipeline_implementation"
       assert failed_ingest.step == "some step"
@@ -86,14 +88,20 @@ defmodule Cake.FailedIngestsTest do
 
     test "update_failed_ingest/2 with invalid data returns error changeset" do
       failed_ingest = failed_ingest_fixture()
-      assert {:error, %Ecto.Changeset{}} = FailedIngests.update_failed_ingest(failed_ingest, @invalid_attrs)
+
+      assert {:error, %Ecto.Changeset{}} =
+               FailedIngests.update_failed_ingest(failed_ingest, @invalid_attrs)
+
       assert failed_ingest == FailedIngests.get_failed_ingest!(failed_ingest.id)
     end
 
     test "delete_failed_ingest/1 deletes the failed_ingest" do
       failed_ingest = failed_ingest_fixture()
       assert {:ok, %FailedIngest{}} = FailedIngests.delete_failed_ingest(failed_ingest)
-      assert_raise Ecto.NoResultsError, fn -> FailedIngests.get_failed_ingest!(failed_ingest.id) end
+
+      assert_raise Ecto.NoResultsError, fn ->
+        FailedIngests.get_failed_ingest!(failed_ingest.id)
+      end
     end
 
     test "change_failed_ingest/1 returns a failed_ingest changeset" do

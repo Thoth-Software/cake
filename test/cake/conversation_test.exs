@@ -128,10 +128,10 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn :hybrid,
-                                                                _q,
-                                                                _emb,
-                                                                _expand,
-                                                                _opts ->
+                                                               _q,
+                                                               _emb,
+                                                               _expand,
+                                                               _opts ->
         {:ok, [{chunk, %{os_score: 1.0}}]}
       end)
 
@@ -698,7 +698,8 @@ defmodule Cake.ConversationTest do
       {:ok, reply_to: reply_to}
     end
 
-    test "successful turn pushes {:convo_response, _, _} to the configured reply_to, not the caller", %{reply_to: reply_to} do
+    test "successful turn pushes {:convo_response, _, _} to the configured reply_to, not the caller",
+         %{reply_to: reply_to} do
       chunk = %ConvoChunk{
         embedding: [0.1, 0.2, 0.3],
         prompt_text: "x",
@@ -731,7 +732,8 @@ defmodule Cake.ConversationTest do
       refute_received {:convo_response, _, _}
     end
 
-    test "failed turn pushes {:convo_error, reason} to the configured reply_to, not the caller", %{reply_to: reply_to} do
+    test "failed turn pushes {:convo_error, reason} to the configured reply_to, not the caller",
+         %{reply_to: reply_to} do
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
@@ -856,10 +858,14 @@ defmodule Cake.ConversationTest do
 
   describe "pipeline stages" do
     test "resolve_search_results/2 returns cached results when search_results is non-empty" do
-      cached = [{%ConvoChunk{prompt_text: "cached"}, %{os_score: 1.0, cosine_score: 0.9, relevance_score: 0.95}}]
+      cached = [
+        {%ConvoChunk{prompt_text: "cached"},
+         %{os_score: 1.0, cosine_score: 0.9, relevance_score: 0.95}}
+      ]
 
       state =
-        struct!(Cake.Conversation.State,
+        struct!(
+          Cake.Conversation.State,
           Map.merge(mocked_opts(), %{search_results: cached})
         )
 
@@ -998,11 +1004,17 @@ defmodule Cake.ConversationTest do
 
     test "process_response/3 wraps Responses.process result in :ok tuple" do
       expect(Cake.Responses.Mock, :process, fn "raw text", [], [] ->
-        %Cake.Responses.Result{raw_text: "raw text", final_text: "processed", citations: [], warnings: []}
+        %Cake.Responses.Result{
+          raw_text: "raw text",
+          final_text: "processed",
+          citations: [],
+          warnings: []
+        }
       end)
 
       state =
-        struct!(Cake.Conversation.State,
+        struct!(
+          Cake.Conversation.State,
           Map.put(mocked_opts(), :responses, Cake.Responses.Mock)
         )
 
@@ -1082,9 +1094,20 @@ defmodule Cake.ConversationTest do
 
   describe "apply_selection/2" do
     test "filters candidates to selected IDs and assigns 1-based indices" do
-      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
-      c2 = %ConvoChunk{prompt_text: "b", metadata: %{id: "id-2", label: "L", preview: "p", source_ref: nil, extras: %{}}}
-      c3 = %ConvoChunk{prompt_text: "c", metadata: %{id: "id-3", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      c1 = %ConvoChunk{
+        prompt_text: "a",
+        metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      c2 = %ConvoChunk{
+        prompt_text: "b",
+        metadata: %{id: "id-2", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
+      c3 = %ConvoChunk{
+        prompt_text: "c",
+        metadata: %{id: "id-3", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
 
       candidates = [
         {c1, %{os_score: 1.0}},
@@ -1099,25 +1122,40 @@ defmodule Cake.ConversationTest do
     end
 
     test "selecting all candidates returns all with indices" do
-      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      c1 = %ConvoChunk{
+        prompt_text: "a",
+        metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
       candidates = [{c1, %{os_score: 1.0}}]
 
       assert {:ok, [{1, {^c1, _}}]} = Conversation.apply_selection(candidates, ["id-1"])
     end
 
     test "errors on unknown doc IDs" do
-      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      c1 = %ConvoChunk{
+        prompt_text: "a",
+        metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
       candidates = [{c1, %{os_score: 1.0}}]
 
-      assert {:error, {:unknown_doc_ids, unknown}} = Conversation.apply_selection(candidates, ["id-1", "id-999"])
+      assert {:error, {:unknown_doc_ids, unknown}} =
+               Conversation.apply_selection(candidates, ["id-1", "id-999"])
+
       assert "id-999" in unknown
     end
 
     test "empty doc_ids returns empty indexed list" do
-      c1 = %ConvoChunk{prompt_text: "a", metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}}
+      c1 = %ConvoChunk{
+        prompt_text: "a",
+        metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
+      }
+
       candidates = [{c1, %{os_score: 1.0}}]
 
-      assert {:error, {:unknown_doc_ids, _}} = Conversation.apply_selection(candidates, ["nonexistent"])
+      assert {:error, {:unknown_doc_ids, _}} =
+               Conversation.apply_selection(candidates, ["nonexistent"])
     end
   end
 
@@ -1138,7 +1176,12 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
-        %Cake.Responses.Result{raw_text: "answer", final_text: "answer", citations: [], warnings: []}
+        %Cake.Responses.Result{
+          raw_text: "answer",
+          final_text: "answer",
+          citations: [],
+          warnings: []
+        }
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})

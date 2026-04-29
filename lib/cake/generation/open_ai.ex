@@ -207,8 +207,6 @@ defmodule Cake.Generation.OpenAI do
   defp log_result({:error, reason}, model, started_at) do
     elapsed = System.monotonic_time(:millisecond) - started_at
 
-    Logger.warning(
-      "#{__MODULE__} model=#{model} elapsed_ms=#{elapsed} error=#{inspect(reason)}"
-    )
+    Logger.warning("#{__MODULE__} model=#{model} elapsed_ms=#{elapsed} error=#{inspect(reason)}")
   end
 end

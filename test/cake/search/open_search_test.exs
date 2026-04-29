@@ -44,9 +44,7 @@ defmodule Cake.Search.OpenSearchTest do
     test "routes index_name/0 through the :gds module" do
       _ =
         try do
-          OpenSearch.search_chunks_with_context(:keyword, "anything", nil, 0,
-            gds: FixtureGDS
-          )
+          OpenSearch.search_chunks_with_context(:keyword, "anything", nil, 0, gds: FixtureGDS)
         rescue
           _ -> :rescued
         catch
@@ -61,9 +59,7 @@ defmodule Cake.Search.OpenSearchTest do
     test "routes search_fields/0 through the :gds module" do
       _ =
         try do
-          OpenSearch.search_chunks_with_context(:keyword, "anything", nil, 0,
-            gds: FixtureGDS
-          )
+          OpenSearch.search_chunks_with_context(:keyword, "anything", nil, 0, gds: FixtureGDS)
         rescue
           _ -> :rescued
         catch

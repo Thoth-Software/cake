@@ -35,7 +35,7 @@ config :cake, Cake.Documents.Cluster,
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
 config :cake, Cake.Mailer, adapter: Swoosh.Adapters.Local
- 
+
 # config/config.exs
 config :cake, Oban,
   engine: Oban.Engines.Basic,

@@ -19,7 +19,9 @@ defmodule Cake.Documents.ParsedDocumentPropertyTest do
   # Strings that may contain interleaved NUL bytes — exactly the input that
   # exercises the sanitizer's filtering branch.
   defp string_with_nuls do
-    gen all(parts <- list_of(one_of([string(:utf8, max_length: 8), constant("\0")]), max_length: 16)) do
+    gen all(
+          parts <- list_of(one_of([string(:utf8, max_length: 8), constant("\0")]), max_length: 16)
+        ) do
       Enum.join(parts)
     end
   end

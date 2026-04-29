@@ -26,7 +26,7 @@ defmodule Cake.Repo.Migrations.CreateParsedBooks do
 
       timestamps(type: :utc_datetime)
     end
+
     create unique_index(:parsed_books, [:file_hash])
   end
-
 end

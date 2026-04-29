@@ -34,7 +34,8 @@ defmodule Cake.CitationsTest do
   @meta_3 %{
     id: {"elixir_in_action.pdf", 40},
     label: "Elixir in Action, p. 101 — Tasks",
-    preview: "Tasks are processes meant to execute one particular action throughout their lifetime.",
+    preview:
+      "Tasks are processes meant to execute one particular action throughout their lifetime.",
     source_ref: "assets/static/elixir_in_action.pdf",
     extras: %{
       book_title: "Elixir in Action",
