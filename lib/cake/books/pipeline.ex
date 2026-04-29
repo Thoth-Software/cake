@@ -37,7 +37,8 @@ defmodule Cake.Books.Pipeline do
   #   e.g. {:ok, %{persisted: 12, embedded: 10, indexed: 10, errors: 2}}
   # TODO: Partial success should not be reported as full success —
   #   the success_message should reflect how many items actually made it through
-  @spec ingest(atom(), atom(), String.t(), [String.t()]) :: {:ok, String.t()} | any()
+  @spec ingest(atom(), atom(), String.t(), [String.t()]) ::
+          {:ok, String.t()} | {:error, any()}
   def ingest(embedding_service, format_pipeline, embedding_model, paths) do
     ctx = Pipelines.build_context(__MODULE__, format_pipeline, "")
 
@@ -94,7 +95,7 @@ defmodule Cake.Books.Pipeline do
   early failures re-run from the file, embed/index failures resume from the
   persisted chunk.
   """
-  @spec retry(struct(), atom(), atom(), String.t()) ::
+  @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, any()}
   def retry(
         %Cake.FailedIngests.FailedIngest{step: step} = failure,
@@ -116,7 +117,7 @@ defmodule Cake.Books.Pipeline do
     retry_from_chunk(failure, embedding_service, embedding_model)
   end
 
-  @spec load_all_binaries([String.t()], atom(), struct()) :: {:ok, Enumerable.t()}
+  @spec load_all_binaries([String.t()], atom(), Pipelines.Context.t()) :: {:ok, Enumerable.t()}
   def load_all_binaries(paths, format_pipeline, ctx) do
     binary_stream =
       paths
@@ -128,7 +129,7 @@ defmodule Cake.Books.Pipeline do
     {:ok, binary_stream}
   end
 
-  @spec parse_all_binaries(atom(), Enumerable.t(), struct()) :: {:ok, Enumerable.t()}
+  @spec parse_all_binaries(atom(), Enumerable.t(), Pipelines.Context.t()) :: {:ok, Enumerable.t()}
   def parse_all_binaries(format_pipeline, binary_stream, ctx) do
     books_and_chunks_stream =
       binary_stream
@@ -151,7 +152,7 @@ defmodule Cake.Books.Pipeline do
     {:ok, books_and_chunks_stream}
   end
 
-  @spec persist_books_and_chunks(Enumerable.t(), struct(), keyword()) ::
+  @spec persist_books_and_chunks(Enumerable.t(), Pipelines.Context.t(), keyword()) ::
           {:ok, Enumerable.t()}
   def persist_books_and_chunks(books_and_chunks_stream, ctx, opts \\ []) do
     max_concurrency =
@@ -173,7 +174,8 @@ defmodule Cake.Books.Pipeline do
     {:ok, persisted_stream}
   end
 
-  @spec munge_persisted_stream(Enumerable.t()) :: {:ok, list()} | {:error, any()}
+  @spec munge_persisted_stream({:ok, term()} | {:exit, term()}) ::
+          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, any()}
   def munge_persisted_stream(persisted_books_and_chunks) do
     case persisted_books_and_chunks do
       {:ok, {:ok, persisted}} ->
@@ -193,7 +195,7 @@ defmodule Cake.Books.Pipeline do
     end
   end
 
-  @spec embed_all_chunks(Enumerable.t(), atom(), String.t(), struct()) ::
+  @spec embed_all_chunks(Enumerable.t(), atom(), String.t(), Pipelines.Context.t()) ::
           {:ok, Enumerable.t()}
   def embed_all_chunks(persisted_stream, embedding_service, embedding_model, ctx) do
     embeddings_module = Application.get_env(:cake, :embeddings_module, Cake.Embeddings)

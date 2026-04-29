@@ -12,6 +12,6 @@ defmodule Cake.Embeddings.Behaviour do
           attrs: %{embedding: [float()]}
         }
 
-  @callback embed(atom(), struct(), String.t()) ::
+  @callback embed(atom(), map(), String.t()) ::
               {:ok, embedding_result()} | {:error, String.t()}
 end

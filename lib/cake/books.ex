@@ -10,7 +10,7 @@ defmodule Cake.Books do
 
   require Logger
 
-  @spec persist_books_and_chunks({ParsedBook.t(), [Chunk.t()]} | tuple()) ::
+  @spec persist_books_and_chunks({ParsedBook.t(), [Chunk.t()]} | {term(), term()}) ::
           {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, any()}
   def persist_books_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
       when is_list(chunks) do

@@ -25,7 +25,7 @@ defmodule Cake.Pipelines do
 
   @type context :: Context.t()
 
-  @spec add_to_opensearch(Enumerable.t(), String.t(), module(), struct()) :: Enumerable.t()
+  @spec add_to_opensearch(Enumerable.t(), String.t(), module(), context()) :: Enumerable.t()
   def add_to_opensearch(docs_with_embeddings_stream, index, cluster, %Context{} = ctx) do
     if skip_opensearch?() do
       # In test mode, just pass through the documents without calling OpenSearch
@@ -77,7 +77,7 @@ defmodule Cake.Pipelines do
   The `step_name` parameter identifies which pipeline stage failed,
   for log readability.
   """
-  @spec detuple_with_logging(Enumerable.t(), String.t(), struct()) :: Enumerable.t()
+  @spec detuple_with_logging(Enumerable.t(), String.t(), context()) :: Enumerable.t()
   def detuple_with_logging(stream_enumerable, step_name, %Context{} = ctx) do
     stream_enumerable
     |> Stream.filter(fn
@@ -102,8 +102,8 @@ defmodule Cake.Pipelines do
   Use this from pipeline steps that handle errors manually instead of
   going through detuple_with_logging.
   """
-  @spec log_and_persist_failure(struct(), String.t(), any()) ::
-          {:ok, struct()} | {:error, Ecto.Changeset.t()}
+  @spec log_and_persist_failure(context(), String.t(), term()) ::
+          {:ok, Cake.FailedIngests.FailedIngest.t()} | {:error, Ecto.Changeset.t()}
   def log_and_persist_failure(%Context{} = ctx, step_name, reason) do
     Logger.warning("[#{step_name}] Item failed: #{inspect(reason)}")
     persist_failure(ctx, step_name, reason)
@@ -233,7 +233,10 @@ defmodule Cake.Pipelines do
     }
   end
 
-  @spec handle_ingest_error({:error, any()} | {:error, atom(), any()}, context()) :: any()
+  @spec handle_ingest_error({:error, any()} | {:error, atom(), any()}, context()) ::
+          {:error, {atom(), any()}}
+          | {:ok, Cake.FailedIngests.FailedIngest.t()}
+          | {:error, Ecto.Changeset.t()}
   def handle_ingest_error({:error, step, error}, ctx) when is_atom(step) do
     Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error at #{step}: #{inspect(error)}")
 
