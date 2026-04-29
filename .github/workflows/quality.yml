@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   quality-fast:
-    name: Compile + Credo + Format
+    name: Compile + Credo
     runs-on: ubuntu-latest
 
     steps:
