@@ -35,6 +35,7 @@ defmodule Cake.Conversation do
 
   alias Cake.Conversation.Events
   alias Cake.Conversation.State
+  alias Cake.Search.Result
 
   require Logger
 
@@ -117,7 +118,7 @@ defmodule Cake.Conversation do
 
   # --- Manual mode ---
 
-  @spec manualask(pid(), String.t()) :: {:ok, [Cake.Search.scored_result()]} | {:error, term()}
+  @spec manualask(pid(), String.t()) :: {:ok, [Result.t()]} | {:error, term()}
   def manualask(pid, question) do
     GenServer.call(pid, {:manualask, question})
   end
@@ -159,7 +160,7 @@ defmodule Cake.Conversation do
 
   @doc false
   @spec resolve_search_results(String.t(), State.t()) ::
-          {:ok, [Cake.Search.scored_result()]} | {:error, term()}
+          {:ok, [Result.t()]} | {:error, term()}
   def resolve_search_results(_question, %State{search_results: results}) when results != [] do
     {:ok, results}
   end
@@ -171,12 +172,12 @@ defmodule Cake.Conversation do
   # --- Stage 1a: apply_selection (manual mode) ---
 
   @doc false
-  @spec apply_selection([Cake.Search.scored_result()], [String.t()]) ::
+  @spec apply_selection([Result.t()], [String.t()]) ::
           {:ok, [Cake.Prompt.indexed_chunk()]} | {:error, term()}
   def apply_selection(candidates, doc_ids) do
     available_ids =
-      MapSet.new(candidates, fn {chunk, _scores} ->
-        Cake.Citable.metadata(chunk).id
+      MapSet.new(candidates, fn %Result{retrieval_unit: unit} ->
+        Cake.Citable.metadata(unit).id
       end)
 
     requested = MapSet.new(doc_ids)
@@ -187,11 +188,11 @@ defmodule Cake.Conversation do
     else
       selected =
         candidates
-        |> Enum.filter(fn {chunk, _scores} ->
-          Cake.Citable.metadata(chunk).id in doc_ids
+        |> Enum.filter(fn %Result{retrieval_unit: unit} ->
+          Cake.Citable.metadata(unit).id in doc_ids
         end)
         |> Enum.with_index(1)
-        |> Enum.map(fn {scored_chunk, idx} -> {idx, scored_chunk} end)
+        |> Enum.map(fn {result, idx} -> {idx, result} end)
 
       {:ok, selected}
     end
@@ -200,7 +201,7 @@ defmodule Cake.Conversation do
   # --- Stage 1b: select (auto mode) ---
 
   @doc false
-  @spec select([Cake.Search.scored_result()]) :: {:ok, [Cake.Prompt.indexed_chunk()]}
+  @spec select([Result.t()]) :: {:ok, [Cake.Prompt.indexed_chunk()]}
   def select(scored_results) do
     {indexed_chunks, _context_quality} = Cake.Prompt.prepare_context(scored_results)
     {:ok, indexed_chunks}
@@ -259,7 +260,7 @@ defmodule Cake.Conversation do
   defp embed_and_search(question, %State{} = s) do
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            s.embeddings.embed(s.provider, %{input: question}, s.embedder),
-         {:ok, scored_hits} <-
+         {:ok, raw_results} <-
            s.search.search_chunks_with_context(
              :hybrid,
              question,
@@ -268,7 +269,7 @@ defmodule Cake.Conversation do
              gds: s.gds
            ) do
       scored_results =
-        scored_hits
+        raw_results
         |> Cake.Search.score_results(embedding)
         |> Cake.Search.normalize_and_combine()
         |> Cake.Search.sort_by_relevance()
@@ -283,7 +284,7 @@ defmodule Cake.Conversation do
   end
 
   defp score_range(scored_results) do
-    scores = Enum.map(scored_results, fn {_, %{relevance_score: s}} -> s end)
+    scores = Enum.map(scored_results, & &1.relevance_score)
     {Enum.min(scores, fn -> 0.0 end), Enum.max(scores, fn -> 0.0 end)}
   end
 

@@ -23,11 +23,27 @@ defmodule Cake.ConversationTest do
   import Mox
 
   alias Cake.Conversation
+  alias Cake.Search.Provenance
+  alias Cake.Search.Result
   alias Cake.Support.FixtureGDS
   alias Cake.Test.ConvoChunk
   alias Cake.Test.GenerationStub
 
   setup :verify_on_exit!
+
+  defp test_provenance, do: %Provenance{search_type: :hybrid, query_text: "test"}
+
+  defp wrap_result(unit, opts \\ []) do
+    %Result{
+      retrieval_unit: unit,
+      backend_score: Keyword.get(opts, :backend_score, 1.0),
+      cosine_score: Keyword.get(opts, :cosine_score),
+      relevance_score: Keyword.get(opts, :relevance_score),
+      hit_source: Keyword.get(opts, :hit_source, :search),
+      index: "test_index",
+      provenance: test_provenance()
+    }
+  end
 
   defp valid_opts(overrides \\ %{}) do
     Map.merge(
@@ -132,7 +148,7 @@ defmodule Cake.ConversationTest do
                                                                _emb,
                                                                _expand,
                                                                _opts ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _raw_text, _indexed, _opts ->
@@ -187,7 +203,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, Enum.map(chunks, fn c -> {c, %{os_score: 1.0}} end)}
+        {:ok, Enum.map(chunks, &wrap_result/1)}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
@@ -275,7 +291,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _, _, _ ->
@@ -356,7 +372,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, Enum.map(chunks, fn c -> {c, %{os_score: 1.0}} end)}
+        {:ok, Enum.map(chunks, &wrap_result/1)}
       end)
 
       # NOTE: deliberately NOT mocking Cake.Responses — we want the real
@@ -429,7 +445,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
@@ -576,7 +592,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
@@ -651,7 +667,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       {:ok, pid} =
@@ -711,7 +727,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _, _, _ ->
@@ -797,7 +813,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
@@ -859,8 +875,11 @@ defmodule Cake.ConversationTest do
   describe "pipeline stages" do
     test "resolve_search_results/2 returns cached results when search_results is non-empty" do
       cached = [
-        {%ConvoChunk{prompt_text: "cached"},
-         %{os_score: 1.0, cosine_score: 0.9, relevance_score: 0.95}}
+        wrap_result(%ConvoChunk{prompt_text: "cached"},
+          backend_score: 1.0,
+          cosine_score: 0.9,
+          relevance_score: 0.95
+        )
       ]
 
       state =
@@ -884,7 +903,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
@@ -925,8 +944,8 @@ defmodule Cake.ConversationTest do
 
     test "select/1 returns indexed chunks from scored results" do
       scored = [
-        {%ConvoChunk{prompt_text: "a"}, %{relevance_score: 0.9}},
-        {%ConvoChunk{prompt_text: "b"}, %{relevance_score: 0.8}}
+        wrap_result(%ConvoChunk{prompt_text: "a"}, relevance_score: 0.9),
+        wrap_result(%ConvoChunk{prompt_text: "b"}, relevance_score: 0.8)
       ]
 
       assert {:ok, indexed} = Conversation.select(scored)
@@ -935,9 +954,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "select/1 filters below relevance floor" do
-      scored = [
-        {%ConvoChunk{prompt_text: "a"}, %{relevance_score: 0.1}}
-      ]
+      scored = [wrap_result(%ConvoChunk{prompt_text: "a"}, relevance_score: 0.1)]
 
       assert {:ok, []} = Conversation.select(scored)
     end
@@ -950,8 +967,8 @@ defmodule Cake.ConversationTest do
       marker = "UNIQUE_#{:erlang.unique_integer([:positive])}"
 
       chunk = %ConvoChunk{prompt_text: marker}
-      scored = {chunk, %{relevance_score: 0.9}}
-      indexed = [{1, scored}]
+      result = wrap_result(chunk, relevance_score: 0.9)
+      indexed = [{1, result}]
 
       assert {:ok, messages} = Conversation.build_prompt(indexed, "my question", [])
       serialized = Enum.map_join(messages, "\n", & &1.content)
@@ -1050,7 +1067,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
@@ -1110,15 +1127,15 @@ defmodule Cake.ConversationTest do
       }
 
       candidates = [
-        {c1, %{os_score: 1.0}},
-        {c2, %{os_score: 0.9}},
-        {c3, %{os_score: 0.8}}
+        wrap_result(c1, backend_score: 1.0),
+        wrap_result(c2, backend_score: 0.9),
+        wrap_result(c3, backend_score: 0.8)
       ]
 
       assert {:ok, indexed} = Conversation.apply_selection(candidates, ["id-1", "id-3"])
       assert length(indexed) == 2
-      assert {1, {^c1, _}} = Enum.at(indexed, 0)
-      assert {2, {^c3, _}} = Enum.at(indexed, 1)
+      assert {1, %Result{retrieval_unit: ^c1}} = Enum.at(indexed, 0)
+      assert {2, %Result{retrieval_unit: ^c3}} = Enum.at(indexed, 1)
     end
 
     test "selecting all candidates returns all with indices" do
@@ -1127,9 +1144,10 @@ defmodule Cake.ConversationTest do
         metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
       }
 
-      candidates = [{c1, %{os_score: 1.0}}]
+      candidates = [wrap_result(c1)]
 
-      assert {:ok, [{1, {^c1, _}}]} = Conversation.apply_selection(candidates, ["id-1"])
+      assert {:ok, [{1, %Result{retrieval_unit: ^c1}}]} =
+               Conversation.apply_selection(candidates, ["id-1"])
     end
 
     test "errors on unknown doc IDs" do
@@ -1138,7 +1156,7 @@ defmodule Cake.ConversationTest do
         metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
       }
 
-      candidates = [{c1, %{os_score: 1.0}}]
+      candidates = [wrap_result(c1)]
 
       assert {:error, {:unknown_doc_ids, unknown}} =
                Conversation.apply_selection(candidates, ["id-1", "id-999"])
@@ -1152,7 +1170,7 @@ defmodule Cake.ConversationTest do
         metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
       }
 
-      candidates = [{c1, %{os_score: 1.0}}]
+      candidates = [wrap_result(c1)]
 
       assert {:error, {:unknown_doc_ids, _}} =
                Conversation.apply_selection(candidates, ["nonexistent"])
@@ -1172,7 +1190,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
@@ -1203,7 +1221,9 @@ defmodule Cake.ConversationTest do
       assert pre_select.pending != nil
 
       # Step 2: select with chunk IDs completes the turn
-      doc_ids = Enum.map(candidates, fn {c, _} -> Cake.Citable.metadata(c).id end)
+      doc_ids =
+        Enum.map(candidates, fn %Result{retrieval_unit: c} -> Cake.Citable.metadata(c).id end)
+
       assert :ok = Conversation.select_docs(pid, doc_ids)
 
       # Response pushed to reply_to
@@ -1243,7 +1263,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
@@ -1285,7 +1305,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
@@ -1316,7 +1336,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _, _, _ ->
@@ -1374,7 +1394,7 @@ defmodule Cake.ConversationTest do
       end)
 
       expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [{chunk, %{os_score: 1.0}}]}
+        {:ok, [wrap_result(chunk)]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _, _, _ ->
@@ -1398,7 +1418,9 @@ defmodule Cake.ConversationTest do
       assert_receive {:candidates_ready, ^candidates}, 1_000
       assert_receive {:state_change, :awaiting_selection}, 1_000
 
-      doc_ids = Enum.map(candidates, fn {c, _} -> Cake.Citable.metadata(c).id end)
+      doc_ids =
+        Enum.map(candidates, fn %Result{retrieval_unit: c} -> Cake.Citable.metadata(c).id end)
+
       :ok = Conversation.select_docs(pid, doc_ids)
 
       assert_receive {:state_change, :generating}, 1_000

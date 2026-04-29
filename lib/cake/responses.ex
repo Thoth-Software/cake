@@ -32,8 +32,8 @@ defmodule Cake.Responses do
 
   @spec build_citation_map(Cake.Responses.Behaviour.indexed_chunks()) :: map()
   def build_citation_map(indexed_chunks) do
-    Map.new(indexed_chunks, fn {idx, {chunk, _scores}} ->
-      {idx, Citable.metadata(chunk)}
+    Map.new(indexed_chunks, fn {idx, %Cake.Search.Result{retrieval_unit: unit}} ->
+      {idx, Citable.metadata(unit)}
     end)
   end
 
