@@ -61,6 +61,16 @@ mix coveralls.json                         # Must not reduce coverage below thre
 
 Dialyzer is not yet a hard push gate (the config line is commented out). Dialyzer is, however, a hard *merge* gate.
 
+### Pre-push command
+
+Use this single chain locally before pushing — it matches the on-push CI gate:
+
+```bash
+mix compile --warnings-as-errors && mix test --exclude integration && mix credo --strict && mix format --check-formatted
+```
+
+Tests tagged `:integration` (those requiring OpenSearch, external HTTP, or the Rustler NIF) are excluded from the on-push gate and run separately as a merge gate via `mix test --only integration`.
+
 ---
 
 ## When to Stop and Ask the User
@@ -161,6 +171,33 @@ All pipeline callbacks return `{:ok, _}` or `{:error, _}`. Stream steps use `Pip
 - Property tests (StreamData) go in `*_property_test.exs`. When fixing a bug found by a property test, add a corresponding example test in the standard file.
 - Mox expectations go in individual tests, not setup blocks.
 - `test_helper.exs` sets `Application.put_env(:cake, :skip_opensearch, true)`. Tests that need search behavior mock the cluster via Mox or a test module.
+
+---
+
+## Test-Code Ordering
+
+Tests are the contract; code satisfies it. For any task that changes behavior:
+
+1. **Spec.** The user describes what the change should do.
+2. **Tests first.** Write or update tests to encode the new contract before touching implementation. Push the test diff for human review at this point if the change is non-trivial.
+3. **Human reviews tests.** The tests are the spec; the human confirms they encode the intended behavior.
+4. **Implement.** Write the implementation against the reviewed tests.
+5. **Run gates.** Run the pre-push command above. Iterate on the implementation — not the tests — until the suite is green.
+6. **Stop and ask** if step 5 keeps failing in ways that suggest the test itself is wrong; see the next section.
+
+Tests written *after* the implementation tend to encode whatever the code happened to do, not what it should do. Write them first.
+
+---
+
+## When Tests Fail After Your Changes
+
+When `mix test` is red, classify the failure before reacting:
+
+1. **The test asserts on behavior the spec says is correct.** Fix the implementation. Do not edit the test.
+2. **The test asserts on behavior the spec says should change.** Update the test to match the new contract, then update the implementation. Mention the test change in the PR description so a reviewer can sign off on the contract change.
+3. **Neither — the test or spec is ambiguous, or the failure surfaces a question neither answers.** Stop. Ask the user. Do not paper over the failure by deleting assertions, broadening matchers, adding `try/rescue`, or marking tests `@tag :skip`.
+
+If you find yourself loosening an assertion to make a test pass, you are almost certainly in case 3.
 
 ---
 
