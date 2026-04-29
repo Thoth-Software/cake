@@ -1,6 +1,8 @@
 defmodule CakeWeb.SearchLive do
   use CakeWeb, :live_view
 
+  alias Cake.Search.Result
+
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
@@ -35,7 +37,7 @@ defmodule CakeWeb.SearchLive do
   defp run_search(query) do
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Cake.Embeddings.embed(:openai, %{input: query}, "text-embedding-ada-002"),
-         {:ok, chunks} <-
+         {:ok, search_results} <-
            Cake.Search.OpenSearch.search_chunks_with_context(
              :hybrid,
              query,
@@ -44,18 +46,19 @@ defmodule CakeWeb.SearchLive do
              gds: Cake.Books.ParsedBook
            ) do
       results =
-        chunks
-        |> Enum.group_by(fn chunk -> chunk.parsed_book end)
-        |> Enum.map(&build_book_result/1)
+        search_results
+        |> Enum.group_by(fn %Result{retrieval_unit: chunk} -> chunk.parsed_book end)
+        |> Enum.map(fn {book, book_results} -> build_book_result(book, book_results) end)
         |> Enum.sort_by(& &1.hit_count, :desc)
 
       {:ok, results}
     end
   end
 
-  defp build_book_result({book, book_chunks}) do
+  defp build_book_result(book, book_results) do
     pages =
-      book_chunks
+      book_results
+      |> Enum.map(& &1.retrieval_unit)
       |> Enum.sort_by(& &1.page_number)
       |> Enum.uniq_by(& &1.page_number)
       |> Enum.map(fn chunk ->
@@ -70,7 +73,7 @@ defmodule CakeWeb.SearchLive do
       book_title: book.title,
       source_file_path: book.source_file_path,
       total_pages: book.total_pages,
-      hit_count: length(book_chunks),
+      hit_count: length(book_results),
       pages: pages
     }
   end

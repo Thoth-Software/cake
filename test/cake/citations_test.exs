@@ -116,7 +116,15 @@ defmodule Cake.CitationsTest do
           :parsed_book
         )
 
-      indexed = [{1, {chunk, %{os_score: 1.0}}}]
+      result = %Cake.Search.Result{
+        retrieval_unit: chunk,
+        backend_score: 1.0,
+        hit_source: :search,
+        index: "test_index",
+        provenance: %Cake.Search.Provenance{search_type: :hybrid, query_text: "test"}
+      }
+
+      indexed = [{1, result}]
       chunk_map = Cake.Responses.build_citation_map(indexed)
 
       {citations, hallucinated} = Citations.extract("See [1].", chunk_map)

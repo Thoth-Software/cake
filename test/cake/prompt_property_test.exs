@@ -16,7 +16,11 @@ defmodule Cake.PromptPropertyTest do
   use ExUnitProperties
 
   alias Cake.Prompt
+  alias Cake.Search.Provenance
+  alias Cake.Search.Result
   alias Cake.Test.ConvoChunk
+
+  defp test_provenance, do: %Provenance{search_type: :hybrid, query_text: "test"}
 
   # ---------------------------------------------------------------------------
   # Generators
@@ -31,7 +35,13 @@ defmodule Cake.PromptPropertyTest do
           text <- prompt_text(),
           score <- float(min: 0.0, max: 1.0)
         ) do
-      {%ConvoChunk{prompt_text: text}, %{relevance_score: score}}
+      %Result{
+        retrieval_unit: %ConvoChunk{prompt_text: text},
+        relevance_score: score,
+        hit_source: :search,
+        index: "test_index",
+        provenance: test_provenance()
+      }
     end
   end
 
@@ -39,7 +49,7 @@ defmodule Cake.PromptPropertyTest do
     gen all(chunks <- list_of(scored_chunk(), min_length: 1, max_length: 8)) do
       chunks
       |> Enum.with_index(1)
-      |> Enum.map(fn {sc, idx} -> {idx, sc} end)
+      |> Enum.map(fn {result, idx} -> {idx, result} end)
     end
   end
 

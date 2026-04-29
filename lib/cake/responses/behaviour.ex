@@ -15,7 +15,7 @@ defmodule Cake.Responses.Behaviour do
 
   alias Cake.Responses.Result
 
-  @type indexed_chunks :: [{pos_integer(), {struct(), map()}}]
+  @type indexed_chunks :: [{pos_integer(), Cake.Search.Result.t()}]
 
   @callback process(
               raw_text :: String.t(),

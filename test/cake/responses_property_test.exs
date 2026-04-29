@@ -19,7 +19,10 @@ defmodule Cake.ResponsesPropertyTest do
 
   alias Cake.Responses
   alias Cake.Responses.Result
+  alias Cake.Search.Provenance
   alias Cake.Test.StubChunk
+
+  defp test_provenance, do: %Provenance{search_type: :hybrid, query_text: "test"}
 
   # ---------------------------------------------------------------------------
   # Generators
@@ -38,7 +41,13 @@ defmodule Cake.ResponsesPropertyTest do
 
   defp scored_stub do
     gen all(metadata <- metadata_struct(), score <- float(min: 0.0, max: 1.0)) do
-      {%StubChunk{metadata: metadata}, %{relevance_score: score}}
+      %Cake.Search.Result{
+        retrieval_unit: %StubChunk{metadata: metadata},
+        relevance_score: score,
+        hit_source: :search,
+        index: "test_index",
+        provenance: test_provenance()
+      }
     end
   end
 
@@ -46,7 +55,7 @@ defmodule Cake.ResponsesPropertyTest do
     gen all(stubs <- list_of(scored_stub(), max_length: 6)) do
       stubs
       |> Enum.with_index(1)
-      |> Enum.map(fn {sc, idx} -> {idx, sc} end)
+      |> Enum.map(fn {result, idx} -> {idx, result} end)
     end
   end
 

@@ -8,7 +8,9 @@ defmodule Cake.Prompt do
   the LLM.
   """
 
-  @type indexed_chunk :: {pos_integer(), Cake.Search.scored_result()}
+  alias Cake.Search.Result
+
+  @type indexed_chunk :: {pos_integer(), Result.t()}
   @type context_quality :: :good | :none
   @type message :: %{role: String.t(), content: String.t()}
 
@@ -16,18 +18,18 @@ defmodule Cake.Prompt do
   @default_min_relevance 0.3
   @max_history_exchanges 5
 
-  @spec prepare_context([Cake.Search.scored_result()], keyword()) ::
+  @spec prepare_context([Result.t()], keyword()) ::
           {[indexed_chunk()], context_quality()}
-  def prepare_context(scored_chunks, opts \\ []) do
+  def prepare_context(scored_results, opts \\ []) do
     max_chunks = Keyword.get(opts, :max_chunks, @default_max_chunks)
     min_relevance = Keyword.get(opts, :min_relevance, @default_min_relevance)
 
     indexed =
-      scored_chunks
-      |> Enum.filter(fn {_chunk, %{relevance_score: score}} -> score >= min_relevance end)
+      scored_results
+      |> Enum.filter(fn %Result{relevance_score: score} -> score >= min_relevance end)
       |> Enum.take(max_chunks)
       |> Enum.with_index(1)
-      |> Enum.map(fn {scored_chunk, idx} -> {idx, scored_chunk} end)
+      |> Enum.map(fn {result, idx} -> {idx, %{result | prompt_index: idx}} end)
 
     context_quality = if indexed == [], do: :none, else: :good
     {indexed, context_quality}
@@ -64,7 +66,7 @@ defmodule Cake.Prompt do
   end
 
   @spec format_chunk(indexed_chunk()) :: String.t()
-  def format_chunk({idx, {unit, _scores}}) do
+  def format_chunk({idx, %Result{retrieval_unit: unit}}) do
     "[#{idx}] " <> Cake.Promptable.prompt_context(unit)
   end
 

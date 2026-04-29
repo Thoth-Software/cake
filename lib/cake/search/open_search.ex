@@ -15,7 +15,9 @@ defmodule Cake.Search.OpenSearch do
 
   @behaviour Cake.Search
 
+  alias Cake.Search.Provenance
   alias Cake.Search.Query
+  alias Cake.Search.Result
 
   # TODO make these defaults into config vars
   @default_size 30
@@ -67,9 +69,9 @@ defmodule Cake.Search.OpenSearch do
 
   @doc """
   Search the GDS's index, then expand each hit by fetching neighboring records
-  via `gds.expand_with_neighbors/2`. Returns tagged tuples
-  `{record, %{os_score: float() | nil}}`. Direct hits carry their OpenSearch
-  `_score`; expanded neighbors receive `os_score: nil`.
+  via `gds.expand_with_neighbors/2`. Returns a list of `Cake.Search.Result.t()`
+  structs. Direct hits carry `hit_source: :search` and the OpenSearch `_score`;
+  expanded neighbors carry `hit_source: :expansion` and `backend_score: nil`.
 
   `expand` is the neighbor offset. Accepts all the same opts as
   `search_chunks/4`, including the required `:gds` opt.
@@ -81,7 +83,7 @@ defmodule Cake.Search.OpenSearch do
           [float()] | nil,
           non_neg_integer(),
           keyword()
-        ) :: {:ok, [{struct(), %{os_score: float() | nil}}]} | {:error, any()}
+        ) :: {:ok, [Result.t()]} | {:error, any()}
   def search_chunks_with_context(
         search_type,
         keywords,
@@ -90,36 +92,31 @@ defmodule Cake.Search.OpenSearch do
         opts \\ []
       ) do
     gds = Keyword.fetch!(opts, :gds)
+    provenance = %Provenance{search_type: search_type, query_text: keywords}
 
     with {:ok, %{hits: hits}} <- search_chunks(search_type, keywords, embedding, opts) do
-      {:ok, hits |> scored_units_for_hits(gds) |> scored_expand_with_neighbors(gds, expand)}
+      {:ok, build_results(hits, gds, gds.index_name(), provenance, expand)}
     end
   end
 
-  @spec scored_units_for_hits(%Snap.Hits{} | [Snap.Hit.t()], module()) ::
-          [{struct(), %{os_score: float()}}]
-  defp scored_units_for_hits(hits, gds) do
+  @spec build_results(
+          %Snap.Hits{} | [Snap.Hit.t()],
+          module(),
+          String.t(),
+          Provenance.t(),
+          non_neg_integer()
+        ) :: [Result.t()]
+  defp build_results(hits, gds, index, provenance, expand) do
     scores_by_id = Map.new(hits, fn hit -> {hit.source["id"], hit.score} end)
     units = gds.load_from_hits(hits)
-    Enum.map(units, fn unit -> {unit, %{os_score: Map.get(scores_by_id, unit.id)}} end)
-  end
-
-  @spec scored_expand_with_neighbors(
-          [{struct(), %{os_score: float()}}],
-          module(),
-          non_neg_integer()
-        ) :: [{struct(), %{os_score: float() | nil}}]
-  defp scored_expand_with_neighbors(scored_units, gds, offset) do
-    plain_units = Enum.map(scored_units, &elem(&1, 0))
-    original_ids = MapSet.new(plain_units, & &1.id)
-    all_expanded = gds.expand_with_neighbors(plain_units, offset)
-    scores_by_id = Map.new(scored_units, fn {unit, scores} -> {unit.id, scores} end)
+    original_ids = MapSet.new(units, & &1.id)
+    all_expanded = gds.expand_with_neighbors(units, expand)
 
     Enum.map(all_expanded, fn unit ->
       if MapSet.member?(original_ids, unit.id) do
-        {unit, Map.get(scores_by_id, unit.id, %{os_score: nil})}
+        Result.new_from_search(unit, Map.get(scores_by_id, unit.id), index, provenance)
       else
-        {unit, %{os_score: nil}}
+        Result.new_from_expansion(unit, index, provenance)
       end
     end)
   end
