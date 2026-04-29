@@ -44,9 +44,24 @@ fi
 # into /opt/elixir.
 ###############################################################################
 OTP_VERSION="${OTP_VERSION:-27.3.4.11}"
+OTP_MIN_MAJOR="${OTP_MIN_MAJOR:-27}"
 ELIXIR_VERSION="${ELIXIR_VERSION:-1.17.3}"
 
-if ! command -v erl >/dev/null 2>&1; then
+current_otp_major() {
+  command -v erl >/dev/null 2>&1 || { echo 0; return; }
+  erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().' 2>/dev/null \
+    || echo 0
+}
+
+OTP_MAJOR_NOW="$(current_otp_major)"
+if [ "${OTP_MAJOR_NOW}" -lt "${OTP_MIN_MAJOR}" ] 2>/dev/null; then
+  # Apt's `erlang` package on Ubuntu Noble is OTP 25, which has the empty
+  # `te:` header bug — the egress proxy rejects every request. The plain
+  # `command -v erl` check is not enough: it sees apt's /usr/bin/erl and
+  # short-circuits, so we must install OTP >= ${OTP_MIN_MAJOR} ourselves
+  # whenever the active erl is older.
+  echo "==> Active erl is OTP ${OTP_MAJOR_NOW:-none} (< ${OTP_MIN_MAJOR}); installing OTP ${OTP_VERSION}..."
+
   echo "==> Installing build deps..."
   # Tolerate failing third-party PPAs; we only need the main Ubuntu archive.
   $SUDO apt-get update -y || true
@@ -68,14 +83,29 @@ if ! command -v erl >/dev/null 2>&1; then
   ( cd /opt/otp && $SUDO ./Install -minimal /opt/otp )
   for bin in erl erlc escript dialyzer ct_run epmd run_erl to_erl; do
     if [ -x "/opt/otp/bin/${bin}" ]; then
+      # Force the symlink so we shadow apt's /usr/bin/erl on $PATH
+      # (/usr/local/bin precedes /usr/bin).
       $SUDO ln -sf "/opt/otp/bin/${bin}" "/usr/local/bin/${bin}"
     fi
   done
+  hash -r
 fi
 
-if ! command -v elixir >/dev/null 2>&1 || ! command -v mix >/dev/null 2>&1; then
-  OTP_MAJOR=$(erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().')
-  echo "==> Detected OTP ${OTP_MAJOR}; installing Elixir ${ELIXIR_VERSION}..."
+# Reinstall Elixir whenever it's missing or built against a different OTP
+# major than the currently-active erl. Otherwise an OTP upgrade above
+# would leave us with an Elixir compiled for the old OTP.
+OTP_MAJOR="$(current_otp_major)"
+elixir_otp_major() {
+  command -v elixir >/dev/null 2>&1 || { echo ""; return; }
+  elixir --version 2>/dev/null \
+    | sed -n 's/.*compiled with Erlang\/OTP \([0-9]\+\).*/\1/p'
+}
+ELIXIR_OTP_MAJOR="$(elixir_otp_major)"
+
+if ! command -v elixir >/dev/null 2>&1 \
+  || ! command -v mix >/dev/null 2>&1 \
+  || [ "${ELIXIR_OTP_MAJOR}" != "${OTP_MAJOR}" ]; then
+  echo "==> Installing Elixir ${ELIXIR_VERSION} for OTP ${OTP_MAJOR}..."
   $SUDO mkdir -p /opt/elixir
   curl -fsSL \
     "https://github.com/elixir-lang/elixir/releases/download/v${ELIXIR_VERSION}/elixir-otp-${OTP_MAJOR}.zip" \
@@ -84,6 +114,7 @@ if ! command -v elixir >/dev/null 2>&1 || ! command -v mix >/dev/null 2>&1; then
   for bin in elixir elixirc iex mix; do
     $SUDO ln -sf "/opt/elixir/bin/${bin}" "/usr/local/bin/${bin}"
   done
+  hash -r
 fi
 
 echo "==> elixir: $(elixir --version | tail -1)"
