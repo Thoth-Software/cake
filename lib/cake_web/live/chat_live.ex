@@ -10,9 +10,9 @@ defmodule CakeWeb.ChatLive do
       id: conversation_id,
       search: Cake.Search.OpenSearch,
       reply_to: self(),
-      embedder: "text-embedding-ada-002",
-      response_model: "gpt-4o-mini",
-      provider: :openai,
+      embedder: Application.fetch_env!(:cake, :default_embedding_model),
+      response_model: Application.fetch_env!(:cake, :default_response_model),
+      provider: Application.fetch_env!(:cake, :default_provider),
       gds: Cake.Books.ParsedBook
     }
 

@@ -9,7 +9,11 @@ import Config
 
 config :cake,
   ecto_repos: [Cake.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  default_embedding_model: "text-embedding-ada-002",
+  default_embedding_dimension: 1536,
+  default_response_model: "gpt-4o-mini",
+  default_provider: :openai
 
 # Configures the endpoint
 config :cake, CakeWeb.Endpoint,
