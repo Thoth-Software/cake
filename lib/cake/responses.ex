@@ -15,6 +15,7 @@ defmodule Cake.Responses do
   alias Cake.Citable
   alias Cake.Citations
   alias Cake.Responses.Result
+  alias Cake.Search.Result, as: SearchResult
 
   @impl Cake.Responses.Behaviour
   @spec process(String.t(), Cake.Responses.Behaviour.indexed_chunks(), keyword()) :: Result.t()
@@ -32,8 +33,8 @@ defmodule Cake.Responses do
 
   @spec build_citation_map(Cake.Responses.Behaviour.indexed_chunks()) :: map()
   def build_citation_map(indexed_chunks) do
-    Map.new(indexed_chunks, fn {idx, {chunk, _scores}} ->
-      {idx, Citable.metadata(chunk)}
+    Map.new(indexed_chunks, fn {idx, %SearchResult{retrieval_unit: unit}} ->
+      {idx, Citable.metadata(unit)}
     end)
   end
 
