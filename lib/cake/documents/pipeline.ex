@@ -124,7 +124,7 @@ defmodule Cake.Documents.Pipeline do
   persist failures re-run from the raw source doc; embed/index failures resume
   from the existing ParsedDocument.
   """
-  @spec retry(struct(), atom(), atom(), String.t()) ::
+  @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, any()}
   def retry(
         %Cake.FailedIngests.FailedIngest{step: "docs.persist"} = failure,

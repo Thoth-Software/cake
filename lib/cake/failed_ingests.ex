@@ -17,7 +17,7 @@ defmodule Cake.FailedIngests do
       [%FailedIngest{}, ...]
 
   """
-  @spec list_failed_ingests() :: [struct()]
+  @spec list_failed_ingests() :: [FailedIngest.t()]
   def list_failed_ingests do
     Repo.all(FailedIngest)
   end
@@ -26,7 +26,7 @@ defmodule Cake.FailedIngests do
   Returns all non-fatal FailedIngest records matching the given
   behaviour, implementation, and version.
   """
-  @spec list_failed_ingests_for(String.t(), String.t(), String.t()) :: [struct()]
+  @spec list_failed_ingests_for(String.t(), String.t(), String.t()) :: [FailedIngest.t()]
   def list_failed_ingests_for(behaviour, implementation, version) do
     Repo.all(
       from f in FailedIngest,
@@ -51,7 +51,7 @@ defmodule Cake.FailedIngests do
       ** (Ecto.NoResultsError)
 
   """
-  @spec get_failed_ingest!(binary()) :: struct()
+  @spec get_failed_ingest!(binary()) :: FailedIngest.t()
   def get_failed_ingest!(id), do: Repo.get!(FailedIngest, id)
 
   @doc """
@@ -66,7 +66,7 @@ defmodule Cake.FailedIngests do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec create_failed_ingest(map()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
+  @spec create_failed_ingest(map()) :: {:ok, FailedIngest.t()} | {:error, Ecto.Changeset.t()}
   def create_failed_ingest(attrs \\ %{}) do
     %FailedIngest{}
     |> FailedIngest.changeset(attrs)
@@ -85,8 +85,8 @@ defmodule Cake.FailedIngests do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec update_failed_ingest(struct(), map()) ::
-          {:ok, struct()} | {:error, Ecto.Changeset.t()}
+  @spec update_failed_ingest(FailedIngest.t(), map()) ::
+          {:ok, FailedIngest.t()} | {:error, Ecto.Changeset.t()}
   def update_failed_ingest(%FailedIngest{} = failed_ingest, attrs) do
     failed_ingest
     |> FailedIngest.changeset(attrs)
@@ -105,8 +105,8 @@ defmodule Cake.FailedIngests do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec delete_failed_ingest(struct()) ::
-          {:ok, struct()} | {:error, Ecto.Changeset.t()}
+  @spec delete_failed_ingest(FailedIngest.t()) ::
+          {:ok, FailedIngest.t()} | {:error, Ecto.Changeset.t()}
   def delete_failed_ingest(%FailedIngest{} = failed_ingest) do
     Repo.delete(failed_ingest)
   end
@@ -120,7 +120,7 @@ defmodule Cake.FailedIngests do
       %Ecto.Changeset{data: %FailedIngest{}}
 
   """
-  @spec change_failed_ingest(struct(), map()) :: Ecto.Changeset.t()
+  @spec change_failed_ingest(FailedIngest.t(), map()) :: Ecto.Changeset.t()
   def change_failed_ingest(%FailedIngest{} = failed_ingest, attrs \\ %{}) do
     FailedIngest.changeset(failed_ingest, attrs)
   end
