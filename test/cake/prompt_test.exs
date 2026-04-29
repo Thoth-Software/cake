@@ -35,7 +35,10 @@ defmodule Cake.PromptTest do
     test "relevance floor applies before chunk ceiling" do
       above = Enum.map(1..7, fn _ -> scored_chunk(0.8) end)
       below = Enum.map(1..8, fn _ -> scored_chunk(0.1) end)
-      {indexed, _quality} = Cake.Prompt.prepare_context(above ++ below, max_chunks: 10, min_relevance: 0.3)
+
+      {indexed, _quality} =
+        Cake.Prompt.prepare_context(above ++ below, max_chunks: 10, min_relevance: 0.3)
+
       assert length(indexed) == 7
     end
 
@@ -49,7 +52,14 @@ defmodule Cake.PromptTest do
     end
 
     test "indices are dense after filtering" do
-      chunks = [scored_chunk(0.9), scored_chunk(0.1), scored_chunk(0.7), scored_chunk(0.05), scored_chunk(0.5)]
+      chunks = [
+        scored_chunk(0.9),
+        scored_chunk(0.1),
+        scored_chunk(0.7),
+        scored_chunk(0.05),
+        scored_chunk(0.5)
+      ]
+
       {indexed, _quality} = Cake.Prompt.prepare_context(chunks, min_relevance: 0.3)
       indices = Enum.map(indexed, fn {idx, _} -> idx end)
       assert indices == [1, 2, 3]
@@ -114,7 +124,8 @@ defmodule Cake.PromptTest do
       history = ["first_q", "first_a", "second_q", "second_a"]
       messages = Cake.Prompt.build(indexed, question, history)
 
-      user_messages = Enum.filter(messages, fn msg -> msg.role == "user" and msg.content != question end)
+      user_messages =
+        Enum.filter(messages, fn msg -> msg.role == "user" and msg.content != question end)
 
       [first_user | rest] = user_messages
       assert first_user.content == "first_q"
@@ -193,7 +204,9 @@ defmodule Cake.PromptTest do
       assert String.contains?(message, "[1]")
       assert String.contains?(message, "cite")
       assert String.contains?(message, "fabricate")
-      assert String.contains?(message, "cannot be found") or String.contains?(message, "not in the context")
+
+      assert String.contains?(message, "cannot be found") or
+               String.contains?(message, "not in the context")
     end
 
     test "contains the context block" do

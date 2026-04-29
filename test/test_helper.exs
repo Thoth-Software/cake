@@ -1,4 +1,4 @@
-ExUnit.start()
+ExUnit.start(exclude: [:integration])
 Ecto.Adapters.SQL.Sandbox.mode(Cake.Repo, :manual)
 
 # Skip OpenSearch operations in tests to avoid connection errors

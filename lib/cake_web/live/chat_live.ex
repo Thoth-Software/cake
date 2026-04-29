@@ -51,7 +51,9 @@ defmodule CakeWeb.ChatLive do
   def handle_info({:convo_response, response, citations}, socket) do
     {:noreply,
      assign(socket,
-       messages: [%{role: :assistant, text: response, citations: citations} | socket.assigns.messages],
+       messages: [
+         %{role: :assistant, text: response, citations: citations} | socket.assigns.messages
+       ],
        loading: false,
        citations: citations
      )}
@@ -98,19 +100,19 @@ defmodule CakeWeb.ChatLive do
           <span class="text-sm whitespace-pre-wrap">{msg.text}</span>
 
           <%!-- Citations (assistant messages only) --%>
-          <div :if={msg[:citations] != nil and msg[:citations] != []} class="mt-2 text-sm text-gray-600 border-t pt-2">
+          <div
+            :if={msg[:citations] != nil and msg[:citations] != []}
+            class="mt-2 text-sm text-gray-600 border-t pt-2"
+          >
             <div class="font-semibold mb-1">Sources:</div>
             <div class="space-y-1">
               <div :for={cite <- msg.citations} class="relative group inline-block">
-                <a
-                  href={"/books/download/#{cite.source_ref}"}
-                  class="text-blue-600 hover:underline"
-                >
-                  [<%= cite.new_index %>] <%= cite.label %>
+                <a href={"/books/download/#{cite.source_ref}"} class="text-blue-600 hover:underline">
+                  [{cite.new_index}] {cite.label}
                 </a>
                 <%!-- Hover tooltip --%>
                 <div class="hidden group-hover:block absolute z-10 bottom-full left-0 mb-1 w-80 p-3 bg-gray-800 text-white text-xs rounded shadow-lg">
-                  <%= cite.preview %>
+                  {cite.preview}
                 </div>
               </div>
             </div>

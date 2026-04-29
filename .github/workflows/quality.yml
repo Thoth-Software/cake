@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   quality-fast:
-    name: Compile + Credo
+    name: Compile + Credo + Format
     runs-on: ubuntu-latest
 
     steps:
@@ -61,6 +61,9 @@ jobs:
 
       - name: Credo (strict)
         run: mix credo --strict
+
+      - name: Format check
+        run: mix format --check-formatted
 
   test:
     name: Tests
@@ -121,8 +124,71 @@ jobs:
       - name: Compile
         run: mix compile --warnings-as-errors
 
-      - name: Run tests
-        run: mix test
+      - name: Run tests (excluding integration)
+        run: mix test --exclude integration
+
+  integration:
+    name: Integration Tests (merge gate)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cake_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Set up Rust (for Rustler NIFs)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Mix deps + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Cache Cargo registry + NIF target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/*/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('native/**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compile
+        run: mix compile --warnings-as-errors
+
+      - name: Run integration tests
+        run: mix test --only integration
 
   dialyzer:
     name: Dialyzer

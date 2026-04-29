@@ -23,7 +23,8 @@ defmodule CakeWeb.SearchLive do
 
       case run_search(query) do
         {:ok, results} ->
-          {:noreply, assign(socket, results: results, loading: false, form: to_form(%{"query" => ""}))}
+          {:noreply,
+           assign(socket, results: results, loading: false, form: to_form(%{"query" => ""}))}
 
         {:error, error} ->
           {:noreply, assign(socket, loading: false, error: inspect(error))}

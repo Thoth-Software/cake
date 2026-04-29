@@ -75,7 +75,13 @@ defmodule Cake.QueryGenerators do
   @doc "Generates a tagged tuple representing a single builder call."
   @spec builder_step() :: StreamData.t(step())
   def builder_step do
-    StreamData.one_of([knn_step(), match_step(), filter_term_step(), min_score_step(), size_step()])
+    StreamData.one_of([
+      knn_step(),
+      match_step(),
+      filter_term_step(),
+      min_score_step(),
+      size_step()
+    ])
   end
 
   @doc "Generates a list of builder steps."

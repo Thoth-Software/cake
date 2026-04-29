@@ -37,7 +37,9 @@ defmodule Cake.Search.QueryPropertyTest do
       last_min_score_step = steps |> Enum.filter(&match?({:min_score, _}, &1)) |> List.last()
 
       expected_size = if last_size_step, do: elem(last_size_step, 1), else: query.size
-      expected_min_score = if last_min_score_step, do: elem(last_min_score_step, 1), else: query.min_score
+
+      expected_min_score =
+        if last_min_score_step, do: elem(last_min_score_step, 1), else: query.min_score
 
       assert result.size == expected_size
       assert result.min_score == expected_min_score
@@ -45,7 +47,7 @@ defmodule Cake.Search.QueryPropertyTest do
   end
 
   property "permutations of builder steps produce the same clause sets" do
-    check all steps <- QueryGenerators.builder_sequence() do
+    check all(steps <- QueryGenerators.builder_sequence()) do
       base = Query.new("test")
       result1 = QueryGenerators.apply_sequence(base, steps)
       result2 = QueryGenerators.apply_sequence(base, Enum.shuffle(steps))
@@ -61,7 +63,7 @@ defmodule Cake.Search.QueryPropertyTest do
   # ---------------------------------------------------------------------------
 
   property "to_query_map/1 always produces a map with the correct shape" do
-    check all query <- QueryGenerators.query() do
+    check all(query <- QueryGenerators.query()) do
       map = Query.to_query_map(query)
 
       assert is_integer(map.size)
@@ -72,7 +74,7 @@ defmodule Cake.Search.QueryPropertyTest do
   end
 
   property "to_query_map/1 preserves clause counts" do
-    check all query <- QueryGenerators.query() do
+    check all(query <- QueryGenerators.query()) do
       map = Query.to_query_map(query)
 
       assert length(get_in(map, [:query, :bool, :must])) == length(query.must)
@@ -82,7 +84,7 @@ defmodule Cake.Search.QueryPropertyTest do
   end
 
   property "to_query_map/1 preserves clause content" do
-    check all query <- QueryGenerators.query() do
+    check all(query <- QueryGenerators.query()) do
       map = Query.to_query_map(query)
 
       assert MapSet.new(get_in(map, [:query, :bool, :must])) == MapSet.new(query.must)
@@ -92,7 +94,7 @@ defmodule Cake.Search.QueryPropertyTest do
   end
 
   property "to_query_map/1 includes min_score iff it is non-nil" do
-    check all query <- QueryGenerators.query() do
+    check all(query <- QueryGenerators.query()) do
       map = Query.to_query_map(query)
 
       if is_nil(query.min_score) do

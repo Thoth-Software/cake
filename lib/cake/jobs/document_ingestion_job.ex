@@ -153,7 +153,12 @@ defmodule Cake.Jobs.DocumentIngestionJob do
   """
   @spec enqueue_for_version(atom(), atom(), {integer(), integer(), integer()}, String.t()) ::
           {:ok, Oban.Job.t()} | {:error, Ecto.Changeset.t()}
-  def enqueue_for_version(source_pipeline, embedding_service, {major, minor, patch}, embedding_model)
+  def enqueue_for_version(
+        source_pipeline,
+        embedding_service,
+        {major, minor, patch},
+        embedding_model
+      )
       when is_atom(source_pipeline) and is_atom(embedding_service) and
              is_integer(major) and is_integer(minor) and is_integer(patch) and
              is_binary(embedding_model) do
@@ -187,7 +192,8 @@ defmodule Cake.Jobs.DocumentIngestionJob do
     Enum.map(list, &stringify_keys/1)
   end
 
-  defp stringify_keys(value) when is_atom(value) and not is_nil(value) and not is_boolean(value) do
+  defp stringify_keys(value)
+       when is_atom(value) and not is_nil(value) and not is_boolean(value) do
     Atom.to_string(value)
   end
 

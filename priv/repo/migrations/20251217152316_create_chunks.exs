@@ -11,7 +11,9 @@ defmodule Cake.Repo.Migrations.CreateChunks do
       add :word_count, :integer
       add :char_count, :integer
       add :embedding, {:array, :float}
-      add :parsed_book_id, references(:parsed_books, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :parsed_book_id, references(:parsed_books, type: :binary_id, on_delete: :delete_all),
+        null: false
 
       timestamps(type: :utc_datetime)
     end
