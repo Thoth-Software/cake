@@ -15,7 +15,7 @@ defmodule Cake.Accounts.User do
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,
-          email: String.t(),
+          email: String.t() | nil,
           password: String.t() | nil,
           hashed_password: String.t() | nil,
           current_password: String.t() | nil,
