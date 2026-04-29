@@ -24,7 +24,6 @@ defmodule Cake.Books.Pipeline do
   require Logger
 
   @cluster Cake.Documents.Cluster
-  @index "chunks_of_books"
 
   @callback load_binary(String.t()) :: {:ok, {String.t(), binary()}} | {:error, any()}
   @callback parse({String.t(), binary()}) :: {ParsedBook.t(), [Chunk.t()]}
@@ -49,7 +48,7 @@ defmodule Cake.Books.Pipeline do
          {:ok, embedded_chunks} <-
            embed_all_chunks(persisted_books_and_chunks, embedding_service, embedding_model, ctx),
          opensearch_chunks <-
-           Pipelines.add_to_opensearch(embedded_chunks, @index, @cluster, ctx),
+           Pipelines.add_to_opensearch(embedded_chunks, ParsedBook.index_name(), @cluster, ctx),
          :ok <- Stream.run(opensearch_chunks) do
       {:ok, format_pipeline.success_message()}
     else
@@ -314,7 +313,12 @@ defmodule Cake.Books.Pipeline do
     if Application.get_env(:cake, :skip_opensearch, false) do
       :ok
     else
-      case Snap.Document.update(@cluster, @index, %{doc: chunk, doc_as_upsert: true}, chunk.id) do
+      case Snap.Document.update(
+             @cluster,
+             ParsedBook.index_name(),
+             %{doc: chunk, doc_as_upsert: true},
+             chunk.id
+           ) do
         %{"_id" => _} -> :ok
         error -> {:error, {:opensearch_index, chunk.id, error}}
       end

@@ -34,7 +34,6 @@ defmodule Cake.Documents.Pipeline do
   require Logger
 
   @cluster Cake.Documents.Cluster
-  @index "docs"
 
   @type version :: {integer(), integer(), integer()}
 
@@ -69,7 +68,12 @@ defmodule Cake.Documents.Pipeline do
              ctx
            ),
          opensearch_docs_stream <-
-           Pipelines.add_to_opensearch(docs_with_embeddings_stream, @index, @cluster, ctx),
+           Pipelines.add_to_opensearch(
+             docs_with_embeddings_stream,
+             ParsedDocument.index_name(),
+             @cluster,
+             ctx
+           ),
          :ok <- Stream.run(opensearch_docs_stream) do
       {:ok, source_pipeline.success_message(ctx)}
     else
@@ -158,9 +162,11 @@ defmodule Cake.Documents.Pipeline do
         doc
       end)
     else
+      index = ParsedDocument.index_name()
+
       docs_with_embeddings_stream
       |> Task.async_stream(
-        &Snap.Document.update(@cluster, @index, %{doc: &1, doc_as_upsert: true}, &1.id),
+        &Snap.Document.update(@cluster, index, %{doc: &1, doc_as_upsert: true}, &1.id),
         max_concurrency: 5,
         timeout: 5_000,
         on_timeout: :kill_task
@@ -186,7 +192,7 @@ defmodule Cake.Documents.Pipeline do
     do: Logger.warning("Could not insert document. Changeset: #{inspect(changeset)}")
 
   defp handle_opensearch_response(%{"_id" => id}),
-    do: Logger.info("Document #{id} created in #{@index}")
+    do: Logger.info("Document #{id} created in #{ParsedDocument.index_name()}")
 
   # Cake.Documents.Pipeline.batch_embed(:openai, Cake.Documents.Hexdocs.Pipeline, "text-embedding-ada-002", "1.18.3")
   # Need some way of passing parsed docs out one at a time to be persisted to Opensearch
@@ -318,7 +324,12 @@ defmodule Cake.Documents.Pipeline do
     if Application.get_env(:cake, :skip_opensearch, false) do
       :ok
     else
-      case Snap.Document.update(@cluster, @index, %{doc: doc, doc_as_upsert: true}, doc.id) do
+      case Snap.Document.update(
+             @cluster,
+             ParsedDocument.index_name(),
+             %{doc: doc, doc_as_upsert: true},
+             doc.id
+           ) do
         %{"_id" => _} -> :ok
         error -> {:error, {:opensearch_index, error}}
       end
