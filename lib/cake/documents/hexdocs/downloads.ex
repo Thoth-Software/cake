@@ -8,7 +8,7 @@ defmodule Cake.Documents.Hexdocs.Downloads do
   @spec clone_and_get_module_paths(String.t()) :: [String.t()]
   def clone_and_get_module_paths(version) do
     _ = File.mkdir_p(@dir)
-    _ = System.cmd("git", ["clone", "https://github.com/elixir-lang/elixir.git", @dir], env: [])
+    _ = System.cmd("git", ["clone", Cake.Documents.Hexdocs.source_repo(), @dir], env: [])
     _ = System.cmd("git", ["checkout v#{version}"], env: [])
 
     "elixir/lib/elixir/lib"

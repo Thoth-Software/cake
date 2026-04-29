@@ -8,6 +8,12 @@ defmodule Cake.Documents.Hexdocs do
 
   alias Cake.Documents.Hexdocs.Hexdoc
 
+  @source_repo "https://github.com/elixir-lang/elixir.git"
+
+  @doc "Git repository URL for Elixir core source, used by both download and ingestion paths."
+  @spec source_repo() :: String.t()
+  def source_repo, do: @source_repo
+
   @doc """
   Returns all hexdocs from the passed Elixir version.
   """

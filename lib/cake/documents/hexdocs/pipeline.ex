@@ -33,7 +33,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
              "-b",
              "v#{version}",
              "--single-branch",
-             "https://github.com/elixir-lang/elixir.git",
+             Cake.Documents.Hexdocs.source_repo(),
              @dir
            ],
            env: []
