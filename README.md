@@ -295,6 +295,64 @@ OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi
 
 ---
 
+## What Cake Is Agnostic Of (And What It Isn't)
+
+Cake is intended to be substitutable at every layer where the substitution is meaningful and the substitute can satisfy a published contract. "Agnostic" here is concrete: it means there exists a behaviour, protocol, or config key that lets you swap one value for another without editing source under `lib/`. Where Cake is *not* agnostic, that fact is load-bearing — usually because the constraint is baked into infrastructure (supervision tree, OpenSearch index shape) or because the variability isn't useful enough to justify the abstraction cost.
+
+**Cake is agnostic of:**
+
+- **Which GDS is being processed.** The `Cake.GDS` behaviour is the central abstraction; any module implementing it (with `index_name/0`, `search_fields/0`, `load_from_hits/1`, `expand_with_neighbors/2`) can be threaded through the conversation, search, and pipeline layers. `Cake.Conversation` accepts `:gds` as a required opt and never refers to a specific GDS module.
+- **Which provider supplies embeddings.** `Cake.Embeddings.Behaviour` defines the contract; the provider is selected by the first argument to `embed/3` (e.g. `:openai`, future `:voyage`). `Cake.Embeddings` is the default implementation; tests stub `Cake.Embeddings.Mock`. The module to call is configurable per-call site via `:embeddings_module` in `:cake` application config.
+- **Which provider supplies generation.** `Cake.Generation` is a behaviour with `Cake.Generation.OpenAI` as the real implementation and `Cake.Generation.Anthropic` as a placeholder.
+- **Which search backend serves retrieval.** `Cake.Search` is a behaviour; `Cake.Search.OpenSearch` is the only current implementation. Swapping in a different backend means writing a new module that implements the behaviour.
+- **Which post-processor handles responses.** `Cake.Responses.Behaviour` defines the contract for parsing citation markers and assembling the structured response.
+- **Source format within a GDS.** `Cake.Books.Pipeline` admits any number of implementations (currently `Cake.Books.Pdf.Pipeline`; future `Epub`, `Word`, `Excel`, etc.). `Cake.Documents.Pipeline` admits any number of implementations (currently `Cake.Documents.Hexdocs.Pipeline`; future `Javadocs`, `Rustdocs`, etc.).
+- **OpenSearch index name.** Each GDS declares its index via `index_name/0`. Pipeline modules and `Cake.Documents.Cluster` read from the GDS callback; the literal string lives in exactly one place.
+- **Embedding model name, response model name, and default provider.** All three are `:cake` application config keys (see "Configuration" below). Switching from `text-embedding-ada-002` to a successor model is a config change, not a source edit.
+- **KNN search depth.** `ef_search` is overridable per call via the `:ef_search` opt to `search_chunks/4` (and friends), threaded through `Cake.Search.Query.knn/5`'s `method_parameters.ef_search`.
+- **HNSW index-build hyperparameters within tolerance.** `ef_construction` and `m` are currently constants in `Cake.Documents.Cluster.build_mapping/1`; tunable, but only by editing source. Listed in the issue tracker as a deferred config-extraction.
+
+**Cake is not agnostic of:**
+
+- **The Postgres + OpenSearch backbone.** Both are wired into the supervision tree (`Cake.Repo`, `Cake.Documents.Cluster`) and assumed by every pipeline. Replacing either is a structural change, not a config swap.
+- **The behaviour-driven design itself.** Modules that depend on external services accept collaborator modules as arguments — primarily for Mox testability, secondarily for runtime polymorphism. There is no escape hatch.
+- **The retrieve → prompt → generate → cite pipeline shape.** The `Conversation` orchestrator hardcodes this sequence. Reordering or skipping stages requires editing `Conversation`.
+- **The embedding dimension *within* an existing OpenSearch index.** `default_embedding_dimension` is a config key, but it's read at index-creation time only. Once an index exists, its `knn_vector` dimension is frozen — switching to a model with a different vector size requires a reindex, not just a config flip. This is an OpenSearch property, not a Cake decision.
+- **Phoenix LiveView for the UI.** `CakeWeb.ChatLive` and `CakeWeb.SearchLive` are built directly on LiveView. There is no UI-layer behaviour. A non-LiveView frontend would need to talk to `Cake.Conversation` directly via its public API.
+- **The 1:1 GDS-to-pipeline-behaviour cardinality.** Each GDS owns its own pipeline behaviour by design (see "Cardinality"). There is deliberately no master `Cake.Ingestion` behaviour unifying the two.
+
+**How config vars relate.** Agnosticism axes split into two kinds of pluggability:
+
+- **Module-level pluggability** uses behaviours: substitute one module that implements the contract for another (e.g. `Cake.Search` → `Cake.Search.OpenSearch` or a Mox stub). The selection of which module to use is itself sometimes config-driven (e.g. `:embeddings_module`), sometimes opt-driven (e.g. `Cake.Conversation`'s `:gds`, `:embeddings`, `:search`, `:generation`, `:responses`).
+- **Value-level pluggability** uses `:cake` application config keys: substitute one value (a string, integer, atom) for another without touching modules at all. Embedding model name, response model name, embedding dimension, default provider all live here.
+
+The two kinds compose: the `:default_provider` atom selects a clause inside the configured `:embeddings_module`. Both knobs are independently overridable, which is what the LiveView wiring relies on for testability.
+
+---
+
+## Configuration: `:cake` Application Config Keys
+
+These keys live under the `:cake` application and are defaulted in `config/config.exs`. Override them per-environment in `config/dev.exs`, `config/test.exs`, `config/runtime.exs`, or per-test via `Application.put_env(:cake, key, value)`.
+
+| Key | Type | Default | Purpose |
+|---|---|---|---|
+| `:default_embedding_model` | string | `"text-embedding-ada-002"` | Embedding model name passed to the provider's `embed/3`. Read by `CakeWeb.ChatLive` (when starting a `Conversation`) and `CakeWeb.SearchLive` (when issuing a one-shot search). |
+| `:default_embedding_dimension` | integer | `1536` | Vector dimension declared in the OpenSearch `knn_vector` mapping. Read by `Cake.Documents.Cluster.build_mapping/1` at index-creation time. **Only affects new indexes** — see the agnosticism note above. |
+| `:default_response_model` | string | `"gpt-4o-mini"` | LLM model name passed to `Cake.Generation.complete/3`. Read by `CakeWeb.ChatLive`. |
+| `:default_provider` | atom | `:openai` | Provider atom (the dispatch key) passed to embeddings/generation behaviours. Read by both LiveViews. |
+| `:embeddings_module` | module | `Cake.Embeddings` | Module that implements `Cake.Embeddings.Behaviour`. Tests override to `Cake.Embeddings.Mock`. Read by `CakeWeb.SearchLive`, `Cake.Books.Pipeline`, and `Cake.Documents.Pipeline`. |
+| `:skip_opensearch` | boolean | `false` (set to `true` in `test_helper.exs`) | Skip OpenSearch writes during ingestion. Test/dev flag. |
+
+The same `:cake` namespace also holds per-module config (under module-name keys, not bare atoms):
+
+- `config :cake, Cake.Embeddings, openai_key: ..., base_url: ...` — set in `config/dev.exs` and `config/runtime.exs`.
+- `config :cake, Cake.Generation.OpenAI, openai_key: ..., response_url: ...` — set in `config/dev.exs`, `config/test.exs`, and `config/runtime.exs`. The test config also sets `:plug` to a `Req.Test` stub.
+- `config :cake, Cake.Documents.Cluster, url: ..., username: ..., password: ...` — set in `config/config.exs` (with env-var fallback) and `config/dev.exs`.
+
+Adding a new value-level config key: default it in `config/config.exs`, override it where it differs per environment, and document it in the table above. Adding a new module-level config: pick a sensible per-environment placement (most belong in `runtime.exs` for prod and `dev.exs`/`test.exs` for non-prod).
+
+---
+
 ## Roadmap: Planned and Deferred
 
 **Post-demo planned:** conversation layer decomposition (extract `Prompt` and `Generation` fully; collapse `Responses` to post-processing only), PubSub migration, test coverage expansion, `Generation.Behaviour` extraction, generalize `Responses` beyond `Chunk`, `search_fields/0` behaviour extraction, `Conversation.start_link` struct migration, Word/Excel/CSV/JPG pipelines.

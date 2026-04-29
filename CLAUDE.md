@@ -232,6 +232,23 @@ The dev environment runs three containers via `docker-compose.yml`: `cake_app`, 
 
 ---
 
+## Claude Code on the Web — Environment Gotchas
+
+**OTP 25 `:httpc` empty `te:` header → proxy 503s on `mix deps.get`.** Ubuntu Noble's apt `erlang` package is OTP 25, which has a `:httpc` bug that emits an empty `te:` header. The egress proxy in front of Fastly rejects every such request with 503, so `mix deps.get` fails even when `repo.hex.pm` is allowlisted. Fixed in OTP 26.2.5 / 27.0+; the SessionStart hook (`.claude/hooks/session-start.sh`) installs OTP 27 from `builds.hex.pm` to override.
+
+The hook's gate for OTP install was originally a bare `command -v erl` check, which short-circuited and skipped the OTP 27 install when apt had already put OTP 25 at `/usr/bin/erl`. The current hook checks the OTP *major version* (`MIN_OTP_MAJOR=26`) and force-installs `OTP_VERSION=27.3.4.11` when the visible OTP is older. It also reinstalls Elixir whenever its compile-time OTP doesn't match the active OTP, so a leftover `/opt/elixir` from a prior OTP 25 run gets refreshed instead of crashing on BEAM/abi mismatch.
+
+**Diagnostic if you see this regress:**
+- `SessionStart` message banner shows `OTP 25` (or `compiled with Erlang/OTP 25`).
+- `mix deps.get` fails with repeated `upstream connect error or disconnect/reset before headers ... connection termination` lines.
+- `erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().'` returns `25`.
+
+**Manual recovery in a session where the hook didn't apply:** download `https://builds.hex.pm/builds/otp/ubuntu-24.04/OTP-27.3.4.11.tar.gz` to `/opt/otp`, run `cd /opt/otp && ./Install -minimal /opt/otp`, link the binaries into `/usr/local/bin`, then download `https://github.com/elixir-lang/elixir/releases/download/v1.17.3/elixir-otp-27.zip` to `/opt/elixir` and link `elixir`/`elixirc`/`iex`/`mix` into `/usr/local/bin`. Re-run `mix deps.get`.
+
+**Don't** "fix" this by adding hex.pm to a different allowlist or reaching for a non-`mix` package fetch — the underlying cause is the Erlang `:httpc` bug, and the fix is the OTP version.
+
+---
+
 ## Known Defects and Deferred Work
 
 If your task touches any of these, flag it to the user rather than silently resolving or ignoring it.
