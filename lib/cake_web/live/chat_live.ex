@@ -40,7 +40,7 @@ defmodule CakeWeb.ChatLive do
     if changeset.valid? do
       selected_doc_ids = Ecto.Changeset.get_change(changeset, :selected_doc_ids, [])
       chunk_ids = Candidates.expand_to_chunk_ids(selected_doc_ids, socket.assigns.candidates)
-      Cake.Conversation.select_docs(socket.assigns.convo_pid, chunk_ids)
+      _ = Cake.Conversation.select_docs(socket.assigns.convo_pid, chunk_ids)
       {:noreply, socket}
     else
       {:noreply,
@@ -52,7 +52,7 @@ defmodule CakeWeb.ChatLive do
 
   def handle_event("use_all", _params, socket) do
     chunk_ids = Candidates.all_chunk_ids(socket.assigns.candidates)
-    Cake.Conversation.select_docs(socket.assigns.convo_pid, chunk_ids)
+    _ = Cake.Conversation.select_docs(socket.assigns.convo_pid, chunk_ids)
     {:noreply, socket}
   end
 
@@ -299,7 +299,7 @@ defmodule CakeWeb.ChatLive do
 
     {:ok, pid} = Cake.Conversation.start(opts)
     Process.monitor(pid)
-    Phoenix.PubSub.subscribe(Cake.PubSub, Events.topic(conversation_id))
+    _ = Phoenix.PubSub.subscribe(Cake.PubSub, Events.topic(conversation_id))
 
     assign(socket, convo_pid: pid)
   end
@@ -335,10 +335,11 @@ defmodule CakeWeb.ChatLive do
   @spec dispatch_question(Phoenix.LiveView.Socket.t(), String.t(), :auto | :manual) ::
           Phoenix.LiveView.Socket.t()
   defp dispatch_question(socket, question, mode) do
-    case mode do
-      :auto -> Cake.Conversation.autoask(socket.assigns.convo_pid, question)
-      :manual -> Cake.Conversation.manualask(socket.assigns.convo_pid, question)
-    end
+    _ =
+      case mode do
+        :auto -> Cake.Conversation.autoask(socket.assigns.convo_pid, question)
+        :manual -> Cake.Conversation.manualask(socket.assigns.convo_pid, question)
+      end
 
     socket
   end
