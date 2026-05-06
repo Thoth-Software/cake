@@ -13,10 +13,11 @@ defmodule Cake.Candidates do
       doc_id = doc_id_for(chunk)
 
       case List.keyfind(acc, doc_id, 0) do
-        nil -> acc ++ [{doc_id, [entry]}]
-        {^doc_id, existing} -> List.keyreplace(acc, doc_id, 0, {doc_id, existing ++ [entry]})
+        nil -> [{doc_id, [entry]} | acc]
+        {^doc_id, existing} -> List.keyreplace(acc, doc_id, 0, {doc_id, [entry | existing]})
       end
     end)
+    |> Enum.reverse()
   end
 
   defp doc_id_for(chunk) do
