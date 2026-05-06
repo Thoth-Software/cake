@@ -1,3 +1,58 @@
-# Build artifacts on host system must not be copied to container!
-_build
-deps
+# Compiled artifacts (host-arch, useless inside Linux container)
+_build/
+deps/
+target/
+
+# Rust NIF binaries (host-compiled, will be recompiled in container)
+priv/native/
+
+# Dialyzer PLTs (large, machine-specific)
+priv/plts/
+
+# Test and coverage output
+cover/
+tmp/
+doc/
+
+# Node modules (Phoenix assets rebuild inside container)
+assets/node_modules/
+
+# Generated static assets (rebuilt by mix assets.deploy)
+priv/static/assets/
+priv/static/cache_manifest.json
+assets/static/
+assets/logs/
+
+# Package artifacts
+*.ez
+cake-*.tar
+.fetch
+
+# Erlang crash dumps
+erl_crash.dump
+
+# Git
+.git/
+.gitignore
+
+# Editor / IDE
+.dir-locals.el
+.rust-analyzer.json
+.elixir_ls/
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Docker (don't send yourself)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Scripts and docs not needed at runtime
+monitor_cake.sh
+setup_cake.sh
+README.md
+CLAUDE.md

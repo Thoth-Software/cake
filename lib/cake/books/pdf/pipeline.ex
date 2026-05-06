@@ -15,16 +15,16 @@ defmodule Cake.Books.Pdf.Pipeline do
 
   require Logger
 
-  @typep extraction() :: %{
-           pages: [PageContent.t()],
-           skipped: [SkippedPage.t()],
-           title: String.t(),
-           source_file_path: String.t(),
-           file_hash: String.t(),
-           file_size: non_neg_integer(),
-           total_pages: non_neg_integer(),
-           word_count: non_neg_integer()
-         }
+  @type extraction() :: %{
+          pages: [PageContent.t()],
+          skipped: [SkippedPage.t()],
+          title: String.t(),
+          source_file_path: String.t(),
+          file_hash: String.t(),
+          file_size: non_neg_integer(),
+          total_pages: non_neg_integer(),
+          word_count: non_neg_integer()
+        }
 
   @impl Cake.Books.Pipeline
   def load_binary(path) do

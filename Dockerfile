@@ -1,5 +1,5 @@
 # Use an official Elixir runtime as a parent image.
-FROM elixir:1.15
+FROM hexpm/elixir:1.17.3-erlang-27.1.2-debian-bookworm-20241016-slim
 
 ARG USER_ID=1000
 ARG GROUP_ID=1000
@@ -10,7 +10,7 @@ RUN groupadd --gid ${GROUP_ID} appgroup || true && \
 
 # Install system packages as root
 RUN apt-get update && \
-  apt-get install -y postgresql-client inotify-tools curl build-essential
+  apt-get install -y postgresql-client inotify-tools curl build-essential git
   
 # Install Rust (needed for Rustler NIFs)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
