@@ -39,7 +39,7 @@ defmodule Cake.Books.Chunk do
           id: Ecto.UUID.t() | nil,
           text: String.t(),
           page_number: integer() | nil,
-          chunk_index: integer(),
+          chunk_index: integer() | nil,
           section_title: String.t() | nil,
           word_count: integer(),
           char_count: integer(),

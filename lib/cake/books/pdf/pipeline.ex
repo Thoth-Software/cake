@@ -96,13 +96,15 @@ defmodule Cake.Books.Pdf.Pipeline do
 
   @spec build_chunks([PageContent.t()]) :: [Chunk.t()]
   defp build_chunks(pages) do
+    # chunk_index is intentionally left unset here: blank chunks are rejected
+    # below, so numbering them at this point would leave gaps. Persistence
+    # assigns contiguous indices over the surviving chunks (single source of
+    # truth).
     pages
-    |> Enum.with_index()
-    |> Enum.map(fn {page, index} ->
+    |> Enum.map(fn page ->
       %Chunk{
         text: page.text,
         page_number: page.page_number,
-        chunk_index: index,
         word_count: count_words(page.text),
         char_count: String.length(page.text)
       }

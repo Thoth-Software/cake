@@ -79,7 +79,10 @@ defmodule Cake.Books.Persistence do
       |> Map.from_struct()
       |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :parsed_book])
       |> Map.put(:parsed_book_id, book_id)
-      |> Map.put_new(:chunk_index, idx)
+      # Persistence is the single source of truth for chunk_index: the parse
+      # step rejects blank chunks, so the only contiguous numbering is the one
+      # assigned here over the surviving chunks.
+      |> Map.put(:chunk_index, idx)
 
     cs = Chunk.changeset(%Chunk{}, chunk_attrs)
 
