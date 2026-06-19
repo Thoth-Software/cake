@@ -191,6 +191,10 @@ Every custom struct in Cake, its module, its purpose, and whether it defines a `
 | `Search.Result` | `Cake.Search.Result` | Normalized search result. Carries retrieval unit, backend score, CAKE-computed scores (cosine, relevance), hit provenance (search vs. expansion), search conditions, and prompt index. Single carrier of all retrieval metadata through the pipeline. |
 | `Search.Provenance` | `Cake.Search.Provenance` | Search conditions (type, query text, decomposition flag, embedding model) attached to each `Search.Result`. |
 | `Responses.Result` | `Cake.Responses.Result` | Output struct from post-generation processing. Contains the formatted response, citations, and chunk map. |
+| `Conversation.State` | `Cake.Conversation.State` | Internal state for the `Conversation` GenServer: id, collaborator modules, message history, retrieved results, chunk map, citations, and the turn FSM state. |
+| `Books.PageContent` | `Cake.Books.PageContent` | Elixir-side struct the Rust PDF NIF decodes into (via NifStruct): one page's extracted text and page number. |
+| `Books.PdfExtraction` | `Cake.Books.PdfExtraction` | Elixir-side struct the Rust PDF NIF decodes into: the full extraction result (pages, skipped pages, title). |
+| `Books.SkippedPage` | `Cake.Books.SkippedPage` | Elixir-side struct the Rust PDF NIF decodes into: a page that could not be extracted, with its page number. |
 
 ---
 
