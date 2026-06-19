@@ -28,6 +28,7 @@ defmodule Cake.ConversationTest do
   use ExUnit.Case, async: false
 
   import Mox
+  import Cake.Factory, only: [build: 1, build: 2, chunk_metadata: 1]
 
   alias Cake.Conversation
   alias Cake.Search.Provenance
@@ -293,17 +294,7 @@ defmodule Cake.ConversationTest do
     test "retrieved chunk content is threaded into the LLM prompt" do
       marker = "UNIQUE_MARKER_#{:erlang.unique_integer([:positive])}"
 
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: marker,
-        metadata: %{
-          id: "c1",
-          label: "L",
-          preview: "p",
-          source_ref: nil,
-          extras: %{}
-        }
-      }
+      chunk = build(:convo_chunk, prompt_text: marker)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
@@ -447,11 +438,7 @@ defmodule Cake.ConversationTest do
       turn_one_a = "RESPONSE_ONE_#{:erlang.unique_integer([:positive])}"
       turn_two_q = "QUESTION_TWO_#{:erlang.unique_integer([:positive])}"
 
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "static chunk",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      chunk = build(:convo_chunk, prompt_text: "static chunk")
 
       # `expect/3` with no count means exactly once across the test. If turn 2
       # called embed or search again, Mox would fail — that implicitly pins
@@ -598,11 +585,7 @@ defmodule Cake.ConversationTest do
 
   describe "generation error" do
     test "generation {:error, _} broadcasts {:error, reason} without crashing" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "x",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      chunk = build(:convo_chunk)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
@@ -675,11 +658,7 @@ defmodule Cake.ConversationTest do
 
   describe "uncited LLM output" do
     test "LLM text with no [N] markers yields citations: [] in the response_ready broadcast" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "x",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      chunk = build(:convo_chunk)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
@@ -738,11 +717,7 @@ defmodule Cake.ConversationTest do
 
   describe "concurrent asks" do
     test "two ask/2 calls are serialized by the GenServer mailbox: cast 2 cannot start until cast 1 returns" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "x",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      chunk = build(:convo_chunk)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
@@ -828,11 +803,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "resolve_search_results/2 calls embed_and_search when search_results is empty" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "x",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      chunk = build(:convo_chunk)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
@@ -1000,11 +971,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "generate failure short-circuits: responses never called" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "x",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      chunk = build(:convo_chunk)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
@@ -1059,20 +1026,10 @@ defmodule Cake.ConversationTest do
 
   describe "apply_selection/2" do
     test "filters candidates to selected IDs and assigns 1-based indices" do
-      c1 = %ConvoChunk{
-        prompt_text: "a",
-        metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      c1 = build(:convo_chunk, prompt_text: "a", metadata: chunk_metadata(id: "id-1"))
 
-      c2 = %ConvoChunk{
-        prompt_text: "b",
-        metadata: %{id: "id-2", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
-
-      c3 = %ConvoChunk{
-        prompt_text: "c",
-        metadata: %{id: "id-3", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      c2 = build(:convo_chunk, prompt_text: "b", metadata: chunk_metadata(id: "id-2"))
+      c3 = build(:convo_chunk, prompt_text: "c", metadata: chunk_metadata(id: "id-3"))
 
       candidates = [
         wrap_result(c1, backend_score: 1.0),
@@ -1087,10 +1044,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "selecting all candidates returns all with indices" do
-      c1 = %ConvoChunk{
-        prompt_text: "a",
-        metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      c1 = build(:convo_chunk, prompt_text: "a", metadata: chunk_metadata(id: "id-1"))
 
       candidates = [wrap_result(c1)]
 
@@ -1099,10 +1053,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "errors on unknown doc IDs" do
-      c1 = %ConvoChunk{
-        prompt_text: "a",
-        metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      c1 = build(:convo_chunk, prompt_text: "a", metadata: chunk_metadata(id: "id-1"))
 
       candidates = [wrap_result(c1)]
 
@@ -1113,10 +1064,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "empty doc_ids returns empty indexed list" do
-      c1 = %ConvoChunk{
-        prompt_text: "a",
-        metadata: %{id: "id-1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      c1 = build(:convo_chunk, prompt_text: "a", metadata: chunk_metadata(id: "id-1"))
 
       candidates = [wrap_result(c1)]
 
@@ -1201,11 +1149,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "select with unknown doc IDs returns error and resets to idle" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "x",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      chunk = build(:convo_chunk)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
@@ -1241,11 +1185,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "manualask in awaiting_selection state crashes the GenServer" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "x",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      chunk = build(:convo_chunk)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
@@ -1271,11 +1211,7 @@ defmodule Cake.ConversationTest do
 
   describe "broadcasts" do
     test "auto turn emits :state_change and :response_ready broadcasts" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "x",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      chunk = build(:convo_chunk)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
@@ -1330,11 +1266,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "manual mode emits candidates_ready and state_change broadcasts" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "x",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
+      chunk = build(:convo_chunk)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
