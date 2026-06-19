@@ -93,7 +93,7 @@ There is deliberately no `Cake.Ingestion` behaviour unifying the two pipeline be
 
 **`Cake.Embeddings`** calls the configured embedding service (OpenAI by default). Implements `Cake.Embeddings.Behaviour` for Mox substitution. It embeds the text it is given verbatim — it does no title prepending itself. At ingestion time the pipelines prepend a title to the text before calling it (the chunk's `section_title` for books, the document `title` for docs); query-time callers embed the question as-is. Used at both ingestion time (by pipelines) and query time (by the conversation layer).
 
-Tenant isolation uses multiple OpenSearch indices against a shared backend cluster, with bespoke frontends per client.
+Indices are one-per-GDS on a shared OpenSearch cluster: `index_name/0` returns a fixed name per GDS (currently `"chunks_of_books"` and `"docs"`), created at boot by `Cake.Documents.Cluster`. There is no tenant concept in the code today — `index_name/0` takes no tenant argument and the app runs a single endpoint. The intended multi-tenant deployment model (a separate index set and a bespoke frontend per client) is a planned operational pattern, not yet implemented here.
 
 ### Layer 3: Conversation — Stateful Multi-Turn RAG
 
@@ -403,8 +403,10 @@ test/                        # (abbreviated — test/cake/ and test/cake_web/ mi
   cake_web/                  # Controller + LiveView tests mirroring lib/cake_web/
 
 config/
+  config.exs                 # Base compile-time config (embedder model, Oban, endpoint)
   dev.exs                    # Dev config (live reload, logging)
   test.exs                   # Test config (sandbox, Oban manual mode)
+  prod.exs                   # Prod compile-time config
   runtime.exs                # Runtime config (reads env vars)
 
 native/parsebooks/           # Rust crate for PDF parsing via Rustler
