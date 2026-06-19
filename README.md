@@ -322,7 +322,6 @@ lib/
       parsed_documents.ex    #   ParsedDocuments context (CRUD)
       pipeline.ex            #   Documents.Pipeline behaviour + orchestrator
       hexdocs/               #   Hexdocs implementation
-        downloads.ex         #     Tarball fetching
         hexdoc.ex            #     Raw hexdoc schema
         pipeline.ex          #     Hexdocs.Pipeline implementation
     failed_ingests/          # FailedIngest schema + context

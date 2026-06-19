@@ -95,42 +95,6 @@ defmodule Cake.Search.ScoringTest do
     end
   end
 
-  describe "filter_by_threshold/2" do
-    test "filters results below threshold" do
-      results = [
-        make_result("a", nil, backend_score: nil, cosine_score: 0.9, relevance_score: 0.9),
-        make_result("b", nil, backend_score: nil, cosine_score: 0.5, relevance_score: 0.5),
-        make_result("c", nil, backend_score: nil, cosine_score: 0.1, relevance_score: 0.1)
-      ]
-
-      filtered = Search.filter_by_threshold(results, 0.4)
-      assert length(filtered) == 2
-      [%Result{relevance_score: s1}, %Result{relevance_score: s2}] = filtered
-      assert s1 == 0.9
-      assert s2 == 0.5
-    end
-
-    test "threshold 0.0 keeps everything" do
-      results = [
-        make_result("a", nil, backend_score: nil, cosine_score: 0.0, relevance_score: 0.0)
-      ]
-
-      assert length(Search.filter_by_threshold(results, 0.0)) == 1
-    end
-
-    test "threshold 1.0 keeps only results with relevance 1.0" do
-      results = [
-        make_result("a", nil, backend_score: nil, cosine_score: 1.0, relevance_score: 1.0),
-        make_result("b", nil, backend_score: nil, cosine_score: 0.9, relevance_score: 0.9)
-      ]
-
-      filtered = Search.filter_by_threshold(results, 1.0)
-      assert length(filtered) == 1
-      [%Result{relevance_score: score}] = filtered
-      assert score == 1.0
-    end
-  end
-
   describe "sort_by_relevance/1" do
     test "sorts descending by relevance_score" do
       results = [
@@ -163,25 +127,6 @@ defmodule Cake.Search.ScoringTest do
       [%Result{cosine_score: cosine}] = Search.score_results(results, [1.0, 0.0])
 
       assert cosine == 0.0
-    end
-  end
-
-  describe "unzip_results/1" do
-    test "returns plain chunks without scores" do
-      chunk_a = make_chunk("a", [1.0, 0.0])
-      chunk_b = make_chunk("b", [0.0, 1.0])
-
-      results = [
-        wrap(chunk_a, backend_score: 0.8, cosine_score: 0.9, relevance_score: 0.85),
-        wrap(chunk_b,
-          backend_score: nil,
-          cosine_score: 0.5,
-          relevance_score: 0.5,
-          hit_source: :expansion
-        )
-      ]
-
-      assert Search.unzip_results(results) == [chunk_a, chunk_b]
     end
   end
 

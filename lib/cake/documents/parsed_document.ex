@@ -84,7 +84,7 @@ defmodule Cake.Documents.ParsedDocument do
           title: String.t() | nil,
           url: String.t(),
           embedding: [float()] | nil,
-          text: String.t() | nil,
+          text: String.t(),
           core: boolean(),
           inserted_at: NaiveDateTime.t() | nil,
           updated_at: NaiveDateTime.t() | nil
@@ -109,9 +109,8 @@ defmodule Cake.Documents.ParsedDocument do
       :source,
       :version,
       :package,
-      # :title,
-      :url
-      # text:
+      :url,
+      :text
     ])
     |> sanitize_text_fields()
   end

@@ -147,53 +147,7 @@ defmodule Cake.Documents.Pipeline do
     retry_embed_failure(failure, embedding_service, embedding_model)
   end
 
-  # There seems to be a flaw here. If we use the context function to get all the
-  # parsed documents for a given source and version, then we are NOT getting
-  # those docs one at a time after their embeddings have been added.
-  # Interdasting...
-  @spec add_to_opensearch(Enumerable.t()) :: Enumerable.t()
-  def add_to_opensearch(docs_with_embeddings_stream) do
-    if skip_opensearch?() do
-      # In test mode, just pass through the documents without calling OpenSearch
-      Stream.map(docs_with_embeddings_stream, fn doc ->
-        Logger.debug("Skipping OpenSearch insert for document #{doc.id} (test mode)")
-        doc
-      end)
-    else
-      docs_with_embeddings_stream
-      |> Task.async_stream(
-        &Snap.Document.update(@cluster, @index, %{doc: &1, doc_as_upsert: true}, &1.id),
-        max_concurrency: 5,
-        timeout: 5_000,
-        on_timeout: :kill_task
-      )
-      |> Stream.map(&handle_opensearch_response/1)
-      |> Pipelines.detuple()
-    end
-  end
-
-  defp skip_opensearch? do
-    Application.get_env(:cake, :skip_opensearch, false)
-  end
-
-  # NOTE: We need to put together moduledocs for these instead of comments
-  # The {:exit, element} tuple is emitted when the process spawned by task.asyn_stream dies
-  defp handle_opensearch_response({:exit, element}),
-    do: Logger.warning("Failed to insert document #{element.id}. Process died")
-
-  defp handle_opensearch_response({:ok, task_response}),
-    do: handle_opensearch_response(task_response)
-
-  defp handle_opensearch_response({:error, changeset}),
-    do: Logger.warning("Could not insert document. Changeset: #{inspect(changeset)}")
-
-  defp handle_opensearch_response(%{"_id" => id}),
-    do: Logger.info("Document #{id} created in #{@index}")
-
-  # Cake.Documents.Pipeline.batch_embed(:openai, Cake.Documents.Hexdocs.Pipeline, "text-embedding-ada-002", "1.18.3")
-  # Need some way of passing parsed docs out one at a time to be persisted to Opensearch
-  # What do we use besides Enum.each if we want this to return parsed docs?
-  # #TODO a ctx custom type the Dialyzer can expect
+  # TODO: give `ctx` a custom type the Dialyzer can check instead of `map()`.
   @spec batch_embed(Enumerable.t(), atom(), atom(), String.t(), map()) :: Enumerable.t()
   def batch_embed(
         persisted_parsed_docs_stream,

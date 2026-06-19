@@ -11,9 +11,9 @@ defmodule Cake.Search do
 
   ## Scoring utilities
 
-  `cosine_similarity/2`, `score_results/2`, `normalize_and_combine/1`,
-  `filter_by_threshold/2`, `sort_by_relevance/1`, and `unzip_results/1` are pure
-  functions available to any caller, regardless of which search implementation is in use.
+  `cosine_similarity/2`, `score_results/2`, `normalize_and_combine/1`, and
+  `sort_by_relevance/1` are pure functions available to any caller, regardless
+  of which search implementation is in use.
   The boundary test: if it needs a network call or a database query, it belongs in the
   implementation module. If it's math on data already in memory, it belongs here.
   """
@@ -141,28 +141,10 @@ defmodule Cake.Search do
   defp normalize(_value, _min, _max), do: 1.0
 
   @doc """
-  Removes results whose relevance_score is below the given threshold.
-  """
-  @spec filter_by_threshold([Result.t()], float()) :: [Result.t()]
-  def filter_by_threshold(results, threshold) do
-    Enum.filter(results, fn %Result{relevance_score: score} -> score >= threshold end)
-  end
-
-  @doc """
   Sorts results by relevance_score descending.
   """
   @spec sort_by_relevance([Result.t()]) :: [Result.t()]
   def sort_by_relevance(results) do
     Enum.sort_by(results, & &1.relevance_score, :desc)
-  end
-
-  @doc """
-  Strips Result wrappers, returning plain retrieval units. Use this at the
-  boundary between Search-layer concerns and Generation-layer concerns
-  (i.e., in Conversation, before handing units to Prompt/Responses).
-  """
-  @spec unzip_results([Result.t()]) :: [struct()]
-  def unzip_results(results) do
-    Enum.map(results, & &1.retrieval_unit)
   end
 end

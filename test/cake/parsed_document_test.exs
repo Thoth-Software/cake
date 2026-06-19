@@ -47,6 +47,22 @@ defmodule Cake.ParsedDocumentTest do
       assert {:error, %Ecto.Changeset{}} = ParsedDocuments.create_parsed_document(@invalid_attrs)
     end
 
+    test "create_parsed_documents/1 without text returns error changeset" do
+      # text is the embedded content; persisting a textless doc would let the
+      # pipeline "embed" nothing. It must be required.
+      attrs = %{
+        title: "t",
+        package: "p",
+        version: "v",
+        url: "u",
+        source: "s",
+        core: true
+      }
+
+      assert {:error, changeset} = ParsedDocuments.create_parsed_document(attrs)
+      assert %{text: ["can't be blank"]} = errors_on(changeset)
+    end
+
     test "update_parsed_documents/2 with valid data updates the parsed_documents" do
       parsed_documents = parsed_documents_fixture()
 

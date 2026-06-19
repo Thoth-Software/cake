@@ -3,7 +3,7 @@ defmodule Cake.Books.ParsedBook do
   All data on a book besides the actual text, which is held in chunks.
 
   :metadata holds format-specific extras, e.g. PDF metadata dict, EPUB spine
-  info, etc. This is better than adding a fuckload of nullable fields for every
+  info, etc. This is better than adding a separate nullable field for every
   attribute under the sun.
 
   Justifications for non-obvious fields:
@@ -92,24 +92,6 @@ defmodule Cake.Books.ParsedBook do
           chunks: [Cake.Books.Chunk.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
-        }
-
-  @type book() :: %{
-          title: String.t(),
-          metadata: map(),
-          language: String.t(),
-          file_size: integer(),
-          source_file_path: String.t(),
-          authors: {:array, String.t()},
-          source_format: String.t(),
-          file_hash: String.t(),
-          isbn: String.t(),
-          publisher: String.t(),
-          publication_date: Date.t(),
-          total_pages: integer(),
-          word_count: integer(),
-          table_of_contents: map(),
-          parsed_at: DateTime.t()
         }
 
   @doc false

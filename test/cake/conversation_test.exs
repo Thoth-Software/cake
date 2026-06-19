@@ -549,10 +549,6 @@ defmodule Cake.ConversationTest do
 
       assert_receive {:response_ready, _}, 500
     end
-
-    test "print_hierarchy/2 returns a list (logging-only helper)" do
-      assert is_list(Conversation.print_hierarchy(%{a: 1, b: %{c: 2}}))
-    end
   end
 
   describe "cluster error" do

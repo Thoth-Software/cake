@@ -58,7 +58,6 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     end
   end
 
-  # What the fuck does this function even return!?
   @impl Cake.Documents.Pipeline
   def persist_raw_docs(file_paths, %{version: version}) do
     file_paths

@@ -4,6 +4,8 @@ defmodule CakeWeb.ChatLiveTest do
   import Phoenix.LiveViewTest
 
   alias Cake.Conversation.Events
+  alias Cake.Search.Provenance
+  alias Cake.Search.Result
 
   describe "mount" do
     test "renders the chat page in idle state", %{conn: conn} do
@@ -151,6 +153,8 @@ defmodule CakeWeb.ChatLiveTest do
     Phoenix.PubSub.broadcast!(Cake.PubSub, topic, event)
   end
 
+  # Mirrors what `Cake.Conversation` actually broadcasts for manual mode: a list
+  # of `Cake.Search.Result` structs (NOT {chunk, scores} tuples).
   defp build_candidates do
     chunk = %Cake.Test.ConvoChunk{
       embedding: [0.1, 0.2, 0.3],
@@ -164,6 +168,16 @@ defmodule CakeWeb.ChatLiveTest do
       }
     }
 
-    [{chunk, %{os_score: 1.0, relevance_score: 1.0, cosine_score: 1.0}}]
+    [
+      %Result{
+        retrieval_unit: chunk,
+        backend_score: 1.0,
+        cosine_score: 1.0,
+        relevance_score: 1.0,
+        hit_source: :search,
+        index: "test_index",
+        provenance: %Provenance{search_type: :hybrid, query_text: "q"}
+      }
+    ]
   end
 end

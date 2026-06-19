@@ -79,7 +79,9 @@ defmodule Cake.Books.Persistence do
       |> Map.from_struct()
       |> Map.drop([:__meta__, :id, :inserted_at, :updated_at, :parsed_book])
       |> Map.put(:parsed_book_id, book_id)
-      |> Map.put_new(:chunk_index, idx)
+      # Persist-time position is the single source of truth for ordering, so
+      # chunk_index is always dense (0..N-1) regardless of upstream gaps.
+      |> Map.put(:chunk_index, idx)
 
     cs = Chunk.changeset(%Chunk{}, chunk_attrs)
 
