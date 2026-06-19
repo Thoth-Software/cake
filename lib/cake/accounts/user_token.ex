@@ -1,4 +1,10 @@
 defmodule Cake.Accounts.UserToken do
+  @moduledoc """
+  Ecto schema and query helpers for hashed user tokens. Backs session tokens
+  and the emailed (hashed) tokens used for confirmation, password reset, and
+  email change, each with its own validity window.
+  """
+
   use Cake.Schema
   import Ecto.Query
   alias Cake.Accounts.UserToken

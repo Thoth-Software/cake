@@ -1,4 +1,10 @@
 defmodule Cake.Accounts.User do
+  @moduledoc """
+  Ecto schema for a user account: email plus a bcrypt-hashed password and the
+  confirmation timestamp. Provides the registration, email-change, and
+  password-change changesets along with `valid_password?/2` for authentication.
+  """
+
   use Cake.Schema
   import Ecto.Changeset
 

@@ -1,4 +1,9 @@
 defmodule Cake.Accounts.UserNotifier do
+  @moduledoc """
+  Builds and delivers the transactional account emails (confirmation
+  instructions, password reset, and email-update instructions) via `Cake.Mailer`.
+  """
+
   import Swoosh.Email
 
   alias Cake.Mailer
