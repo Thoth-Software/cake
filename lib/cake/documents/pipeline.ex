@@ -40,7 +40,7 @@ defmodule Cake.Documents.Pipeline do
 
   @callback download(Context.t()) :: {:ok, [String.t()]} | {:error, :download, any()}
   @callback persist_raw_docs([String.t()], Context.t()) :: Enumerable.t()
-  @callback parse(Enumerable.t()) :: Enumerable.t()
+  @callback parse(Enumerable.t(), Context.t()) :: Enumerable.t()
   @callback source() :: String.t()
   @callback success_message(Context.t()) :: String.t()
   @callback retry_from_raw(input_identifier :: String.t(), String.t()) ::
@@ -56,7 +56,7 @@ defmodule Cake.Documents.Pipeline do
 
     with {:ok, file_paths} <- source_pipeline.download(ctx),
          raw_docs_stream <- source_pipeline.persist_raw_docs(file_paths, ctx),
-         parsed_docs_attrs_stream <- source_pipeline.parse(raw_docs_stream),
+         parsed_docs_attrs_stream <- source_pipeline.parse(raw_docs_stream, ctx),
          persisted_parsed_docs_stream <- persist_parsed_docs(parsed_docs_attrs_stream, ctx),
          docs_with_embeddings_stream <-
            batch_embed(

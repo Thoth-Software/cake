@@ -59,28 +59,68 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   end
 
   @impl Cake.Documents.Pipeline
-  def persist_raw_docs(file_paths, %{version: version}) do
+  def persist_raw_docs(file_paths, %Context{version: version} = ctx) do
     file_paths
-    |> Task.async_stream(&to_hexdoc_attrs(&1, version),
+    |> Task.async_stream(fn path -> safe_to_hexdoc_attrs(path, version) end,
       max_concurrency: 4,
       timeout: :infinity
     )
-    |> Pipelines.detuple()
-    |> Task.async_stream(&Cake.Documents.Hexdocs.create_hexdoc/1)
-    |> Pipelines.detuple()
+    |> Stream.map(&unwrap_result/1)
+    |> Pipelines.detuple_with_logging("docs.persist_raw", ctx)
+    |> Task.async_stream(&insert_hexdoc/1,
+      max_concurrency: 4,
+      timeout: 30_000,
+      on_timeout: :kill_task
+    )
+    |> Stream.map(&unwrap_result/1)
+    |> Pipelines.detuple_with_logging("docs.persist_raw", ctx)
   end
 
   @impl Cake.Documents.Pipeline
-  def parse(raw_docs_stream) do
+  def parse(raw_docs_stream, %Context{} = ctx) do
     raw_docs_stream
-    |> Task.async_stream(
-      &Hexdoc.to_parsed_docs/1,
+    |> Task.async_stream(&safe_to_parsed_docs/1,
       max_concurrency: 4,
-      timeout: 30_000
+      timeout: 30_000,
+      on_timeout: :kill_task
     )
-    |> Pipelines.detuple()
-    |> Stream.flat_map(fn item -> item end)
+    |> Stream.map(&unwrap_result/1)
+    |> Pipelines.detuple_with_logging("docs.parse", ctx)
+    |> Stream.flat_map(fn parsed_docs -> parsed_docs end)
   end
+
+  # Each task closure returns {:ok, value} | {:error, {identifier, message}} and
+  # never raises (a plain Task.async_stream would otherwise crash the caller on a
+  # raised exception). A failed item becomes a persisted FailedIngest via
+  # detuple_with_logging; a killed task (timeout) surfaces as {:exit, reason}.
+  defp unwrap_result({:ok, {:ok, value}}), do: {:ok, value}
+  defp unwrap_result({:ok, {:error, reason}}), do: {:error, reason}
+  defp unwrap_result({:exit, reason}), do: {:error, {nil, inspect(reason)}}
+
+  defp safe_to_hexdoc_attrs(path, version) do
+    {:ok, to_hexdoc_attrs(path, version)}
+  rescue
+    e -> {:error, {path, Exception.message(e)}}
+  end
+
+  defp insert_hexdoc(attrs) do
+    case Cake.Documents.Hexdocs.create_hexdoc(attrs) do
+      {:ok, hexdoc} -> {:ok, hexdoc}
+      {:error, changeset} -> {:error, {changeset_module(changeset), inspect(changeset)}}
+    end
+  end
+
+  defp safe_to_parsed_docs(hexdoc) do
+    {:ok, Hexdoc.to_parsed_docs(hexdoc)}
+  rescue
+    e -> {:error, {hexdoc_identifier(hexdoc), Exception.message(e)}}
+  end
+
+  defp hexdoc_identifier(%Hexdoc{module: module}), do: to_string(module || "unknown")
+  defp hexdoc_identifier(_other), do: "unknown"
+
+  defp changeset_module(changeset),
+    do: to_string(Ecto.Changeset.get_field(changeset, :module) || "unknown")
 
   @impl Cake.Documents.Pipeline
   def source(), do: Hexdoc.doc_attrs().source

@@ -1,4 +1,9 @@
 defmodule Cake.Documents.Hexdocs.Hexdoc do
+  @moduledoc """
+  Ecto schema for a raw hexdocs row (module, version, url, content) as fetched
+  from the `hexdocs` source, before it is parsed into a `ParsedDocument`.
+  """
+
   use Cake.Schema
   import Ecto.Query, warn: false
   import Ecto.Changeset

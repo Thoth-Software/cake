@@ -8,8 +8,9 @@ defmodule Cake.Embeddings do
 
   @behaviour Cake.Embeddings.Behaviour
 
-  # This needs a spec defining the different error tuples it can return
   @impl Cake.Embeddings.Behaviour
+  @spec embed(atom(), map(), String.t()) ::
+          {:ok, Cake.Embeddings.Behaviour.embedding_result()} | {:error, String.t()}
   def embed(:openai, %{input: input} = params, model) do
     config = Application.get_env(:cake, __MODULE__, [])
     api_key = Keyword.fetch!(config, :openai_key)

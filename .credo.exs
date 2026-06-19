@@ -17,7 +17,7 @@
       },
       plugins: [],
       requires: [],
-      strict: false,
+      strict: true,
       parse_timeout: 5000,
       color: true,
       checks: %{
@@ -64,10 +64,7 @@
           {Credo.Check.Readability.Specs, []},
           {Credo.Check.Readability.StrictModuleLayout, []},
           {Credo.Check.Readability.WithCustomTaggedTuple, []},
-
-          # ModuleDoc: disabled for now. Cake has many modules without
-          # @moduledoc. Enable post-demo when docs become a priority.
-          {Credo.Check.Readability.ModuleDoc, false},
+          {Credo.Check.Readability.ModuleDoc, []},
 
           # ── Refactoring ──────────────────────────────────────────────
           {Credo.Check.Refactor.CondStatements, []},

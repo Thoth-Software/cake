@@ -1,4 +1,10 @@
 defmodule CakeWeb.UserAuth do
+  @moduledoc """
+  Authentication helpers for the web layer: logging users in and out, the
+  remember-me cookie, fetching the current user, and the plug/LiveView
+  `on_mount` hooks that guard routes by authentication state.
+  """
+
   use CakeWeb, :verified_routes
 
   import Plug.Conn

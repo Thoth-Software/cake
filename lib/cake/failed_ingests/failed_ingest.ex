@@ -1,4 +1,10 @@
 defmodule Cake.FailedIngests.FailedIngest do
+  @moduledoc """
+  Ecto schema for an item-level ingest failure. Records which pipeline and step
+  failed, the offending input, and retry bookkeeping so the sweep machinery can
+  later re-attempt the item.
+  """
+
   use Cake.Schema
   import Ecto.Changeset
 

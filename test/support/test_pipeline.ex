@@ -20,7 +20,7 @@ defmodule Cake.TestPipeline do
   end
 
   @impl Cake.Documents.Pipeline
-  def parse(raw_docs_stream) do
+  def parse(raw_docs_stream, _ctx) do
     # Return a stream of mock parsed documents
     # Takes the raw_docs_stream and transforms it
     Stream.flat_map(raw_docs_stream, fn _raw_doc ->
@@ -68,7 +68,7 @@ defmodule Cake.FailingTestPipeline do
   end
 
   @impl Cake.Documents.Pipeline
-  def parse(raw_docs_stream) do
+  def parse(raw_docs_stream, _ctx) do
     raw_docs_stream
   end
 
