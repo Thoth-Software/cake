@@ -265,28 +265,22 @@ defmodule CakeWeb.ChatLive do
     """
   end
 
-  # TODO we need to hash out how the identification will work here. Creating a
-  # bespoke UUID in here under conversation_id is very hacky.
-  # TODO embedder, gds, provider, search, and response model need to become
-  # configurable and the whole app should be consistent in this regard.
-  #
-
   defp none_selected?(nil), do: true
   defp none_selected?(%{params: %{"selected_doc_ids" => []}}), do: true
   defp none_selected?(_), do: false
 
   @spec start_conversation(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   defp start_conversation(socket) do
+    # TODO: identity strategy is unresolved — every mount gets a fresh
+    # conversation id, so conversations are not tied to a user or persisted
+    # across reconnects.
     conversation_id = Ecto.UUID.generate()
 
-    opts = %{
-      id: conversation_id,
-      search: Cake.Search.OpenSearch,
-      embedder: "text-embedding-ada-002",
-      response_model: "gpt-4o-mini",
-      provider: :openai,
-      gds: Cake.Books.ParsedBook
-    }
+    opts =
+      :cake
+      |> Application.fetch_env!(Cake.Conversation)
+      |> Map.new()
+      |> Map.put(:id, conversation_id)
 
     {:ok, pid} = Cake.Conversation.start(opts)
     Process.monitor(pid)
