@@ -83,7 +83,7 @@ There is deliberately no `Cake.Ingestion` behaviour unifying the two pipeline be
 
 ### Layer 2: Search and Retrieval
 
-**`Cake.Search`** is a behaviour (contract only) defining the search interface. `Cake.Search.OpenSearch` is the real implementation.
+**`Cake.Search`** defines the search behaviour contract and also owns the pure scoring utilities (`cosine_similarity/2`, `score_results/2`, `normalize_and_combine/1`, `sort_by_relevance/1`) that rank retrieved results. `Cake.Search.OpenSearch` is the real backend implementation.
 
 **`Cake.Search.Query`** is a struct-based composable OpenSearch query builder. Struct fields: `index` (enforced), `size` (default 10), `must`, `should`, `filter` (all default `[]`), `min_score` (default nil). Builder functions: `new/2`, `knn/4`, `match/4`, `filter_term/3`, `min_score/2`, `size/2`. Conversion: `to_query_map/1`.
 
@@ -325,7 +325,7 @@ lib/
         hexdoc.ex            #     Raw hexdoc schema
         pipeline.ex          #     Hexdocs.Pipeline implementation
     failed_ingests/          # FailedIngest schema + context
-    search.ex                # Cake.Search behaviour (contract only)
+    search.ex                # Cake.Search behaviour contract + pure scoring utilities
     search/
       query.ex               #   Composable query builder (new/2, knn/4, match/4, to_query_map/1)
       open_search.ex         #   Cake.Search.OpenSearch — real implementation
