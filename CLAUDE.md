@@ -26,7 +26,7 @@ Read these files in full before making any changes:
 
 - `README.md` — the architecture reference. Understand the domain model and module boundaries before touching code.
 - `priv/reference/naming-conventions.md` — at the start of any task involving naming (modules, functions, variables, atoms).
-- `priv/reference/enum-cheat.md` — before writing any collection transformation. If you're about to write explicit recursion over a list, check this first.
+- `priv/reference/enum-cheat.cheatmd` — before writing any collection transformation. If you're about to write explicit recursion over a list, check this first.
 
 ### Load by trigger
 
@@ -36,7 +36,7 @@ These reference files in `priv/reference/` should be loaded when the task matche
 |---|---|
 | Refactor function bodies, change pattern matching, modify string/list/map logic, add parameters, change arity, modify exception handling, introduce boolean/flag params | `code-anti-patterns.md` + `patterns-and-guards.md` |
 | Create/rename/move modules, restructure directories, define new public APIs or behaviours, add/change structs or schemas, introduce dependencies, change module call graphs, add config | `design-anti-patterns.md` |
-| Write/modify macros, `use` declarations, `quote`/`unquote`, DSLs, compile-time code generation | `macro-anti-patterns.md` + `macros.md` + `quote-and-unquote.md` |
+| Write/modify macros, `use` declarations, `quote`/`unquote`, DSLs, compile-time code generation | `macro-anti-patterns.md` + `macros.md` |
 | Create/modify/supervise GenServers/Agents/Tasks, modify supervision tree, use spawn/Task.async, work with Registry/PubSub/message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` (add `dynamic-supervisor.md` if dynamic spawning) |
 | Write/modify `@type`, `@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
 | Write/modify public API for external consumption, design behaviours for third-party use | `library-guidelines.md` |
