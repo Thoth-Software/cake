@@ -7,6 +7,15 @@ defmodule CakeWeb.ChatLiveTest do
   alias Cake.Search.Provenance
   alias Cake.Search.Result
 
+  setup :register_and_log_in_user
+
+  describe "authentication" do
+    test "redirects to the login page when the user is not authenticated" do
+      assert {:error, {:redirect, %{to: path}}} = live(build_conn(), ~p"/chat")
+      assert path =~ "/users/log_in"
+    end
+  end
+
   describe "mount" do
     test "renders the chat page in idle state", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/chat")
@@ -100,14 +109,15 @@ defmodule CakeWeb.ChatLiveTest do
       assert html =~ "A preview snippet"
     end
 
-    test ":error appends error message and returns to idle", %{conn: conn} do
+    test ":error shows a safe message without leaking the reason and returns to idle",
+         %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
       broadcast_to_view(view, {:error, :some_failure})
 
       html = render(view)
-      assert html =~ "Error:"
-      assert html =~ "some_failure"
+      assert html =~ "something went wrong"
+      refute html =~ "some_failure"
       refute html =~ "Thinking..."
     end
   end
@@ -129,14 +139,14 @@ defmodule CakeWeb.ChatLiveTest do
   end
 
   describe "conversation process crash" do
-    test "DOWN message shows crash error", %{conn: conn} do
+    test "DOWN message shows a safe message without leaking the crash reason", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
       send(view.pid, {:DOWN, make_ref(), :process, self(), :boom})
 
       html = render(view)
-      assert html =~ "conversation process crashed"
-      assert html =~ "boom"
+      assert html =~ "ended unexpectedly"
+      refute html =~ "boom"
     end
   end
 

@@ -11,6 +11,15 @@ defmodule CakeWeb.SearchLiveTest do
 
   import Phoenix.LiveViewTest
 
+  setup :register_and_log_in_user
+
+  describe "authentication" do
+    test "redirects to the login page when the user is not authenticated" do
+      assert {:error, {:redirect, %{to: path}}} = live(build_conn(), ~p"/search")
+      assert path =~ "/users/log_in"
+    end
+  end
+
   describe "GET /search" do
     test "mounts and renders the search form", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/search")
@@ -37,6 +46,31 @@ defmodule CakeWeb.SearchLiveTest do
 
       refute result =~ "Searching..."
       assert render(lv) =~ "Cake Search"
+    end
+  end
+
+  describe "error handling" do
+    test "shows a generic message without leaking the internal error", %{conn: conn} do
+      Application.put_env(:cake, Cake.Embeddings,
+        openai_key: "test-key",
+        base_url: "http://localhost/v1/embeddings",
+        req_options: [plug: {Req.Test, Cake.Embeddings}]
+      )
+
+      on_exit(fn -> Application.delete_env(:cake, Cake.Embeddings) end)
+
+      {:ok, lv, _} = live(conn, ~p"/search")
+
+      Req.Test.stub(Cake.Embeddings, fn c -> Plug.Conn.send_resp(c, 500, "boom") end)
+      Req.Test.allow(Cake.Embeddings, self(), lv.pid)
+
+      html =
+        lv
+        |> form("form", %{"query" => "hello"})
+        |> render_submit()
+
+      refute html =~ "Transport layer error"
+      assert html =~ "Search failed"
     end
   end
 end

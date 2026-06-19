@@ -6,6 +6,8 @@ defmodule CakeWeb.ChatLive do
   alias CakeWeb.ChatLive.QuestionForm
   alias CakeWeb.ChatLive.SelectionForm
 
+  require Logger
+
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
@@ -102,18 +104,25 @@ defmodule CakeWeb.ChatLive do
   end
 
   def handle_info({:error, reason}, socket) do
-    {:noreply,
-     socket
-     |> append_message(%{role: :assistant, text: "Error: #{inspect(reason)}"})
-     |> reset_to_idle()}
-  end
+    Logger.error("ChatLive conversation error: #{inspect(reason)}")
 
-  def handle_info({:DOWN, _ref, :process, _pid, reason}, socket) do
     {:noreply,
      socket
      |> append_message(%{
        role: :assistant,
-       text: "Error: conversation process crashed (#{inspect(reason)})"
+       text: "Sorry, something went wrong while answering your question. Please try again."
+     })
+     |> reset_to_idle()}
+  end
+
+  def handle_info({:DOWN, _ref, :process, _pid, reason}, socket) do
+    Logger.error("ChatLive conversation process crashed: #{inspect(reason)}")
+
+    {:noreply,
+     socket
+     |> append_message(%{
+       role: :assistant,
+       text: "Sorry, the conversation ended unexpectedly. Please start a new question."
      })
      |> reset_to_idle()}
   end

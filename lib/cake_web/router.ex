@@ -21,9 +21,18 @@ defmodule CakeWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
-    live "/chat", ChatLive
-    live "/search", SearchLive
+  end
+
+  scope "/", CakeWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
     get "/books/download/*file_path", BooksController, :download
+
+    live_session :authenticated_app,
+      on_mount: [{CakeWeb.UserAuth, :ensure_authenticated}] do
+      live "/chat", ChatLive
+      live "/search", SearchLive
+    end
   end
 
   # Other scopes may use custom stacks.

@@ -38,6 +38,11 @@ config :cake, Cake.Conversation,
   response_model: "gpt-4o-mini",
   provider: :openai
 
+# Filesystem root that book downloads must resolve under. BooksController
+# refuses to serve any ParsedBook whose source_file_path escapes this directory,
+# so a poisoned/buggy path in the DB can't be used to read arbitrary files.
+config :cake, :books_download_root, Path.expand("../assets/static", __DIR__)
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails
