@@ -1,5 +1,5 @@
 defmodule Cake.Factory do
-  @moduledoc "ExMachina factory for test data. Import via DataCase, ConnCase, or ObanCase."
+  @moduledoc "ExMachina factory for non-Ecto test structs. `import Cake.Factory` in tests that need it."
 
   use ExMachina.Ecto, repo: Cake.Repo
 

@@ -102,10 +102,10 @@ defmodule Cake.MixProject do
         "phx.digest"
       ],
       quality: ["compile --warnings-as-errors", "credo --strict", "dialyzer"],
-      "quality.fast": ["compile --warnings-as-errors", "credo --strict"],
-      "hooks.install": [
-        "cmd cp priv/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push"
-      ]
+      "quality.fast": ["compile --warnings-as-errors", "credo --strict"]
+      # `mix hooks.install` is the Mix.Tasks.Hooks.Install task
+      # (lib/mix/tasks/hooks.install.ex), which installs every hook in priv/hooks/.
+      # No alias here — an alias of the same name would shadow that task.
     ]
   end
 

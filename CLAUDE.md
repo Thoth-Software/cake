@@ -66,7 +66,7 @@ Dialyzer is not a push gate. In CI it runs only on pull requests — the `dialyz
 Use this single chain locally before pushing — it matches the on-push CI gate:
 
 ```bash
-mix compile --warnings-as-errors && mix test --exclude integration && mix credo --strict && mix format --check-formatted
+mix compile --force --warnings-as-errors && mix test --exclude integration && mix credo --strict && mix format --check-formatted
 ```
 
 Tests tagged `:integration` (those requiring OpenSearch, external HTTP, or the Rustler NIF) are excluded from the on-push gate and run separately as a merge gate via `mix test --only integration`.
@@ -95,7 +95,7 @@ Consult the README sections "Adding a New Ingestion Pipeline" and "Requirements 
 
 - Implement the behaviour for the target GDS (`Cake.Books.Pipeline` or `Cake.Documents.Pipeline`).
 - All callbacks return `{:ok, _}` or `{:error, _}`.
-- Use `Pipelines.detuple_with_logging/3` with a descriptive step name — never the silent `detuple/1`.
+- Use `Pipelines.detuple_with_logging/3` with a descriptive step name — never a silent stream filter that drops `{:error, _}` without persisting it.
 - Step names follow `"pipeline.step"` convention (e.g., `"books.parse"`, `"docs.embed"`).
 - Pipeline-fatal errors go in the `else` branch of the `with` chain in the behaviour's `ingest` function.
 - Schemas must `use Cake.Schema` (not `Ecto.Schema`) and call `sanitize_text_fields/1` in changesets with string fields.
@@ -124,13 +124,13 @@ Consult the README section "Adding a New GDS" before starting. The checklist inc
 - Call `sanitize_text_fields/1` in every changeset with string fields.
 - UUIDs are binary.
 - Define a `@type t :: %__MODULE__{}` with all fields spelled out.
-- Add a factory in `test/support/factory.ex` (Ecto-backed: `insert/1`; non-Ecto: `build/1`).
+- Add a `*_fixture/1` helper to the matching `test/support/fixtures/<context>_fixtures.ex` (Phoenix-style; inserts through the context).
 - Add the schema to the README's "Custom Structs" section.
 
 ### New custom struct (non-Ecto)
 
 - Define a `@type t :: %__MODULE__{}` with all fields spelled out.
-- Add a factory via `build/1` in `test/support/factory.ex`.
+- Add a factory to `Cake.Factory` (`test/support/factory.ex`); build it with `build/1`.
 - Add the struct to the README's "Custom Structs" section.
 
 *Certified accurate by Claude on 2026-06-19*
@@ -151,13 +151,13 @@ Consult the README section "Adding a New GDS" before starting. The checklist inc
 
 Modules that depend on external services accept collaborator modules as arguments — for Mox testability, not runtime polymorphism. When adding new external-service dependencies, follow this pattern: define a behaviour, implement it, pass the module as an argument or read it from config. In the testing environment, a mock should be available.
 
-`Cake.Conversation` requires a `:gds` opt (a `Cake.GDS` module) that threads through to `Cake.Search.OpenSearch`. Required, not defaulted — `init/1` validates before spawn. Follow the same required-opt pattern for any future orchestration-layer module that dispatches across GDSes.
+`Cake.Conversation` requires a `:gds` opt (a `Cake.GDS` module) that threads through to `Cake.Search.OpenSearch`. Required, not defaulted — `start_link/1` and `start/1` validate the opt before the GenServer is spawned (`init/1` only builds state). Follow the same required-opt pattern for any future orchestration-layer module that dispatches across GDSes.
 
 ---
 
 ## Result Tuples and Pipeline Error Handling
 
-All pipeline callbacks return `{:ok, _}` or `{:error, _}`. Stream steps use `Pipelines.detuple_with_logging/3` — never the silent `detuple/1`. Step names follow `"pipeline.step"` convention. Pipeline-fatal errors go in the `else` branch of the `with` chain in each behaviour's `ingest` function.
+All pipeline callbacks return `{:ok, _}` or `{:error, _}`. Stream steps use `Pipelines.detuple_with_logging/3` — never a silent filter that discards errors without persisting them. Step names follow `"pipeline.step"` convention. Pipeline-fatal errors go in the `else` branch of the `with` chain in each behaviour's `ingest` function.
 
 *Certified accurate by Claude on 2026-06-19*
 
@@ -165,9 +165,11 @@ All pipeline callbacks return `{:ok, _}` or `{:error, _}`. Stream steps use `Pip
 
 ## Test Conventions
 
-- Use `Cake.Factory` (ExMachina) for test data, imported via `DataCase`, `ConnCase`, or `ObanCase`.
-- Ecto-backed factories use `insert/1`; non-Ecto domain objects use `build/1`.
-- New domain structs need a corresponding factory.
+Test data follows two tracks; pick by whether the thing is Ecto-backed:
+
+- **Ecto schemas use Phoenix-style fixtures.** Each context has a `test/support/fixtures/<context>_fixtures.ex` module (e.g. `Cake.BooksFixtures`, `Cake.AccountsFixtures`) exposing `*_fixture/1` helpers that insert through the context. Import the one you need per test (e.g. `import Cake.BooksFixtures`).
+- **Non-Ecto domain structs use `Cake.Factory` (ExMachina).** `test/support/factory.ex` defines factories built with `build/1,2` (currently `build(:convo_chunk)` for `Cake.Test.ConvoChunk`). Import it per test (`import Cake.Factory`).
+- These are **not** auto-imported by `DataCase`/`ConnCase`/`ObanCase` — `import` the fixture module or `Cake.Factory` in each test that needs them.
 - Property tests (StreamData) go in `*_property_test.exs`. When fixing a bug found by a property test, add a corresponding example test in the standard file.
 - Mox expectations go in individual tests, not setup blocks.
 - `test_helper.exs` sets `Application.put_env(:cake, :skip_opensearch, true)`. Tests that need search behavior mock the cluster via Mox or a test module.
@@ -220,7 +222,7 @@ After completing any task that changes architecture, module boundaries, conventi
 
 The dev environment runs three containers via `docker-compose.yml`: `cake_app`, `cake_db` (Postgres 14), `cake_opensearch`.
 
-**NIF clobbering.** The `.:/app` bind mount overlays macOS binaries onto the Linux container. `entrypoint.sh` forces recompilation (`rm -f priv/native/*.so && mix deps.compile --force bcrypt_elixir && mix compile --force`). The diagnostic for this failure is "module not available" — not `:nif_not_loaded`.
+**NIF clobbering.** The `.:/app` bind mount overlays macOS binaries onto the Linux container. `entrypoint.sh` forces recompilation, running in sequence: `rm -f priv/native/*.so`, then `mix deps.compile --force bcrypt_elixir`, then `mix compile --force`. The diagnostic for this failure is "module not available" — not `:nif_not_loaded`.
 
 **Colima FD limits.** Default 1024 is too low for concurrent `Task.async_stream` fan-out. Raise via provision script.
 

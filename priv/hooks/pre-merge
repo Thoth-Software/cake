@@ -2,7 +2,7 @@
 
 # Code that fails CI checks, by definition, does not belong in prod. That also
 # means no mising variables and no failing commands. 
-set -euo
+set -euo pipefail
 
 echo "==> Compiling..."
 
