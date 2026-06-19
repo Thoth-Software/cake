@@ -3,6 +3,8 @@ defmodule CakeWeb.SearchLive do
 
   alias Cake.Search.Result
 
+  require Logger
+
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
@@ -29,7 +31,13 @@ defmodule CakeWeb.SearchLive do
            assign(socket, results: results, loading: false, form: to_form(%{"query" => ""}))}
 
         {:error, error} ->
-          {:noreply, assign(socket, loading: false, error: inspect(error))}
+          Logger.error("SearchLive search failed: #{inspect(error)}")
+
+          {:noreply,
+           assign(socket,
+             loading: false,
+             error: "Search failed. Please try again."
+           )}
       end
     end
   end
