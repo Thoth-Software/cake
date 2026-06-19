@@ -76,14 +76,6 @@ defmodule CakeWeb.ChatLive do
 
   @spec handle_info(term(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
-
-  # TODO: Remove these two no-op handlers once the backend stops sending
-  # direct {:convo_response, ...} and {:convo_error, ...} messages via
-  # send/2. Logic now lives in the PubSub-driven :response_ready and
-  # :error handlers below.
-  def handle_info({:convo_response, _response, _citations}, socket), do: {:noreply, socket}
-  def handle_info({:convo_error, _error}, socket), do: {:noreply, socket}
-
   def handle_info({:state_change, new_state}, socket) do
     {:noreply, assign(socket, conversation_state: new_state)}
   end
@@ -290,7 +282,6 @@ defmodule CakeWeb.ChatLive do
     opts = %{
       id: conversation_id,
       search: Cake.Search.OpenSearch,
-      reply_to: self(),
       embedder: "text-embedding-ada-002",
       response_model: "gpt-4o-mini",
       provider: :openai,

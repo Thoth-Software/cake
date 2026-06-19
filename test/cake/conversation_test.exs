@@ -8,10 +8,17 @@ defmodule Cake.ConversationTest do
 
   Most "happy path" tests here mock `Cake.Responses` rather than calling
   through to the real implementation. The Conversation's job is to
-  orchestrate Embeddings → Search → Generation → Responses → reply_to;
+  orchestrate Embeddings → Search → Generation → Responses → PubSub;
   pinning that orchestration is independent of pinning what the Responses
   pipeline does to a citation. The Responses module already has its own
   characterization coverage in `test/cake/responses_test.exs`.
+
+  ## Observing turn outcomes via PubSub
+
+  Conversation publishes turn results on the `Cake.Conversation.Events`
+  topic for its id. Tests use `start_subscribed/1` to start a conversation
+  and subscribe the test process to that topic, then assert on
+  `{:response_ready, _}` / `{:error, _}` / `{:state_change, _}` broadcasts.
 
   The exception is the citation-threading commit (Commit 5), which uses
   the real `Cake.Responses` so the metadata transformations through
@@ -49,7 +56,6 @@ defmodule Cake.ConversationTest do
       %{
         id: "test-#{:erlang.unique_integer([:positive])}",
         search: Cake.Search.OpenSearch,
-        reply_to: self(),
         embedder: "text-embedding-ada-002",
         response_model: "gpt-4o-mini",
         provider: :openai,
@@ -69,6 +75,16 @@ defmodule Cake.ConversationTest do
       })
 
     Map.merge(base, overrides)
+  end
+
+  # Starts a supervised conversation and subscribes the test process to its
+  # PubSub topic, so the test can assert on {:response_ready, _} / {:error, _}
+  # / {:state_change, _} broadcasts. Returns the conversation pid.
+  defp start_subscribed(overrides \\ %{}) do
+    opts = mocked_opts(overrides)
+    pid = start_supervised!({Conversation, opts})
+    :ok = Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(opts.id))
+    pid
   end
 
   describe ":gds option" do
@@ -125,7 +141,7 @@ defmodule Cake.ConversationTest do
   end
 
   describe "happy path" do
-    test "an :ok turn delivers a {:convo_response, _, _} message to reply_to" do
+    test "an :ok turn broadcasts a {:response_ready, _} message" do
       chunk = %ConvoChunk{
         embedding: [0.1, 0.2, 0.3],
         prompt_text: "smoke chunk",
@@ -160,7 +176,7 @@ defmodule Cake.ConversationTest do
         }
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:ok, %{text: "answer", usage: %{}}}
@@ -173,12 +189,12 @@ defmodule Cake.ConversationTest do
 
       assert :ok = Conversation.autoask(pid, "what is two plus two?")
 
-      assert_receive {:convo_response, _response, _citations}, 500
+      assert_receive {:response_ready, %{response: _response, citations: _citations}}, 500
     end
   end
 
   describe "response shape" do
-    test "{:convo_response, final_text, citations} — final_text is a string, citations is a list of maps with the documented keys" do
+    test "{:response_ready, %{response, citations}} — response is a string, citations is a list of maps with the documented keys" do
       chunks =
         Enum.map(1..3, fn i ->
           %ConvoChunk{
@@ -235,7 +251,7 @@ defmodule Cake.ConversationTest do
         }
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:ok, %{text: "answer [1] with [2] and [3]", usage: %{}}}
@@ -248,7 +264,7 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "test question")
 
-      assert_receive {:convo_response, response, citations}, 500
+      assert_receive {:response_ready, %{response: response, citations: citations}}, 500
 
       assert is_binary(response)
       assert is_list(citations)
@@ -306,7 +322,7 @@ defmodule Cake.ConversationTest do
         }
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       test_pid = self()
 
@@ -329,7 +345,7 @@ defmodule Cake.ConversationTest do
 
       # Wait for the full turn to complete before the test exits, so Mox
       # verify_on_exit! sees the Responses.Mock invocation.
-      assert_receive {:convo_response, _, _}, 500
+      assert_receive {:response_ready, _}, 500
     end
   end
 
@@ -380,8 +396,7 @@ defmodule Cake.ConversationTest do
 
       # NOTE: deliberately NOT mocking Cake.Responses — we want the real
       # process/3 so the citation transformations are part of the pin.
-      {:ok, pid} =
-        start_supervised({Conversation, mocked_opts(%{responses: Cake.Responses})})
+      pid = start_subscribed(%{responses: Cake.Responses})
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:ok, %{text: "answer references [2] and then [1].", usage: %{}}}
@@ -393,7 +408,7 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:convo_response, _response, citations}, 500
+      assert_receive {:response_ready, %{response: _response, citations: citations}}, 500
 
       assert length(citations) == 2
 
@@ -453,7 +468,7 @@ defmodule Cake.ConversationTest do
         %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
@@ -472,11 +487,11 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, turn_one_q)
       assert_receive {:prompt_captured, turn_one_messages}, 500
-      assert_receive {:convo_response, _, _}, 500
+      assert_receive {:response_ready, _}, 500
 
       Conversation.autoask(pid, turn_two_q)
       assert_receive {:prompt_captured, turn_two_messages}, 500
-      assert_receive {:convo_response, _, _}, 500
+      assert_receive {:response_ready, _}, 500
 
       turn_one_serialized = Enum.map_join(turn_one_messages, "\n", & &1.content)
       turn_two_serialized = Enum.map_join(turn_two_messages, "\n", & &1.content)
@@ -532,7 +547,7 @@ defmodule Cake.ConversationTest do
         %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:ok, %{text: "x", usage: %{}}}
@@ -545,7 +560,7 @@ defmodule Cake.ConversationTest do
 
       assert :ok = Conversation.autoask(pid, "hello")
 
-      assert_receive {:convo_response, _, _}, 500
+      assert_receive {:response_ready, _}, 500
     end
 
     test "print_hierarchy/2 returns a list (logging-only helper)" do
@@ -554,7 +569,7 @@ defmodule Cake.ConversationTest do
   end
 
   describe "cluster error" do
-    test "cluster {:error, _} delivers {:convo_error, reason} to reply_to without crashing the GenServer" do
+    test "cluster {:error, _} broadcasts {:error, reason} without crashing the GenServer" do
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
@@ -563,7 +578,7 @@ defmodule Cake.ConversationTest do
         {:error, :timeout}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
@@ -572,7 +587,7 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:convo_error, :timeout}, 500
+      assert_receive {:error, :timeout}, 500
 
       refute_receive {:DOWN, ^ref, :process, ^pid, _}, 100
 
@@ -582,7 +597,7 @@ defmodule Cake.ConversationTest do
   end
 
   describe "generation error" do
-    test "generation {:error, _} delivers {:convo_error, reason} to reply_to without crashing" do
+    test "generation {:error, _} broadcasts {:error, reason} without crashing" do
       chunk = %ConvoChunk{
         embedding: [0.1, 0.2, 0.3],
         prompt_text: "x",
@@ -597,7 +612,7 @@ defmodule Cake.ConversationTest do
         {:ok, [wrap_result(chunk)]}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:error, {:rate_limited, nil}}
@@ -611,7 +626,7 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:convo_error, {:rate_limited, nil}}, 500
+      assert_receive {:error, {:rate_limited, nil}}, 500
       refute_receive {:DOWN, ^ref, :process, ^pid, _}, 100
 
       state = :sys.get_state(pid)
@@ -636,7 +651,7 @@ defmodule Cake.ConversationTest do
         %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn messages, _model, _opts ->
         send(test_pid, {:prompt_captured, messages})
@@ -652,14 +667,14 @@ defmodule Cake.ConversationTest do
 
       assert_receive {:prompt_captured, _messages}, 500
       assert_receive {:responses_indexed_chunks, indexed_chunks}, 500
-      assert_receive {:convo_response, _, _}, 500
+      assert_receive {:response_ready, _}, 500
 
       assert indexed_chunks == []
     end
   end
 
   describe "uncited LLM output" do
-    test "LLM text with no [N] markers yields citations: [] in the convo_response message" do
+    test "LLM text with no [N] markers yields citations: [] in the response_ready broadcast" do
       chunk = %ConvoChunk{
         embedding: [0.1, 0.2, 0.3],
         prompt_text: "x",
@@ -674,8 +689,7 @@ defmodule Cake.ConversationTest do
         {:ok, [wrap_result(chunk)]}
       end)
 
-      {:ok, pid} =
-        start_supervised({Conversation, mocked_opts(%{responses: Cake.Responses})})
+      pid = start_subscribed(%{responses: Cake.Responses})
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:ok, %{text: "answer with no citation markers", usage: %{}}}
@@ -687,91 +701,10 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:convo_response, response, citations}, 500
+      assert_receive {:response_ready, %{response: response, citations: citations}}, 500
 
       assert is_binary(response)
       assert citations == []
-    end
-  end
-
-  describe "push-message contract" do
-    # The push-message contract IS the seam between Conversation and any
-    # consumer (currently CakeWeb.ChatLive). The "polling interface" the
-    # issue spec referenced does not exist — ChatLive uses
-    # handle_info({:convo_response, _, _}, _) on a process Conversation
-    # pushes to via send/2. These tests pin that seam by configuring a
-    # distinct process as :reply_to and asserting the push lands there
-    # (not in the caller's mailbox).
-
-    setup do
-      parent = self()
-
-      reply_to =
-        spawn_link(fn ->
-          receive do
-            msg -> send(parent, {:reply_to_received, msg})
-          end
-        end)
-
-      {:ok, reply_to: reply_to}
-    end
-
-    test "successful turn pushes {:convo_response, _, _} to the configured reply_to, not the caller",
-         %{reply_to: reply_to} do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "x",
-        metadata: %{id: "c1", label: "L", preview: "p", source_ref: nil, extras: %{}}
-      }
-
-      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
-        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
-      end)
-
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
-      end)
-
-      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
-        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
-      end)
-
-      {:ok, pid} = start_supervised({Conversation, mocked_opts(%{reply_to: reply_to})})
-
-      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
-        {:ok, %{text: "x", usage: %{}}}
-      end)
-
-      allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
-      allow(Cake.Responses.Mock, self(), pid)
-      allow(Cake.Generation.Mock, self(), pid)
-
-      Conversation.autoask(pid, "q")
-
-      assert_receive {:reply_to_received, {:convo_response, _response, _citations}}, 500
-      refute_received {:convo_response, _, _}
-    end
-
-    test "failed turn pushes {:convo_error, reason} to the configured reply_to, not the caller",
-         %{reply_to: reply_to} do
-      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
-        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
-      end)
-
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:error, :boom}
-      end)
-
-      {:ok, pid} = start_supervised({Conversation, mocked_opts(%{reply_to: reply_to})})
-
-      allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
-
-      Conversation.autoask(pid, "q")
-
-      assert_receive {:reply_to_received, {:convo_error, :boom}}, 500
-      refute_received {:convo_error, _}
     end
   end
 
@@ -785,7 +718,7 @@ defmodule Cake.ConversationTest do
         raise "boom"
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
@@ -798,8 +731,8 @@ defmodule Cake.ConversationTest do
 
       assert match?({%RuntimeError{message: "boom"}, _stacktrace}, reason)
 
-      refute_received {:convo_response, _, _}
-      refute_received {:convo_error, _}
+      refute_received {:response_ready, _}
+      refute_received {:error, _}
     end
   end
 
@@ -826,7 +759,7 @@ defmodule Cake.ConversationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         case Agent.get_and_update(counter, fn n -> {n, n + 1} end) do
@@ -870,8 +803,8 @@ defmodule Cake.ConversationTest do
       assert_receive :second_started, 500
 
       # Both responses delivered, in the order they were asked.
-      assert_receive {:convo_response, _, _}, 500
-      assert_receive {:convo_response, _, _}, 500
+      assert_receive {:response_ready, _}, 500
+      assert_receive {:response_ready, _}, 500
     end
   end
 
@@ -909,7 +842,7 @@ defmodule Cake.ConversationTest do
         {:ok, [wrap_result(chunk)]}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
@@ -932,7 +865,7 @@ defmodule Cake.ConversationTest do
       end)
 
       Conversation.autoask(pid, "q")
-      assert_receive {:convo_response, _, _}, 500
+      assert_receive {:response_ready, _}, 500
     end
 
     test "resolve_search_results/2 propagates embed error" do
@@ -940,12 +873,12 @@ defmodule Cake.ConversationTest do
         {:error, :embed_failed}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
-      assert_receive {:convo_error, :embed_failed}, 500
+      assert_receive {:error, :embed_failed}, 500
     end
 
     test "select/1 returns indexed chunks from scored results" do
@@ -993,7 +926,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "generate/2 returns response text on success" do
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:ok, %{text: "hello", usage: %{}}}
@@ -1013,7 +946,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "generate/2 propagates error" do
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:error, :rate_limited}
@@ -1058,12 +991,12 @@ defmodule Cake.ConversationTest do
         {:error, :embed_failed}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
-      assert_receive {:convo_error, :embed_failed}, 500
+      assert_receive {:error, :embed_failed}, 500
     end
 
     test "generate failure short-circuits: responses never called" do
@@ -1081,7 +1014,7 @@ defmodule Cake.ConversationTest do
         {:ok, [wrap_result(chunk)]}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:error, :generation_failed}
@@ -1092,7 +1025,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
-      assert_receive {:convo_error, :generation_failed}, 500
+      assert_receive {:error, :generation_failed}, 500
     end
 
     test "zero chunks: pipeline completes without short-circuit" do
@@ -1108,7 +1041,7 @@ defmodule Cake.ConversationTest do
         %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:ok, %{text: "x", usage: %{}}}
@@ -1120,7 +1053,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
-      assert_receive {:convo_response, "x", []}, 500
+      assert_receive {:response_ready, %{response: "x", citations: []}}, 500
     end
   end
 
@@ -1217,7 +1150,7 @@ defmodule Cake.ConversationTest do
         }
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:ok, %{text: "answer", usage: %{}}}
@@ -1243,8 +1176,8 @@ defmodule Cake.ConversationTest do
 
       assert :ok = Conversation.select_docs(pid, doc_ids)
 
-      # Response pushed to reply_to
-      assert_receive {:convo_response, "answer", []}, 500
+      # Response broadcast via PubSub
+      assert_receive {:response_ready, %{response: "answer", citations: []}}, 500
 
       # State back to idle
       post_select = :sys.get_state(pid)
@@ -1257,7 +1190,7 @@ defmodule Cake.ConversationTest do
         {:error, :embed_failed}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
@@ -1282,7 +1215,7 @@ defmodule Cake.ConversationTest do
         {:ok, [wrap_result(chunk)]}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
@@ -1298,7 +1231,7 @@ defmodule Cake.ConversationTest do
 
   describe "invalid transitions" do
     test "select in idle state crashes the GenServer" do
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       ref = Process.monitor(pid)
 
@@ -1322,7 +1255,7 @@ defmodule Cake.ConversationTest do
         {:ok, [wrap_result(chunk)]}
       end)
 
-      {:ok, pid} = start_supervised({Conversation, mocked_opts()})
+      pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
