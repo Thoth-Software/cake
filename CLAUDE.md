@@ -236,7 +236,4 @@ The dev environment runs three containers via `docker-compose.yml`: `cake_app`, 
 
 If your task touches any of these, flag it to the user rather than silently resolving or ignoring it.
 
-- **`Conversation.start_link/6` positional args**: Should eventually accept a struct.
 - **Post-demo formats**: Word, Excel, CSV, JPG pipelines are explicitly deferred.
-- **`Responses` hardcoded to `Chunk`**: Generalizing post-processing beyond `Cake.Books.Chunk` to work with any GDS's atomic unit is a known TODO.
-- **`search_fields/0` behaviour extraction**: TODO to extract into a behaviour on the pipeline generics so each GDS declares its searchable fields.

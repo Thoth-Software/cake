@@ -299,7 +299,7 @@ OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi
 
 ## Roadmap: Planned and Deferred
 
-**Post-demo planned:** conversation layer decomposition (extract `Prompt` and `Generation` fully; collapse `Responses` to post-processing only), test coverage expansion, generalize `Responses` beyond `Chunk`, `search_fields/0` behaviour extraction, `Conversation.start_link` struct migration, Word/Excel/CSV/JPG pipelines.
+**Post-demo planned:** conversation layer decomposition (extract `Prompt` and `Generation` fully; collapse `Responses` to post-processing only), test coverage expansion, Word/Excel/CSV/JPG pipelines.
 
 **Longer-term:** query decomposition (`Prompt`), autorating (`Search` or dedicated module), cross-encoder reranking (`Search`), HyDE-style query expansion (`Prompt` + `Retrieval`), multi-index search and result merging (`Retrieval`).
 
