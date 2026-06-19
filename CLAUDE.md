@@ -59,7 +59,7 @@ mix coveralls.json                         # Must not reduce coverage below thre
 
 `mix quality.fast` (compile + credo) is the minimum local check. `mix quality` adds dialyzer. Tests run with `MIX_ENV=test`; the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first.
 
-Dialyzer is not yet a hard push gate (the config line is commented out). Dialyzer is, however, a hard *merge* gate.
+Dialyzer is not a push gate. In CI it runs only on pull requests — the `dialyzer` job in `.github/workflows/quality.yml` is guarded by `if: github.event_name == 'pull_request'` — which makes it a hard *merge* gate rather than a push gate.
 
 ### Pre-push command
 
