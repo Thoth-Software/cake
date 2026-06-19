@@ -313,34 +313,51 @@ OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi
 
 ```
 lib/
+  schema.ex                  # Base Ecto schema macro — `use Cake.Schema` (lib/schema.ex, not under cake/)
   cake/
+    application.ex           # OTP application + supervision tree
     accounts/                # Phoenix auth (User, UserToken, UserNotifier)
-    books/                   # Book ingestion subsystem
+    books/                   # Book ingestion subsystem (ParsedBook + Chunk GDS)
       chunk.ex               #   Chunk schema (retrieval unit)
       parsed_book.ex         #   ParsedBook schema (GDS identity)
       pipeline.ex            #   Books.Pipeline behaviour + orchestrator
       pdf/pipeline.ex        #   PDF implementation (Rustler NIF)
-    documents/               # Documentation ingestion subsystem
+      persistence.ex         #   Write-path: persist book + chunks, hash dedup
+      retrieval.ex           #   Read-path: GDS hit hydration + neighbor expansion
+      page_content.ex        #   NIF-decoded struct: one page's text
+      pdf_extraction.ex      #   NIF-decoded struct: full PDF extraction result
+      skipped_page.ex        #   NIF-decoded struct: a page that failed extraction
+    documents/               # Documentation ingestion subsystem (ParsedDocument GDS)
       cluster.ex             #   OpenSearch Snap.Cluster (connection + index lifecycle)
       parsed_document.ex     #   ParsedDocument schema (GDS identity + retrieval unit)
       parsed_documents.ex    #   ParsedDocuments context (CRUD)
       pipeline.ex            #   Documents.Pipeline behaviour + orchestrator
-      hexdocs/               #   Hexdocs implementation
+      hexdocs.ex             #   Hexdocs context (CRUD over raw hexdocs)
+      hexdocs/
         hexdoc.ex            #     Raw hexdoc schema
         pipeline.ex          #     Hexdocs.Pipeline implementation
+    jobs/
+      document_ingestion_job.ex  # Oban job that runs Documents.Pipeline.ingest
     failed_ingests/          # FailedIngest schema + context
+    parse_books.ex           # Rustler NIF wrapper (PDF extraction)
     search.ex                # Cake.Search behaviour contract + pure scoring utilities
     search/
       query.ex               #   Composable query builder (new/2, knn/4, match/4, to_query_map/1)
       open_search.ex         #   Cake.Search.OpenSearch — real implementation
+      result.ex              #   Search.Result struct (retrieval-metadata carrier)
+      provenance.ex          #   Search.Provenance struct (search conditions)
     candidates.ex            # Pure-function candidate grouping and chunk-ID extraction
     conversation.ex          # Conversation GenServer (orchestrator)
+    conversation/
+      state.ex               #   Conversation state struct
+      events.ex              #   PubSub topic + event helpers
     gds.ex                   # Cake.GDS behaviour
     promptable.ex            # Cake.Promptable protocol
     citable.ex               # Cake.Citable protocol
     citations.ex             # Pure-function citation parser
-    embeddings.ex            # OpenAI embeddings client + Behaviour
-    generation.ex            # Cake.Generation behaviour (contract only)
+    embeddings.ex            # OpenAI embeddings client (Cake.Embeddings.Behaviour impl)
+    embeddings/behaviour.ex  #   Cake.Embeddings.Behaviour contract
+    generation.ex            # Cake.Generation behaviour
     generation/
       open_ai.ex             #   Cake.Generation.OpenAI — real implementation
       anthropic.ex           #   Cake.Generation.Anthropic — placeholder stub
@@ -350,14 +367,19 @@ lib/
     responses/
       behaviour.ex           #   Cake.Responses.Behaviour (contract)
       result.ex              #   Cake.Responses.Result struct
-    schema.ex                # Base schema (use Cake.Schema)
   cake_web/
+    controllers/
+      books_controller.ex    #   Authenticated book-file download (root-confined)
     live/
       chat_live.ex           # LiveView chat UI
       chat_live/
         question_form.ex     #   Embedded schema for question + mode validation
-        selection_form.ex    #   Embedded schema for document selection validation
-    user_auth.ex             # Auth plugs
+        selection_form.ex    #   Embedded schema for document-selection validation
+      search_live.ex         # LiveView search UI
+    router.ex                # Routes + auth pipelines
+    user_auth.ex             # Auth plugs + LiveView on_mount hooks
+  mix/tasks/
+    hooks.install.ex         # `mix hooks.install` — installs the pre-push git hook
 
 test/
   support/
