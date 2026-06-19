@@ -19,6 +19,7 @@ defmodule Cake.Books.Pipeline do
   alias Cake.Books
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
+  alias Cake.Books.Persistence
   alias Cake.Pipelines
   alias Cake.Repo
   require Logger
@@ -163,7 +164,7 @@ defmodule Cake.Books.Pipeline do
 
     persisted_stream =
       books_and_chunks_stream
-      |> Task.async_stream(&Books.persist_books_and_chunks/1,
+      |> Task.async_stream(&Persistence.persist_books_and_chunks/1,
         max_concurrency: max_concurrency,
         timeout: timeout,
         ordered: false,
@@ -260,7 +261,7 @@ defmodule Cake.Books.Pipeline do
       with {:ok, binary} <- format_pipeline.load_binary(path),
            {parsed_book, chunks} <- try_parse(format_pipeline, binary),
            {:ok, {_persisted_book, persisted_chunks}} <-
-             Books.persist_books_and_chunks({parsed_book, chunks}),
+             Persistence.persist_books_and_chunks({parsed_book, chunks}),
            :ok <- embed_and_index_chunks(persisted_chunks, embedding_service, embedding_model) do
         _ = Cake.FailedIngests.delete_failed_ingest(failure)
         {:ok, :retried}

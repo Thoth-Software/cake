@@ -39,10 +39,10 @@ defmodule Cake.Books.ParsedBook do
   def search_fields, do: ["section_title^2", "text"]
 
   @impl Cake.GDS
-  defdelegate load_from_hits(hits), to: Cake.Books, as: :chunks_for_hits
+  defdelegate load_from_hits(hits), to: Cake.Books.Retrieval, as: :chunks_for_hits
 
   @impl Cake.GDS
-  defdelegate expand_with_neighbors(chunks, offset), to: Cake.Books
+  defdelegate expand_with_neighbors(chunks, offset), to: Cake.Books.Retrieval
 
   schema "parsed_books" do
     field :title, :string
