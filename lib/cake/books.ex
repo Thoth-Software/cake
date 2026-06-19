@@ -192,25 +192,6 @@ defmodule Cake.Books do
   end
 
   @doc """
-  Updates a chunk.
-
-  ## Examples
-
-      iex> update_chunk!(chunk, %{field: new_value})
-      {:ok, %Chunk{}}
-
-      iex> update_chunk!(chunk, %{field: bad_value})
-      {:error, %Ecto.Changeset{}}
-
-  """
-  @spec update_chunk!(Chunk.t(), map()) :: {:ok, Chunk.t()} | {:error, Ecto.Changeset.t()}
-  def update_chunk!(%Chunk{} = chunk, attrs) do
-    chunk
-    |> Chunk.changeset(attrs)
-    |> Repo.update()
-  end
-
-  @doc """
   Deletes a parsed_book.
 
   ## Examples
