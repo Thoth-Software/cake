@@ -40,6 +40,21 @@ defmodule Cake.PipelinesTest do
     )
   end
 
+  defp insert_failure(%Context{} = ctx, opts) do
+    {:ok, failure} =
+      Cake.FailedIngests.create_failed_ingest(%{
+        pipeline_behaviour: ctx.behaviour,
+        pipeline_implementation: ctx.implementation,
+        step: "docs.embed",
+        version: ctx.version,
+        error_text: "boom",
+        input_identifier: "x",
+        pipeline_fatal: Keyword.fetch!(opts, :pipeline_fatal)
+      })
+
+    failure
+  end
+
   defp stub_embeddings do
     stub(Mock, :embed, fn _service, parsed_document, _model ->
       {:ok,
@@ -120,8 +135,8 @@ defmodule Cake.PipelinesTest do
       :ok
     end
 
-    test "returns {:ok, message} containing the version (no String.Chars crash)" do
-      assert {:ok, message} =
+    test "returns {:ok, summary} with the version message and full-success counts" do
+      assert {:ok, %{message: message, indexed: indexed, failed: failed}} =
                Cake.Documents.Pipeline.ingest(
                  :openai,
                  TestPipeline,
@@ -131,6 +146,65 @@ defmodule Cake.PipelinesTest do
 
       assert message =~ "Cake.TestPipeline"
       assert message =~ "1.18.3"
+      # TestPipeline yields two docs; with embeddings stubbed both make it through.
+      assert indexed == 2
+      assert failed == 0
+    end
+  end
+
+  describe "Cake.Pipelines.summarize_ingest/3" do
+    test "full success (no failures) returns {:ok, summary}" do
+      assert {:ok, %{message: "done", indexed: 10, failed: 0}} =
+               Pipelines.summarize_ingest("done", 10, 0)
+    end
+
+    test "partial success reports the failures in the summary, not as clean success" do
+      assert {:ok, summary} = Pipelines.summarize_ingest("done", 8, 2)
+      assert summary.indexed == 8
+      assert summary.failed == 2
+    end
+
+    test "a non-empty run where nothing made it through is an error" do
+      assert {:error, {:no_items_ingested, %{indexed: 0, failed: 5}}} =
+               Pipelines.summarize_ingest("done", 0, 5)
+    end
+
+    test "an empty run (nothing in, nothing failed) is a vacuous success" do
+      assert {:ok, %{indexed: 0, failed: 0}} = Pipelines.summarize_ingest("done", 0, 0)
+    end
+  end
+
+  describe "Cake.Pipelines.count_failures/1" do
+    test "counts only non-fatal failures matching the run's identity" do
+      ctx = build_ctx(version: {1, 18, 3})
+
+      # Two non-fatal item failures for this run's identity.
+      for _ <- 1..2, do: insert_failure(ctx, pipeline_fatal: false)
+      # A fatal failure for the same identity must be excluded.
+      insert_failure(ctx, pipeline_fatal: true)
+      # A non-fatal failure for a different version must be excluded.
+      other = build_ctx(version: {9, 9, 9})
+      insert_failure(other, pipeline_fatal: false)
+
+      assert Pipelines.count_failures(ctx) == 2
+    end
+  end
+
+  describe "Cake.Documents.Pipeline.ingest/4 with item-level embed failures" do
+    # Partial-success (some in, some out) is pinned deterministically by the
+    # `summarize_ingest/3` unit tests above. Here we exercise the full stream
+    # wiring on the deterministic extreme: every item fails, so embed errors
+    # must be dropped + counted (not leaked through as phantom successes).
+    test "total failure: every embedding fails, so nothing is ingested -> {:error, _}" do
+      stub(Mock, :embed, fn _service, _doc, _model -> {:error, :embed_unavailable} end)
+
+      assert {:error, {:no_items_ingested, %{indexed: 0, failed: 2}}} =
+               Cake.Documents.Pipeline.ingest(
+                 :openai,
+                 TestPipeline,
+                 {4, 4, 4},
+                 "text-embedding-ada-002"
+               )
     end
   end
 

@@ -48,13 +48,11 @@ defmodule Cake.Documents.Pipeline do
 
   @optional_callbacks [retry_from_raw: 2]
 
-  @spec ingest(atom(), atom(), version(), String.t()) :: {:ok, String.t()} | {:error, any()}
+  @spec ingest(atom(), atom(), version(), String.t()) ::
+          {:ok, Pipelines.ingest_summary()} | {:error, any()}
   def ingest(embedding_service, source_pipeline, version_tuple, embedding_model) do
-    # TODO: Track per-step success/error counts and return a summary
-    #   e.g. {:ok, %{persisted: 142, embedded: 138, indexed: 138, errors: 4}}
-    # TODO: Partial success should not be reported as full success —
-    #   the success_message should reflect how many items actually made it through
     ctx = Pipelines.build_context(__MODULE__, source_pipeline, version_tuple)
+    failures_before = Pipelines.count_failures(ctx)
 
     with {:ok, file_paths} <- source_pipeline.download(ctx),
          raw_docs_stream <- source_pipeline.persist_raw_docs(file_paths, ctx),
@@ -69,9 +67,13 @@ defmodule Cake.Documents.Pipeline do
              ctx
            ),
          opensearch_docs_stream <-
-           Pipelines.add_to_opensearch(docs_with_embeddings_stream, @index, @cluster, ctx),
-         :ok <- Stream.run(opensearch_docs_stream) do
-      {:ok, source_pipeline.success_message(ctx)}
+           Pipelines.add_to_opensearch(docs_with_embeddings_stream, @index, @cluster, ctx) do
+      Pipelines.finalize_ingest(
+        opensearch_docs_stream,
+        ctx,
+        failures_before,
+        source_pipeline.success_message(ctx)
+      )
     else
       error -> Pipelines.handle_ingest_error(error, ctx)
     end
@@ -86,7 +88,7 @@ defmodule Cake.Documents.Pipeline do
   """
   @spec ingest_with_sweep(atom(), atom(), {integer(), integer(), integer()}, String.t(), [
           {:max_sweeps, integer()}
-        ]) :: {:ok, String.t()} | {:error, any()}
+        ]) :: {:ok, Pipelines.ingest_summary()} | {:error, any()}
   def ingest_with_sweep(
         embedding_service,
         source_pipeline,
@@ -213,13 +215,15 @@ defmodule Cake.Documents.Pipeline do
       on_timeout: :kill_task,
       zip_input_on_exit: true
     )
+    |> Stream.map(&unwrap_embed_result/1)
     |> Pipelines.detuple_with_logging("docs.embed", ctx)
     |> Task.async_stream(
-      &handle_response/1,
+      &persist_embedding/1,
       max_concurrency: 5,
       timeout: 5_000,
       on_timeout: :kill_task
     )
+    |> Stream.map(&unwrap_persist_result/1)
     |> Pipelines.detuple_with_logging("docs.embed_persist", ctx)
   end
 
@@ -227,26 +231,27 @@ defmodule Cake.Documents.Pipeline do
     Application.get_env(:cake, :embeddings_module, Cake.Embeddings)
   end
 
-  defp handle_response({:exit, {input, reason}}) do
-    {:error, {input.struct.id, inspect(reason)}}
-  end
+  # Collapses the Task.async_stream wrapper into a single {:ok, _} | {:error, _}
+  # result so detuple_with_logging can actually filter embed failures (an inner
+  # {:error, _} would otherwise match the outer {:ok, _} and leak through).
+  defp unwrap_embed_result({:ok, {:ok, %{struct: _, attrs: _} = embedding}}), do: {:ok, embedding}
+  defp unwrap_embed_result({:ok, {:error, reason}}), do: {:error, {nil, inspect(reason)}}
 
-  defp handle_response({:error, error}) do
-    {:error, {nil, inspect(error)}}
-  end
+  defp unwrap_embed_result({:exit, {input, reason}}),
+    do: {:error, {input.struct.id, inspect(reason)}}
 
-  defp handle_response({_, {:error, error}}) do
-    {:error, {nil, inspect(error)}}
-  end
+  defp unwrap_embed_result({:exit, reason}), do: {:error, {nil, inspect(reason)}}
 
-  defp handle_response({_, %{struct: struct, attrs: attrs}}) do
+  defp persist_embedding(%{struct: struct, attrs: attrs}) do
     case ParsedDocuments.update_parsed_document(struct, attrs) do
       {:ok, updated} -> {:ok, updated}
       {:error, reason} -> {:error, {struct.id, inspect(reason)}}
     end
   end
 
-  # TODO: Return {success_count, error_count} summary after pipeline completes
+  defp unwrap_persist_result({:ok, result}), do: result
+  defp unwrap_persist_result({:exit, reason}), do: {:error, {nil, inspect(reason)}}
+
   defp persist_parsed_docs(parsed_doc_stream, ctx) do
     parsed_doc_stream
     |> Task.async_stream(

@@ -25,6 +25,18 @@ defmodule Cake.Pipelines do
 
   @type context :: Context.t()
 
+  @typedoc """
+  Outcome of an ingest run. `indexed` is how many atomic units made it all the
+  way through; `failed` is how many item-level failures were recorded during
+  the run (each persisted to `FailedIngest` for later sweep). `message` is the
+  pipeline's human-readable banner.
+  """
+  @type ingest_summary :: %{
+          message: String.t(),
+          indexed: non_neg_integer(),
+          failed: non_neg_integer()
+        }
+
   @spec add_to_opensearch(Enumerable.t(), String.t(), module(), context()) :: Enumerable.t()
   def add_to_opensearch(docs_with_embeddings_stream, index, cluster, %Context{} = ctx) do
     if skip_opensearch?() do
@@ -196,6 +208,55 @@ defmodule Cake.Pipelines do
         )
       end
     end
+  end
+
+  @doc """
+  Counts the `FailedIngest` rows recorded for a pipeline run's identity.
+
+  Used by `ingest` implementations to measure item-level failures: snapshot
+  before the run, snapshot after, and the delta is how many items this run
+  dropped. (Only non-fatal item failures are created inside a successful
+  `with` chain; fatal failures short-circuit to `handle_ingest_error/2`.)
+  """
+  @spec count_failures(context()) :: non_neg_integer()
+  def count_failures(%Context{} = ctx) do
+    ctx.behaviour
+    |> Cake.FailedIngests.list_failed_ingests_for(ctx.implementation, ctx.version)
+    |> length()
+  end
+
+  @doc """
+  Builds the honest result of an ingest run from its outcome counts.
+
+  Returns `{:ok, summary}` when at least one item made it through (including a
+  partial run, whose `summary.failed` is non-zero — partial success is reported
+  *as* partial, never as clean success). A non-empty run where nothing made it
+  through is a failure: `{:error, {:no_items_ingested, summary}}`.
+  """
+  @spec summarize_ingest(String.t(), non_neg_integer(), non_neg_integer()) ::
+          {:ok, ingest_summary()} | {:error, {:no_items_ingested, ingest_summary()}}
+  def summarize_ingest(message, indexed, failed)
+      when is_binary(message) and is_integer(indexed) and is_integer(failed) do
+    summary = %{message: message, indexed: indexed, failed: failed}
+
+    if indexed == 0 and failed > 0 do
+      {:error, {:no_items_ingested, summary}}
+    else
+      {:ok, summary}
+    end
+  end
+
+  @doc """
+  Closes out an ingest run: forces the final stream to count how many items
+  made it through, measures item failures as the `count_failures/1` delta since
+  `failures_before`, and builds the honest result via `summarize_ingest/3`.
+  """
+  @spec finalize_ingest(Enumerable.t(), context(), non_neg_integer(), String.t()) ::
+          {:ok, ingest_summary()} | {:error, {:no_items_ingested, ingest_summary()}}
+  def finalize_ingest(indexed_stream, %Context{} = ctx, failures_before, message) do
+    indexed = Enum.count(indexed_stream)
+    failed = count_failures(ctx) - failures_before
+    summarize_ingest(message, indexed, failed)
   end
 
   @spec detuple(Enumerable.t()) :: Enumerable.t()
