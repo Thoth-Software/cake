@@ -27,7 +27,6 @@ defmodule Cake.ConversationTest do
   alias Cake.Search.Result
   alias Cake.Support.FixtureGDS
   alias Cake.Test.ConvoChunk
-  alias Cake.Test.GenerationStub
 
   setup :verify_on_exit!
 
@@ -65,7 +64,7 @@ defmodule Cake.ConversationTest do
       valid_opts(%{
         search: Cake.Search.Mock,
         embeddings: Cake.Embeddings.Mock,
-        generation: Cake.Test.GenerationStub,
+        generation: Cake.Generation.Mock,
         responses: Cake.Responses.Mock
       })
 
@@ -162,13 +161,15 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      :ok = GenerationStub.set_response(pid, {:ok, %{text: "answer", usage: %{}}})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer", usage: %{}}}
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       assert :ok = Conversation.autoask(pid, "what is two plus two?")
 
@@ -235,13 +236,15 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:ok, %{text: "answer [1] with [2] and [3]", usage: %{}}})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer [1] with [2] and [3]", usage: %{}}}
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "test question")
 
@@ -304,11 +307,10 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       test_pid = self()
 
-      GenerationStub.set_handler(pid, fn messages, _model ->
+      stub(Cake.Generation.Mock, :complete, fn messages, _model, _opts ->
         send(test_pid, {:prompt_captured, messages})
         {:ok, %{text: "ok", usage: %{}}}
       end)
@@ -316,6 +318,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
 
@@ -380,15 +383,13 @@ defmodule Cake.ConversationTest do
       {:ok, pid} =
         start_supervised({Conversation, mocked_opts(%{responses: Cake.Responses})})
 
-      on_exit(fn -> GenerationStub.clear(pid) end)
-
-      GenerationStub.set_response(
-        pid,
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:ok, %{text: "answer references [2] and then [1].", usage: %{}}}
-      )
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
 
@@ -453,12 +454,11 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      GenerationStub.set_handler(pid, fn messages, _model ->
+      stub(Cake.Generation.Mock, :complete, fn messages, _model, _opts ->
         send(test_pid, {:prompt_captured, messages})
         call_num = Agent.get_and_update(counter, fn n -> {n, n + 1} end)
         text = if call_num == 0, do: turn_one_a, else: "RESPONSE_TWO"
@@ -468,6 +468,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, turn_one_q)
       assert_receive {:prompt_captured, turn_one_messages}, 500
@@ -532,13 +533,15 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       assert :ok = Conversation.autoask(pid, "hello")
 
@@ -561,7 +564,6 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
@@ -596,12 +598,14 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:error, {:rate_limited, nil}})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:error, {:rate_limited, nil}}
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       ref = Process.monitor(pid)
 
@@ -633,9 +637,8 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_handler(pid, fn messages, _model ->
+      stub(Cake.Generation.Mock, :complete, fn messages, _model, _opts ->
         send(test_pid, {:prompt_captured, messages})
         {:ok, %{text: "x", usage: %{}}}
       end)
@@ -643,6 +646,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q with no matching chunks")
 
@@ -673,15 +677,13 @@ defmodule Cake.ConversationTest do
       {:ok, pid} =
         start_supervised({Conversation, mocked_opts(%{responses: Cake.Responses})})
 
-      on_exit(fn -> GenerationStub.clear(pid) end)
-
-      GenerationStub.set_response(
-        pid,
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:ok, %{text: "answer with no citation markers", usage: %{}}}
-      )
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
 
@@ -735,12 +737,15 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts(%{reply_to: reply_to})})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
+
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
 
@@ -759,7 +764,6 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts(%{reply_to: reply_to})})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
@@ -782,7 +786,6 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
@@ -824,9 +827,8 @@ defmodule Cake.ConversationTest do
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_handler(pid, fn _messages, _model ->
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         case Agent.get_and_update(counter, fn n -> {n, n + 1} end) do
           0 ->
             send(test_pid, :first_started)
@@ -849,6 +851,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       assert :ok = Conversation.autoask(pid, "q1")
       assert :ok = Conversation.autoask(pid, "q2")
@@ -907,7 +910,6 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
@@ -923,7 +925,12 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Responses.Mock, self(), pid)
-      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+      allow(Cake.Generation.Mock, self(), pid)
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
+
       Conversation.autoask(pid, "q")
       assert_receive {:convo_response, _, _}, 500
     end
@@ -934,7 +941,6 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
@@ -988,9 +994,12 @@ defmodule Cake.ConversationTest do
 
     test "generate/2 returns response text on success" do
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:ok, %{text: "hello", usage: %{}}})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "hello", usage: %{}}}
+      end)
+
+      allow(Cake.Generation.Mock, self(), pid)
 
       test_pid = self()
       messages = [%{role: "user", content: "q"}]
@@ -1005,9 +1014,12 @@ defmodule Cake.ConversationTest do
 
     test "generate/2 propagates error" do
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:error, :rate_limited})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:error, :rate_limited}
+      end)
+
+      allow(Cake.Generation.Mock, self(), pid)
 
       test_pid = self()
 
@@ -1047,7 +1059,6 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
@@ -1071,12 +1082,14 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:error, :generation_failed})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:error, :generation_failed}
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
       assert_receive {:convo_error, :generation_failed}, 500
@@ -1096,13 +1109,15 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
       assert_receive {:convo_response, "x", []}, 500
@@ -1203,13 +1218,15 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:ok, %{text: "answer", usage: %{}}})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer", usage: %{}}}
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       # Step 1: manualask returns candidates
       assert {:ok, candidates} = Conversation.manualask(pid, "manual question")
@@ -1241,7 +1258,6 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
@@ -1267,7 +1283,6 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
@@ -1284,7 +1299,6 @@ defmodule Cake.ConversationTest do
   describe "invalid transitions" do
     test "select in idle state crashes the GenServer" do
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       ref = Process.monitor(pid)
 
@@ -1309,7 +1323,6 @@ defmodule Cake.ConversationTest do
       end)
 
       {:ok, pid} = start_supervised({Conversation, mocked_opts()})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
@@ -1345,13 +1358,15 @@ defmodule Cake.ConversationTest do
 
       conv_id = "bcast-#{:erlang.unique_integer([:positive])}"
       {:ok, pid} = start_supervised({Conversation, mocked_opts(%{id: conv_id})})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
 
@@ -1369,7 +1384,6 @@ defmodule Cake.ConversationTest do
 
       conv_id = "bcast-err-#{:erlang.unique_integer([:positive])}"
       {:ok, pid} = start_supervised({Conversation, mocked_opts(%{id: conv_id})})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
@@ -1403,13 +1417,15 @@ defmodule Cake.ConversationTest do
 
       conv_id = "bcast-manual-#{:erlang.unique_integer([:positive])}"
       {:ok, pid} = start_supervised({Conversation, mocked_opts(%{id: conv_id})})
-      on_exit(fn -> GenerationStub.clear(pid) end)
 
-      GenerationStub.set_response(pid, {:ok, %{text: "x", usage: %{}}})
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
 
       Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
 

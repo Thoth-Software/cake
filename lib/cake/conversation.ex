@@ -222,7 +222,7 @@ defmodule Cake.Conversation do
   @spec generate([Cake.Prompt.message()], State.t()) ::
           {:ok, String.t()} | {:error, term()}
   def generate(messages, %State{} = s) do
-    case s.generation.complete(messages, s.response_model) do
+    case s.generation.complete(messages, s.response_model, []) do
       {:ok, %{text: response, usage: _usage}} -> {:ok, response}
       {:error, _} = error -> error
     end
