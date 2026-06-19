@@ -327,7 +327,7 @@ lib/
     failed_ingests/          # FailedIngest schema + context
     search.ex                # Cake.Search behaviour (contract only)
     search/
-      query.ex               #   Query struct: build/3, to_opensearch/1
+      query.ex               #   Composable query builder (new/2, knn/4, match/4, to_query_map/1)
       open_search.ex         #   Cake.Search.OpenSearch — real implementation
     candidates.ex            # Pure-function candidate grouping and chunk-ID extraction
     conversation.ex          # Conversation GenServer (orchestrator)
