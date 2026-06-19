@@ -81,7 +81,6 @@ defmodule Cake.Conversation do
     %State{
       id: opts.id,
       search: opts.search,
-      reply_to: opts.reply_to,
       embedder: opts.embedder,
       response_model: opts.response_model,
       provider: opts.provider,
@@ -222,7 +221,7 @@ defmodule Cake.Conversation do
   @spec generate([Cake.Prompt.message()], State.t()) ::
           {:ok, String.t()} | {:error, term()}
   def generate(messages, %State{} = s) do
-    case s.generation.complete(messages, s.response_model) do
+    case s.generation.complete(messages, s.response_model, []) do
       {:ok, %{text: response, usage: _usage}} -> {:ok, response}
       {:error, _} = error -> error
     end
@@ -369,13 +368,11 @@ defmodule Cake.Conversation do
   end
 
   defp emit_response(%State{} = s, response, citations) do
-    send(s.reply_to, {:convo_response, response, citations})
     _ = broadcast(s, {:response_ready, %{response: response, citations: citations}})
     broadcast(s, {:state_change, :idle})
   end
 
   defp emit_error(%State{} = s, error) do
-    send(s.reply_to, {:convo_error, error})
     _ = broadcast(s, {:error, error})
     broadcast(s, {:state_change, :idle})
   end

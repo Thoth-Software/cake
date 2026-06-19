@@ -27,6 +27,17 @@ config :cake, Cake.Documents.Cluster,
   username: "admin",
   password: System.get_env("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
 
+# Default parameters for starting a Cake.Conversation from a web entry point.
+# The :id is generated per session; everything else comes from here so the
+# search backend, GDS, embedder, provider, and response model stay consistent
+# across the app and configurable per environment.
+config :cake, Cake.Conversation,
+  search: Cake.Search.OpenSearch,
+  gds: Cake.Books.ParsedBook,
+  embedder: "text-embedding-ada-002",
+  response_model: "gpt-4o-mini",
+  provider: :openai
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails

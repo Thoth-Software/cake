@@ -77,8 +77,8 @@ defmodule Cake.Jobs.DocumentIngestionJob do
            version_tuple,
            embedding_model
          ) do
-      {:ok, message} ->
-        Logger.info(message)
+      {:ok, %{message: message, indexed: indexed, failed: failed}} ->
+        Logger.info("#{message} (indexed: #{indexed}, failed: #{failed})")
         :ok
 
       {:error, reason} = error ->
