@@ -356,17 +356,6 @@ defmodule Cake.Conversation do
     {:reply, s, s}
   end
 
-  @spec print_hierarchy(map(), list()) :: list()
-  def print_hierarchy(map, prefix \\ []) do
-    for {key, value} <- map do
-      Logger.debug("#{Enum.join(Enum.reverse(prefix), ".")}#{key}")
-
-      if is_map(value) do
-        print_hierarchy(value, [key | prefix])
-      end
-    end
-  end
-
   defp emit_response(%State{} = s, response, citations) do
     _ = broadcast(s, {:response_ready, %{response: response, citations: citations}})
     broadcast(s, {:state_change, :idle})
