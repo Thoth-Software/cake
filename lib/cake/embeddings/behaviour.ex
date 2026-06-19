@@ -8,7 +8,7 @@ defmodule Cake.Embeddings.Behaviour do
 
   @type embedding_result :: %{
           usage: map(),
-          parsed_document: struct(),
+          struct: struct() | nil,
           attrs: %{embedding: [float()]}
         }
 

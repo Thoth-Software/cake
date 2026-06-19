@@ -20,13 +20,18 @@ defmodule Cake.EmbeddingsTest do
   Live OpenAI calls are out of scope for unit tests and will be tagged
   `:integration` per #109.
 
+  ## HTTP stubbing
+
+  Successful responses are now exercised via `Req.Test`: `embed/3` reads an
+  optional `:plug` from its config block (set to `{Req.Test, Cake.Embeddings}`
+  in `config/test.exs`), mirroring `Cake.Generation.OpenAI`. The success test
+  below stubs the OpenAI embeddings response shape and asserts the result
+  threads the caller's struct through.
+
   ## What this file does NOT test
 
-  - Successful HTTP responses — would require an HTTP stub server
-    (Bypass / Req.Test plug). Deferred until a refactor lets `embed/3`
-    accept request options, or a test harness module is introduced.
   - The OpenAI response-shape unhappy paths beyond transport failure —
-    same reason.
+    would require additional stubbed responses; deferred.
   """
 
   use ExUnit.Case, async: false
@@ -61,6 +66,29 @@ defmodule Cake.EmbeddingsTest do
       assert is_binary(message)
       assert message =~ "Cake.Embeddings"
       assert message =~ "Application layer error"
+    end
+  end
+
+  describe "embed/3 success" do
+    test "threads the caller's struct through and returns the embedding attrs" do
+      Req.Test.stub(Cake.Embeddings, fn conn ->
+        Req.Test.json(conn, %{
+          "data" => [%{"embedding" => [0.1, 0.2, 0.3], "index" => 0}],
+          "usage" => %{"prompt_tokens" => 5, "total_tokens" => 5}
+        })
+      end)
+
+      passed = ~D[2025-01-01]
+
+      assert {:ok, result} =
+               Embeddings.embed(
+                 :openai,
+                 %{input: "hello", struct: passed},
+                 "text-embedding-ada-002"
+               )
+
+      assert result.struct == passed
+      assert result.attrs == %{embedding: [0.1, 0.2, 0.3]}
     end
   end
 

@@ -10,16 +10,20 @@ defmodule Cake.Embeddings do
 
   # This needs a spec defining the different error tuples it can return
   @impl Cake.Embeddings.Behaviour
-  def embed(:openai, %{input: input}, model) do
-    [openai_key: api_key, base_url: url] = Application.get_env(:cake, __MODULE__)
+  def embed(:openai, %{input: input} = payload, model) do
+    config = Application.get_env(:cake, __MODULE__, [])
+    api_key = Keyword.fetch!(config, :openai_key)
+    url = Keyword.fetch!(config, :base_url)
+
+    request_opts =
+      maybe_put_plug(
+        [url: url, json: %{model: model, input: input}, auth: {:bearer, api_key}],
+        config
+      )
 
     # Later on, there should probably be multiple function heads of "embed", but
     # extract the following to its own re-used handle_response function.
-    case Req.post(
-           url: url,
-           json: %{model: model, input: input},
-           auth: {:bearer, api_key}
-         ) do
+    case Req.post(request_opts) do
       {:ok,
        %Req.Response{
          status: 200,
@@ -37,13 +41,27 @@ defmodule Cake.Embeddings do
 
         attrs = %{embedding: embedding}
 
-        {:ok, %{usage: usage, input: input, attrs: attrs}}
+        # Thread the caller-provided struct back through untouched: the
+        # Documents pipeline passes the ParsedDocument it is embedding and reads
+        # it back to persist the embedding. Callers that pass no struct (Books)
+        # get nil and ignore it.
+        {:ok, %{usage: usage, struct: Map.get(payload, :struct), attrs: attrs}}
 
       {:ok, %Req.Response{status: code}} ->
         {:error, "#{__MODULE__}  Transport layer error: #{code}"}
 
       {:error, %{reason: reason}} ->
         {:error, "#{__MODULE__}  Application layer error: #{reason}"}
+    end
+  end
+
+  # A `:plug` key in the config (set only in config/test.exs) routes HTTP through
+  # Req.Test for stubbed responses, mirroring Cake.Generation.OpenAI. Production
+  # config omits it.
+  defp maybe_put_plug(opts, config) do
+    case Keyword.get(config, :plug) do
+      nil -> opts
+      plug -> Keyword.put(opts, :plug, plug)
     end
   end
 end

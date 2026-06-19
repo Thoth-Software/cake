@@ -46,3 +46,8 @@ config :cake, Cake.Generation.OpenAI,
   openai_key: "test-key-not-real",
   response_url: "http://localhost/v1/responses",
   plug: {Req.Test, Cake.Generation.OpenAI}
+
+config :cake, Cake.Embeddings,
+  openai_key: "test-key-not-real",
+  base_url: "http://localhost/v1/embeddings",
+  plug: {Req.Test, Cake.Embeddings}
