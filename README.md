@@ -295,7 +295,9 @@ Step names follow `"pipeline.step"` convention (e.g., `"books.parse"`, `"docs.em
 
 ## Search Design
 
-OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi_match), `:vector` (k-NN with cosine similarity, HNSW/FAISS, k=30, ef_search=256), and `:hybrid` (vector in `must`, keyword in `should` with configurable boost). Hybrid is the default because pure vector search struggles with exact identifiers and rare terms, while pure keyword search misses semantic similarity.
+OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi_match), `:vector` (k-NN with cosine similarity over an HNSW/FAISS index; the knn clause sets `k=30` at query time), and `:hybrid` (vector in `must`, keyword in `should` with configurable boost). Hybrid is the default because pure vector search struggles with exact identifiers and rare terms, while pure keyword search misses semantic similarity.
+
+Note: `ef_search` is exposed as a default (`default_ef_search/0`, currently 256) but is **not** currently applied to the query — `build_query/_` sets only `k` on the knn clause. Tuning recall via `ef_search` would require configuring it as an index/engine-level k-NN parameter rather than passing it per query.
 
 `search_chunks_with_context/5` returns a list of `Cake.Search.Result.t()` structs. Direct hits carry `hit_source: :search` and the backend `_score`; expanded neighbors carry `hit_source: :expansion` and `backend_score: nil`. The Result struct is the single carrier of retrieval metadata through the rest of the pipeline (scoring, prompt assembly, response post-processing) — everything above the Search.Result boundary speaks CAKE; everything below speaks vendor. CAKE-computed scores (`cosine_score`, `relevance_score`) are populated by `Search.score_results/2` and `Search.normalize_and_combine/1`; `prompt_index` is populated by `Prompt.prepare_context/2`. Each Result also carries a `Search.Provenance` describing the search conditions (type, query text) under which it was discovered.
 
