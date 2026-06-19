@@ -16,25 +16,42 @@ defmodule CakeWeb.BooksController do
              limit: 1
          ) do
       nil ->
-        conn
-        |> put_status(:not_found)
-        |> text("Book not found")
+        not_found(conn, "Book not found")
 
       %{source_file_path: path} ->
-        if File.exists?(path) do
-          filename = Path.basename(path)
-
-          conn
-          |> put_resp_header(
-            "content-disposition",
-            ~s(attachment; filename="#{filename}")
-          )
-          |> send_file(200, path)
-        else
-          conn
-          |> put_status(:not_found)
-          |> text("File not found on disk")
-        end
+        serve_book(conn, path)
     end
+  end
+
+  # Defense in depth: the path came from a ParsedBook row, but refuse to serve
+  # anything that resolves outside the configured books root so a poisoned or
+  # buggy stored path can't be used to read arbitrary files. The root check
+  # runs before any filesystem access, and an out-of-root path is reported as
+  # "Book not found" so existence is not revealed.
+  defp serve_book(conn, path) do
+    cond do
+      not within_root?(path) -> not_found(conn, "Book not found")
+      not File.exists?(path) -> not_found(conn, "File not found on disk")
+      true -> send_book(conn, path)
+    end
+  end
+
+  defp send_book(conn, path) do
+    conn
+    |> put_resp_header("content-disposition", ~s(attachment; filename="#{Path.basename(path)}"))
+    |> send_file(200, path)
+  end
+
+  defp not_found(conn, message) do
+    conn
+    |> put_status(:not_found)
+    |> text(message)
+  end
+
+  defp within_root?(path) do
+    root = Path.expand(Application.fetch_env!(:cake, :books_download_root))
+    expanded = Path.expand(path)
+
+    expanded == root or String.starts_with?(expanded, root <> "/")
   end
 end

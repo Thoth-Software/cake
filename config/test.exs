@@ -46,3 +46,6 @@ config :cake, Cake.Generation.OpenAI,
   openai_key: "test-key-not-real",
   response_url: "http://localhost/v1/responses",
   plug: {Req.Test, Cake.Generation.OpenAI}
+
+# The books-controller tests stage fixture files under the system temp dir.
+config :cake, :books_download_root, System.tmp_dir!()

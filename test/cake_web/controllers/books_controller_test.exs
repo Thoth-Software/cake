@@ -16,9 +16,30 @@ defmodule CakeWeb.BooksControllerTest do
 
   import Cake.BooksFixtures
 
+  setup :register_and_log_in_user
+
+  describe "authentication" do
+    test "redirects to the login page when the user is not authenticated" do
+      conn = get(build_conn(), ~p"/books/download/whatever.pdf")
+
+      assert redirected_to(conn) =~ "/users/log_in"
+    end
+  end
+
   describe "GET /books/download/*file_path" do
     test "returns 404 when no ParsedBook matches the requested path", %{conn: conn} do
       conn = get(conn, ~p"/books/download/no/such/book.pdf")
+
+      assert response(conn, 404) =~ "Book not found"
+    end
+
+    test "returns 404 when the stored path resolves outside the allowed root", %{conn: conn} do
+      # /etc/passwd exists on the host but is outside the books root, so even a
+      # (poisoned) ParsedBook row pointing at it must never be served.
+      outside_path = "/etc/passwd"
+      _book = parsed_book_fixture(%{source_file_path: outside_path})
+
+      conn = get(conn, ~p"/books/download/#{outside_path}")
 
       assert response(conn, 404) =~ "Book not found"
     end
