@@ -91,16 +91,16 @@ There is deliberately no `Cake.Ingestion` behaviour unifying the two pipeline be
 
 **`Cake.Documents.Cluster`** is the OpenSearch `Snap.Cluster` — connection management and index lifecycle only, not query logic. Query construction lives in `Cake.Search.Query`.
 
-**`Cake.Embeddings`** calls the configured embedding service (OpenAI by default). Implements `Cake.Embeddings.Behaviour` for Mox substitution. Title is prepended to text before embedding. Used at both ingestion time (by pipelines) and query time (by the conversation layer).
+**`Cake.Embeddings`** calls the configured embedding service (OpenAI by default). Implements `Cake.Embeddings.Behaviour` for Mox substitution. It embeds the text it is given verbatim — it does no title prepending itself. At ingestion time the pipelines prepend a title to the text before calling it (the chunk's `section_title` for books, the document `title` for docs); query-time callers embed the question as-is. Used at both ingestion time (by pipelines) and query time (by the conversation layer).
 
 Tenant isolation uses multiple OpenSearch indices against a shared backend cluster, with bespoke frontends per client.
 
 ### Layer 3: Conversation — Stateful Multi-Turn RAG
 
-This layer is organized around a single principle: **`Cake.Conversation` is the sole orchestrator, and every other module in the layer is a peer service that it calls.** The dependency graph is a DAG. Service modules don't know about each other, with one exception (`Prompt` calls `Generation` for query decomposition).
+This layer is organized around a single principle: **`Cake.Conversation` is the sole orchestrator, and every other module in the layer is a peer service that it calls.** The dependency graph is a DAG. Service modules don't know about each other. (One peer-to-peer call is planned but not yet implemented: `Prompt` will call `Generation` for query decomposition — see Roadmap.)
 
 ```
-Conversation → Prompt → Generation
+Conversation → Prompt
 Conversation → Search (Cake.Search behaviour → Cake.Search.OpenSearch → Cluster)
 Conversation → Embeddings
 Conversation → Generation
@@ -109,11 +109,11 @@ Conversation → Responses
 
 **`Cake.Conversation`** is a GenServer managing single-conversation state: message history, retrieved chunks, chunk map, citations, accumulated errors. A turn starts one of two ways: `autoask/2` runs the full retrieve-and-generate loop automatically, while `manualask/2` retrieves and returns candidate documents (`[Search.Result.t()]`) for the user to pick from — `select_docs/2` then supplies the chosen document ids and generation proceeds. Follow-up turns reuse cached search results rather than re-retrieving.
 
-**`Cake.Prompt`** owns prompt engineering. Builds the messages list for the LLM (system prompt, conversation history, retrieved context as a numbered block, user question). Handles query decomposition by calling `Generation` when needed. Filters chunks by relevance floor and chunk ceiling, assigns dense 1..N indices.
+**`Cake.Prompt`** owns prompt engineering. Builds the messages list for the LLM (system prompt, conversation history, retrieved context as a numbered block, user question). Filters chunks by relevance floor and chunk ceiling, assigns dense 1..N indices. Query decomposition is planned (it would call `Generation`) but not yet implemented — see Roadmap.
 
 **`Cake.Retrieval`** (planned) will own retrieval strategy: search, scoring, autorating. Currently these responsibilities are split between `Conversation` and `Search.OpenSearch`.
 
-**`Cake.Generation`** owns LLM completions. Accepts a messages list, calls the LLM API, returns response content. Both `Conversation` (main answer) and `Prompt` (query decomposition) call it. Defines `Cake.Generation` as a behaviour; `Cake.Generation.OpenAI` is the real implementation. `Cake.Generation.Anthropic` is a placeholder stub.
+**`Cake.Generation`** owns LLM completions. Accepts a messages list, calls the LLM API, returns response content. Currently only `Conversation` (main answer) calls it; the planned `Prompt` query-decomposition caller is not yet implemented. Defines `Cake.Generation` as a behaviour; `Cake.Generation.OpenAI` is the real implementation. `Cake.Generation.Anthropic` is a placeholder stub.
 
 **`Cake.Responses`** handles post-generation processing. Builds the chunk map (integer index → chunk metadata), parses citation markers, deduplicates, and assembles the final structured response. Uses `Cake.Citations` for citation parsing. `Cake.Responses.Behaviour` defines the contract; `Cake.Responses.Result` is the output struct.
 
@@ -207,7 +207,7 @@ Behaviours in Cake define module-level contracts. The question they answer is "w
 | `Cake.GDS` | `lib/cake/gds.ex` | Module-level contract for a Generic Data Structure. Declares index name, search fields, hit hydration, neighbor expansion. | `Cake.Books.ParsedBook`, `Cake.Documents.ParsedDocument` |
 | `Cake.Books.Pipeline` | `lib/cake/books/pipeline.ex` | Ingestion behaviour for book-like documents. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. | `Cake.Books.Pdf.Pipeline` |
 | `Cake.Documents.Pipeline` | `lib/cake/documents/pipeline.ex` | Ingestion behaviour for programming documentation. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`. | `Cake.Documents.Hexdocs.Pipeline` |
-| `Cake.Embeddings.Behaviour` | `lib/cake/embeddings.ex` | Contract for embedding services. | `Cake.Embeddings` (OpenAI impl) |
+| `Cake.Embeddings.Behaviour` | `lib/cake/embeddings/behaviour.ex` | Contract for embedding services. | `Cake.Embeddings` (OpenAI impl, in `lib/cake/embeddings.ex`) |
 | `Cake.Generation` | `lib/cake/generation.ex` | Contract for LLM completion services. | `Cake.Generation.OpenAI`, `Cake.Generation.Anthropic` (stub) |
 | `Cake.Search` | `lib/cake/search.ex` | Contract for search backends. | `Cake.Search.OpenSearch` |
 | `Cake.Responses.Behaviour` | `lib/cake/responses/behaviour.ex` | Contract for post-generation response processing. | `Cake.Responses` |
@@ -221,7 +221,7 @@ Protocols in Cake define value-level contracts. The question they answer is "wha
 | Protocol | Module | Purpose | Current Implementations |
 |---|---|---|---|
 | `Cake.Promptable` | `lib/cake/promptable.ex` | Renders a struct as prompt context for the LLM. Each implementation defines how its data should appear in the numbered context block. | `Cake.Books.Chunk`, `Cake.Documents.ParsedDocument` |
-| `Cake.Citable` | `lib/cake/citable.ex` | Extracts citation metadata from a struct. Returns a map with `label`, `source_ref`, `preview`, and `extras`. | `Cake.Books.Chunk`, `Cake.Documents.ParsedDocument` |
+| `Cake.Citable` | `lib/cake/citable.ex` | Extracts citation metadata from a struct. Returns a map with exactly five keys: `id`, `label`, `source_ref`, `preview`, and `extras`. | `Cake.Books.Chunk`, `Cake.Documents.ParsedDocument` |
 
 ---
 
@@ -252,7 +252,7 @@ The question to ask when designing a new GDS is *Why is the customer interested 
 1. **Design the schema(s).** Decide single-schema vs. parent/child. Use `Cake.Schema`. Every changeset with string fields must call `sanitize_text_fields/1`. UUIDs are binary.
 2. **Declare `use Cake.GDS` on the identity module.** Implement `index_name/0`, `search_fields/0`, `load_from_hits/1`. Override `expand_with_neighbors/2` if the GDS has ordering; otherwise inherit the identity default.
 3. **Implement `Cake.Promptable`** on the retrieval-unit schema. Define how a search result renders in the numbered context block.
-4. **Implement `Cake.Citable`** on the retrieval-unit schema. Define citation metadata: `label`, `source_ref`, `preview`, `extras`.
+4. **Implement `Cake.Citable`** on the retrieval-unit schema. Define citation metadata — the map must carry exactly five keys: `id`, `label`, `source_ref`, `preview`, `extras`.
 5. **Design a pipeline behaviour** targeting this GDS, or implement an existing one if the GDS already has a behaviour.
 6. **Create an OpenSearch index mapping.** Embedding dimension must match the configured model (currently 1536 for `text-embedding-ada-002`).
 7. **Thread the GDS through `Cake.Conversation`.** Pass `gds: YourGDS` in opts. `Cake.Search.OpenSearch` will use the GDS's callbacks for index name, field selection, hit hydration, and neighbor expansion.
@@ -318,7 +318,9 @@ lib/
   schema.ex                  # Base Ecto schema macro — `use Cake.Schema` (lib/schema.ex, not under cake/)
   cake/
     application.ex           # OTP application + supervision tree
+    mailer.ex                # Swoosh mailer (Phoenix scaffolding)
     accounts/                # Phoenix auth (User, UserToken, UserNotifier)
+    books.ex                 # Books context (CRUD over ParsedBook + Chunk)
     books/                   # Book ingestion subsystem (ParsedBook + Chunk GDS)
       chunk.ex               #   Chunk schema (retrieval unit)
       parsed_book.ex         #   ParsedBook schema (GDS identity)
@@ -381,18 +383,24 @@ lib/
     router.ex                # Routes + auth pipelines
     user_auth.ex             # Auth plugs + LiveView on_mount hooks
   mix/tasks/
-    hooks.install.ex         # `mix hooks.install` — installs the pre-push git hook
+    hooks.install.ex         # `mix hooks.install` — installs the git hooks from priv/hooks/
 
-test/
+test/                        # (abbreviated — test/cake/ and test/cake_web/ mirror lib/)
+  test_helper.exs            # Sets skip_opensearch; starts ExUnit
   support/
-    factory.ex               # ExMachina test data factories
-    data_case.ex             # Ecto sandbox setup
-    conn_case.ex             # Phoenix conn setup
-    oban_case.ex             # Oban testing helpers
-    test_pipeline.ex         # Mock pipeline implementations
-  cake/
-    citations_test.exs
-    citations_property_test.exs
+    data_case.ex             #   Ecto sandbox setup
+    conn_case.ex             #   Phoenix conn setup
+    oban_case.ex             #   Oban testing helpers
+    factory.ex               #   Cake.Factory (ExMachina) — non-Ecto structs via build/1 (e.g. ConvoChunk)
+    fixtures/                #   Phoenix-style *_fixture/1 helpers for Ecto schemas
+    test_pipeline.ex         #   Mock pipeline implementations
+    mocks.ex                 #   Mox mock definitions
+    fixture_gds.ex           #   Test GDS used by search/conversation tests
+    convo_chunk.ex           #   Cake.Test.ConvoChunk struct (built by the factory)
+    stub_chunk.ex            #   Minimal chunk stub
+    query_generators.ex      #   StreamData generators for property tests
+  cake/                      # Unit tests mirroring lib/cake/ (incl. *_property_test.exs)
+  cake_web/                  # Controller + LiveView tests mirroring lib/cake_web/
 
 config/
   dev.exs                    # Dev config (live reload, logging)
