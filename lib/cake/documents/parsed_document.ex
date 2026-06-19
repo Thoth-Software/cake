@@ -110,8 +110,8 @@ defmodule Cake.Documents.ParsedDocument do
       :version,
       :package,
       # :title,
-      :url
-      # text:
+      :url,
+      :text
     ])
     |> sanitize_text_fields()
   end

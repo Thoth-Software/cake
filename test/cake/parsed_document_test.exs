@@ -47,6 +47,13 @@ defmodule Cake.ParsedDocumentTest do
       assert {:error, %Ecto.Changeset{}} = ParsedDocuments.create_parsed_document(@invalid_attrs)
     end
 
+    test "create_parsed_documents/1 without text returns an error requiring text" do
+      attrs = %{source: "s", version: "v", package: "p", url: "u", title: "t", core: true}
+
+      assert {:error, changeset} = ParsedDocuments.create_parsed_document(attrs)
+      assert "can't be blank" in errors_on(changeset).text
+    end
+
     test "update_parsed_documents/2 with valid data updates the parsed_documents" do
       parsed_documents = parsed_documents_fixture()
 
