@@ -4,7 +4,7 @@ tags: [claude-code, ai-instructions, conventions, quality-gates]
 date: 2026-04-15
 domain: development, ai-workflow
 source: project-maintainer
-last_verified: 2026-04-15
+last_verified: 2026-06-19
 last_reviewed: 2026-04-23 [jasper]
 ---
 
@@ -14,7 +14,7 @@ This file governs how you work on Cake. The README describes what things are and
 
 For architecture, module responsibilities, data schemas, domain model, cardinality mappings, behaviours, protocols, and the RAG loop, read the README. Do not duplicate that understanding here — reference it.
 
-*Certified accurate by caleb-bb on 2026-04-16*
+*Certified accurate by Claude on 2026-06-19*
 
 ---
 
@@ -26,7 +26,7 @@ Read these files in full before making any changes:
 
 - `README.md` — the architecture reference. Understand the domain model and module boundaries before touching code.
 - `priv/reference/naming-conventions.md` — at the start of any task involving naming (modules, functions, variables, atoms).
-- `priv/reference/enum-cheat.md` — before writing any collection transformation. If you're about to write explicit recursion over a list, check this first.
+- `priv/reference/enum-cheat.cheatmd` — before writing any collection transformation. If you're about to write explicit recursion over a list, check this first.
 
 ### Load by trigger
 
@@ -36,13 +36,13 @@ These reference files in `priv/reference/` should be loaded when the task matche
 |---|---|
 | Refactor function bodies, change pattern matching, modify string/list/map logic, add parameters, change arity, modify exception handling, introduce boolean/flag params | `code-anti-patterns.md` + `patterns-and-guards.md` |
 | Create/rename/move modules, restructure directories, define new public APIs or behaviours, add/change structs or schemas, introduce dependencies, change module call graphs, add config | `design-anti-patterns.md` |
-| Write/modify macros, `use` declarations, `quote`/`unquote`, DSLs, compile-time code generation | `macro-anti-patterns.md` + `macros.md` + `quote-and-unquote.md` |
+| Write/modify macros, `use` declarations, `quote`/`unquote`, DSLs, compile-time code generation | `macro-anti-patterns.md` + `macros.md` |
 | Create/modify/supervise GenServers/Agents/Tasks, modify supervision tree, use spawn/Task.async, work with Registry/PubSub/message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` (add `dynamic-supervisor.md` if dynamic spawning) |
 | Write/modify `@type`, `@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
 | Write/modify public API for external consumption, design behaviours for third-party use | `library-guidelines.md` |
 | Add a new GDS, modify an existing GDS's contract, or implement `Cake.GDS` / `Cake.Promptable` / `Cake.Citable` on a schema or struct | README's "Cardinality" + "Adding a New GDS" sections; `lib/cake/gds.ex` + `lib/cake/promptable.ex` + `lib/cake/citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md` |
 
-*Certified accurate by caleb-bb on 2026-04-16*
+*Certified accurate by Claude on 2026-06-19*
 
 ---
 
@@ -59,7 +59,7 @@ mix coveralls.json                         # Must not reduce coverage below thre
 
 `mix quality.fast` (compile + credo) is the minimum local check. `mix quality` adds dialyzer. Tests run with `MIX_ENV=test`; the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first.
 
-Dialyzer is not yet a hard push gate (the config line is commented out). Dialyzer is, however, a hard *merge* gate.
+Dialyzer is not a push gate. In CI it runs only on pull requests — the `dialyzer` job in `.github/workflows/quality.yml` is guarded by `if: github.event_name == 'pull_request'` — which makes it a hard *merge* gate rather than a push gate.
 
 ### Pre-push command
 
@@ -133,7 +133,7 @@ Consult the README section "Adding a New GDS" before starting. The checklist inc
 - Add a factory via `build/1` in `test/support/factory.ex`.
 - Add the struct to the README's "Custom Structs" section.
 
-*Certified accurate by caleb-bb on 2026-04-16*
+*Certified accurate by Claude on 2026-06-19*
 
 ---
 
@@ -159,7 +159,7 @@ Modules that depend on external services accept collaborator modules as argument
 
 All pipeline callbacks return `{:ok, _}` or `{:error, _}`. Stream steps use `Pipelines.detuple_with_logging/3` — never the silent `detuple/1`. Step names follow `"pipeline.step"` convention. Pipeline-fatal errors go in the `else` branch of the `with` chain in each behaviour's `ingest` function.
 
-*Certified accurate by caleb-bb on 2026-04-16*
+*Certified accurate by Claude on 2026-06-19*
 
 ---
 
@@ -212,7 +212,7 @@ After completing any task that changes architecture, module boundaries, conventi
 
 **The enumeration rule:** If the README contains a list of things (behaviours, protocols, structs, implementations, pipeline implementations, etc.) and you create a new instance of that kind of thing, add it to the list. For example: if you create a new behaviour, add it to the "Behaviours and Implementations" section. If you implement a protocol for a new struct, add the implementation to the "Protocols and Implementations" section. If you create a new schema, add it to the "Custom Structs" section.
 
-*Certified accurate by caleb-bb on 2026-04-16*
+*Certified accurate by Claude on 2026-06-19*
 
 ---
 
@@ -236,7 +236,4 @@ The dev environment runs three containers via `docker-compose.yml`: `cake_app`, 
 
 If your task touches any of these, flag it to the user rather than silently resolving or ignoring it.
 
-- **`Conversation.start_link/6` positional args**: Should eventually accept a struct.
 - **Post-demo formats**: Word, Excel, CSV, JPG pipelines are explicitly deferred.
-- **`Responses` hardcoded to `Chunk`**: Generalizing post-processing beyond `Cake.Books.Chunk` to work with any GDS's atomic unit is a known TODO.
-- **`search_fields/0` behaviour extraction**: TODO to extract into a behaviour on the pipeline generics so each GDS declares its searchable fields.

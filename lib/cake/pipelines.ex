@@ -259,16 +259,6 @@ defmodule Cake.Pipelines do
     summarize_ingest(message, indexed, failed)
   end
 
-  @spec detuple(Enumerable.t()) :: Enumerable.t()
-  def detuple(stream_enumerable) do
-    stream_enumerable
-    |> Stream.filter(fn
-      {:ok, _} -> true
-      _ -> false
-    end)
-    |> Stream.map(fn {:ok, value} -> value end)
-  end
-
   @spec build_context(atom(), atom(), any(), list()) :: context()
   def build_context(behaviour_module, source_pipeline, version, opts \\ [])
 
