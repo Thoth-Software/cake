@@ -56,10 +56,14 @@ defmodule Cake.Candidates do
 
   @spec expand_to_chunk_ids([String.t()], grouped()) :: [term()]
   def expand_to_chunk_ids(selected_doc_ids, candidates) do
-    lookup = Map.new(candidates)
+    # The selection form carries doc ids as strings (ChatLive builds them with
+    # to_string/1), so the lookup is keyed by the same stringified form. Keying
+    # on the raw term silently misses whenever a doc id is not already a plain
+    # string.
+    lookup = Map.new(candidates, fn {doc_id, chunks} -> {to_string(doc_id), chunks} end)
 
     Enum.flat_map(selected_doc_ids, fn doc_id ->
-      chunks = Map.get(lookup, doc_id, [])
+      chunks = Map.get(lookup, to_string(doc_id), [])
       Enum.map(chunks, fn {chunk, _scores} -> Citable.metadata(chunk).id end)
     end)
   end
