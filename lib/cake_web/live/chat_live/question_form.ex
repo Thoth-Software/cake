@@ -1,5 +1,10 @@
 defmodule CakeWeb.ChatLive.QuestionForm do
-  use Ecto.Schema
+  @moduledoc """
+  Embedded-schema form backing the chat question input. Validates that a
+  question and a mode (`:auto` or `:manual`) are present.
+  """
+
+  use Cake.Schema
 
   import Ecto.Changeset
 
@@ -20,5 +25,6 @@ defmodule CakeWeb.ChatLive.QuestionForm do
     |> cast(attrs, [:question, :mode])
     |> validate_required([:question, :mode])
     |> validate_length(:question, min: 1)
+    |> sanitize_text_fields()
   end
 end

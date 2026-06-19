@@ -1,5 +1,10 @@
 defmodule CakeWeb.ChatLive.SelectionForm do
-  use Ecto.Schema
+  @moduledoc """
+  Embedded-schema form backing the manual document-selection UI. Validates that
+  the submitted ids are a non-empty subset of the candidate document ids.
+  """
+
+  use Cake.Schema
 
   import Ecto.Changeset
 
@@ -19,7 +24,8 @@ defmodule CakeWeb.ChatLive.SelectionForm do
     %__MODULE__{}
     |> cast(attrs, [:selected_doc_ids])
     |> validate_length(:selected_doc_ids, min: 1)
-    |> validate_subset_of(:selected_doc_ids, available_doc_ids)
+    |> validate_subset(:selected_doc_ids, available_doc_ids)
+    |> sanitize_text_fields()
   end
 
   defp filter_empty_doc_ids(%{"selected_doc_ids" => ids} = attrs) when is_list(ids) do
@@ -27,14 +33,4 @@ defmodule CakeWeb.ChatLive.SelectionForm do
   end
 
   defp filter_empty_doc_ids(attrs), do: attrs
-
-  defp validate_subset_of(changeset, field, available) do
-    validate_change(changeset, field, fn _, selected ->
-      if Enum.all?(selected, &(&1 in available)) do
-        []
-      else
-        [{field, "contains IDs not in the available set"}]
-      end
-    end)
-  end
 end
