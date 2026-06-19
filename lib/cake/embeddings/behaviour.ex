@@ -6,9 +6,16 @@ defmodule Cake.Embeddings.Behaviour do
   embeddings from parsed documents.
   """
 
+  @typedoc """
+  Result of a successful embedding call.
+
+  `struct` is the input struct passed back through unchanged, so the caller can
+  pair the embedding with the record it embedded (nil when the caller did not
+  supply one). `attrs` carries the embedding for an `update_*` changeset.
+  """
   @type embedding_result :: %{
           usage: map(),
-          parsed_document: struct(),
+          struct: struct() | nil,
           attrs: %{embedding: [float()]}
         }
 

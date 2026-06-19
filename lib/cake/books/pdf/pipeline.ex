@@ -96,7 +96,11 @@ defmodule Cake.Books.Pdf.Pipeline do
 
   @spec build_chunks([PageContent.t()]) :: [Chunk.t()]
   defp build_chunks(pages) do
+    # Reject blank pages BEFORE assigning chunk_index so the indices stay dense.
+    # Indexing first and rejecting after leaves holes that break neighbor
+    # expansion and page-range queries downstream.
     pages
+    |> Enum.reject(&(String.trim(&1.text) == ""))
     |> Enum.with_index()
     |> Enum.map(fn {page, index} ->
       %Chunk{
@@ -107,7 +111,6 @@ defmodule Cake.Books.Pdf.Pipeline do
         char_count: String.length(page.text)
       }
     end)
-    |> Enum.reject(&(String.trim(&1.text) == ""))
   end
 
   @impl Cake.Books.Pipeline

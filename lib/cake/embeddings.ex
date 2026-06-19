@@ -10,15 +10,21 @@ defmodule Cake.Embeddings do
 
   # This needs a spec defining the different error tuples it can return
   @impl Cake.Embeddings.Behaviour
-  def embed(:openai, %{input: input}, model) do
-    [openai_key: api_key, base_url: url] = Application.get_env(:cake, __MODULE__)
+  def embed(:openai, %{input: input} = params, model) do
+    config = Application.get_env(:cake, __MODULE__, [])
+    api_key = Keyword.fetch!(config, :openai_key)
+    url = Keyword.fetch!(config, :base_url)
+    # `:req_options` lets tests inject a `Req.Test` plug; empty in prod.
+    req_options = Keyword.get(config, :req_options, [])
 
     # Later on, there should probably be multiple function heads of "embed", but
     # extract the following to its own re-used handle_response function.
     case Req.post(
-           url: url,
-           json: %{model: model, input: input},
-           auth: {:bearer, api_key}
+           [
+             url: url,
+             json: %{model: model, input: input},
+             auth: {:bearer, api_key}
+           ] ++ req_options
          ) do
       {:ok,
        %Req.Response{
@@ -37,7 +43,7 @@ defmodule Cake.Embeddings do
 
         attrs = %{embedding: embedding}
 
-        {:ok, %{usage: usage, input: input, attrs: attrs}}
+        {:ok, %{usage: usage, struct: Map.get(params, :struct), attrs: attrs}}
 
       {:ok, %Req.Response{status: code}} ->
         {:error, "#{__MODULE__}  Transport layer error: #{code}"}

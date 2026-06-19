@@ -8,8 +8,9 @@ defmodule Cake.EmbeddingsTest do
 
     1. reads `:openai_key` and `:base_url` from `Application.get_env/2`,
     2. calls `Req.post/1` against the configured URL, and
-    3. pattern-matches the response into `{:ok, %{usage, input, attrs}}`
-       or one of two `{:error, ...}` shapes.
+    3. pattern-matches the response into `{:ok, %{usage, struct, attrs}}`
+       (echoing the input struct back through) or one of two `{:error, ...}`
+       shapes.
 
   There is **no batching, no title prepending, and no token-counting logic**
   in this repo (despite earlier issue text). The function is an integration
@@ -20,13 +21,13 @@ defmodule Cake.EmbeddingsTest do
   Live OpenAI calls are out of scope for unit tests and will be tagged
   `:integration` per #109.
 
+  The success path is exercised below via a `Req.Test` plug injected through
+  the `:req_options` config key.
+
   ## What this file does NOT test
 
-  - Successful HTTP responses — would require an HTTP stub server
-    (Bypass / Req.Test plug). Deferred until a refactor lets `embed/3`
-    accept request options, or a test harness module is introduced.
-  - The OpenAI response-shape unhappy paths beyond transport failure —
-    same reason.
+  - Live OpenAI calls (real network) — tagged `:integration` per #109.
+  - The OpenAI response-shape unhappy paths beyond transport failure.
   """
 
   use ExUnit.Case, async: false
@@ -73,6 +74,43 @@ defmodule Cake.EmbeddingsTest do
     test "Cake.Embeddings implements Cake.Embeddings.Behaviour" do
       behaviours = Cake.Embeddings.module_info(:attributes)[:behaviour] || []
       assert Cake.Embeddings.Behaviour in behaviours
+    end
+  end
+
+  describe "embed/3 success" do
+    setup do
+      Application.put_env(:cake, Cake.Embeddings,
+        openai_key: "test-key",
+        base_url: "https://api.test.local/v1/embeddings",
+        req_options: [plug: {Req.Test, Cake.EmbeddingsStub}]
+      )
+
+      Req.Test.stub(Cake.EmbeddingsStub, fn conn ->
+        Req.Test.json(conn, %{
+          "data" => [%{"embedding" => [0.1, 0.2, 0.3]}],
+          "usage" => %{"total_tokens" => 5}
+        })
+      end)
+
+      :ok
+    end
+
+    test "echoes the input struct and returns the embedding under :attrs" do
+      doc = %{id: "doc-1", body: "anything"}
+
+      assert {:ok, result} =
+               Embeddings.embed(:openai, %{input: "hi", struct: doc}, "text-embedding-ada-002")
+
+      assert result.struct == doc
+      assert result.attrs == %{embedding: [0.1, 0.2, 0.3]}
+      assert is_map(result.usage)
+    end
+
+    test "struct is nil when the input carries no struct" do
+      assert {:ok, result} = Embeddings.embed(:openai, %{input: "hi"}, "text-embedding-ada-002")
+
+      assert result.struct == nil
+      assert result.attrs == %{embedding: [0.1, 0.2, 0.3]}
     end
   end
 end
