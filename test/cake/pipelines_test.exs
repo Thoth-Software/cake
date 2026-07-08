@@ -240,4 +240,135 @@ defmodule Cake.PipelinesTest do
       assert failure.version == "1.18.3"
     end
   end
+
+  describe "detuple_with_logging/3" do
+    test "passes through {:ok, value} tuples, unwrapped" do
+      ctx = build_ctx([])
+      stream = Stream.map([{:ok, :a}, {:ok, :b}], & &1)
+
+      result = Enum.to_list(Pipelines.detuple_with_logging(stream, "test.step", ctx))
+
+      assert result == [:a, :b]
+    end
+
+    test "filters out {:error, reason} tuples and persists failures" do
+      ctx = build_ctx(version: {7, 7, 7})
+      stream = Stream.map([{:ok, :good}, {:error, {"id1", "boom"}}], & &1)
+
+      result = Enum.to_list(Pipelines.detuple_with_logging(stream, "test.step", ctx))
+
+      assert result == [:good]
+
+      failures = Cake.FailedIngests.list_failed_ingests()
+      assert Enum.any?(failures, &(&1.step == "test.step" && &1.input_identifier == "id1"))
+    end
+
+    test "filters out unexpected non-tuple values and persists failures" do
+      ctx = build_ctx(version: {8, 8, 8})
+      stream = Stream.map([{:ok, :good}, :bare_atom], & &1)
+
+      result = Enum.to_list(Pipelines.detuple_with_logging(stream, "test.step", ctx))
+
+      assert result == [:good]
+
+      failures = Cake.FailedIngests.list_failed_ingests()
+      assert Enum.any?(failures, &(&1.step == "test.step"))
+    end
+  end
+
+  describe "log_and_persist_failure/3" do
+    test "persists a FailedIngest with the step name and error info" do
+      ctx = build_ctx(version: {6, 6, 6})
+
+      {:ok, failure} =
+        Pipelines.log_and_persist_failure(ctx, "manual.step", {"doc-42", "timeout"})
+
+      assert failure.step == "manual.step"
+      assert failure.input_identifier == "doc-42"
+      assert failure.error_text == "timeout"
+    end
+  end
+
+  describe "handle_ingest_error/2" do
+    test "handles {:error, step, error} with atom step" do
+      ctx = build_ctx(version: {5, 5, 5})
+
+      result = Pipelines.handle_ingest_error({:error, :download, "git failed"}, ctx)
+
+      assert {:error, {:download, "git failed"}} = result
+    end
+
+    test "handles {:error, error} without step" do
+      ctx = build_ctx(version: {5, 5, 5})
+
+      {:ok, failure} = Pipelines.handle_ingest_error({:error, "network timeout"}, ctx)
+
+      assert failure.step == "ingest"
+      assert failure.pipeline_fatal == true
+    end
+  end
+
+  describe "sweep/5" do
+    test "returns {0, 0} when no failures exist" do
+      assert {0, 0} =
+               Pipelines.sweep(
+                 "Cake.Test.Pipeline",
+                 "Cake.TestImpl",
+                 "1.0.0",
+                 fn _ -> {:ok, :retried} end
+               )
+    end
+
+    test "retries failures and counts resolved" do
+      ctx = build_ctx(version: {3, 3, 3})
+      insert_failure(ctx, pipeline_fatal: false)
+
+      {resolved, remaining} =
+        Pipelines.sweep(
+          ctx.behaviour,
+          ctx.implementation,
+          ctx.version,
+          fn failure ->
+            Cake.FailedIngests.delete_failed_ingest(failure)
+            {:ok, :retried}
+          end
+        )
+
+      assert resolved == 1
+      assert remaining == 0
+    end
+
+    test "stops early when no progress is made" do
+      ctx = build_ctx(version: {2, 2, 2})
+      insert_failure(ctx, pipeline_fatal: false)
+
+      {resolved, remaining} =
+        Pipelines.sweep(
+          ctx.behaviour,
+          ctx.implementation,
+          ctx.version,
+          fn _failure -> {:error, :permanent} end
+        )
+
+      assert resolved == 0
+      assert remaining == 1
+    end
+
+    test "respects max_sweeps option" do
+      ctx = build_ctx(version: {1, 1, 1})
+      insert_failure(ctx, pipeline_fatal: false)
+
+      {resolved, remaining} =
+        Pipelines.sweep(
+          ctx.behaviour,
+          ctx.implementation,
+          ctx.version,
+          fn _failure -> {:error, :permanent} end,
+          max_sweeps: 1
+        )
+
+      assert resolved == 0
+      assert remaining == 1
+    end
+  end
 end

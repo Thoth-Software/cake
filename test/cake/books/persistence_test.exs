@@ -56,4 +56,28 @@ defmodule Cake.Books.PersistenceTest do
     by_index = Enum.sort_by(persisted_chunks, & &1.chunk_index)
     assert Enum.map(by_index, & &1.page_number) == [1, 3, 6]
   end
+
+  test "returns {:error, :invalid_input, _} for non-ParsedBook inputs" do
+    assert {:error, {:invalid_input, _}} =
+             Persistence.persist_books_and_chunks({"not_a_book", []})
+  end
+
+  test "deduplicates by file_hash, returning existing book and chunks" do
+    b = book()
+    chunks = [chunk(0, 1)]
+
+    {:ok, {first_book, first_chunks}} = Persistence.persist_books_and_chunks({b, chunks})
+
+    dupe = %ParsedBook{b | source_file_path: "/tmp/different.pdf", file_hash: b.file_hash}
+    {:ok, {second_book, second_chunks}} = Persistence.persist_books_and_chunks({dupe, chunks})
+
+    assert first_book.id == second_book.id
+    assert length(first_chunks) == length(second_chunks)
+  end
+
+  test "returns error for chunks missing required fields" do
+    bad_chunk = %Chunk{text: nil, chunk_index: nil, word_count: nil, char_count: nil}
+
+    assert {:error, _} = Persistence.persist_books_and_chunks({book(), [bad_chunk]})
+  end
 end
