@@ -1,5 +1,5 @@
 # Use an official Elixir runtime as a parent image.
-FROM hexpm/elixir:1.17.3-erlang-27.1.2-debian-bookworm-20241016-slim
+FROM hexpm/elixir:1.20.2-erlang-28.5.0.3-debian-bookworm-20260623-slim
 
 ARG USER_ID=1000
 ARG GROUP_ID=1000
