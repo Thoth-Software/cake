@@ -43,7 +43,6 @@ defmodule Cake.Search.OpenSearch do
   def default_expand_offset, do: @default_expand_offset
 
   @doc "Execute an arbitrary `%Query{}` against the default cluster."
-  @impl Cake.Search
   @spec search(Query.t()) :: {:ok, Snap.SearchResponse.t()} | {:error, any()}
   def search(%Query{} = query) do
     Snap.Search.search(@default_cluster, query.index, Query.to_query_map(query))

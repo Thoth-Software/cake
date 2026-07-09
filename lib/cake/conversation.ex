@@ -39,6 +39,8 @@ defmodule Cake.Conversation do
 
   require Logger
 
+  @default_expand_offset 2
+
   @spec child_spec(map()) :: Supervisor.child_spec()
   def child_spec(opts) do
     %{
@@ -264,7 +266,7 @@ defmodule Cake.Conversation do
              :hybrid,
              question,
              embedding,
-             Cake.Search.OpenSearch.default_expand_offset(),
+             @default_expand_offset,
              gds: s.gds
            ) do
       scored_results =

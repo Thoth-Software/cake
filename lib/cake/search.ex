@@ -25,12 +25,9 @@ defmodule Cake.Search do
   @type search_result :: {:ok, Snap.SearchResponse.t()} | {:error, any()}
   @type result_list :: [Result.t()]
 
-  @doc "Execute an arbitrary `%Cake.Search.Query{}` against the cluster."
-  @callback search(Cake.Search.Query.t()) :: search_result()
-
   @doc """
   Search for retrieval units (chunks, documents — determined by the GDS
-  passed via `opts[:gds]`). Returns raw OpenSearch hits. `embedding` may be
+  passed via `opts[:gds]`). Returns raw backend hits. `embedding` may be
   nil for keyword-only search.
   """
   @callback search_chunks(search_type(), String.t(), [float()] | nil, search_opts()) ::

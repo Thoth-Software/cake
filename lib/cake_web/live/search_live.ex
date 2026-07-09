@@ -42,16 +42,24 @@ defmodule CakeWeb.SearchLive do
     end
   end
 
+  defp conversation_config do
+    Application.fetch_env!(:cake, Cake.Conversation)
+  end
+
   defp run_search(query) do
+    config = conversation_config()
+    search = config[:search]
+    gds = config[:gds]
+
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Cake.Embeddings.embed(:openai, %{input: query}, "text-embedding-ada-002"),
          {:ok, search_results} <-
-           Cake.Search.OpenSearch.search_chunks_with_context(
+           search.search_chunks_with_context(
              :hybrid,
              query,
              embedding,
-             Cake.Search.OpenSearch.default_expand_offset(),
-             gds: Cake.Books.ParsedBook
+             2,
+             gds: gds
            ) do
       results =
         search_results
