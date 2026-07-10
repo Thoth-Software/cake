@@ -124,8 +124,8 @@ jobs:
       - name: Compile
         run: mix compile --warnings-as-errors
 
-      - name: Run tests (excluding integration)
-        run: mix test --exclude integration
+      - name: Run tests with coverage (excluding integration)
+        run: mix coveralls.json --exclude integration
 
   integration:
     name: Integration Tests (merge gate)
