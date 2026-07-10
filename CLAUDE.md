@@ -89,6 +89,8 @@ Stop work and ask before proceeding in any of these situations:
 
 ## Policies for Creating New Things
 
+Whenever you are asked to create new functionality, start by reasoning about whether it is testable. If so, write the tests first, ensure that they fail, and then STOP. If the user approves, you may go on to write the code that makes those tests pass. Unit tests should be done this way as a matter of course. If, however, the functionality you are creating requires integration testing, stop and ask the user what to do. Always favor property tests where possible. While reasoning about testability, consider what properties each function ought to have, and if that property can be tested for by a property test. If so, favor property tests over ordinary tests.
+
 ### New ingestion pipeline (for an existing GDS)
 
 Consult the README sections "Adding a New Ingestion Pipeline" and "Requirements for All Pipeline Implementations" before starting. The short version:
