@@ -54,7 +54,7 @@ Run in this order. Every gate must pass before presenting changes.
 mix compile --warnings-as-errors --force  # Zero warnings. Hard gate.
 mix credo --strict                         # Zero issues. No inline disables without approval.
 mix test                                   # Zero failures, zero warnings.
-mix coveralls.json                         # Must not reduce coverage below threshold.
+mix coveralls.json                         # Must not reduce coverage below minimum (see coveralls.json, the SSOT for the threshold).
 ```
 
 `mix quality.fast` (compile + credo) is the minimum local check. `mix quality` adds dialyzer. Tests run with `MIX_ENV=test`; the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first.
