@@ -45,7 +45,12 @@ defmodule CakeWeb.BooksControllerTest do
     end
 
     test "returns 404 when the ParsedBook row exists but the file is missing", %{conn: conn} do
-      missing_path = "/tmp/nonexistent-cake-book-#{System.unique_integer([:positive])}.pdf"
+      missing_path =
+        Path.join(
+          System.tmp_dir!(),
+          "nonexistent-cake-book-#{System.unique_integer([:positive])}.pdf"
+        )
+
       _book = parsed_book_fixture(%{source_file_path: missing_path})
 
       conn = get(conn, ~p"/books/download/#{missing_path}")
@@ -55,7 +60,8 @@ defmodule CakeWeb.BooksControllerTest do
 
     test "streams the file with an attachment Content-Disposition header when both exist",
          %{conn: conn} do
-      tmp_path = "/tmp/cake-book-#{System.unique_integer([:positive])}.pdf"
+      tmp_dir = System.tmp_dir!()
+      tmp_path = Path.join(tmp_dir, "cake-book-#{System.unique_integer([:positive])}.pdf")
       contents = "%PDF-1.7 fake test content"
       File.write!(tmp_path, contents)
 
@@ -71,7 +77,7 @@ defmodule CakeWeb.BooksControllerTest do
 
       assert disposition =~ ~s(filename="#{Path.basename(tmp_path)}")
     after
-      tmp_files = Path.wildcard("/tmp/cake-book-*.pdf")
+      tmp_files = Path.wildcard(Path.join(System.tmp_dir!(), "cake-book-*.pdf"))
       Enum.each(tmp_files, &File.rm/1)
     end
   end

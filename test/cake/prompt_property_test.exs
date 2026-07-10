@@ -1,13 +1,9 @@
 defmodule Cake.PromptPropertyTest do
   @moduledoc """
-  Property tests for `Cake.Prompt.build/4`.
+  Property tests for `Cake.Prompt`.
 
-  Pins two structural invariants of the assembled prompt:
-
-    1. Every chunk's `format_chunk/1` output appears in the system message
-       with ordering preserved.
-    2. The count of `[N]` markers in the system message equals
-       `length(indexed_chunks)`.
+  Pins structural invariants of `build/4` (the assembled prompt) and
+  `prepare_context/2` (relevance filtering and dense indexing).
 
   Example tests live in `prompt_test.exs`.
   """
@@ -153,6 +149,166 @@ defmodule Cake.PromptPropertyTest do
       messages = Prompt.build([], q, h)
       system = system_content(messages)
       assert system =~ "no relevant reference material"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # prepare_context/2 generators
+  # ---------------------------------------------------------------------------
+
+  defp scored_result_for_context do
+    gen all(
+          text <- prompt_text(),
+          score <- float(min: 0.0, max: 1.0)
+        ) do
+      %Result{
+        retrieval_unit: %ConvoChunk{
+          prompt_text: text,
+          metadata: %{id: text, label: "L", preview: "p", source_ref: nil, extras: %{}}
+        },
+        relevance_score: score,
+        hit_source: :search,
+        index: "test_index",
+        provenance: test_provenance()
+      }
+    end
+  end
+
+  defp context_opts do
+    gen all(
+          max_chunks <- integer(1..20),
+          min_relevance <- float(min: 0.0, max: 1.0)
+        ) do
+      [max_chunks: max_chunks, min_relevance: min_relevance]
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # prepare_context/2 properties
+  # ---------------------------------------------------------------------------
+
+  property "prepare_context/2 output length is bounded by max_chunks and input length" do
+    check all(
+            results <- list_of(scored_result_for_context(), max_length: 15),
+            opts <- context_opts()
+          ) do
+      {indexed, _quality} = Prompt.prepare_context(results, opts)
+      max_chunks = Keyword.get(opts, :max_chunks)
+
+      assert length(indexed) <= max_chunks
+      assert length(indexed) <= length(results)
+    end
+  end
+
+  property "prepare_context/2 all output results meet the relevance floor" do
+    check all(
+            results <- list_of(scored_result_for_context(), max_length: 15),
+            opts <- context_opts()
+          ) do
+      {indexed, _quality} = Prompt.prepare_context(results, opts)
+      min_relevance = Keyword.get(opts, :min_relevance)
+
+      Enum.each(indexed, fn {_idx, result} ->
+        assert result.relevance_score >= min_relevance
+      end)
+    end
+  end
+
+  property "prepare_context/2 indices are dense 1..N" do
+    check all(
+            results <- list_of(scored_result_for_context(), max_length: 15),
+            opts <- context_opts()
+          ) do
+      {indexed, _quality} = Prompt.prepare_context(results, opts)
+      indices = Enum.map(indexed, fn {idx, _} -> idx end)
+      n = length(indexed)
+      expected = if n > 0, do: Enum.to_list(1..n), else: []
+
+      assert indices == expected
+    end
+  end
+
+  property "prepare_context/2 each result's prompt_index matches its tuple position" do
+    check all(
+            results <- list_of(scored_result_for_context(), max_length: 15),
+            opts <- context_opts()
+          ) do
+      {indexed, _quality} = Prompt.prepare_context(results, opts)
+
+      Enum.each(indexed, fn {idx, result} ->
+        assert result.prompt_index == idx
+      end)
+    end
+  end
+
+  property "prepare_context/2 context quality is :none iff output is empty" do
+    check all(
+            results <- list_of(scored_result_for_context(), max_length: 15),
+            opts <- context_opts()
+          ) do
+      {indexed, quality} = Prompt.prepare_context(results, opts)
+
+      if indexed == [] do
+        assert quality == :none
+      else
+        assert quality == :good
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # history_messages/1 generators
+  # ---------------------------------------------------------------------------
+
+  defp extended_history do
+    list_of(string(:alphanumeric, min_length: 1, max_length: 16), max_length: 24)
+  end
+
+  # ---------------------------------------------------------------------------
+  # history_messages/1 properties
+  # ---------------------------------------------------------------------------
+
+  property "history_messages/1 always returns an even number of messages" do
+    check all(h <- extended_history()) do
+      messages = Prompt.history_messages(h)
+      assert rem(length(messages), 2) == 0
+    end
+  end
+
+  property "history_messages/1 output length is bounded by 2 * max_history_exchanges" do
+    check all(h <- extended_history()) do
+      messages = Prompt.history_messages(h)
+      assert length(messages) <= 10
+    end
+  end
+
+  property "history_messages/1 alternates user and assistant roles" do
+    check all(h <- extended_history()) do
+      messages = Prompt.history_messages(h)
+      roles = Enum.map(messages, & &1.role)
+
+      expected =
+        List.flatten(List.duplicate(["user", "assistant"], div(length(messages), 2)))
+
+      assert roles == expected
+    end
+  end
+
+  property "history_messages/1 content matches the tail of complete input pairs" do
+    check all(h <- extended_history()) do
+      messages = Prompt.history_messages(h)
+
+      expected_pairs =
+        h
+        |> Enum.chunk_every(2, 2, :discard)
+        |> Enum.take(-5)
+
+      actual_pairs =
+        messages
+        |> Enum.chunk_every(2)
+        |> Enum.map(fn [user, assistant] -> [user.content, assistant.content] end)
+
+      assert actual_pairs == expected_pairs
     end
   end
 end

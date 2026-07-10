@@ -131,4 +131,74 @@ defmodule Cake.ResponsesPropertyTest do
       assert Enum.sort(Map.keys(map)) == Enum.sort(indices)
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Renumbering invariants
+  # ---------------------------------------------------------------------------
+
+  property "process/3 citation new_indices are unique" do
+    check all(
+            text <- raw_text(),
+            chunks <- indexed_chunks()
+          ) do
+      result = Responses.process(text, chunks)
+      new_indices = Enum.map(result.citations, & &1.new_index)
+      assert length(new_indices) == length(Enum.uniq(new_indices))
+    end
+  end
+
+  property "process/3 every marker in final_text corresponds to a citation" do
+    check all(
+            text <- raw_text(),
+            chunks <- indexed_chunks()
+          ) do
+      result = Responses.process(text, chunks)
+
+      new_index_set = MapSet.new(result.citations, & &1.new_index)
+
+      final_markers =
+        ~r/\[(\d+)\]/
+        |> Regex.scan(result.final_text)
+        |> Enum.map(fn [_, n] -> String.to_integer(n) end)
+        |> Enum.uniq()
+
+      for marker <- final_markers do
+        assert MapSet.member?(new_index_set, marker)
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Formatting invariants
+  # ---------------------------------------------------------------------------
+
+  property "process/3 final_text has no triple newlines" do
+    check all(
+            text <- raw_text(),
+            chunks <- indexed_chunks()
+          ) do
+      result = Responses.process(text, chunks)
+      refute String.contains?(result.final_text, "\n\n\n")
+    end
+  end
+
+  property "process/3 final_text is trimmed" do
+    check all(
+            text <- raw_text(),
+            chunks <- indexed_chunks()
+          ) do
+      result = Responses.process(text, chunks)
+      assert result.final_text == String.trim(result.final_text)
+    end
+  end
+
+  property "process/3 final_text has no consecutive spaces" do
+    check all(
+            text <- raw_text(),
+            chunks <- indexed_chunks()
+          ) do
+      result = Responses.process(text, chunks)
+      refute String.contains?(result.final_text, "  ")
+    end
+  end
 end

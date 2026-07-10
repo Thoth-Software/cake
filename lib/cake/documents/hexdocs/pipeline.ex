@@ -11,8 +11,6 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   alias Cake.Pipelines.Context
   alias Cake.Repo
 
-  require Logger
-
   @type version :: Cake.Documents.Pipeline.version()
 
   @impl Cake.Documents.Pipeline

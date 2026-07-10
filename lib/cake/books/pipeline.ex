@@ -56,8 +56,6 @@ defmodule Cake.Books.Pipeline do
         failures_before,
         format_pipeline.success_message()
       )
-    else
-      error -> Pipelines.handle_ingest_error(error, ctx)
     end
   end
 
