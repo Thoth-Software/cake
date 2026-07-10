@@ -40,6 +40,23 @@ defmodule Cake.Search.ScoringPropertyTest do
     float(min: 0.01, max: 100.0)
   end
 
+  defp result_with_embedding(dim) do
+    gen all(
+          id <- string(:alphanumeric, min_length: 1, max_length: 8),
+          embedding <- one_of([constant(nil), float_vector(dim)])
+        ) do
+      %Result{
+        retrieval_unit: %ConvoChunk{
+          embedding: embedding,
+          metadata: %{id: id, label: "L", preview: "p", source_ref: nil, extras: %{}}
+        },
+        hit_source: :search,
+        index: "test_index",
+        provenance: test_provenance()
+      }
+    end
+  end
+
   defp scored_result do
     gen all(
           id <- string(:alphanumeric, min_length: 1, max_length: 8),
@@ -148,6 +165,65 @@ defmodule Cake.Search.ScoringPropertyTest do
     check all(result <- scored_result()) do
       [%Result{relevance_score: score}] = Search.normalize_and_combine([result])
       assert_in_delta score, 1.0, @epsilon
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # score_results/2 properties
+  # ---------------------------------------------------------------------------
+
+  property "score_results/2 preserves list length and populates cosine_score" do
+    check all(
+            dim <- dimension(),
+            results <- list_of(result_with_embedding(dim), min_length: 1, max_length: 8),
+            query <- non_zero_vector(dim)
+          ) do
+      scored = Search.score_results(results, query)
+
+      assert length(scored) == length(results)
+
+      Enum.each(scored, fn %Result{cosine_score: cs} ->
+        assert is_float(cs)
+      end)
+    end
+  end
+
+  property "score_results/2 nil embedding yields cosine_score 0.0" do
+    check all(
+            dim <- dimension(),
+            id <- string(:alphanumeric, min_length: 1, max_length: 8),
+            query <- non_zero_vector(dim)
+          ) do
+      result = %Result{
+        retrieval_unit: %ConvoChunk{
+          embedding: nil,
+          metadata: %{id: id, label: "L", preview: "p", source_ref: nil, extras: %{}}
+        },
+        hit_source: :search,
+        index: "test_index",
+        provenance: test_provenance()
+      }
+
+      [scored] = Search.score_results([result], query)
+      assert scored.cosine_score == 0.0
+    end
+  end
+
+  property "score_results/2 does not mutate non-scoring fields" do
+    check all(
+            dim <- dimension(),
+            results <- list_of(result_with_embedding(dim), min_length: 1, max_length: 8),
+            query <- non_zero_vector(dim)
+          ) do
+      scored = Search.score_results(results, query)
+
+      Enum.each(Enum.zip(results, scored), fn {original, after_scoring} ->
+        assert original.retrieval_unit == after_scoring.retrieval_unit
+        assert original.backend_score == after_scoring.backend_score
+        assert original.hit_source == after_scoring.hit_source
+        assert original.index == after_scoring.index
+        assert original.provenance == after_scoring.provenance
+      end)
     end
   end
 end

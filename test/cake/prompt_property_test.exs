@@ -255,4 +255,60 @@ defmodule Cake.PromptPropertyTest do
       end
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # history_messages/1 generators
+  # ---------------------------------------------------------------------------
+
+  defp extended_history do
+    list_of(string(:alphanumeric, min_length: 1, max_length: 16), max_length: 24)
+  end
+
+  # ---------------------------------------------------------------------------
+  # history_messages/1 properties
+  # ---------------------------------------------------------------------------
+
+  property "history_messages/1 always returns an even number of messages" do
+    check all(h <- extended_history()) do
+      messages = Prompt.history_messages(h)
+      assert rem(length(messages), 2) == 0
+    end
+  end
+
+  property "history_messages/1 output length is bounded by 2 * max_history_exchanges" do
+    check all(h <- extended_history()) do
+      messages = Prompt.history_messages(h)
+      assert length(messages) <= 10
+    end
+  end
+
+  property "history_messages/1 alternates user and assistant roles" do
+    check all(h <- extended_history()) do
+      messages = Prompt.history_messages(h)
+      roles = Enum.map(messages, & &1.role)
+
+      expected =
+        List.flatten(List.duplicate(["user", "assistant"], div(length(messages), 2)))
+
+      assert roles == expected
+    end
+  end
+
+  property "history_messages/1 content matches the tail of complete input pairs" do
+    check all(h <- extended_history()) do
+      messages = Prompt.history_messages(h)
+
+      expected_pairs =
+        h
+        |> Enum.chunk_every(2, 2, :discard)
+        |> Enum.take(-5)
+
+      actual_pairs =
+        messages
+        |> Enum.chunk_every(2)
+        |> Enum.map(fn [user, assistant] -> [user.content, assistant.content] end)
+
+      assert actual_pairs == expected_pairs
+    end
+  end
 end
