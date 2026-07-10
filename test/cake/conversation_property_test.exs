@@ -36,8 +36,13 @@ defmodule Cake.ConversationPropertyTest do
   end
 
   defp unique_id_pool do
-    gen all(ids <- uniq_list_of(string(:alphanumeric, min_length: 1, max_length: 12),
-              min_length: 1, max_length: 10)) do
+    gen all(
+          ids <-
+            uniq_list_of(string(:alphanumeric, min_length: 1, max_length: 12),
+              min_length: 1,
+              max_length: 10
+            )
+        ) do
       ids
     end
   end
@@ -56,7 +61,10 @@ defmodule Cake.ConversationPropertyTest do
     gen all(
           all_ids <- unique_id_pool(),
           bogus_ids <-
-            uniq_list_of(string(:alphanumeric, min_length: 1, max_length: 12), min_length: 1, max_length: 4)
+            uniq_list_of(string(:alphanumeric, min_length: 1, max_length: 12),
+              min_length: 1,
+              max_length: 4
+            )
         ) do
       candidates = Enum.map(all_ids, &make_candidate/1)
       known_set = MapSet.new(all_ids)
