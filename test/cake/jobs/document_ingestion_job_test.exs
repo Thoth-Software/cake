@@ -112,10 +112,11 @@ defmodule Cake.Jobs.DocumentIngestionJobTest do
     end
 
     test "validates all required parameters" do
-      # This should raise a FunctionClauseError if parameters don't match guards
+      not_an_atom = Function.identity("not_an_atom")
+
       assert_raise FunctionClauseError, fn ->
         DocumentIngestionJob.enqueue_for_version(
-          "not_an_atom",
+          not_an_atom,
           :openai,
           {1, 18, 3},
           "text-embedding-ada-002"
