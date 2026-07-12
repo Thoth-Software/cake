@@ -18,6 +18,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     do: "Successfully ingested Elixir docs from Hexdocs for version #{version}"
 
   @dir Path.join(System.tmp_dir!(), "hexdocs/")
+  @source_repo "https://github.com/elixir-lang/elixir.git"
 
   @impl Cake.Documents.Pipeline
   def download(%{version: version}) do
@@ -31,7 +32,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
              "-b",
              "v#{version}",
              "--single-branch",
-             "https://github.com/elixir-lang/elixir.git",
+             @source_repo,
              @dir
            ],
            env: []

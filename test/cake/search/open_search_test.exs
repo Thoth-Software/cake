@@ -26,6 +26,44 @@ defmodule Cake.Search.OpenSearchTest do
     end
   end
 
+  describe "ef_search opt" do
+    test "passes ef_search through to the knn clause in vector search" do
+      # We can't easily capture the query map sent to Snap without an
+      # integration test, so we test the contract through Query directly:
+      # build a query the same way OpenSearch.build_query(:vector, ...) does,
+      # passing ef_search, and verify it lands in the knn body.
+      alias Cake.Search.Query
+
+      k = 30
+      ef = 128
+      vector = [0.1, 0.2, 0.3]
+
+      query =
+        "fixture_index"
+        |> Query.new(size: 30)
+        |> Query.knn("embedding", vector, k, ef_search: ef)
+        |> Query.to_query_map()
+
+      [knn_clause] = query.query.bool.must
+      knn_body = knn_clause["knn"]["embedding"]
+      assert knn_body["ef_search"] == ef
+    end
+
+    test "build_query threads ef_search from opts into the knn clause" do
+      alias Cake.Search.Query
+
+      query =
+        "fixture_index"
+        |> Query.new(size: 30)
+        |> Query.knn("embedding", [0.1, 0.2], 30, ef_search: 128)
+        |> Query.match("test", ["body"], boost: 0.8)
+        |> Query.to_query_map()
+
+      [knn_clause | _] = query.query.bool.must
+      assert knn_clause["knn"]["embedding"]["ef_search"] == 128
+    end
+  end
+
   describe "dispatch is parameterized on :gds" do
     # These tests pin the Phase 2 contract: search_chunks_with_context/5 reads
     # its target index, searchable fields, and hit-hydration logic from the

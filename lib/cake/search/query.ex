@@ -43,11 +43,19 @@ defmodule Cake.Search.Query do
     }
   end
 
-  @doc "Appends a knn clause to `must`."
-  @spec knn(t(), String.t(), [float()], pos_integer()) :: t()
-  def knn(%__MODULE__{} = query, field, vector, k)
+  @doc "Appends a knn clause to `must`. Accepts an optional `:ef_search` keyword."
+  @spec knn(t(), String.t(), [float()], pos_integer(), keyword()) :: t()
+  def knn(%__MODULE__{} = query, field, vector, k, opts \\ [])
       when is_binary(field) and is_list(vector) and is_integer(k) and k > 0 do
-    clause = %{"knn" => %{field => %{"vector" => vector, "k" => k}}}
+    base = %{"vector" => vector, "k" => k}
+
+    body =
+      case Keyword.get(opts, :ef_search) do
+        nil -> base
+        ef when is_integer(ef) -> Map.put(base, "ef_search", ef)
+      end
+
+    clause = %{"knn" => %{field => body}}
     %{query | must: [clause | query.must]}
   end
 

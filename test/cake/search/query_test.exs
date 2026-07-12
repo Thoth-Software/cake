@@ -45,6 +45,26 @@ defmodule Cake.Search.QueryTest do
 
       assert length(query.must) == 2
     end
+
+    test "includes ef_search in the knn clause when provided" do
+      vector = [0.1, 0.2, 0.3]
+      query = Query.knn(Query.new("docs"), "embedding", vector, 10, ef_search: 128)
+
+      assert [clause] = query.must
+      knn_body = clause["knn"]["embedding"]
+      assert knn_body["vector"] == vector
+      assert knn_body["k"] == 10
+      assert knn_body["ef_search"] == 128
+    end
+
+    test "omits ef_search from the knn clause when not provided" do
+      vector = [0.1, 0.2, 0.3]
+      query = Query.knn(Query.new("docs"), "embedding", vector, 10)
+
+      assert [clause] = query.must
+      knn_body = clause["knn"]["embedding"]
+      refute Map.has_key?(knn_body, "ef_search")
+    end
   end
 
   describe "match/4" do

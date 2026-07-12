@@ -22,6 +22,16 @@ defmodule Cake.Documents.ClusterTest do
       assert embedding.method.engine == "faiss"
     end
 
+    test "reads vector dimension from application config" do
+      Application.put_env(:cake, :default_embedding_dimension, 3072)
+      on_exit(fn -> Application.delete_env(:cake, :default_embedding_dimension) end)
+
+      mapping = Cluster.build_mapping(Cake.Documents.ParsedDocument)
+      embedding = mapping.mappings.properties.embedding
+
+      assert embedding.dimension == 3072
+    end
+
     test "maps non-text, non-embedding fields as keyword" do
       mapping = Cluster.build_mapping(Cake.Documents.ParsedDocument)
       props = mapping.mappings.properties

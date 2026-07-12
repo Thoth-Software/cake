@@ -34,7 +34,6 @@ defmodule Cake.Documents.Pipeline do
   require Logger
 
   @cluster Cake.Documents.Cluster
-  @index "docs"
 
   @type version :: {integer(), integer(), integer()}
 
@@ -67,7 +66,12 @@ defmodule Cake.Documents.Pipeline do
              ctx
            ),
          opensearch_docs_stream <-
-           Pipelines.add_to_opensearch(docs_with_embeddings_stream, @index, @cluster, ctx) do
+           Pipelines.add_to_opensearch(
+             docs_with_embeddings_stream,
+             ParsedDocument.index_name(),
+             @cluster,
+             ctx
+           ) do
       Pipelines.finalize_ingest(
         opensearch_docs_stream,
         ctx,
@@ -277,7 +281,12 @@ defmodule Cake.Documents.Pipeline do
     if Application.get_env(:cake, :skip_opensearch, false) do
       :ok
     else
-      case Snap.Document.update(@cluster, @index, %{doc: doc, doc_as_upsert: true}, doc.id) do
+      case Snap.Document.update(
+             @cluster,
+             ParsedDocument.index_name(),
+             %{doc: doc, doc_as_upsert: true},
+             doc.id
+           ) do
         %{"_id" => _} -> :ok
         error -> {:error, {:opensearch_index, error}}
       end

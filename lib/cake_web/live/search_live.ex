@@ -50,8 +50,11 @@ defmodule CakeWeb.SearchLive do
   end
 
   defp run_search(query) do
+    provider = Application.fetch_env!(:cake, :default_provider)
+    embedding_model = Application.fetch_env!(:cake, :default_embedding_model)
+
     with {:ok, %{attrs: %{embedding: embedding}}} <-
-           Cake.Embeddings.embed(:openai, %{input: query}, "text-embedding-ada-002"),
+           Cake.Embeddings.embed(provider, %{input: query}, embedding_model),
          {:ok, search_results} <-
            Cake.Search.OpenSearch.search_chunks_with_context(
              :hybrid,
