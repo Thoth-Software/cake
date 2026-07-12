@@ -49,3 +49,5 @@ config :cake, Cake.Generation.OpenAI,
 
 # The books-controller tests stage fixture files under the system temp dir.
 config :cake, :books_download_root, System.tmp_dir!()
+
+config :cake, book_storage_adapter: Cake.Books.Adapters.Mock

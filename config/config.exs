@@ -13,7 +13,9 @@ config :cake,
   default_embedding_model: "text-embedding-ada-002",
   default_response_model: "gpt-4o-mini",
   default_provider: :openai,
-  default_embedding_dimension: 1536
+  default_embedding_dimension: 1536,
+  book_storage_adapter: Cake.Books.Adapters.Disk,
+  book_storage_tenant: "default"
 
 # Configures the endpoint
 config :cake, CakeWeb.Endpoint,

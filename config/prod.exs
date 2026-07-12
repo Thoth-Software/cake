@@ -16,5 +16,13 @@ config :swoosh, local: false
 # Do not print debug messages in production
 config :logger, level: :info
 
+config :cake,
+  book_storage_adapter: Cake.Books.Adapters.S3
+
+# ExAws uses IAM role credentials by default — no explicit keys needed.
+# Region is read from AWS_REGION or AWS_DEFAULT_REGION env vars at runtime.
+config :ex_aws,
+  json_codec: Jason
+
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.
