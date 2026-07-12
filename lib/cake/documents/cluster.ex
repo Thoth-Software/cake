@@ -60,9 +60,19 @@ defmodule Cake.Documents.Cluster do
   def create_indexes_unless_exist(pid) when is_pid(pid) do
     existing_indices = get_existing_indices()
 
-    # Create both indices
-    _ = create_index_if_missing(existing_indices, "docs", Cake.Documents.ParsedDocument)
-    _ = create_index_if_missing(existing_indices, "chunks_of_books", Cake.Books.Chunk)
+    _ =
+      create_index_if_missing(
+        existing_indices,
+        Cake.Documents.ParsedDocument.index_name(),
+        Cake.Documents.ParsedDocument
+      )
+
+    _ =
+      create_index_if_missing(
+        existing_indices,
+        Cake.Books.ParsedBook.index_name(),
+        Cake.Books.Chunk
+      )
   end
 
   defp get_existing_indices() do
