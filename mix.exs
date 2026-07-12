@@ -83,7 +83,10 @@ defmodule Cake.MixProject do
       {:mix_test_watch, "~> 1.0", only: :dev, runtime: false},
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:ex_machina, "~> 2.8", only: :test},
-      {:excoveralls, "~> 0.18", only: :test}
+      {:excoveralls, "~> 0.18", only: :test},
+      {:ex_aws, "~> 2.5"},
+      {:ex_aws_s3, "~> 2.5"},
+      {:configparser_ex, "~> 4.0", optional: true}
     ]
   end
 
