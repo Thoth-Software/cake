@@ -5,6 +5,7 @@ defmodule CakeWeb.SearchLive do
 
   require Logger
 
+  @impl Phoenix.LiveView
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
@@ -17,29 +18,35 @@ defmodule CakeWeb.SearchLive do
      )}
   end
 
+  @impl Phoenix.LiveView
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("search", %{"query" => query}, socket) do
     if String.trim(query) == "" do
       {:noreply, socket}
     else
-      socket = assign(socket, loading: true, error: nil)
-
-      case run_search(query) do
-        {:ok, results} ->
-          {:noreply,
-           assign(socket, results: results, loading: false, form: to_form(%{"query" => ""}))}
-
-        {:error, error} ->
-          Logger.error("SearchLive search failed: #{inspect(error)}")
-
-          {:noreply,
-           assign(socket,
-             loading: false,
-             error: "Search failed. Please try again."
-           )}
-      end
+      {:noreply,
+       socket
+       |> assign(loading: true, error: nil)
+       |> start_async(:search, fn -> run_search(query) end)}
     end
+  end
+
+  @impl Phoenix.LiveView
+  @spec handle_async(atom(), {:ok, term()} | {:exit, term()}, Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
+  def handle_async(:search, {:ok, {:ok, results}}, socket) do
+    {:noreply, assign(socket, results: results, loading: false, form: to_form(%{"query" => ""}))}
+  end
+
+  def handle_async(:search, {:ok, {:error, error}}, socket) do
+    Logger.error("SearchLive search failed: #{inspect(error)}")
+    {:noreply, assign(socket, loading: false, error: "Search failed. Please try again.")}
+  end
+
+  def handle_async(:search, {:exit, reason}, socket) do
+    Logger.error("SearchLive search task crashed: #{inspect(reason)}")
+    {:noreply, assign(socket, loading: false, error: "Search failed. Please try again.")}
   end
 
   defp run_search(query) do
@@ -86,6 +93,7 @@ defmodule CakeWeb.SearchLive do
     }
   end
 
+  @impl Phoenix.LiveView
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""

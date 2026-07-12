@@ -64,10 +64,11 @@ defmodule CakeWeb.SearchLiveTest do
       Req.Test.stub(Cake.Embeddings, fn c -> Plug.Conn.send_resp(c, 500, "boom") end)
       Req.Test.allow(Cake.Embeddings, self(), lv.pid)
 
-      html =
-        lv
-        |> form("form", %{"query" => "hello"})
-        |> render_submit()
+      lv
+      |> form("form", %{"query" => "hello"})
+      |> render_submit()
+
+      html = render_async(lv)
 
       refute html =~ "Transport layer error"
       assert html =~ "Search failed"

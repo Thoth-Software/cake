@@ -16,8 +16,8 @@ defmodule Cake.Application do
       # Start the Finch HTTP client for sending emails
       {Finch, name: Cake.Finch},
       {Cake.Documents.Cluster, name: Cake.Documents.Cluster},
-      # Start a worker by calling: Cake.Worker.start_link(arg)
-      # {Cake.Worker, arg},
+      {Task.Supervisor, name: Cake.TaskSupervisor},
+      {DynamicSupervisor, name: Cake.ConversationSupervisor, strategy: :one_for_one},
       # Start to serve requests, typically the last entry
       CakeWeb.Endpoint
     ]

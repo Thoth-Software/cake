@@ -491,6 +491,51 @@ defmodule Cake.ConversationTest do
       assert turn_two_serialized =~ turn_one_a
       assert turn_two_serialized =~ turn_two_q
     end
+
+    test "message_history is stored in reverse chronological order for O(1) prepend" do
+      turn_one_q = "Q1_#{:erlang.unique_integer([:positive])}"
+      turn_one_a = "A1_#{:erlang.unique_integer([:positive])}"
+      turn_two_q = "Q2_#{:erlang.unique_integer([:positive])}"
+      turn_two_a = "A2_#{:erlang.unique_integer([:positive])}"
+
+      chunk = build(:convo_chunk)
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [wrap_result(chunk)]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      pid = start_subscribed()
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        case Agent.get_and_update(counter, fn n -> {n, n + 1} end) do
+          0 -> {:ok, %{text: turn_one_a, usage: %{}}}
+          1 -> {:ok, %{text: turn_two_a, usage: %{}}}
+        end
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      Conversation.autoask(pid, turn_one_q)
+      assert_receive {:response_ready, _}, 500
+
+      Conversation.autoask(pid, turn_two_q)
+      assert_receive {:response_ready, _}, 500
+
+      state = :sys.get_state(pid)
+      assert state.message_history == [turn_two_a, turn_two_q, turn_one_a, turn_one_q]
+    end
   end
 
   describe "public API contract" do
@@ -510,6 +555,26 @@ defmodule Cake.ConversationTest do
       on_exit(fn -> if Process.alive?(pid), do: GenServer.stop(pid) end)
 
       assert is_pid(pid)
+    end
+
+    test "start/1 starts the process under ConversationSupervisor" do
+      {:ok, pid} = Conversation.start(valid_opts())
+      on_exit(fn -> if Process.alive?(pid), do: GenServer.stop(pid) end)
+
+      children = DynamicSupervisor.which_children(Cake.ConversationSupervisor)
+      child_pids = Enum.map(children, fn {_, child_pid, _, _} -> child_pid end)
+      assert pid in child_pids
+    end
+
+    test "start/1 process is not restarted after crash (restart: :temporary)" do
+      {:ok, pid} = Conversation.start(valid_opts())
+      ref = Process.monitor(pid)
+      Process.exit(pid, :kill)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
+
+      children = DynamicSupervisor.which_children(Cake.ConversationSupervisor)
+      child_pids = Enum.map(children, fn {_, child_pid, _, _} -> child_pid end)
+      refute pid in child_pids
     end
 
     test "start/1 rejects opts missing :gds with a KeyError" do
@@ -684,7 +749,7 @@ defmodule Cake.ConversationTest do
   end
 
   describe "cluster exception" do
-    test "cluster raising propagates and crashes the GenServer (no catch)" do
+    test "cluster raising is reported as an error without crashing the GenServer" do
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
@@ -702,17 +767,16 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:DOWN, ^ref, :process, ^pid, reason}, 500
-
-      assert match?({%RuntimeError{message: "boom"}, _stacktrace}, reason)
-
+      # The unlinked Task absorbs the crash; the GenServer broadcasts
+      # the error and stays alive.
+      assert_receive {:error, _reason}, 500
+      refute_receive {:DOWN, ^ref, :process, ^pid, _}, 200
       refute_received {:response_ready, _}
-      refute_received {:error, _}
     end
   end
 
   describe "concurrent asks" do
-    test "two ask/2 calls are serialized by the GenServer mailbox: cast 2 cannot start until cast 1 returns" do
+    test "a second autoask during :generating is queued and runs after the first turn completes" do
       chunk = build(:convo_chunk)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
@@ -735,7 +799,7 @@ defmodule Cake.ConversationTest do
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         case Agent.get_and_update(counter, fn n -> {n, n + 1} end) do
           0 ->
-            send(test_pid, :first_started)
+            send(test_pid, {:first_started, self()})
 
             receive do
               :release_first -> :ok
@@ -760,22 +824,70 @@ defmodule Cake.ConversationTest do
       assert :ok = Conversation.autoask(pid, "q1")
       assert :ok = Conversation.autoask(pid, "q2")
 
-      # Cast 1's handler has started.
-      assert_receive :first_started, 500
+      # Turn 1 starts in its Task.
+      assert_receive {:first_started, task_pid}, 500
 
-      # Cast 2's handler has NOT started — it's queued behind cast 1 in
-      # the GenServer mailbox. This is the load-bearing assertion: it
-      # rules out an accidental Task.async / parallel-handle introduction.
+      # Turn 2 has not started — it is queued in GenServer state.
       refute_receive :second_started, 100
 
-      # Release cast 1; cast 1 returns; cast 2's handler now runs.
-      send(pid, :release_first)
+      # Release turn 1; queued turn 2 replays automatically.
+      send(task_pid, :release_first)
       assert_receive :first_returning, 500
       assert_receive :second_started, 500
 
-      # Both responses delivered, in the order they were asked.
+      # Both responses delivered.
       assert_receive {:response_ready, _}, 500
       assert_receive {:response_ready, _}, 500
+    end
+
+    test "GenServer remains responsive while a turn is generating" do
+      chunk = build(:convo_chunk)
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+        {:ok, [wrap_result(chunk)]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      test_pid = self()
+      pid = start_subscribed()
+
+      expect(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        send(test_pid, :generation_started)
+        Process.sleep(500)
+        {:ok, %{text: "answer", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      :ok = Conversation.autoask(pid, "q")
+      assert_receive :generation_started, 1_000
+
+      # The GenServer should be able to respond to a call while the LLM
+      # turn is in flight. If the turn runs synchronously inside
+      # handle_cast, this :sys.get_state call will time out.
+      task = Task.async(fn -> :sys.get_state(pid) end)
+
+      case Task.yield(task, 200) do
+        {:ok, state} ->
+          assert state.state == :generating
+
+        nil ->
+          Task.shutdown(task)
+          flunk("GenServer was blocked and could not respond during generation")
+      end
+
+      # Wait for the turn to finish so Mox verify_on_exit! sees all calls.
+      assert_receive {:response_ready, _}, 1_000
     end
   end
 
