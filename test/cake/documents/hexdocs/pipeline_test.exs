@@ -29,6 +29,26 @@ defmodule Cake.Documents.Hexdocs.PipelineTest do
       steps = Enum.map(FailedIngests.list_failed_ingests(), & &1.step)
       assert "docs.persist_raw" in steps
     end
+
+    test "skips rows already present for the same module and version" do
+      # Write a minimal valid .ex file so to_hexdoc_attrs can read it
+      path = Path.join(System.tmp_dir!(), "Kernel.ex")
+      File.write!(path, "defmodule Kernel do\nend\n")
+      on_exit(fn -> File.rm(path) end)
+
+      # First run: inserts the hexdoc
+      first_run = Enum.to_list(Pipeline.persist_raw_docs([path], ctx()))
+      assert length(first_run) == 1
+
+      # Second run: the same (module, version) already exists — should be skipped
+      second_run = Enum.to_list(Pipeline.persist_raw_docs([path], ctx()))
+      assert second_run == []
+
+      # Only one row exists in the DB (not duplicated)
+      all = Cake.Documents.Hexdocs.list_hexdocs()
+      kernel_rows = Enum.filter(all, &(&1.module == "Kernel.ex" and &1.version == "1.0.0"))
+      assert length(kernel_rows) == 1
+    end
   end
 
   describe "parse/2" do

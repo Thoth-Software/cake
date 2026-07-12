@@ -66,6 +66,9 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     )
     |> Stream.map(&unwrap_result/1)
     |> Pipelines.detuple_with_logging("docs.persist_raw", ctx)
+    |> Stream.reject(fn %{module: m, version: v} ->
+      Cake.Documents.Hexdocs.hexdoc_exists?(m, v)
+    end)
     |> Task.async_stream(&insert_hexdoc/1,
       max_concurrency: 4,
       timeout: 30_000,
