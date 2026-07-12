@@ -63,6 +63,34 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
     end
   end
 
+  describe "by_module/2" do
+    test "filters hexdocs by module" do
+      hexdoc_fixture(%{version: "1.18.3", module: "Enum"})
+      hexdoc_fixture(%{version: "1.18.3", module: "Map"})
+
+      results = Hexdoc.base_query() |> Hexdoc.by_module("Enum") |> Repo.all()
+
+      assert length(results) == 1
+      assert hd(results).module == "Enum"
+    end
+
+    test "composes with by_version/2 to select on the (module, version) natural key" do
+      hexdoc_fixture(%{version: "1.18.3", module: "Enum"})
+      hexdoc_fixture(%{version: "1.17.0", module: "Enum"})
+      hexdoc_fixture(%{version: "1.18.3", module: "Map"})
+
+      results =
+        Hexdoc.base_query()
+        |> Hexdoc.by_module("Enum")
+        |> Hexdoc.by_version("1.18.3")
+        |> Repo.all()
+
+      assert length(results) == 1
+      assert hd(results).module == "Enum"
+      assert hd(results).version == "1.18.3"
+    end
+  end
+
   describe "to_parsed_docs/1" do
     test "extracts function docs and code from a simple module" do
       content = """
