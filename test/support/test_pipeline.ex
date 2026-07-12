@@ -21,14 +21,14 @@ defmodule Cake.TestPipeline do
 
   @impl Cake.Documents.Pipeline
   def parse(raw_docs_stream, _ctx) do
-    # Return a stream of mock parsed documents
-    # Takes the raw_docs_stream and transforms it
-    Stream.flat_map(raw_docs_stream, fn _raw_doc ->
+    raw_docs_stream
+    |> Stream.with_index()
+    |> Stream.flat_map(fn {_raw_doc, idx} ->
       [
         %{
-          title: "Test Doc",
-          text: "Test content",
-          url: "https://example.com/doc",
+          title: "Test Doc #{idx}",
+          text: "Test content #{idx}",
+          url: "https://example.com/doc/#{idx}",
           source: source(),
           version: "1.0.0",
           package: "TestPackage",
