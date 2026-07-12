@@ -1,4 +1,22 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(mix test *)",
+      "Bash(mix compile *)",
+      "Bash(mix format *)",
+      "Bash(mix credo *)",
+      "Bash(mix coveralls *)",
+      "Bash(mix coveralls.json *)",
+      "Bash(mix quality *)",
+      "Bash(mix quality.fast *)",
+      "Bash(~/.asdf/shims/mix test *)",
+      "Bash(~/.asdf/shims/mix compile *)",
+      "Bash(~/.asdf/shims/mix format *)",
+      "Bash(~/.asdf/shims/mix credo *)",
+      "Bash(~/.asdf/shims/mix coveralls *)",
+      "Bash(~/.asdf/shims/mix coveralls.json *)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
