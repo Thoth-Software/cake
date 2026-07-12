@@ -49,6 +49,51 @@ defmodule CakeWeb.SearchLiveTest do
     end
   end
 
+  describe "config-driven defaults" do
+    test "reads embedding provider and model from application config", %{conn: conn} do
+      Application.put_env(:cake, :default_provider, :test_provider)
+      Application.put_env(:cake, :default_embedding_model, "test-embedding-model")
+
+      Application.put_env(:cake, Cake.Embeddings,
+        openai_key: "test-key",
+        base_url: "http://localhost/v1/embeddings",
+        req_options: [plug: {Req.Test, Cake.Embeddings}]
+      )
+
+      on_exit(fn ->
+        Application.delete_env(:cake, :default_provider)
+        Application.delete_env(:cake, :default_embedding_model)
+        Application.delete_env(:cake, Cake.Embeddings)
+      end)
+
+      test_pid = self()
+
+      Req.Test.stub(Cake.Embeddings, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(test_pid, {:embed_called, Jason.decode!(body)})
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.send_resp(200, Jason.encode!(%{
+          "object" => "list",
+          "data" => [%{"embedding" => List.duplicate(0.1, 1536)}],
+          "model" => "test-embedding-model",
+          "usage" => %{"prompt_tokens" => 5, "total_tokens" => 5}
+        }))
+      end)
+
+      {:ok, lv, _} = live(conn, ~p"/search")
+      Req.Test.allow(Cake.Embeddings, self(), lv.pid)
+
+      lv
+      |> form("form", %{"query" => "hello"})
+      |> render_submit()
+
+      assert_receive {:embed_called, body}, 1_000
+      assert body["model"] == "test-embedding-model"
+    end
+  end
+
   describe "error handling" do
     test "shows a generic message without leaking the internal error", %{conn: conn} do
       Application.put_env(:cake, Cake.Embeddings,
