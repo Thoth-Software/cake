@@ -82,6 +82,18 @@ defmodule Cake.Documents.ParsedDocuments do
     |> Repo.update!(log: false)
   end
 
+  @doc """
+  Returns true if a parsed document with the given natural key already exists.
+  """
+  @spec parsed_doc_exists?(String.t(), String.t(), String.t(), String.t()) :: boolean()
+  def parsed_doc_exists?(source, version, package, title) do
+    ParsedDocument.base_query()
+    |> ParsedDocument.by_source(source)
+    |> ParsedDocument.by_version(version)
+    |> where([p], p.package == ^package and p.title == ^title)
+    |> Repo.exists?()
+  end
+
   @spec by_language_and_version(String.t(), String.t()) :: [ParsedDocument.t()]
   def by_language_and_version(language, version) do
     ParsedDocument.base_query()
