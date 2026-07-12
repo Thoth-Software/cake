@@ -19,6 +19,21 @@ defmodule Cake.Documents.Hexdocs do
   end
 
   @doc """
+  Returns whether a hexdoc already exists for the given `module` and `version`.
+
+  The `(module, version)` pair is the natural dedup key for a raw hexdoc row.
+  Backed by `Repo.exists?/1`, so it is tolerant of pre-existing duplicates
+  (there is no unique constraint on the pair) and never raises on a match.
+  """
+  @spec hexdoc_exists?(String.t(), String.t()) :: boolean()
+  def hexdoc_exists?(module, version) do
+    Hexdoc.base_query()
+    |> Hexdoc.by_module(module)
+    |> Hexdoc.by_version(version)
+    |> Repo.exists?()
+  end
+
+  @doc """
   Returns the list of hexdocs.
 
   ## Examples
