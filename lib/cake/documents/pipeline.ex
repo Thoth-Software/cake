@@ -212,6 +212,14 @@ defmodule Cake.Documents.Pipeline do
 
   defp persist_parsed_docs(parsed_doc_stream, ctx) do
     parsed_doc_stream
+    |> Stream.reject(fn attrs ->
+      ParsedDocuments.parsed_doc_exists?(
+        attrs[:source],
+        attrs[:version],
+        attrs[:package],
+        attrs[:title]
+      )
+    end)
     |> Task.async_stream(
       fn attrs ->
         try do

@@ -109,4 +109,67 @@ defmodule Cake.ParsedDocumentTest do
       assert %Ecto.Changeset{} = ParsedDocuments.change_parsed_document(parsed_documents)
     end
   end
+
+  describe "parsed_doc_exists?/4" do
+    import Cake.ParsedDocumentFixtures
+
+    test "returns false when no matching record exists" do
+      refute ParsedDocuments.parsed_doc_exists?("hexdocs", "1.18.0", "Enum", "Enum.map/2")
+    end
+
+    test "returns true when a record with the same natural key exists" do
+      parsed_documents_fixture(%{
+        source: "hexdocs",
+        version: "1.18.0",
+        package: "Enum",
+        title: "Enum.map/2"
+      })
+
+      assert ParsedDocuments.parsed_doc_exists?("hexdocs", "1.18.0", "Enum", "Enum.map/2")
+    end
+
+    test "returns false when source differs" do
+      parsed_documents_fixture(%{
+        source: "hexdocs",
+        version: "1.18.0",
+        package: "Enum",
+        title: "Enum.map/2"
+      })
+
+      refute ParsedDocuments.parsed_doc_exists?("javadocs", "1.18.0", "Enum", "Enum.map/2")
+    end
+
+    test "returns false when version differs" do
+      parsed_documents_fixture(%{
+        source: "hexdocs",
+        version: "1.18.0",
+        package: "Enum",
+        title: "Enum.map/2"
+      })
+
+      refute ParsedDocuments.parsed_doc_exists?("hexdocs", "1.19.0", "Enum", "Enum.map/2")
+    end
+
+    test "returns false when package differs" do
+      parsed_documents_fixture(%{
+        source: "hexdocs",
+        version: "1.18.0",
+        package: "Enum",
+        title: "Enum.map/2"
+      })
+
+      refute ParsedDocuments.parsed_doc_exists?("hexdocs", "1.18.0", "Stream", "Enum.map/2")
+    end
+
+    test "returns false when title differs" do
+      parsed_documents_fixture(%{
+        source: "hexdocs",
+        version: "1.18.0",
+        package: "Enum",
+        title: "Enum.map/2"
+      })
+
+      refute ParsedDocuments.parsed_doc_exists?("hexdocs", "1.18.0", "Enum", "Enum.reduce/3")
+    end
+  end
 end
