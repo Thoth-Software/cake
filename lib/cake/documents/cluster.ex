@@ -12,7 +12,7 @@ defmodule Cake.Documents.Cluster do
   def build_mapping(schema) do
     embedding = %{
       type: "knn_vector",
-      dimension: 1536,
+      dimension: Application.get_env(:cake, :default_embedding_dimension, 1536),
       method: %{
         name: "hnsw",
         space_type: "cosinesimil",

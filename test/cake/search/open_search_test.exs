@@ -39,7 +39,8 @@ defmodule Cake.Search.OpenSearchTest do
       vector = [0.1, 0.2, 0.3]
 
       query =
-        Query.new("fixture_index", size: 30)
+        "fixture_index"
+        |> Query.new(size: 30)
         |> Query.knn("embedding", vector, k, ef_search: ef)
         |> Query.to_query_map()
 
@@ -49,14 +50,11 @@ defmodule Cake.Search.OpenSearchTest do
     end
 
     test "build_query threads ef_search from opts into the knn clause" do
-      # Integration-level: verifies that when OpenSearch.search_chunks is called
-      # with ef_search: 128, the value ends up in the knn clause body.
-      # Since build_query is private, we test via the Query builder the same way
-      # the implementation will — asserting the contract Query.knn/5 must satisfy.
       alias Cake.Search.Query
 
       query =
-        Query.new("fixture_index", size: 30)
+        "fixture_index"
+        |> Query.new(size: 30)
         |> Query.knn("embedding", [0.1, 0.2], 30, ef_search: 128)
         |> Query.match("test", ["body"], boost: 0.8)
         |> Query.to_query_map()

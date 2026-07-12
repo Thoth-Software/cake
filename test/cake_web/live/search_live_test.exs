@@ -50,9 +50,9 @@ defmodule CakeWeb.SearchLiveTest do
   end
 
   describe "config-driven defaults" do
-    test "reads embedding provider and model from application config", %{conn: conn} do
-      Application.put_env(:cake, :default_provider, :test_provider)
-      Application.put_env(:cake, :default_embedding_model, "test-embedding-model")
+    test "reads embedding model from application config", %{conn: conn} do
+      Application.put_env(:cake, :default_provider, :openai)
+      Application.put_env(:cake, :default_embedding_model, "text-embedding-3-large")
 
       Application.put_env(:cake, Cake.Embeddings,
         openai_key: "test-key",
@@ -74,12 +74,15 @@ defmodule CakeWeb.SearchLiveTest do
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.send_resp(200, Jason.encode!(%{
-          "object" => "list",
-          "data" => [%{"embedding" => List.duplicate(0.1, 1536)}],
-          "model" => "test-embedding-model",
-          "usage" => %{"prompt_tokens" => 5, "total_tokens" => 5}
-        }))
+        |> Plug.Conn.send_resp(
+          200,
+          Jason.encode!(%{
+            "object" => "list",
+            "data" => [%{"embedding" => List.duplicate(0.1, 1536)}],
+            "model" => "text-embedding-3-large",
+            "usage" => %{"prompt_tokens" => 5, "total_tokens" => 5}
+          })
+        )
       end)
 
       {:ok, lv, _} = live(conn, ~p"/search")
@@ -90,7 +93,7 @@ defmodule CakeWeb.SearchLiveTest do
       |> render_submit()
 
       assert_receive {:embed_called, body}, 1_000
-      assert body["model"] == "test-embedding-model"
+      assert body["model"] == "text-embedding-3-large"
     end
   end
 
