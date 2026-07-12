@@ -115,8 +115,7 @@ defmodule Cake.Books.PipelineTest do
 
       register_test_books([{path, {book, [chunk1, chunk2]}}])
 
-      Cake.Embeddings.Mock
-      |> expect(:embed, 2, fn :openai, _input, "test-model" ->
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, _input, "test-model" ->
         successful_embed_response()
       end)
 
@@ -134,8 +133,7 @@ defmodule Cake.Books.PipelineTest do
 
       register_test_books([{path, {book, [chunk1, chunk2]}}])
 
-      Cake.Embeddings.Mock
-      |> expect(:embed, 2, fn :openai, %{input: input}, "test-model" ->
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, "test-model" ->
         if input =~ "will fail" do
           {:error, "API error: rate limited"}
         else
@@ -158,8 +156,7 @@ defmodule Cake.Books.PipelineTest do
 
       test_pid = self()
 
-      Cake.Embeddings.Mock
-      |> expect(:embed, 1, fn :openai, _input, "test-model" ->
+      expect(Cake.Embeddings.Mock, :embed, 1, fn :openai, _input, "test-model" ->
         [persisted] = persisted_books()
         send(test_pid, {:status_during_embed, reload_book(persisted.id).embedding_status})
         successful_embed_response()
@@ -185,8 +182,7 @@ defmodule Cake.Books.PipelineTest do
         {path_b, {book_b, [chunk_b]}}
       ])
 
-      Cake.Embeddings.Mock
-      |> expect(:embed, 2, fn :openai, %{input: input}, "test-model" ->
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, "test-model" ->
         if input =~ "will fail" do
           {:error, "API error"}
         else
@@ -196,9 +192,7 @@ defmodule Cake.Books.PipelineTest do
 
       assert {:ok, _summary} = run_ingest([path_a, path_b])
 
-      all_books =
-        persisted_books()
-        |> Enum.sort_by(& &1.title)
+      all_books = Enum.sort_by(persisted_books(), & &1.title)
 
       assert [persisted_a, persisted_b] = all_books
       assert reload_book(persisted_a.id).embedding_status == :completed

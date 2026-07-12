@@ -46,10 +46,11 @@ defmodule Cake.Books.Pipeline do
            parse_all_binaries(format_pipeline, binary_stream, ctx),
          {:ok, persisted_books_and_chunks} <-
            persist_books_and_chunks(books_and_chunks_stream, ctx),
-         {:ok, embedded_chunks} <-
+         {:ok, embedded_books} <-
            embed_all_chunks(persisted_books_and_chunks, embedding_service, embedding_model, ctx),
+         status_updated_chunks <- update_book_embedding_statuses(embedded_books),
          opensearch_chunks <-
-           Pipelines.add_to_opensearch(embedded_chunks, @index, @cluster, ctx) do
+           Pipelines.add_to_opensearch(status_updated_chunks, @index, @cluster, ctx) do
       Pipelines.finalize_ingest(
         opensearch_chunks,
         ctx,
@@ -202,27 +203,48 @@ defmodule Cake.Books.Pipeline do
     embeddings_module = Application.get_env(:cake, :embeddings_module, Cake.Embeddings)
 
     embedded_stream =
-      persisted_stream
-      |> Stream.flat_map(fn {_book, chunks} -> chunks end)
-      |> Task.async_stream(
-        fn %Chunk{text: text, section_title: section_title} = chunk ->
-          result =
-            embeddings_module.embed(
-              embedding_service,
-              %{input: "#{section_title}\n\n#{text}"},
-              embedding_model
-            )
+      Stream.map(persisted_stream, fn {book, chunks} ->
+        {:ok, book} = Books.update_parsed_book(book, %{embedding_status: :processing})
 
-          {chunk, result}
-        end,
-        max_concurrency: 5,
-        timeout: 5_000,
-        on_timeout: :kill_task,
-        zip_input_on_exit: true
-      )
-      |> Stream.flat_map(&handle_embed_result(&1, ctx))
+        embedded_chunks =
+          chunks
+          |> Task.async_stream(
+            fn %Chunk{text: text, section_title: section_title} = chunk ->
+              result =
+                embeddings_module.embed(
+                  embedding_service,
+                  %{input: "#{section_title}\n\n#{text}"},
+                  embedding_model
+                )
+
+              {chunk, result}
+            end,
+            max_concurrency: 5,
+            timeout: 5_000,
+            on_timeout: :kill_task,
+            zip_input_on_exit: true
+          )
+          |> Stream.flat_map(&handle_embed_result(&1, ctx))
+          |> Enum.to_list()
+
+        {book, length(chunks), embedded_chunks}
+      end)
 
     {:ok, embedded_stream}
+  end
+
+  @spec update_book_embedding_statuses(Enumerable.t()) :: Enumerable.t()
+  def update_book_embedding_statuses(embedded_books_stream) do
+    Stream.flat_map(embedded_books_stream, fn {book, expected_count, embedded_chunks} ->
+      status =
+        case length(embedded_chunks) do
+          ^expected_count -> :completed
+          _ -> :failed
+        end
+
+      _ = Books.update_parsed_book(book, %{embedding_status: status})
+      embedded_chunks
+    end)
   end
 
   defp handle_embed_result({:ok, {chunk, {:ok, %{attrs: attrs}}}}, ctx) do
