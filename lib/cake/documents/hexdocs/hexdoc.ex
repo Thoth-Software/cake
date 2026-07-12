@@ -58,6 +58,12 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
       where: h.version == ^version
   end
 
+  @spec by_module(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
+  def by_module(query, module) do
+    from h in query,
+      where: h.module == ^module
+  end
+
   @spec to_parsed_docs({:ok, %__MODULE__{}} | %__MODULE__{}) :: [map()]
   def to_parsed_docs({:ok, hexdoc}), do: to_parsed_docs(hexdoc)
 

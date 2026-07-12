@@ -77,4 +77,33 @@ defmodule Cake.HexdocsTest do
       assert %Ecto.Changeset{} = Hexdocs.change_hexdoc(hexdoc)
     end
   end
+
+  describe "hexdoc_exists?/2" do
+    import Cake.HexdocsFixtures
+
+    test "returns true when a hexdoc with that module and version exists" do
+      hexdoc_fixture(%{module: "Enum", version: "1.18.3"})
+      assert Hexdocs.hexdoc_exists?("Enum", "1.18.3")
+    end
+
+    test "returns false when no hexdoc matches" do
+      refute Hexdocs.hexdoc_exists?("Enum", "1.18.3")
+    end
+
+    test "returns false when the module matches but the version differs" do
+      hexdoc_fixture(%{module: "Enum", version: "1.17.0"})
+      refute Hexdocs.hexdoc_exists?("Enum", "1.18.3")
+    end
+
+    test "returns false when the version matches but the module differs" do
+      hexdoc_fixture(%{module: "Map", version: "1.18.3"})
+      refute Hexdocs.hexdoc_exists?("Enum", "1.18.3")
+    end
+
+    test "tolerates pre-existing duplicates of the same key (the point of dupe detection)" do
+      hexdoc_fixture(%{module: "Enum", version: "1.18.3"})
+      hexdoc_fixture(%{module: "Enum", version: "1.18.3"})
+      assert Hexdocs.hexdoc_exists?("Enum", "1.18.3")
+    end
+  end
 end
