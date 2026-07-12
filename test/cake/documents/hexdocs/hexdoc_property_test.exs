@@ -16,8 +16,10 @@ defmodule Cake.Documents.Hexdocs.HexdocPropertyTest do
 
   describe "hexdoc_exists?/2" do
     property "is true for the (module, version) of any persisted hexdoc" do
-      check all module <- string(:alphanumeric, min_length: 1),
-                version <- string(:alphanumeric, min_length: 1) do
+      check all(
+              module <- string(:alphanumeric, min_length: 1),
+              version <- string(:alphanumeric, min_length: 1)
+            ) do
         hexdoc_fixture(%{module: module, version: version})
         assert Hexdocs.hexdoc_exists?(module, version)
       end
