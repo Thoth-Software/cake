@@ -30,6 +30,16 @@ defmodule CakeWeb.ChatLiveTest do
 
       assert html =~ "Manual selection"
     end
+
+    test "spawns exactly one Conversation process per live mount", %{conn: conn} do
+      children_before = DynamicSupervisor.which_children(Cake.ConversationSupervisor)
+
+      {:ok, _view, _html} = live(conn, ~p"/chat")
+
+      children_after = DynamicSupervisor.which_children(Cake.ConversationSupervisor)
+      new_children = length(children_after) - length(children_before)
+      assert new_children == 1
+    end
   end
 
   describe "question submission" do

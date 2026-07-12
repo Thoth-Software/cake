@@ -11,7 +11,11 @@ defmodule CakeWeb.ChatLive do
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
-    {:ok, socket |> start_conversation() |> init_ui_state()}
+    if connected?(socket) do
+      {:ok, socket |> start_conversation() |> init_ui_state()}
+    else
+      {:ok, init_ui_state(socket)}
+    end
   end
 
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
@@ -293,7 +297,14 @@ defmodule CakeWeb.ChatLive do
 
     {:ok, pid} = Cake.Conversation.start(opts)
     Process.monitor(pid)
-    _ = Phoenix.PubSub.subscribe(Cake.PubSub, Events.topic(conversation_id))
+
+    case Phoenix.PubSub.subscribe(Cake.PubSub, Events.topic(conversation_id)) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.error("ChatLive failed to subscribe to conversation topic: #{inspect(reason)}")
+    end
 
     assign(socket, convo_pid: pid)
   end

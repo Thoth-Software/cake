@@ -56,11 +56,11 @@ defmodule Cake.Conversation do
     end
   end
 
-  @spec start(map()) :: GenServer.on_start()
+  @spec start(map()) :: DynamicSupervisor.on_start_child()
   def start(opts) when is_map(opts) do
     with {:ok, _id} <- fetch_required(opts, :id),
          {:ok, _gds} <- fetch_required(opts, :gds) do
-      GenServer.start(__MODULE__, opts)
+      DynamicSupervisor.start_child(Cake.ConversationSupervisor, {__MODULE__, opts})
     end
   end
 
@@ -92,27 +92,41 @@ defmodule Cake.Conversation do
   end
 
   @spec autoask(pid(), String.t()) :: :ok
-  def autoask(pid, question) do
-    GenServer.cast(pid, {:autoask, question})
-  end
+  def autoask(pid, question), do: GenServer.cast(pid, {:autoask, question})
 
   @impl GenServer
   def handle_cast({:autoask, question}, %State{state: :idle} = s) do
-    do_auto_turn(question, s)
+    {:noreply, spawn_turn(question, s)}
   end
 
-  defp do_auto_turn(question, %State{} = s) do
-    _ = broadcast(s, {:state_change, :generating})
+  @impl GenServer
+  def handle_cast({:autoask, question}, %State{state: :generating} = s) do
+    {:noreply, %{s | queued_question: question}}
+  end
 
-    case run_turn(question, s) do
-      {:ok, {response, citations, new_state}} ->
-        _ = emit_response(s, response, citations)
-        {:noreply, new_state}
+  @impl GenServer
+  def handle_info({ref, result}, %State{turn_ref: ref} = s) when is_reference(ref) do
+    Process.demonitor(ref, [:flush])
 
-      {:error, error} ->
-        _ = emit_error(s, error)
-        {:noreply, %{s | errors: [error | s.errors]}}
-    end
+    new_state =
+      case result do
+        {:ok, {response, citations, returned_state}} ->
+          _ = emit_response(s, response, citations)
+          apply_turn_result(%{s | state: :idle, turn_ref: nil}, returned_state)
+
+        {:error, error} ->
+          _ = emit_error(s, error)
+          %{s | state: :idle, turn_ref: nil, errors: [error | s.errors]}
+      end
+
+    maybe_replay_queue(new_state)
+  end
+
+  @impl GenServer
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %State{turn_ref: ref} = s) do
+    _ = emit_error(s, reason)
+    new_state = %{s | state: :idle, turn_ref: nil, errors: [reason | s.errors]}
+    maybe_replay_queue(new_state)
   end
 
   # --- Manual mode ---
@@ -212,7 +226,7 @@ defmodule Cake.Conversation do
   @spec build_prompt([Cake.Prompt.indexed_chunk()], String.t(), [String.t()]) ::
           {:ok, [Cake.Prompt.message()]}
   def build_prompt(indexed_chunks, question, history) do
-    {:ok, Cake.Prompt.build(indexed_chunks, question, history)}
+    {:ok, Cake.Prompt.build(indexed_chunks, question, Enum.reverse(history))}
   end
 
   # --- Stage 3: generate ---
@@ -241,8 +255,8 @@ defmodule Cake.Conversation do
   defp update_state(%State{} = s, scored_results, question, response, result) do
     history =
       case s.search_results do
-        [] -> [question, response]
-        _ -> s.message_history ++ [question, response]
+        [] -> [response, question]
+        _ -> [response, question | s.message_history]
       end
 
     %{
@@ -354,6 +368,30 @@ defmodule Cake.Conversation do
   @impl GenServer
   def handle_call(:inspect, _from, %State{} = s) do
     {:reply, s, s}
+  end
+
+  defp spawn_turn(question, %State{} = s) do
+    _ = broadcast(s, {:state_change, :generating})
+    task = Task.Supervisor.async_nolink(Cake.TaskSupervisor, fn -> run_turn(question, s) end)
+    %{s | state: :generating, turn_ref: task.ref}
+  end
+
+  defp apply_turn_result(%State{} = current, %State{} = returned) do
+    %{
+      current
+      | search_results: returned.search_results,
+        message_history: returned.message_history,
+        chunk_map: returned.chunk_map,
+        citations: returned.citations
+    }
+  end
+
+  defp maybe_replay_queue(%State{queued_question: nil} = s) do
+    {:noreply, s}
+  end
+
+  defp maybe_replay_queue(%State{queued_question: question} = s) do
+    {:noreply, spawn_turn(question, %{s | queued_question: nil})}
   end
 
   defp emit_response(%State{} = s, response, citations) do
