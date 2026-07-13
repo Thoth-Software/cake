@@ -28,7 +28,7 @@ config :cake, CakeWeb.Endpoint,
   pubsub_server: Cake.PubSub,
   live_view: [signing_salt: "QL+aqy0T"]
 
-config :cake, Cake.Documents.Cluster,
+config :cake, Cake.Search.Deployment,
   url: "http://opensearch:9200",
   username: "admin",
   password: System.get_env("OPENSEARCH_INITIAL_ADMIN_PASSWORD")

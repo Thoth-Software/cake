@@ -21,7 +21,7 @@ config :cake, Cake.Embeddings,
   openai_key: System.get_env("OPENAI_KEY"),
   base_url: "https://api.openai.com/v1/embeddings"
 
-config :cake, Cake.Documents.Cluster,
+config :cake, Cake.Search.Deployment,
   url: "http://opensearch:9200",
   username: "admin",
   password: System.get_env("OPENSEARCH_INITIAL_ADMIN_PASSWORD")

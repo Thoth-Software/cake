@@ -3,6 +3,7 @@ defmodule Cake.Search.QueryPropertyTest do
   use ExUnitProperties
 
   alias Cake.QueryGenerators
+  alias Cake.Search.Backends.OpenSearch
   alias Cake.Search.Query
 
   # ---------------------------------------------------------------------------
@@ -59,12 +60,12 @@ defmodule Cake.Search.QueryPropertyTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Conversion properties
+  # Conversion properties (OpenSearch backend)
   # ---------------------------------------------------------------------------
 
   property "to_query_map/1 always produces a map with the correct shape" do
     check all(query <- QueryGenerators.query()) do
-      map = Query.to_query_map(query)
+      map = OpenSearch.to_query_map(query)
 
       assert is_integer(map.size)
       assert is_list(get_in(map, [:query, :bool, :must]))
@@ -75,7 +76,7 @@ defmodule Cake.Search.QueryPropertyTest do
 
   property "to_query_map/1 preserves clause counts" do
     check all(query <- QueryGenerators.query()) do
-      map = Query.to_query_map(query)
+      map = OpenSearch.to_query_map(query)
 
       assert length(get_in(map, [:query, :bool, :must])) == length(query.must)
       assert length(get_in(map, [:query, :bool, :should])) == length(query.should)
@@ -85,7 +86,7 @@ defmodule Cake.Search.QueryPropertyTest do
 
   property "to_query_map/1 preserves clause content" do
     check all(query <- QueryGenerators.query()) do
-      map = Query.to_query_map(query)
+      map = OpenSearch.to_query_map(query)
 
       assert MapSet.new(get_in(map, [:query, :bool, :must])) == MapSet.new(query.must)
       assert MapSet.new(get_in(map, [:query, :bool, :should])) == MapSet.new(query.should)
@@ -95,7 +96,7 @@ defmodule Cake.Search.QueryPropertyTest do
 
   property "to_query_map/1 includes min_score iff it is non-nil" do
     check all(query <- QueryGenerators.query()) do
-      map = Query.to_query_map(query)
+      map = OpenSearch.to_query_map(query)
 
       if is_nil(query.min_score) do
         refute Map.has_key?(map, :min_score)

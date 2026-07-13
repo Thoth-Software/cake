@@ -12,8 +12,8 @@ defmodule Cake.Books.ParsedBookTest do
       assert Cake.GDS in behaviours
     end
 
-    test "index_name/0 returns the chunks_of_books index name" do
-      assert ParsedBook.index_name() == "chunks_of_books"
+    test "collection_name/0 returns the chunks_of_books collection name" do
+      assert ParsedBook.collection_name() == "chunks_of_books"
     end
 
     test "search_fields/0 returns section_title (boost 2) and text" do
@@ -42,8 +42,8 @@ defmodule Cake.Books.ParsedBookTest do
         })
 
       hits = [
-        %Snap.Hit{source: %{"id" => chunk_b.id}},
-        %Snap.Hit{source: %{"id" => chunk_a.id}}
+        %Cake.Search.Hit{id: chunk_b.id},
+        %Cake.Search.Hit{id: chunk_a.id}
       ]
 
       loaded = ParsedBook.load_from_hits(hits)
