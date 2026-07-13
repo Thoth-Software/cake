@@ -4,7 +4,7 @@ defmodule Cake.GDS do
 
   A GDS answers four questions about its searchable records:
 
-    * Which OpenSearch index holds them?
+    * Which search collection holds them?
     * Which fields should full-text search target, and with what boosts?
     * How do I hydrate search hits back into structs?
     * Optionally: how do I expand a set of hits with neighboring records
@@ -28,12 +28,12 @@ defmodule Cake.GDS do
 
   Schemas opt in with `use Cake.GDS`, which pulls in both the `@behaviour`
   attribute and a trivial identity default for `expand_with_neighbors/2` via
-  `defoverridable`. The static callbacks — `index_name/0` and `search_fields/0`
-  — live on the schema module directly, because they are compile-time
-  constants the schema has full knowledge of. The repo-hitting callbacks —
-  `load_from_hits/1` and `expand_with_neighbors/2` — delegate from the schema
-  to the corresponding context module (e.g. `Cake.Books`), because that is
-  where the Repo-aware query functions live.
+  `defoverridable`. The static callbacks — `collection_name/0` and
+  `search_fields/0` — live on the schema module directly, because they are
+  compile-time constants the schema has full knowledge of. The repo-hitting
+  callbacks — `load_from_hits/1` and `expand_with_neighbors/2` — delegate
+  from the schema to the corresponding context module (e.g. `Cake.Books`),
+  because that is where the Repo-aware query functions live.
 
   ## Return types
 
@@ -59,25 +59,24 @@ defmodule Cake.GDS do
   """
 
   @doc """
-  Returns the OpenSearch index name that holds the atomic searchable
+  Returns the search collection name that holds the atomic searchable
   records for this GDS (e.g. `"chunks_of_books"`, `"docs"`).
   """
-  @callback index_name() :: String.t()
+  @callback collection_name() :: String.t()
 
   @doc """
-  Returns the list of fields that keyword search should target, in the
-  OpenSearch `multi_match` format. Fields may include a caret-boost suffix:
-  `"title^2"` means matches on `title` are boosted by a factor of 2 relative
-  to unboosted fields.
+  Returns the list of fields that keyword search should target. Fields may
+  include a caret-boost suffix: `"title^2"` means matches on `title` are
+  boosted by a factor of 2 relative to unboosted fields.
   """
   @callback search_fields() :: [String.t()]
 
   @doc """
-  Hydrates a list of OpenSearch hits into structs. Implementations typically
+  Hydrates a list of search hits into structs. Implementations typically
   delegate to a context function that extracts the hit IDs and runs a single
   `Repo.all/1` to fetch the full records in one query.
   """
-  @callback load_from_hits(hits :: [Snap.Hit.t()]) :: [struct()]
+  @callback load_from_hits(hits :: [Cake.Search.Hit.t()]) :: [struct()]
 
   @doc """
   Expands a list of retrieved records with neighbors on either side, given

@@ -1,12 +1,12 @@
 defmodule Cake.Documents.ParsedDocument do
   @moduledoc """
   Schema for parsed documentation chunks, used to generate embedding vectors
-  and store searchable metadata for OpenSearch.
+  and store searchable metadata in the search backend.
 
   Fields are tagged to indicate how they're used downstream:
   - `embedding_input`: indexed for embedding
   - `plaintext`: indexed for full-text keyword search
-  - `metadata:<key>`: included in OpenSearch metadata under the given key
+  - `metadata:<key>`: included in search backend metadata under the given key
 
   :embedding should contain an embedding representing the value of :content.
   That is, if you take the right deep learning model and decode the embedding, you should
@@ -21,7 +21,7 @@ defmodule Cake.Documents.ParsedDocument do
   # Cake.GDS callbacks
 
   @impl Cake.GDS
-  def index_name, do: "docs"
+  def collection_name, do: "docs"
 
   @impl Cake.GDS
   def search_fields, do: ["title^3", "text"]

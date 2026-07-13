@@ -111,14 +111,14 @@ defmodule Cake.Documents.ParsedDocuments do
   end
 
   @doc """
-  Hydrates `ParsedDocument` records from a list of OpenSearch hits.
+  Hydrates `ParsedDocument` records from a list of search hits.
 
   Used by the `Cake.GDS` `load_from_hits/1` callback on `ParsedDocument`.
   Preserves hit order so downstream ranking is respected.
   """
-  @spec load_from_hits([Snap.Hit.t()]) :: [ParsedDocument.t()]
+  @spec load_from_hits([Cake.Search.Hit.t()]) :: [ParsedDocument.t()]
   def load_from_hits(hits) do
-    ids = Enum.map(hits, fn hit -> hit.source["id"] end)
+    ids = Enum.map(hits, fn hit -> hit.id end)
 
     docs_by_id =
       ParsedDocument

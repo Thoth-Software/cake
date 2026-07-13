@@ -18,19 +18,22 @@ defmodule Cake.Search do
   implementation module. If it's math on data already in memory, it belongs here.
   """
 
+  alias Cake.Search.Hit
   alias Cake.Search.Result
 
   @type search_type :: :keyword | :vector | :hybrid
   @type search_opts :: keyword()
-  @type search_result :: {:ok, Snap.SearchResponse.t()} | {:error, any()}
+  @type search_result :: {:ok, [Hit.t()]} | {:error, any()}
   @type result_list :: [Result.t()]
 
-  @doc "Execute an arbitrary `%Cake.Search.Query{}` against the cluster."
+  @default_expand_offset 2
+
+  @doc "Execute an arbitrary `%Cake.Search.Query{}` against the backend."
   @callback search(Cake.Search.Query.t()) :: search_result()
 
   @doc """
   Search for retrieval units (chunks, documents — determined by the GDS
-  passed via `opts[:gds]`). Returns raw OpenSearch hits. `embedding` may be
+  passed via `opts[:gds]`). Returns hits. `embedding` may be
   nil for keyword-only search.
   """
   @callback search_chunks(search_type(), String.t(), [float()] | nil, search_opts()) ::
@@ -55,6 +58,9 @@ defmodule Cake.Search do
   @doc "Alias of `search_chunks/4` retained for call-site clarity. Same signature."
   @callback search_docs(search_type(), String.t(), [float()] | nil, search_opts()) ::
               search_result()
+
+  @spec default_expand_offset() :: non_neg_integer()
+  def default_expand_offset, do: @default_expand_offset
 
   # --- Scoring utilities ---
   #

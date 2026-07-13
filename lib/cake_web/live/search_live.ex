@@ -53,14 +53,17 @@ defmodule CakeWeb.SearchLive do
     provider = Application.fetch_env!(:cake, :default_provider)
     embedding_model = Application.fetch_env!(:cake, :default_embedding_model)
 
+    search_module =
+      Application.get_env(:cake, :search_module, Cake.Search.OpenSearch)
+
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            Cake.Embeddings.embed(provider, %{input: query}, embedding_model),
          {:ok, search_results} <-
-           Cake.Search.OpenSearch.search_chunks_with_context(
+           search_module.search_chunks_with_context(
              :hybrid,
              query,
              embedding,
-             Cake.Search.OpenSearch.default_expand_offset(),
+             Cake.Search.default_expand_offset(),
              gds: Cake.Books.ParsedBook
            ) do
       results =

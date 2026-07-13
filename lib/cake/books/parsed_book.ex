@@ -33,7 +33,7 @@ defmodule Cake.Books.ParsedBook do
   # Cake.GDS callbacks
 
   @impl Cake.GDS
-  def index_name, do: "chunks_of_books"
+  def collection_name, do: "chunks_of_books"
 
   @impl Cake.GDS
   def search_fields, do: ["section_title^2", "text"]

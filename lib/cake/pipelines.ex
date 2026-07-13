@@ -4,6 +4,7 @@ defmodule Cake.Pipelines do
   """
 
   alias Cake.Pipelines
+  alias Cake.Search.Backend
 
   require Logger
 
@@ -37,50 +38,43 @@ defmodule Cake.Pipelines do
           failed: non_neg_integer()
         }
 
-  @spec add_to_opensearch(Enumerable.t(), String.t(), module(), context()) :: Enumerable.t()
-  def add_to_opensearch(docs_with_embeddings_stream, index, cluster, %Context{} = ctx) do
-    if skip_opensearch?() do
-      # In test mode, just pass through the documents without calling OpenSearch
+  @spec add_to_search_backend(Enumerable.t(), String.t(), context()) :: Enumerable.t()
+  def add_to_search_backend(docs_with_embeddings_stream, collection, %Context{} = ctx) do
+    if skip_search_backend?() do
       Stream.map(docs_with_embeddings_stream, fn doc ->
-        Logger.debug("Skipping OpenSearch insert for document #{doc.id} (test mode)")
+        Logger.debug("Skipping search backend insert for document #{doc.id} (test mode)")
         doc
       end)
     else
+      backend = Backend.backend()
+
       docs_with_embeddings_stream
       |> Task.async_stream(
-        &Snap.Document.update(cluster, index, %{doc: &1, doc_as_upsert: true}, &1.id),
+        &backend.index_document(collection, &1, &1.id),
         max_concurrency: 5,
         timeout: 5_000,
         on_timeout: :kill_task
       )
-      |> Stream.map(&handle_opensearch_response/1)
-      |> detuple_with_logging("opensearch.index", ctx)
+      |> Stream.map(&handle_backend_response/1)
+      |> detuple_with_logging("search_backend.index", ctx)
     end
   end
 
-  defp skip_opensearch? do
-    Application.get_env(:cake, :skip_opensearch, false)
+  defp skip_search_backend? do
+    Application.get_env(:cake, :skip_search_backend, false)
   end
 
-  defp handle_opensearch_response({:exit, element}),
-    do: {:error, {:opensearch_exit, element}}
+  defp handle_backend_response({:exit, element}),
+    do: {:error, {:search_backend_exit, element}}
 
-  defp handle_opensearch_response({:ok, task_response}),
-    do: handle_opensearch_task_result(task_response)
+  defp handle_backend_response({:ok, :ok}),
+    do: {:ok, :indexed}
 
-  defp handle_opensearch_response({:error, changeset}),
-    do: {:error, {:opensearch_changeset, changeset}}
+  defp handle_backend_response({:ok, {:error, error}}),
+    do: {:error, {:search_backend_api_error, error}}
 
-  defp handle_opensearch_task_result({:ok, task_response}),
-    do: handle_opensearch_task_result(task_response)
-
-  defp handle_opensearch_task_result({:error, error}),
-    do: {:error, {:opensearch_api_error, error}}
-
-  defp handle_opensearch_task_result(%{"_id" => id}) do
-    Logger.info("Document #{id} created")
-    {:ok, id}
-  end
+  defp handle_backend_response({:error, changeset}),
+    do: {:error, {:search_backend_changeset, changeset}}
 
   @doc """
   Filters a stream of {:ok, value} | {:error, reason} tuples,
@@ -159,9 +153,6 @@ defmodule Cake.Pipelines do
 
   Returns {resolved_count, remaining_count}.
   """
-  # NOTE: If we end up with many more behaviours, this sweep + ingest_with_sweep
-  # pattern could be extracted into a macro. For now, the duplication is minimal
-  # and the explicitness is worth it.
   @spec sweep(String.t(), String.t(), String.t(), fun(), [{:max_sweeps, integer()}]) ::
           {integer(), integer()}
   def sweep(behaviour, implementation, version, retry_fn, opts \\ []) do
@@ -195,7 +186,6 @@ defmodule Cake.Pipelines do
         end)
 
       if resolved_this_sweep == 0 do
-        # No progress — stop early, remaining failures are probably permanent
         {total_resolved, length(failures)}
       else
         do_sweep(

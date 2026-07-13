@@ -31,9 +31,8 @@ defmodule Cake.Documents.Pipeline do
   alias Cake.Pipelines
   alias Cake.Pipelines.Context
   alias Cake.Repo
+  alias Cake.Search.Backend
   require Logger
-
-  @cluster Cake.Documents.Cluster
 
   @type version :: {integer(), integer(), integer()}
 
@@ -65,15 +64,14 @@ defmodule Cake.Documents.Pipeline do
              embedding_model,
              ctx
            ),
-         opensearch_docs_stream <-
-           Pipelines.add_to_opensearch(
+         indexed_docs_stream <-
+           Pipelines.add_to_search_backend(
              docs_with_embeddings_stream,
-             ParsedDocument.index_name(),
-             @cluster,
+             ParsedDocument.collection_name(),
              ctx
            ) do
       Pipelines.finalize_ingest(
-        opensearch_docs_stream,
+        indexed_docs_stream,
         ctx,
         failures_before,
         source_pipeline.success_message(ctx)
@@ -147,7 +145,7 @@ defmodule Cake.Documents.Pipeline do
         embedding_service,
         embedding_model
       )
-      when step in ["docs.embed", "docs.embed_persist", "opensearch.index"] do
+      when step in ["docs.embed", "docs.embed_persist", "search_backend.index"] do
     retry_embed_failure(failure, embedding_service, embedding_model)
   end
 
@@ -286,17 +284,12 @@ defmodule Cake.Documents.Pipeline do
   end
 
   defp index_single(doc) do
-    if Application.get_env(:cake, :skip_opensearch, false) do
+    if Application.get_env(:cake, :skip_search_backend, false) do
       :ok
     else
-      case Snap.Document.update(
-             @cluster,
-             ParsedDocument.index_name(),
-             %{doc: doc, doc_as_upsert: true},
-             doc.id
-           ) do
-        %{"_id" => _} -> :ok
-        error -> {:error, {:opensearch_index, error}}
+      case Backend.backend().index_document(ParsedDocument.collection_name(), doc, doc.id) do
+        :ok -> :ok
+        {:error, error} -> {:error, {:search_backend_index, error}}
       end
     end
   end
