@@ -1,14 +1,14 @@
 defmodule Cake.Search.Query do
   @moduledoc """
-  Composable query builder for OpenSearch bool queries.
+  Backend-agnostic composable query builder.
 
   Each builder function returns a new `%Query{}` with a clause appended or a
-  scalar field overwritten. `to_query_map/1` converts the struct to the nested
-  map that `Snap.Search.search/3` expects.
+  scalar field overwritten. Translation to a backend-specific format (e.g.
+  OpenSearch bool queries) is handled by each backend's implementation.
 
   The outer query envelope uses atom keys for compile-time safety. Clause
-  contents use string keys because their schema belongs to OpenSearch, not to
-  this module.
+  contents use string keys because their schema belongs to the search
+  backend, not to this module.
 
   ## Example
 
@@ -18,7 +18,6 @@ defmodule Cake.Search.Query do
       |> Query.knn("embedding", my_vector, 30)
       |> Query.match("GenServer", ["section_title^2", "text"], boost: 0.8)
       |> Query.filter_term("language", "Elixir")
-      |> Query.to_query_map()
   """
 
   @enforce_keys [:index]
@@ -85,31 +84,5 @@ defmodule Cake.Search.Query do
   @spec size(t(), pos_integer()) :: t()
   def size(%__MODULE__{} = query, size) when is_integer(size) and size > 0 do
     %{query | size: size}
-  end
-
-  @doc """
-  Converts the query struct to the nested map OpenSearch expects.
-
-  Clause lists are reversed to preserve insertion order (builders prepend).
-  `min_score` is omitted when nil.
-  """
-  @spec to_query_map(t()) :: map()
-  def to_query_map(%__MODULE__{} = query) do
-    base = %{
-      size: query.size,
-      query: %{
-        bool: %{
-          must: Enum.reverse(query.must),
-          should: Enum.reverse(query.should),
-          filter: Enum.reverse(query.filter)
-        }
-      }
-    }
-
-    if is_nil(query.min_score) do
-      base
-    else
-      Map.put(base, :min_score, query.min_score)
-    end
   end
 end

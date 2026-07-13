@@ -23,9 +23,8 @@ defmodule Cake.Books.Pipeline do
   alias Cake.Books.Persistence
   alias Cake.Pipelines
   alias Cake.Repo
+  alias Cake.Search.Backend
   require Logger
-
-  @cluster Cake.Documents.Cluster
 
   @callback load_binary(String.t()) :: {:ok, {String.t(), binary()}} | {:error, any()}
   @callback parse({String.t(), binary()}) :: {ParsedBook.t(), [Chunk.t()]}
@@ -48,15 +47,14 @@ defmodule Cake.Books.Pipeline do
          {:ok, embedded_books} <-
            embed_all_chunks(persisted_books_and_chunks, embedding_service, embedding_model, ctx),
          status_updated_chunks <- update_book_embedding_statuses(embedded_books),
-         opensearch_chunks <-
-           Pipelines.add_to_opensearch(
+         indexed_chunks <-
+           Pipelines.add_to_search_backend(
              status_updated_chunks,
-             ParsedBook.index_name(),
-             @cluster,
+             ParsedBook.collection_name(),
              ctx
            ) do
       Pipelines.finalize_ingest(
-        opensearch_chunks,
+        indexed_chunks,
         ctx,
         failures_before,
         format_pipeline.success_message()
@@ -119,7 +117,7 @@ defmodule Cake.Books.Pipeline do
         embedding_service,
         embedding_model
       )
-      when step in ["books.embed", "opensearch.index"] do
+      when step in ["books.embed", "search_backend.index"] do
     retry_from_chunk(failure, embedding_service, embedding_model)
   end
 
@@ -340,17 +338,12 @@ defmodule Cake.Books.Pipeline do
   end
 
   defp index_single_chunk(chunk) do
-    if Application.get_env(:cake, :skip_opensearch, false) do
+    if Application.get_env(:cake, :skip_search_backend, false) do
       :ok
     else
-      case Snap.Document.update(
-             @cluster,
-             ParsedBook.index_name(),
-             %{doc: chunk, doc_as_upsert: true},
-             chunk.id
-           ) do
-        %{"_id" => _} -> :ok
-        error -> {:error, {:opensearch_index, chunk.id, error}}
+      case Backend.backend().index_document(ParsedBook.collection_name(), chunk, chunk.id) do
+        :ok -> :ok
+        {:error, error} -> {:error, {:search_backend_index, chunk.id, error}}
       end
     end
   end

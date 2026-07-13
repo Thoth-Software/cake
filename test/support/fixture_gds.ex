@@ -5,25 +5,25 @@ defmodule Cake.Support.FixtureGDS do
   Does double duty:
 
     1. **Fast test fixture.** Implements the full `Cake.GDS` contract without
-       needing OpenSearch, the Repo, or any real schema. Tests that exercise
-       GDS-agnostic orchestration code (`Cake.Search.OpenSearch`,
+       needing a search backend, the Repo, or any real schema. Tests that
+       exercise GDS-agnostic orchestration code (`Cake.Search.OpenSearch`,
        `Cake.Conversation`, `Cake.Prompt` via `Cake.Promptable`) can thread
        `gds: Cake.Support.FixtureGDS` through the `:gds` opt and run in
        isolation.
 
     2. **Living documentation.** Shows the minimum surface area a new GDS
        author must cover: one `use Cake.GDS`, three required callbacks
-       (`index_name/0`, `search_fields/0`, `load_from_hits/1`), and — if the
-       GDS has ordering — an override for `expand_with_neighbors/2`.
+       (`collection_name/0`, `search_fields/0`, `load_from_hits/1`), and — if
+       the GDS has ordering — an override for `expand_with_neighbors/2`.
        FixtureGDS inherits the identity default, the same way
        `Cake.Documents.ParsedDocument` does.
 
   ## Callback walkthrough
 
-    * `index_name/0` — the OpenSearch index this GDS owns. A real GDS returns
-      a string like `"chunks_of_books"` or `"docs"`. FixtureGDS returns
-      `"fixture_index"` — a name that doesn't exist in any real cluster so
-      accidental production traffic fails loudly.
+    * `collection_name/0` — the search collection this GDS owns. A real GDS
+      returns a string like `"chunks_of_books"` or `"docs"`. FixtureGDS
+      returns `"fixture_collection"` — a name that doesn't exist in any real
+      deployment so accidental production traffic fails loudly.
 
     * `search_fields/0` — the fields keyword search targets, with optional
       caret-boost suffixes (`"title^3"`). FixtureGDS targets a single field
@@ -32,9 +32,9 @@ defmodule Cake.Support.FixtureGDS do
     * `load_from_hits/1` — hydrates hits into structs. A real GDS's
       implementation runs one Repo query, preserving hit order. FixtureGDS
       synthesizes `%Record{}` values directly from hit payloads — no Repo
-      involvement — and tolerates multiple hit shapes (`%Snap.Hit{}`,
-      OpenSearch-raw `"_id"`/`"_source"` maps, bare ID binaries) so tests
-      can pick whichever shape reads best at the call site.
+      involvement — and tolerates multiple hit shapes (`%Cake.Search.Hit{}`,
+      raw `"_id"`/`"_source"` maps, bare ID binaries) so tests can pick
+      whichever shape reads best at the call site.
 
     * `expand_with_neighbors/2` — inherited from `use Cake.GDS`, which
       supplies an identity default. A FixtureGDS record has no ordering
@@ -45,7 +45,7 @@ defmodule Cake.Support.FixtureGDS do
   FixtureGDS records every callback invocation via `Process.put/2`. Tests
   can call `calls/0` to read the list and `reset_calls/0` to clear it.
   This lets dispatch tests assert *which* GDS callbacks orchestration code
-  routed through without mocking OpenSearch-side traffic.
+  routed through without mocking search backend traffic.
 
   ## Typical usage
 
@@ -56,7 +56,7 @@ defmodule Cake.Support.FixtureGDS do
 
       test "some search flow routes through the GDS" do
         # ...invoke code that accepts `gds: Cake.Support.FixtureGDS`...
-        assert :index_name in Cake.Support.FixtureGDS.calls()
+        assert :collection_name in Cake.Support.FixtureGDS.calls()
       end
 
   When building a real GDS, use FixtureGDS as a structural reference: mirror
@@ -66,6 +66,8 @@ defmodule Cake.Support.FixtureGDS do
   """
 
   use Cake.GDS
+
+  alias Cake.Search.Hit
 
   defmodule Record do
     @moduledoc false
@@ -86,9 +88,9 @@ defmodule Cake.Support.FixtureGDS do
   end
 
   @impl Cake.GDS
-  def index_name do
-    record_call(:index_name)
-    "fixture_index"
+  def collection_name do
+    record_call(:collection_name)
+    "fixture_collection"
   end
 
   @impl Cake.GDS
@@ -108,11 +110,13 @@ defmodule Cake.Support.FixtureGDS do
     end)
   end
 
+  defp extract_id(%Hit{id: id}), do: id
   defp extract_id(%{source: %{"id" => id}}), do: id
   defp extract_id(%{"_id" => id}), do: id
   defp extract_id(%{id: id}), do: id
   defp extract_id(id) when is_binary(id), do: id
 
+  defp extract_body(%Hit{source: %{"body" => body}}, _id), do: body
   defp extract_body(%{source: %{"body" => body}}, _id), do: body
   defp extract_body(%{"_source" => %{"body" => body}}, _id), do: body
   defp extract_body(_hit, id), do: "fixture-body-#{id}"

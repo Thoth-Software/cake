@@ -278,7 +278,7 @@ defmodule Cake.Conversation do
              :hybrid,
              question,
              embedding,
-             Cake.Search.OpenSearch.default_expand_offset(),
+             Cake.Search.default_expand_offset(),
              gds: s.gds
            ) do
       scored_results =

@@ -15,7 +15,7 @@ defmodule Cake.Application do
       {Phoenix.PubSub, name: Cake.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: Cake.Finch},
-      {Cake.Documents.Cluster, name: Cake.Documents.Cluster},
+      {Cake.Search.Deployment, name: Cake.Search.Deployment},
       {Task.Supervisor, name: Cake.TaskSupervisor},
       {DynamicSupervisor, name: Cake.ConversationSupervisor, strategy: :one_for_one},
       # Start to serve requests, typically the last entry

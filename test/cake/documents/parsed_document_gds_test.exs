@@ -11,8 +11,8 @@ defmodule Cake.Documents.ParsedDocumentGDSTest do
       assert Cake.GDS in behaviours
     end
 
-    test "index_name/0 returns the docs index name" do
-      assert ParsedDocument.index_name() == "docs"
+    test "collection_name/0 returns the docs collection name" do
+      assert ParsedDocument.collection_name() == "docs"
     end
 
     test "search_fields/0 returns title (boost 3) and text" do
@@ -41,8 +41,8 @@ defmodule Cake.Documents.ParsedDocumentGDSTest do
         })
 
       hits = [
-        %Snap.Hit{source: %{"id" => doc_b.id}},
-        %Snap.Hit{source: %{"id" => doc_a.id}}
+        %Cake.Search.Hit{id: doc_b.id},
+        %Cake.Search.Hit{id: doc_a.id}
       ]
 
       loaded = ParsedDocument.load_from_hits(hits)

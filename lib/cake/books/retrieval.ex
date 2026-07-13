@@ -1,6 +1,6 @@
 defmodule Cake.Books.Retrieval do
   @moduledoc """
-  Read-path for the Books GDS: hydrates `Chunk` records from OpenSearch hits
+  Read-path for the Books GDS: hydrates `Chunk` records from search hits
   and expands a hit set with neighboring chunks from Postgres.
 
   These are the implementations `Cake.Books.ParsedBook` delegates to for the
@@ -13,14 +13,15 @@ defmodule Cake.Books.Retrieval do
 
   alias Cake.Books.Chunk
   alias Cake.Repo
+  alias Cake.Search.Hit
 
   @doc """
-  Fetches Chunk records for a list of OpenSearch hits, with `parsed_book`
+  Fetches Chunk records for a list of search hits, with `parsed_book`
   preloaded. Returns chunks in the same order as the hits.
   """
-  @spec chunks_for_hits(%Snap.Hits{} | list()) :: [Chunk.t()]
+  @spec chunks_for_hits([Hit.t()]) :: [Chunk.t()]
   def chunks_for_hits(hits) do
-    ids = Enum.map(hits, fn hit -> hit.source["id"] end)
+    ids = Enum.map(hits, fn hit -> hit.id end)
 
     chunks_by_id =
       Map.new(
@@ -81,9 +82,6 @@ defmodule Cake.Books.Retrieval do
     end)
   end
 
-  # Merges a sorted list of {low, high} integer ranges into non-overlapping ranges.
-  # Adjacent ranges (e.g., {1, 3} and {4, 6}) are also merged since chunk indices
-  # are integers and index 3 and index 4 are contiguous.
   defp merge_ranges([]), do: []
 
   defp merge_ranges([first | rest]) do
