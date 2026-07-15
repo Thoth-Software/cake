@@ -16,7 +16,7 @@ defmodule Cake.Search.Result do
   ## Lifecycle
 
   1. `new_from_search/4` / `new_from_expansion/3` — constructed in
-     `Search.OpenSearch` with `backend_score`, `hit_source`, `index`, and
+     `Cake.Search` with `backend_score`, `hit_source`, `index`, and
      `provenance`. CAKE-computed scores start `nil`.
   2. `Search.score_results/2` — populates `cosine_score`.
   3. `Search.normalize_and_combine/1` — populates `relevance_score`.

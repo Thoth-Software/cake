@@ -6,7 +6,7 @@ defmodule Cake.Support.FixtureGDS do
 
     1. **Fast test fixture.** Implements the full `Cake.GDS` contract without
        needing a search backend, the Repo, or any real schema. Tests that
-       exercise GDS-agnostic orchestration code (`Cake.Search.OpenSearch`,
+       exercise GDS-agnostic orchestration code (`Cake.Search`,
        `Cake.Conversation`, `Cake.Prompt` via `Cake.Promptable`) can thread
        `gds: Cake.Support.FixtureGDS` through the `:gds` opt and run in
        isolation.
@@ -71,9 +71,14 @@ defmodule Cake.Support.FixtureGDS do
 
   defmodule Record do
     @moduledoc false
-    defstruct [:id, :body]
+    defstruct [:id, :body, :embedding, metadata: %{}]
 
-    @type t :: %__MODULE__{id: term(), body: String.t()}
+    @type t :: %__MODULE__{
+            id: term(),
+            body: String.t(),
+            embedding: [float()] | nil,
+            metadata: map()
+          }
   end
 
   @calls_key {__MODULE__, :calls}
@@ -106,7 +111,9 @@ defmodule Cake.Support.FixtureGDS do
     Enum.map(hits, fn hit ->
       id = extract_id(hit)
       body = extract_body(hit, id)
-      %Record{id: id, body: body}
+      embedding = extract_field(hit, "embedding")
+      metadata = extract_field(hit, "metadata") || %{}
+      %Record{id: id, body: body, embedding: embedding, metadata: metadata}
     end)
   end
 
@@ -121,7 +128,22 @@ defmodule Cake.Support.FixtureGDS do
   defp extract_body(%{"_source" => %{"body" => body}}, _id), do: body
   defp extract_body(_hit, id), do: "fixture-body-#{id}"
 
+  defp extract_field(%Hit{source: source}, key), do: Map.get(source, key)
+  defp extract_field(%{source: source}, key) when is_map(source), do: Map.get(source, key)
+  defp extract_field(%{"_source" => source}, key), do: Map.get(source, key)
+  defp extract_field(_hit, _key), do: nil
+
   defp record_call(name) do
     Process.put(@calls_key, [name | Process.get(@calls_key, [])])
   end
+end
+
+defimpl Cake.Promptable, for: Cake.Support.FixtureGDS.Record do
+  @spec prompt_context(Cake.Support.FixtureGDS.Record.t()) :: String.t()
+  def prompt_context(%{body: body}), do: body
+end
+
+defimpl Cake.Citable, for: Cake.Support.FixtureGDS.Record do
+  @spec metadata(Cake.Support.FixtureGDS.Record.t()) :: Cake.Citable.metadata()
+  def metadata(%{metadata: m}), do: m
 end

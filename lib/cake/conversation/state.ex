@@ -28,7 +28,6 @@ defmodule Cake.Conversation.State do
           pending: %{question: String.t(), candidates: list()} | nil,
           turn_ref: reference() | nil,
           queued_question: String.t() | nil,
-          search: module(),
           embedder: String.t(),
           response_model: String.t(),
           provider: atom(),
@@ -43,10 +42,9 @@ defmodule Cake.Conversation.State do
           errors: list()
         }
 
-  @enforce_keys [:id, :search, :embedder, :response_model, :provider, :gds]
+  @enforce_keys [:id, :embedder, :response_model, :provider, :gds]
   defstruct [
     :id,
-    :search,
     :embedder,
     :response_model,
     :provider,

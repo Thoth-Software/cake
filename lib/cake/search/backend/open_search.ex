@@ -1,4 +1,4 @@
-defmodule Cake.Search.Backends.OpenSearch do
+defmodule Cake.Search.Backend.OpenSearch do
   @moduledoc """
   OpenSearch implementation of the `Cake.Search.Backend` behaviour.
 

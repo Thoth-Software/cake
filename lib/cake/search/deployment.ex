@@ -10,7 +10,7 @@ defmodule Cake.Search.Deployment do
 
   use Snap.Cluster, otp_app: :cake
 
-  alias Cake.Search.Backends.OpenSearch
+  alias Cake.Search.Backend.OpenSearch
 
   require Logger
 

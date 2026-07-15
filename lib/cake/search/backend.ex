@@ -31,6 +31,6 @@ defmodule Cake.Search.Backend do
 
   @spec backend() :: module()
   def backend do
-    Application.get_env(:cake, :search_backend, Cake.Search.Backends.OpenSearch)
+    Application.get_env(:cake, :search_backend, Cake.Search.Backend.OpenSearch)
   end
 end

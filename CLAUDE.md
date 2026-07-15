@@ -75,6 +75,7 @@ Stop and ask before proceeding when:
 - **Known-defect adjacency** — task touches a known defect or deferred item (see bottom); flag, don't silently resolve.
 - **Uncertain doc update** — unsure whether a change warrants a README/CLAUDE.md edit.
 - **Credo disable** — no inline `# credo:disable-for-this-file` / `# credo:disable-for-next-line` without explicit approval.
+- **Branch management** — do not create new branches or check out other branches. All work happens on the current branch unless the user explicitly directs otherwise.
 
 ---
 

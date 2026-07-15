@@ -1,7 +1,7 @@
-defmodule Cake.Search.Backends.OpenSearchTest do
+defmodule Cake.Search.Backend.OpenSearchTest do
   use ExUnit.Case, async: true
 
-  alias Cake.Search.Backends.OpenSearch
+  alias Cake.Search.Backend.OpenSearch
   alias Cake.Search.Query
 
   describe "to_query_map/1" do

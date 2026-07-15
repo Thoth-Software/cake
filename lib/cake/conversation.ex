@@ -80,7 +80,6 @@ defmodule Cake.Conversation do
   defp build_state(opts) do
     %State{
       id: opts.id,
-      search: opts.search,
       embedder: opts.embedder,
       response_model: opts.response_model,
       provider: opts.provider,
@@ -274,7 +273,7 @@ defmodule Cake.Conversation do
     with {:ok, %{attrs: %{embedding: embedding}}} <-
            s.embeddings.embed(s.provider, %{input: question}, s.embedder),
          {:ok, raw_results} <-
-           s.search.search_chunks_with_context(
+           Cake.Search.search_chunks_with_context(
              :hybrid,
              question,
              embedding,

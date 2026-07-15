@@ -12,12 +12,12 @@ defmodule Cake.Search.BackendTest do
       assert Backend.backend() == MyFakeBackend
     end
 
-    test "defaults to Cake.Search.Backends.OpenSearch" do
+    test "defaults to Cake.Search.Backend.OpenSearch" do
       original = Application.get_env(:cake, :search_backend)
       Application.delete_env(:cake, :search_backend)
       on_exit(fn -> Application.put_env(:cake, :search_backend, original) end)
 
-      assert Backend.backend() == Cake.Search.Backends.OpenSearch
+      assert Backend.backend() == Cake.Search.Backend.OpenSearch
     end
   end
 end

@@ -3,7 +3,7 @@ defmodule Cake.Search.QueryPropertyTest do
   use ExUnitProperties
 
   alias Cake.QueryGenerators
-  alias Cake.Search.Backends.OpenSearch
+  alias Cake.Search.Backend.OpenSearch
   alias Cake.Search.Query
 
   # ---------------------------------------------------------------------------
