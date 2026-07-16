@@ -16,8 +16,30 @@ defmodule Cake.Books.Persistence do
 
   require Logger
 
+  @typedoc """
+  Inner reason when a chunk fails validation or the bulk insert count
+  doesn't match expectations.
+  """
+  @type chunk_error ::
+          {:invalid_chunk, keyword(), map()}
+          | {:chunk_insert_count_mismatch, non_neg_integer(), non_neg_integer()}
+
+  @typedoc """
+  Error reasons returned by `persist_books_and_chunks`.
+
+  - `{:invalid_input, map()}` — the input tuple didn't contain a
+    `%ParsedBook{}` (guard clause catch-all).
+  - `{String.t(), reason}` — the Ecto.Multi transaction failed; the
+    string is `source_file_path` for traceability, and the reason is
+    either an `Ecto.Changeset.t()` (book insert failed) or a
+    `chunk_error()` (chunk validation or count mismatch).
+  """
+  @type persist_error ::
+          {:invalid_input, map()}
+          | {String.t(), Ecto.Changeset.t() | chunk_error()}
+
   @spec persist_books_and_chunks({ParsedBook.t(), [Chunk.t()]} | {term(), term()}) ::
-          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, any()}
+          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, persist_error()}
   def persist_books_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
       when is_list(chunks) do
     case Repo.one(from b in ParsedBook, where: b.file_hash == ^hash) do
@@ -36,7 +58,8 @@ defmodule Cake.Books.Persistence do
   end
 
   @spec persist_books_and_chunks(ParsedBook.t(), [Chunk.t()]) ::
-          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, any()}
+          {:ok, {ParsedBook.t(), [Chunk.t()]}}
+          | {:error, {String.t(), Ecto.Changeset.t() | chunk_error()}}
   def persist_books_and_chunks(%ParsedBook{} = book, chunks) when is_list(chunks) do
     book
     |> build_multi(chunks)
