@@ -8,6 +8,7 @@ defmodule CakeWeb.Telemetry do
   end
 
   @impl Supervisor
+  @spec init(term()) :: {:ok, {:supervisor.sup_flags(), [:supervisor.child_spec()]}} | :ignore
   def init(_arg) do
     children = [
       # Telemetry poller will execute the given period measurements

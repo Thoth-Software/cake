@@ -17,7 +17,7 @@ defmodule Cake.Candidates do
   @type grouped :: [{doc_id(), [Result.t()]}]
 
   @spec group_by_document([Result.t()]) :: grouped()
-  def group_by_document(results) do
+  def group_by_document(results) when is_list(results) do
     results
     |> Enum.reduce([], fn %Result{} = result, acc ->
       doc_id = doc_id_for(result)
@@ -42,7 +42,8 @@ defmodule Cake.Candidates do
           preview: String.t(),
           page_label: String.t() | nil
         }
-  def document_metadata([%Result{retrieval_unit: first} | _] = results) do
+  def document_metadata(results) when is_list(results) do
+    %Result{retrieval_unit: first} = hd(results)
     meta = Citable.metadata(first)
 
     page_numbers =
@@ -67,7 +68,7 @@ defmodule Cake.Candidates do
     }
   end
 
-  @spec expand_to_chunk_ids([doc_id()], grouped()) :: [term()]
+  @spec expand_to_chunk_ids([doc_id()], grouped()) :: [String.t()]
   def expand_to_chunk_ids(selected_doc_ids, grouped) do
     lookup = Map.new(grouped)
 
@@ -78,7 +79,7 @@ defmodule Cake.Candidates do
     end)
   end
 
-  @spec all_chunk_ids(grouped()) :: [term()]
+  @spec all_chunk_ids(grouped()) :: [String.t()]
   def all_chunk_ids(grouped) do
     Enum.flat_map(grouped, fn {_doc_id, results} ->
       Enum.map(results, fn %Result{retrieval_unit: unit} -> Citable.metadata(unit).id end)

@@ -117,7 +117,7 @@ defmodule Cake.Documents.ParsedDocuments do
   Preserves hit order so downstream ranking is respected.
   """
   @spec load_from_hits([Cake.Search.Hit.t()]) :: [ParsedDocument.t()]
-  def load_from_hits(hits) do
+  def load_from_hits(hits) when is_list(hits) do
     ids = Enum.map(hits, fn hit -> hit.id end)
 
     docs_by_id =

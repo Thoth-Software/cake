@@ -14,6 +14,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   @type version :: Cake.Documents.Pipeline.version()
 
   @impl Cake.Documents.Pipeline
+  @spec success_message(Context.t()) :: String.t()
   def success_message(%Context{version: version}),
     do: "Successfully ingested Elixir docs from Hexdocs for version #{version}"
 
@@ -21,6 +22,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   @source_repo "https://github.com/elixir-lang/elixir.git"
 
   @impl Cake.Documents.Pipeline
+  @spec download(Context.t()) :: {:ok, [String.t()]} | {:error, :download, any()}
   def download(%{version: version}) do
     _ = File.rm_rf!(@dir)
     _ = File.mkdir_p(@dir)
@@ -53,11 +55,12 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
         {:ok, paths}
 
       {_, exit_status} ->
-        {:error, "git clone failed with exit status #{exit_status}"}
+        {:error, :download, "git clone failed with exit status #{exit_status}"}
     end
   end
 
   @impl Cake.Documents.Pipeline
+  @spec persist_raw_docs([String.t()], Context.t()) :: Enumerable.t()
   def persist_raw_docs(file_paths, %Context{version: version} = ctx) do
     file_paths
     |> Task.async_stream(fn path -> safe_to_hexdoc_attrs(path, version) end,
@@ -79,6 +82,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   end
 
   @impl Cake.Documents.Pipeline
+  @spec parse(Enumerable.t(), Context.t()) :: Enumerable.t()
   def parse(raw_docs_stream, %Context{} = ctx) do
     raw_docs_stream
     |> Task.async_stream(&safe_to_parsed_docs/1,
@@ -125,6 +129,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     do: to_string(Ecto.Changeset.get_field(changeset, :module) || "unknown")
 
   @impl Cake.Documents.Pipeline
+  @spec source() :: String.t()
   def source(), do: Hexdoc.doc_attrs().source
 
   @spec to_hexdoc_attrs(String.t(), String.t()) :: map()
@@ -148,6 +153,8 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   end
 
   @impl Cake.Documents.Pipeline
+  @spec retry_from_raw(String.t(), String.t()) ::
+          {:ok, [map()]} | {:error, {:raw_doc_not_found, String.t()}}
   def retry_from_raw(input_identifier, version) do
     [module_name | _] = String.split(input_identifier, "@")
 

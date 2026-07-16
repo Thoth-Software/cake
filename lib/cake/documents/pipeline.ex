@@ -42,9 +42,37 @@ defmodule Cake.Documents.Pipeline do
   @callback source() :: String.t()
   @callback success_message(Context.t()) :: String.t()
   @callback retry_from_raw(input_identifier :: String.t(), String.t()) ::
-              {:ok, [map()]} | {:error, any()}
+              {:ok, [map()]} | {:error, retry_from_raw_error()}
 
   @optional_callbacks [retry_from_raw: 2]
+
+  @typedoc "Errors from `retry_from_raw/2` implementations. New source pipelines add their shapes here."
+  @type retry_from_raw_error :: {:raw_doc_not_found, String.t()}
+
+  @typedoc """
+  Errors from single-document embedding, persistence, or indexing during retry.
+
+  Unlike `Cake.Books.Pipeline.embed_index_error/0`, document errors are not
+  tagged with a chunk ID — each document is its own unit.
+  """
+  @type embed_index_error ::
+          String.t()
+          | Ecto.Changeset.t()
+          | {:search_backend_index, Backend.search_error()}
+
+  @typedoc """
+  All reasons that `retry/4` can fail with.
+
+  Composed from subsystem error types: `retry_from_raw_error()` for source
+  re-parsing, `embed_index_error()` for the embed-and-index tail, and
+  `{String.t(), String.t()}` for persistence failures in `safe_create_parsed_docs`.
+  """
+  @type retry_error ::
+          {:retry_not_implemented, module()}
+          | {:document_not_found, String.t()}
+          | retry_from_raw_error()
+          | {String.t(), String.t()}
+          | embed_index_error()
 
   @spec ingest(atom(), atom(), version(), String.t()) ::
           {:ok, Pipelines.ingest_summary()} | {:error, any()}
@@ -129,7 +157,7 @@ defmodule Cake.Documents.Pipeline do
   from the existing ParsedDocument.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
-          {:ok, :retried} | {:error, any()}
+          {:ok, :retried} | {:error, retry_error()}
   def retry(
         %Cake.FailedIngests.FailedIngest{step: "docs.persist"} = failure,
         source_pipeline,
@@ -240,10 +268,8 @@ defmodule Cake.Documents.Pipeline do
     if function_exported?(source_pipeline, :retry_from_raw, 2) do
       with {:ok, parsed_attrs_list} <-
              source_pipeline.retry_from_raw(failure.input_identifier, failure.version),
-           persisted_docs <-
-             Enum.map(parsed_attrs_list, fn attrs ->
-               ParsedDocuments.create_parsed_doc!(attrs)
-             end),
+           {:ok, persisted_docs} <-
+             safe_create_parsed_docs(parsed_attrs_list, failure.input_identifier),
            :ok <- embed_and_index(persisted_docs, embedding_service, embedding_model) do
         _ = Cake.FailedIngests.delete_failed_ingest(failure)
         {:ok, :retried}
@@ -251,6 +277,12 @@ defmodule Cake.Documents.Pipeline do
     else
       {:error, {:retry_not_implemented, source_pipeline}}
     end
+  end
+
+  defp safe_create_parsed_docs(attrs_list, identifier) do
+    {:ok, Enum.map(attrs_list, &ParsedDocuments.create_parsed_doc!/1)}
+  rescue
+    e -> {:error, {identifier, Exception.message(e)}}
   end
 
   defp retry_embed_failure(failure, embedding_service, embedding_model) do

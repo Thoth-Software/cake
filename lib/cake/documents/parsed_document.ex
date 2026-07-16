@@ -21,12 +21,15 @@ defmodule Cake.Documents.ParsedDocument do
   # Cake.GDS callbacks
 
   @impl Cake.GDS
+  @spec collection_name() :: String.t()
   def collection_name, do: "docs"
 
   @impl Cake.GDS
+  @spec search_fields() :: [String.t()]
   def search_fields, do: ["title^3", "text"]
 
   @impl Cake.GDS
+  @spec load_from_hits([Cake.Search.Hit.t()]) :: [struct()]
   defdelegate load_from_hits(hits), to: Cake.Documents.ParsedDocuments
 
   # expand_with_neighbors/2 inherited from `use Cake.GDS` default (identity).

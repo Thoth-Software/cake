@@ -3,8 +3,8 @@ defmodule CakeWeb.SearchLiveTest do
   Mount + render characterization tests for `CakeWeb.SearchLive`.
 
   Search-flow tests require a mock of `Cake.Embeddings.embed/3` and
-  `Cake.Search.OpenSearch.search_chunks_with_context/5`. Those are
-  deferred from this PR — see #112's description.
+  `Cake.Search.Backend` (via `Cake.Search.search_chunks_with_context/5`).
+  Those are deferred — see #112's description.
   """
 
   use CakeWeb.ConnCase

@@ -31,10 +31,36 @@ defmodule Cake.Books.Pipeline do
   @callback format() :: atom()
   @callback success_message() :: String.t()
 
-  # We should look into speccing out a FullBook type that equates to a tuple having {%ParsedBook{}, [%Chunk{}]}
+  @typedoc "Errors from `load_binary/1` implementations. New format pipelines add their shapes here."
+  @type load_error :: {String.t(), String.t()}
+
+  @typedoc """
+  Errors from single-chunk embedding, persistence, or indexing during retry.
+
+  Each variant tags the failing chunk's ID so the error is traceable.
+  """
+  @type embed_index_error ::
+          {:embed_failed, String.t(), String.t()}
+          | {:chunk_update_failed, String.t(), Ecto.Changeset.t()}
+          | {:search_backend_index, String.t(), term()}
+
+  @typedoc """
+  All reasons that `retry/4` can fail with.
+
+  Composed from subsystem error types: `load_error()` for file reads,
+  `Persistence.persist_error()` for transaction failures, and
+  `embed_index_error()` for the embed-and-index tail.
+  """
+  @type retry_error ::
+          {:no_input_identifier, String.t()}
+          | {:chunk_not_found, String.t()}
+          | load_error()
+          | Persistence.persist_error()
+          | embed_index_error()
 
   @spec ingest(atom(), atom(), String.t(), [String.t()]) ::
-          {:ok, Pipelines.ingest_summary()} | {:error, any()}
+          {:ok, Pipelines.ingest_summary()}
+          | {:error, {:no_items_ingested, Pipelines.ingest_summary()}}
   def ingest(embedding_service, format_pipeline, embedding_model, paths) do
     ctx = Pipelines.build_context(__MODULE__, format_pipeline, "")
     failures_before = Pipelines.count_failures(ctx)
@@ -70,7 +96,8 @@ defmodule Cake.Books.Pipeline do
     - :max_sweeps — maximum number of retry passes (default: 2)
   """
   @spec ingest_with_sweep(atom(), atom(), String.t(), [String.t()], [{:max_sweeps, integer()}]) ::
-          {:ok, Pipelines.ingest_summary()} | {:error, any()}
+          {:ok, Pipelines.ingest_summary()}
+          | {:error, {:no_items_ingested, Pipelines.ingest_summary()}}
   def ingest_with_sweep(embedding_service, format_pipeline, embedding_model, paths, opts \\ []) do
     result = ingest(embedding_service, format_pipeline, embedding_model, paths)
 
@@ -100,7 +127,7 @@ defmodule Cake.Books.Pipeline do
   persisted chunk.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
-          {:ok, :retried} | {:error, any()}
+          {:ok, :retried} | {:error, retry_error()}
   def retry(
         %Cake.FailedIngests.FailedIngest{step: step} = failure,
         format_pipeline,

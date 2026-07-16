@@ -20,7 +20,7 @@ defmodule Cake.Books.Retrieval do
   preloaded. Returns chunks in the same order as the hits.
   """
   @spec chunks_for_hits([Hit.t()]) :: [Chunk.t()]
-  def chunks_for_hits(hits) do
+  def chunks_for_hits(hits) when is_list(hits) do
     ids = Enum.map(hits, fn hit -> hit.id end)
 
     chunks_by_id =

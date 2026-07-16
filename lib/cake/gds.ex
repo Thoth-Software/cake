@@ -100,7 +100,8 @@ defmodule Cake.GDS do
       @behaviour Cake.GDS
 
       @impl Cake.GDS
-      def expand_with_neighbors(units, _offset), do: units
+      @spec expand_with_neighbors([struct()], non_neg_integer()) :: [struct()]
+      def expand_with_neighbors(units, _offset) when is_list(units), do: units
 
       defoverridable expand_with_neighbors: 2
     end

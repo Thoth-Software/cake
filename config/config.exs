@@ -38,7 +38,6 @@ config :cake, Cake.Search.Deployment,
 # search backend, GDS, embedder, provider, and response model stay consistent
 # across the app and configurable per environment.
 config :cake, Cake.Conversation,
-  search: Cake.Search.OpenSearch,
   gds: Cake.Books.ParsedBook,
   embedder: "text-embedding-ada-002",
   response_model: "gpt-4o-mini",

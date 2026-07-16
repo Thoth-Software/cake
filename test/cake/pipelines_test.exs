@@ -301,10 +301,18 @@ defmodule Cake.PipelinesTest do
     test "handles {:error, error} without step" do
       ctx = build_ctx(version: {5, 5, 5})
 
-      {:ok, failure} = Pipelines.handle_ingest_error({:error, "network timeout"}, ctx)
+      assert {:error, "network timeout"} =
+               Pipelines.handle_ingest_error({:error, "network timeout"}, ctx)
+
+      [failure] =
+        Repo.all(
+          from f in FailedIngest,
+            where: f.pipeline_behaviour == ^ctx.behaviour,
+            where: f.version == ^ctx.version,
+            where: f.pipeline_fatal == true
+        )
 
       assert failure.step == "ingest"
-      assert failure.pipeline_fatal == true
     end
   end
 

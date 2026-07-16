@@ -19,10 +19,22 @@ defmodule Cake.Books.Adapters do
 
   @type key :: String.t()
 
-  @callback read(key()) :: {:ok, binary()} | {:error, term()}
-  @callback write(key(), binary()) :: :ok | {:error, term()}
+  @typedoc """
+  Error reasons returned by adapter implementations.
+
+  Disk returns `t:File.posix/0` atoms. S3 passes through opaque ExAws
+  errors — `ExAws.request/1` specs `{:error, term()}`, so the S3
+  contribution is `term()` until ExAws publishes a concrete error type.
+  The union collapses to `term()` for dialyzer today, but enumerating
+  `File.posix()` explicitly documents the Disk contract and will become
+  enforceable once ExAws narrows its spec.
+  """
+  @type adapter_error :: File.posix() | term()
+
+  @callback read(key()) :: {:ok, binary()} | {:error, adapter_error()}
+  @callback write(key(), binary()) :: :ok | {:error, adapter_error()}
   @callback exists?(key()) :: boolean()
-  @callback delete(key()) :: :ok | {:error, term()}
+  @callback delete(key()) :: :ok | {:error, adapter_error()}
 
   @spec adapter() :: module()
   def adapter do

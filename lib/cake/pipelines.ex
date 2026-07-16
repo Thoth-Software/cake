@@ -249,7 +249,8 @@ defmodule Cake.Pipelines do
     summarize_ingest(message, indexed, failed)
   end
 
-  @spec build_context(atom(), atom(), any(), list()) :: context()
+  @spec build_context(atom(), atom(), String.t() | {integer(), integer(), integer()}, keyword()) ::
+          context()
   def build_context(behaviour_module, source_pipeline, version, opts \\ [])
 
   @spec build_context(atom(), atom(), {integer(), integer(), integer()}) :: context()
@@ -275,9 +276,7 @@ defmodule Cake.Pipelines do
   end
 
   @spec handle_ingest_error({:error, any()} | {:error, atom(), any()}, context()) ::
-          {:error, {atom(), any()}}
-          | {:ok, Cake.FailedIngests.FailedIngest.t()}
-          | {:error, Ecto.Changeset.t()}
+          {:error, {atom(), any()}} | {:error, any()}
   def handle_ingest_error({:error, step, error}, ctx) when is_atom(step) do
     Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error at #{step}: #{inspect(error)}")
 
@@ -298,14 +297,17 @@ defmodule Cake.Pipelines do
   def handle_ingest_error({:error, error}, ctx) do
     Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error: #{inspect(error)}")
 
-    Cake.FailedIngests.create_failed_ingest(%{
-      pipeline_behaviour: ctx.behaviour,
-      pipeline_implementation: ctx.implementation,
-      step: "ingest",
-      version: ctx.version,
-      error_text: inspect(error),
-      input_identifier: "",
-      pipeline_fatal: true
-    })
+    _ =
+      Cake.FailedIngests.create_failed_ingest(%{
+        pipeline_behaviour: ctx.behaviour,
+        pipeline_implementation: ctx.implementation,
+        step: "ingest",
+        version: ctx.version,
+        error_text: inspect(error),
+        input_identifier: "",
+        pipeline_fatal: true
+      })
+
+    {:error, error}
   end
 end

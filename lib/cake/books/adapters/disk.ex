@@ -14,7 +14,7 @@ defmodule Cake.Books.Adapters.Disk do
   end
 
   @impl Cake.Books.Adapters
-  @spec read(Cake.Books.Adapters.key()) :: {:ok, binary()} | {:error, term()}
+  @spec read(Cake.Books.Adapters.key()) :: {:ok, binary()} | {:error, File.posix()}
   def read(key) do
     key
     |> full_path()
@@ -22,7 +22,7 @@ defmodule Cake.Books.Adapters.Disk do
   end
 
   @impl Cake.Books.Adapters
-  @spec write(Cake.Books.Adapters.key(), binary()) :: :ok | {:error, term()}
+  @spec write(Cake.Books.Adapters.key(), binary()) :: :ok | {:error, File.posix()}
   def write(key, binary) do
     path = full_path(key)
 
@@ -40,7 +40,7 @@ defmodule Cake.Books.Adapters.Disk do
   end
 
   @impl Cake.Books.Adapters
-  @spec delete(Cake.Books.Adapters.key()) :: :ok | {:error, term()}
+  @spec delete(Cake.Books.Adapters.key()) :: :ok | {:error, File.posix()}
   def delete(key) do
     case File.rm(full_path(key)) do
       :ok -> :ok

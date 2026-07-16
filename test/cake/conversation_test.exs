@@ -31,12 +31,20 @@ defmodule Cake.ConversationTest do
   import Cake.Factory, only: [build: 1, build: 2, chunk_metadata: 1]
 
   alias Cake.Conversation
+  alias Cake.Search.Hit
   alias Cake.Search.Provenance
   alias Cake.Search.Result
   alias Cake.Support.FixtureGDS
   alias Cake.Test.ConvoChunk
 
   setup :verify_on_exit!
+
+  setup do
+    original = Application.get_env(:cake, :search_backend)
+    Application.put_env(:cake, :search_backend, Cake.Search.Backend.Mock)
+    on_exit(fn -> Application.put_env(:cake, :search_backend, original) end)
+    :ok
+  end
 
   defp test_provenance, do: %Provenance{search_type: :hybrid, query_text: "test"}
 
@@ -56,7 +64,6 @@ defmodule Cake.ConversationTest do
     Map.merge(
       %{
         id: "test-#{:erlang.unique_integer([:positive])}",
-        search: Cake.Search.OpenSearch,
         embedder: "text-embedding-ada-002",
         response_model: "gpt-4o-mini",
         provider: :openai,
@@ -69,13 +76,39 @@ defmodule Cake.ConversationTest do
   defp mocked_opts(overrides \\ %{}) do
     base =
       valid_opts(%{
-        search: Cake.Search.Mock,
         embeddings: Cake.Embeddings.Mock,
         generation: Cake.Generation.Mock,
         responses: Cake.Responses.Mock
       })
 
     Map.merge(base, overrides)
+  end
+
+  defp build_search_hit(opts \\ []) do
+    id = Keyword.get(opts, :id, "c-#{:erlang.unique_integer([:positive])}")
+    body = Keyword.get(opts, :body, "fixture body")
+    embedding = Keyword.get(opts, :embedding, [0.1, 0.2, 0.3])
+    score = Keyword.get(opts, :score, 1.0)
+
+    metadata =
+      Keyword.get(opts, :metadata, %{
+        id: id,
+        label: "Label",
+        preview: "preview",
+        source_ref: nil,
+        extras: %{}
+      })
+
+    %Hit{
+      id: id,
+      score: score,
+      source: %{
+        "id" => id,
+        "body" => body,
+        "embedding" => embedding,
+        "metadata" => metadata
+      }
+    }
   end
 
   # Starts a supervised conversation and subscribes the test process to its
@@ -143,35 +176,21 @@ defmodule Cake.ConversationTest do
 
   describe "happy path" do
     test "an :ok turn broadcasts a {:response_ready, _} message" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "smoke chunk",
-        metadata: %{
-          id: "c1",
-          label: "Smoke",
-          preview: "smoke",
-          source_ref: nil,
-          extras: %{}
-        }
-      }
+      hit = build_search_hit(id: "c1", body: "smoke chunk")
 
       expect(Cake.Embeddings.Mock, :embed, fn :openai, %{input: _question}, _model ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn :hybrid,
-                                                               _q,
-                                                               _emb,
-                                                               _expand,
-                                                               _opts ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _raw_text, _indexed, _opts ->
         %Cake.Responses.Result{
           raw_text: "answer",
           final_text: "answer",
-          chunk_map: %{1 => chunk.metadata},
+          chunk_map: %{},
           citations: [],
           warnings: []
         }
@@ -184,7 +203,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -196,52 +215,59 @@ defmodule Cake.ConversationTest do
 
   describe "response shape" do
     test "{:response_ready, %{response, citations}} — response is a string, citations is a list of maps with the documented keys" do
-      chunks =
-        Enum.map(1..3, fn i ->
-          %ConvoChunk{
-            embedding: [0.1 * i, 0.2 * i, 0.3 * i],
-            prompt_text: "chunk #{i}",
-            metadata: %{
-              id: "id-#{i}",
-              label: "Book #{i}, p. #{i}",
-              preview: "preview #{i}",
-              source_ref: "book:#{i}#chunk:#{i}",
-              extras: %{
-                book_title: "Book #{i}",
-                page_number: i,
-                section_title: "Section #{i}",
-                chunk_index: i
-              }
-            }
+      metadata_for = fn i ->
+        %{
+          id: "id-#{i}",
+          label: "Book #{i}, p. #{i}",
+          preview: "preview #{i}",
+          source_ref: "book:#{i}#chunk:#{i}",
+          extras: %{
+            book_title: "Book #{i}",
+            page_number: i,
+            section_title: "Section #{i}",
+            chunk_index: i
           }
+        }
+      end
+
+      hits =
+        Enum.map(1..3, fn i ->
+          build_search_hit(
+            id: "id-#{i}",
+            body: "chunk #{i}",
+            embedding: [0.1 * i, 0.2 * i, 0.3 * i],
+            metadata: metadata_for.(i)
+          )
         end)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, Enum.map(chunks, &wrap_result/1)}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, hits}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
         citations =
-          Enum.map(Enum.with_index(chunks, 1), fn {c, idx} ->
+          Enum.map(1..3, fn i ->
+            m = metadata_for.(i)
+
             %{
-              old_index: idx,
-              new_index: idx,
-              id: c.metadata.id,
-              label: c.metadata.label,
-              preview: c.metadata.preview,
-              source_ref: c.metadata.source_ref,
-              extras: c.metadata.extras
+              old_index: i,
+              new_index: i,
+              id: m.id,
+              label: m.label,
+              preview: m.preview,
+              source_ref: m.source_ref,
+              extras: m.extras
             }
           end)
 
         chunk_map =
-          chunks
-          |> Enum.with_index(1)
-          |> Map.new(fn {c, i} -> {i, c.metadata} end)
+          1..3
+          |> Enum.map(fn i -> {i, metadata_for.(i)} end)
+          |> Map.new()
 
         %Cake.Responses.Result{
           raw_text: "answer [1] with [2] and [3]",
@@ -259,7 +285,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -294,14 +320,14 @@ defmodule Cake.ConversationTest do
     test "retrieved chunk content is threaded into the LLM prompt" do
       marker = "UNIQUE_MARKER_#{:erlang.unique_integer([:positive])}"
 
-      chunk = build(:convo_chunk, prompt_text: marker)
+      hit = build_search_hit(body: marker)
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _, _, _ ->
@@ -323,7 +349,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -342,10 +368,11 @@ defmodule Cake.ConversationTest do
 
   describe "citation threading" do
     test "the five metadata fields and citation indexes thread from chunks to the cited response" do
-      chunks = [
-        %ConvoChunk{
+      hits = [
+        build_search_hit(
+          id: "id-1",
+          body: "alpha text",
           embedding: [0.1, 0.2, 0.3],
-          prompt_text: "alpha text",
           metadata: %{
             id: "id-1",
             label: "Alpha label",
@@ -358,10 +385,11 @@ defmodule Cake.ConversationTest do
               chunk_index: 101
             }
           }
-        },
-        %ConvoChunk{
+        ),
+        build_search_hit(
+          id: "id-2",
+          body: "beta text",
           embedding: [0.4, 0.5, 0.6],
-          prompt_text: "beta text",
           metadata: %{
             id: "id-2",
             label: "Beta label",
@@ -374,15 +402,15 @@ defmodule Cake.ConversationTest do
               chunk_index: 202
             }
           }
-        }
+        )
       ]
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, Enum.map(chunks, &wrap_result/1)}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, hits}
       end)
 
       # NOTE: deliberately NOT mocking Cake.Responses — we want the real
@@ -394,7 +422,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
@@ -438,7 +466,7 @@ defmodule Cake.ConversationTest do
       turn_one_a = "RESPONSE_ONE_#{:erlang.unique_integer([:positive])}"
       turn_two_q = "QUESTION_TWO_#{:erlang.unique_integer([:positive])}"
 
-      chunk = build(:convo_chunk, prompt_text: "static chunk")
+      hit = build_search_hit(body: "static chunk")
 
       # `expect/3` with no count means exactly once across the test. If turn 2
       # called embed or search again, Mox would fail — that implicitly pins
@@ -447,8 +475,8 @@ defmodule Cake.ConversationTest do
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
@@ -468,7 +496,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -498,14 +526,14 @@ defmodule Cake.ConversationTest do
       turn_two_q = "Q2_#{:erlang.unique_integer([:positive])}"
       turn_two_a = "A2_#{:erlang.unique_integer([:positive])}"
 
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
@@ -523,7 +551,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -591,7 +619,7 @@ defmodule Cake.ConversationTest do
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
         {:ok, []}
       end)
 
@@ -606,7 +634,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -622,14 +650,14 @@ defmodule Cake.ConversationTest do
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
         {:error, :timeout}
       end)
 
       pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
 
       ref = Process.monitor(pid)
 
@@ -646,14 +674,14 @@ defmodule Cake.ConversationTest do
 
   describe "generation error" do
     test "generation {:error, _} broadcasts {:error, reason} without crashing" do
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       pid = start_subscribed()
@@ -663,7 +691,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
       ref = Process.monitor(pid)
@@ -686,7 +714,7 @@ defmodule Cake.ConversationTest do
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
         {:ok, []}
       end)
 
@@ -703,7 +731,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -719,14 +747,14 @@ defmodule Cake.ConversationTest do
 
   describe "uncited LLM output" do
     test "LLM text with no [N] markers yields citations: [] in the response_ready broadcast" do
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       pid = start_subscribed(%{responses: Cake.Responses})
@@ -736,7 +764,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
@@ -754,14 +782,14 @@ defmodule Cake.ConversationTest do
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
         raise "boom"
       end)
 
       pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
 
       ref = Process.monitor(pid)
 
@@ -777,14 +805,14 @@ defmodule Cake.ConversationTest do
 
   describe "concurrent asks" do
     test "a second autoask during :generating is queued and runs after the first turn completes" do
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
@@ -817,7 +845,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -841,14 +869,14 @@ defmodule Cake.ConversationTest do
     end
 
     test "GenServer remains responsive while a turn is generating" do
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _, _, _ ->
@@ -865,7 +893,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -911,20 +939,20 @@ defmodule Cake.ConversationTest do
     end
 
     test "resolve_search_results/2 calls embed_and_search when search_results is empty" do
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
 
       # Call from within the GenServer process via a handler
       state = :sys.get_state(pid)
@@ -1079,14 +1107,14 @@ defmodule Cake.ConversationTest do
     end
 
     test "generate failure short-circuits: responses never called" do
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       pid = start_subscribed()
@@ -1096,7 +1124,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
@@ -1108,7 +1136,7 @@ defmodule Cake.ConversationTest do
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
         {:ok, []}
       end)
 
@@ -1123,7 +1151,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -1183,18 +1211,19 @@ defmodule Cake.ConversationTest do
 
   describe "manual mode end-to-end" do
     test "full flow: manualask returns candidates, select completes the turn" do
-      chunk = %ConvoChunk{
-        embedding: [0.1, 0.2, 0.3],
-        prompt_text: "manual chunk",
-        metadata: %{id: "c1", label: "Manual", preview: "manual", source_ref: nil, extras: %{}}
-      }
+      hit =
+        build_search_hit(
+          id: "c1",
+          body: "manual chunk",
+          metadata: %{id: "c1", label: "Manual", preview: "manual", source_ref: nil, extras: %{}}
+        )
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
@@ -1213,7 +1242,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -1257,20 +1286,20 @@ defmodule Cake.ConversationTest do
     end
 
     test "select with unknown doc IDs returns error and resets to idle" do
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
 
       {:ok, _candidates} = Conversation.manualask(pid, "q")
       assert {:error, {:unknown_doc_ids, _}} = Conversation.select_docs(pid, ["nonexistent"])
@@ -1293,20 +1322,20 @@ defmodule Cake.ConversationTest do
     end
 
     test "manualask in awaiting_selection state crashes the GenServer" do
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       pid = start_subscribed()
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
 
       {:ok, _} = Conversation.manualask(pid, "q")
 
@@ -1319,14 +1348,14 @@ defmodule Cake.ConversationTest do
 
   describe "broadcasts" do
     test "auto turn emits :state_change and :response_ready broadcasts" do
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _, _, _ ->
@@ -1341,7 +1370,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
@@ -1374,14 +1403,14 @@ defmodule Cake.ConversationTest do
     end
 
     test "manual mode emits candidates_ready and state_change broadcasts" do
-      chunk = build(:convo_chunk)
+      hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
       end)
 
-      expect(Cake.Search.Mock, :search_chunks_with_context, fn _, _, _, _, _ ->
-        {:ok, [wrap_result(chunk)]}
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [hit]}
       end)
 
       expect(Cake.Responses.Mock, :process, fn _, _, _ ->
@@ -1396,7 +1425,7 @@ defmodule Cake.ConversationTest do
       end)
 
       allow(Cake.Embeddings.Mock, self(), pid)
-      allow(Cake.Search.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 

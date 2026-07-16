@@ -1,7 +1,7 @@
 defmodule Cake.Search.DeploymentTest do
   use ExUnit.Case, async: true
 
-  alias Cake.Search.Backends.OpenSearch
+  alias Cake.Search.Backend.OpenSearch
 
   describe "build_mapping/1" do
     test "maps :text fields to OpenSearch text type" do

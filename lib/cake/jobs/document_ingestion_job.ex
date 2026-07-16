@@ -53,6 +53,7 @@ defmodule Cake.Jobs.DocumentIngestionJob do
   require Logger
 
   @impl Oban.Worker
+  @spec perform(Oban.Job.t()) :: :ok | {:error, term()}
   def perform(%Oban.Job{args: args}) do
     %{
       "source_pipeline" => source_pipeline_string,
