@@ -18,7 +18,7 @@ defmodule Cake.Search.Backend.OpenSearch do
   @deployment Cake.Search.Deployment
 
   @impl Cake.Search.Backend
-  @spec search(Query.t()) :: {:ok, [Hit.t()]} | {:error, term()}
+  @spec search(Query.t()) :: {:ok, [Hit.t()]} | {:error, Cake.Search.Backend.search_error()}
   def search(%Query{} = query) do
     case Snap.Search.search(@deployment, query.index, to_query_map(query)) do
       {:ok, %{hits: hits}} -> {:ok, Enum.map(hits, &snap_hit_to_hit/1)}
@@ -41,7 +41,8 @@ defmodule Cake.Search.Backend.OpenSearch do
   end
 
   @impl Cake.Search.Backend
-  @spec delete_document(String.t(), String.t()) :: :ok | {:error, term()}
+  @spec delete_document(String.t(), String.t()) ::
+          :ok | {:error, Cake.Search.Backend.search_error()}
   def delete_document(collection, id) do
     case Snap.Document.delete(@deployment, collection, id) do
       {:ok, _} -> :ok
@@ -50,7 +51,7 @@ defmodule Cake.Search.Backend.OpenSearch do
   end
 
   @impl Cake.Search.Backend
-  @spec create_collection(String.t(), map()) :: :ok | {:error, term()}
+  @spec create_collection(String.t(), map()) :: :ok | {:error, Cake.Search.Backend.search_error()}
   def create_collection(collection, mapping) do
     case Snap.Indexes.create(@deployment, collection, mapping) do
       {:ok, _} -> :ok
@@ -59,7 +60,7 @@ defmodule Cake.Search.Backend.OpenSearch do
   end
 
   @impl Cake.Search.Backend
-  @spec list_collections() :: {:ok, [String.t()]} | {:error, term()}
+  @spec list_collections() :: {:ok, [String.t()]} | {:error, Cake.Search.Backend.search_error()}
   def list_collections do
     Snap.Indexes.list(@deployment)
   end

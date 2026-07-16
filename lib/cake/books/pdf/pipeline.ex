@@ -27,7 +27,8 @@ defmodule Cake.Books.Pdf.Pipeline do
         }
 
   @impl Cake.Books.Pipeline
-  @spec load_binary(String.t()) :: {:ok, {String.t(), binary()}} | {:error, any()}
+  @spec load_binary(String.t()) ::
+          {:ok, {String.t(), binary()}} | {:error, {String.t(), String.t()}}
   def load_binary(key) do
     adapter = Cake.Books.Adapters.adapter()
 

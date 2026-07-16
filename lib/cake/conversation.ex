@@ -133,12 +133,14 @@ defmodule Cake.Conversation do
 
   # --- Manual mode ---
 
-  @spec manualask(pid(), String.t()) :: {:ok, [Result.t()]} | {:error, term()}
+  @spec manualask(pid(), String.t()) ::
+          {:ok, [Result.t()]} | {:error, String.t() | Cake.Search.Backend.search_error()}
   def manualask(pid, question) do
     GenServer.call(pid, {:manualask, question})
   end
 
-  @spec select_docs(pid(), [String.t()]) :: :ok | {:error, term()}
+  @spec select_docs(pid(), [String.t()]) ::
+          :ok | {:error, {:unknown_doc_ids, [String.t()]} | Cake.Generation.error_reason()}
   def select_docs(pid, doc_ids) do
     GenServer.call(pid, {:select, doc_ids})
   end
@@ -175,7 +177,7 @@ defmodule Cake.Conversation do
 
   @doc false
   @spec resolve_search_results(String.t(), State.t()) ::
-          {:ok, [Result.t()]} | {:error, term()}
+          {:ok, [Result.t()]} | {:error, String.t() | Cake.Search.Backend.search_error()}
   def resolve_search_results(_question, %State{search_results: results}) when results != [] do
     {:ok, results}
   end
@@ -188,7 +190,7 @@ defmodule Cake.Conversation do
 
   @doc false
   @spec apply_selection([Result.t()], [String.t()]) ::
-          {:ok, [Cake.Prompt.indexed_chunk()]} | {:error, term()}
+          {:ok, [Cake.Prompt.indexed_chunk()]} | {:error, {:unknown_doc_ids, [String.t()]}}
   def apply_selection(candidates, doc_ids) when is_list(candidates) do
     available_ids =
       MapSet.new(candidates, fn %Result{retrieval_unit: unit} ->
@@ -236,7 +238,7 @@ defmodule Cake.Conversation do
 
   @doc false
   @spec generate([Cake.Prompt.message()], State.t()) ::
-          {:ok, String.t()} | {:error, term()}
+          {:ok, String.t()} | {:error, Cake.Generation.error_reason()}
   def generate(messages, %State{} = s) do
     case s.generation.complete(messages, s.response_model, []) do
       {:ok, %{text: response, usage: _usage}} -> {:ok, response}

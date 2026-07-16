@@ -24,7 +24,7 @@ defmodule Cake.Search do
 
   @type search_type :: :keyword | :vector | :hybrid
   @type search_opts :: keyword()
-  @type search_result :: {:ok, [Hit.t()]} | {:error, any()}
+  @type search_result :: {:ok, [Hit.t()]} | {:error, Backend.search_error()}
   @type result_list :: [Result.t()]
 
   @default_size 30
@@ -80,7 +80,7 @@ defmodule Cake.Search do
           [float()] | nil,
           non_neg_integer(),
           search_opts()
-        ) :: {:ok, result_list()} | {:error, any()}
+        ) :: {:ok, result_list()} | {:error, Backend.search_error()}
   def search_chunks_with_context(
         search_type,
         keywords,

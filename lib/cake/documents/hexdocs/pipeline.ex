@@ -153,7 +153,8 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   end
 
   @impl Cake.Documents.Pipeline
-  @spec retry_from_raw(String.t(), String.t()) :: {:ok, [map()]} | {:error, any()}
+  @spec retry_from_raw(String.t(), String.t()) ::
+          {:ok, [map()]} | {:error, {:raw_doc_not_found, String.t()}}
   def retry_from_raw(input_identifier, version) do
     [module_name | _] = String.split(input_identifier, "@")
 
