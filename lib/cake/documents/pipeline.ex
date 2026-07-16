@@ -240,10 +240,8 @@ defmodule Cake.Documents.Pipeline do
     if function_exported?(source_pipeline, :retry_from_raw, 2) do
       with {:ok, parsed_attrs_list} <-
              source_pipeline.retry_from_raw(failure.input_identifier, failure.version),
-           persisted_docs <-
-             Enum.map(parsed_attrs_list, fn attrs ->
-               ParsedDocuments.create_parsed_doc!(attrs)
-             end),
+           {:ok, persisted_docs} <-
+             safe_create_parsed_docs(parsed_attrs_list, failure.input_identifier),
            :ok <- embed_and_index(persisted_docs, embedding_service, embedding_model) do
         _ = Cake.FailedIngests.delete_failed_ingest(failure)
         {:ok, :retried}
@@ -251,6 +249,12 @@ defmodule Cake.Documents.Pipeline do
     else
       {:error, {:retry_not_implemented, source_pipeline}}
     end
+  end
+
+  defp safe_create_parsed_docs(attrs_list, identifier) do
+    {:ok, Enum.map(attrs_list, &ParsedDocuments.create_parsed_doc!/1)}
+  rescue
+    e -> {:error, {identifier, Exception.message(e)}}
   end
 
   defp retry_embed_failure(failure, embedding_service, embedding_model) do

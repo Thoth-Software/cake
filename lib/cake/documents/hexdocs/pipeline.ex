@@ -55,7 +55,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
         {:ok, paths}
 
       {_, exit_status} ->
-        {:error, "git clone failed with exit status #{exit_status}"}
+        {:error, :download, "git clone failed with exit status #{exit_status}"}
     end
   end
 

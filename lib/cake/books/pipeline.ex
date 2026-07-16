@@ -34,7 +34,8 @@ defmodule Cake.Books.Pipeline do
   # We should look into speccing out a FullBook type that equates to a tuple having {%ParsedBook{}, [%Chunk{}]}
 
   @spec ingest(atom(), atom(), String.t(), [String.t()]) ::
-          {:ok, Pipelines.ingest_summary()} | {:error, any()}
+          {:ok, Pipelines.ingest_summary()}
+          | {:error, {:no_items_ingested, Pipelines.ingest_summary()}}
   def ingest(embedding_service, format_pipeline, embedding_model, paths) do
     ctx = Pipelines.build_context(__MODULE__, format_pipeline, "")
     failures_before = Pipelines.count_failures(ctx)
@@ -70,7 +71,8 @@ defmodule Cake.Books.Pipeline do
     - :max_sweeps — maximum number of retry passes (default: 2)
   """
   @spec ingest_with_sweep(atom(), atom(), String.t(), [String.t()], [{:max_sweeps, integer()}]) ::
-          {:ok, Pipelines.ingest_summary()} | {:error, any()}
+          {:ok, Pipelines.ingest_summary()}
+          | {:error, {:no_items_ingested, Pipelines.ingest_summary()}}
   def ingest_with_sweep(embedding_service, format_pipeline, embedding_model, paths, opts \\ []) do
     result = ingest(embedding_service, format_pipeline, embedding_model, paths)
 
