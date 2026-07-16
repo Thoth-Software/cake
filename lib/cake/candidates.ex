@@ -68,7 +68,7 @@ defmodule Cake.Candidates do
     }
   end
 
-  @spec expand_to_chunk_ids([doc_id()], grouped()) :: [term()]
+  @spec expand_to_chunk_ids([doc_id()], grouped()) :: [String.t()]
   def expand_to_chunk_ids(selected_doc_ids, grouped) do
     lookup = Map.new(grouped)
 
@@ -79,7 +79,7 @@ defmodule Cake.Candidates do
     end)
   end
 
-  @spec all_chunk_ids(grouped()) :: [term()]
+  @spec all_chunk_ids(grouped()) :: [String.t()]
   def all_chunk_ids(grouped) do
     Enum.flat_map(grouped, fn {_doc_id, results} ->
       Enum.map(results, fn %Result{retrieval_unit: unit} -> Citable.metadata(unit).id end)

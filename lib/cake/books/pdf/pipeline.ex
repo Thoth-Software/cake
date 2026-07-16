@@ -38,7 +38,7 @@ defmodule Cake.Books.Pdf.Pipeline do
   end
 
   @impl Cake.Books.Pipeline
-  @spec parse({any(), binary()}) :: {ParsedBook.t(), [Chunk.t()]}
+  @spec parse({String.t(), binary()}) :: {ParsedBook.t(), [Chunk.t()]}
   def parse({path, binary}) do
     extracted = extract(path, binary)
     warn_skipped(extracted)

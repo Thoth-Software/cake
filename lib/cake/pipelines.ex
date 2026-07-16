@@ -249,7 +249,8 @@ defmodule Cake.Pipelines do
     summarize_ingest(message, indexed, failed)
   end
 
-  @spec build_context(atom(), atom(), any(), list()) :: context()
+  @spec build_context(atom(), atom(), String.t() | {integer(), integer(), integer()}, keyword()) ::
+          context()
   def build_context(behaviour_module, source_pipeline, version, opts \\ [])
 
   @spec build_context(atom(), atom(), {integer(), integer(), integer()}) :: context()
