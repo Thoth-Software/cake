@@ -14,6 +14,7 @@ defmodule Mix.Tasks.Hooks.Install do
   use Mix.Task
 
   @impl Mix.Task
+  @spec run([binary()]) :: :ok
   def run(_args) do
     source_dir = Path.join(["priv", "hooks"])
     target_dir = Path.join([".git", "hooks"])

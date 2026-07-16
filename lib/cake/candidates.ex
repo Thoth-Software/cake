@@ -17,7 +17,7 @@ defmodule Cake.Candidates do
   @type grouped :: [{doc_id(), [Result.t()]}]
 
   @spec group_by_document([Result.t()]) :: grouped()
-  def group_by_document(results) do
+  def group_by_document(results) when is_list(results) do
     results
     |> Enum.reduce([], fn %Result{} = result, acc ->
       doc_id = doc_id_for(result)
@@ -42,7 +42,8 @@ defmodule Cake.Candidates do
           preview: String.t(),
           page_label: String.t() | nil
         }
-  def document_metadata([%Result{retrieval_unit: first} | _] = results) do
+  def document_metadata(results) when is_list(results) do
+    %Result{retrieval_unit: first} = hd(results)
     meta = Citable.metadata(first)
 
     page_numbers =

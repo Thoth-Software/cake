@@ -20,7 +20,7 @@ defmodule Cake.Prompt do
 
   @spec prepare_context([Result.t()], keyword()) ::
           {[indexed_chunk()], context_quality()}
-  def prepare_context(scored_results, opts \\ []) do
+  def prepare_context(scored_results, opts \\ []) when is_list(scored_results) do
     max_chunks = Keyword.get(opts, :max_chunks, @default_max_chunks)
     min_relevance = Keyword.get(opts, :min_relevance, @default_min_relevance)
 

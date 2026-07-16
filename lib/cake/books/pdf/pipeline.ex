@@ -27,6 +27,7 @@ defmodule Cake.Books.Pdf.Pipeline do
         }
 
   @impl Cake.Books.Pipeline
+  @spec load_binary(String.t()) :: {:ok, {String.t(), binary()}} | {:error, any()}
   def load_binary(key) do
     adapter = Cake.Books.Adapters.adapter()
 
@@ -116,9 +117,11 @@ defmodule Cake.Books.Pdf.Pipeline do
   end
 
   @impl Cake.Books.Pipeline
+  @spec format() :: atom()
   def format, do: :pdf
 
   @impl Cake.Books.Pipeline
+  @spec success_message() :: String.t()
   def success_message, do: "Successfully ingested PDF books"
 
   defp count_words(text) do

@@ -33,15 +33,19 @@ defmodule Cake.Books.ParsedBook do
   # Cake.GDS callbacks
 
   @impl Cake.GDS
+  @spec collection_name() :: String.t()
   def collection_name, do: "chunks_of_books"
 
   @impl Cake.GDS
+  @spec search_fields() :: [String.t()]
   def search_fields, do: ["section_title^2", "text"]
 
   @impl Cake.GDS
+  @spec load_from_hits([Cake.Search.Hit.t()]) :: [struct()]
   defdelegate load_from_hits(hits), to: Cake.Books.Retrieval, as: :chunks_for_hits
 
   @impl Cake.GDS
+  @spec expand_with_neighbors([struct()], non_neg_integer()) :: [struct()]
   defdelegate expand_with_neighbors(chunks, offset), to: Cake.Books.Retrieval
 
   schema "parsed_books" do

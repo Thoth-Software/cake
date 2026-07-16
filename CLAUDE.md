@@ -104,10 +104,11 @@ If you're loosening an assertion to make a test pass, you're almost certainly in
 
 ## Typespecs, DI, Result Tuples
 
-- **Every public function has a `@spec`.** No exceptions.
+- **Every public function has a `@spec`.** No exceptions — including `@impl` callback implementations, which must redundantly spec the callback signature. This ensures specs appear in LLM context and that dialyzer catches impl/callback mismatches.
 - **Every custom struct defines `@type t :: %__MODULE__{}`** with all fields typed. Use `MyStruct.t()` in specs, never `%MyStruct{}`.
 - Behaviour callbacks (`@callback`) and protocol functions (`@spec`) get full typespecs.
 - Retrieval callbacks return `[struct()]`, not a specific struct type — deliberate (see GDS behaviour docs in README).
+- **List-of-struct args use `when is_list(arg)` guards**, not head-matching on list elements. The `@spec` controls what the list contains; the guard validates the container type at runtime.
 - **DI is for Mox, not runtime polymorphism:** modules depending on external services accept collaborator modules as args (or read them from config); define a behaviour, implement it, provide a mock in test. `Cake.Conversation` requires a `:gds` opt validated in `start_link/1`/`start/1` before the GenServer spawns (`init/1` only builds state). Follow the same required-opt pattern for future orchestration-layer modules.
 - **Result tuples:** all pipeline callbacks return `{:ok, _}`/`{:error, _}`. Stream steps use `Pipelines.detuple_with_logging/3` — never a silent filter that discards errors without persisting them. Step names follow `"pipeline.step"`. Pipeline-fatal errors go in the `else` of the `with` chain.
 

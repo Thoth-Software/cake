@@ -128,7 +128,7 @@ defmodule Cake.Search do
   to the query embedding. Units with nil embeddings receive cosine_score: 0.0.
   """
   @spec score_results([Result.t()], [float()]) :: [Result.t()]
-  def score_results(results, query_embedding) do
+  def score_results(results, query_embedding) when is_list(results) do
     Enum.map(results, fn %Result{retrieval_unit: unit} = result ->
       cosine =
         case unit.embedding do
@@ -150,7 +150,7 @@ defmodule Cake.Search do
   + 0.5 * normalized_cosine_score.
   """
   @spec normalize_and_combine([Result.t()]) :: [Result.t()]
-  def normalize_and_combine(results) do
+  def normalize_and_combine(results) when is_list(results) do
     {os_min, os_max} = backend_score_bounds(results)
     cosine_scores = Enum.map(results, & &1.cosine_score)
     cosine_min = Enum.min(cosine_scores, fn -> 0.0 end)
@@ -173,7 +173,7 @@ defmodule Cake.Search do
   Sorts results by relevance_score descending.
   """
   @spec sort_by_relevance([Result.t()]) :: [Result.t()]
-  def sort_by_relevance(results) do
+  def sort_by_relevance(results) when is_list(results) do
     Enum.sort_by(results, & &1.relevance_score, :desc)
   end
 

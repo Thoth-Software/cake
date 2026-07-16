@@ -65,6 +65,7 @@ defmodule Cake.Conversation do
   end
 
   @impl GenServer
+  @spec init(map()) :: {:ok, State.t()}
   def init(opts) do
     {:ok, build_state(opts)}
   end
@@ -94,6 +95,7 @@ defmodule Cake.Conversation do
   def autoask(pid, question), do: GenServer.cast(pid, {:autoask, question})
 
   @impl GenServer
+  @spec handle_cast(term(), State.t()) :: {:noreply, State.t()}
   def handle_cast({:autoask, question}, %State{state: :idle} = s) do
     {:noreply, spawn_turn(question, s)}
   end
@@ -104,6 +106,7 @@ defmodule Cake.Conversation do
   end
 
   @impl GenServer
+  @spec handle_info(term(), State.t()) :: {:noreply, State.t()}
   def handle_info({ref, result}, %State{turn_ref: ref} = s) when is_reference(ref) do
     Process.demonitor(ref, [:flush])
 
@@ -186,7 +189,7 @@ defmodule Cake.Conversation do
   @doc false
   @spec apply_selection([Result.t()], [String.t()]) ::
           {:ok, [Cake.Prompt.indexed_chunk()]} | {:error, term()}
-  def apply_selection(candidates, doc_ids) do
+  def apply_selection(candidates, doc_ids) when is_list(candidates) do
     available_ids =
       MapSet.new(candidates, fn %Result{retrieval_unit: unit} ->
         Cake.Citable.metadata(unit).id
@@ -198,23 +201,24 @@ defmodule Cake.Conversation do
     if MapSet.size(unknown) > 0 do
       {:error, {:unknown_doc_ids, MapSet.to_list(unknown)}}
     else
-      selected =
-        candidates
-        |> Enum.filter(fn %Result{retrieval_unit: unit} ->
-          Cake.Citable.metadata(unit).id in doc_ids
-        end)
-        |> Enum.with_index(1)
-        |> Enum.map(fn {result, idx} -> {idx, result} end)
-
-      {:ok, selected}
+      {:ok, index_selected(candidates, doc_ids)}
     end
+  end
+
+  defp index_selected(candidates, doc_ids) do
+    candidates
+    |> Enum.filter(fn %Result{retrieval_unit: unit} ->
+      Cake.Citable.metadata(unit).id in doc_ids
+    end)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {result, idx} -> {idx, result} end)
   end
 
   # --- Stage 1b: select (auto mode) ---
 
   @doc false
   @spec select([Result.t()]) :: {:ok, [Cake.Prompt.indexed_chunk()]}
-  def select(scored_results) do
+  def select(scored_results) when is_list(scored_results) do
     {indexed_chunks, _context_quality} = Cake.Prompt.prepare_context(scored_results)
     {:ok, indexed_chunks}
   end
@@ -303,6 +307,7 @@ defmodule Cake.Conversation do
   # --- Manual-mode handlers ---
 
   @impl GenServer
+  @spec handle_call(term(), GenServer.from(), State.t()) :: {:reply, term(), State.t()}
   def handle_call({:manualask, question}, _from, %State{state: :idle} = s) do
     case embed_and_search(question, s) do
       {:ok, candidates} ->
