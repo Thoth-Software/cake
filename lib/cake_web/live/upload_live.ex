@@ -18,7 +18,7 @@ defmodule CakeWeb.UploadLive do
        max_file_size: 100_000_000
      )
      |> allow_upload(:folder,
-       accept: :any,
+       accept: ~w(.pdf),
        max_entries: 200,
        max_file_size: 100_000_000
      )
