@@ -32,6 +32,7 @@ defmodule CakeWeb.Router do
       on_mount: [{CakeWeb.UserAuth, :ensure_authenticated}] do
       live "/chat", ChatLive
       live "/search", SearchLive
+      live "/upload", UploadLive
     end
   end
 
