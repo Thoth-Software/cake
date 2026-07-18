@@ -21,6 +21,8 @@ while true; do
   sleep 5
 done
 
+export MIX_ENV=dev
+
 # --- Make sure deps/lock are in sync inside the container ---
 echo "Running mix deps.get..."
 mix deps.get
