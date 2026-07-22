@@ -7,6 +7,7 @@ defmodule Cake.MixProject do
       version: "0.1.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
+      compilers: compilers(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
@@ -39,6 +40,12 @@ defmodule Cake.MixProject do
   # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  # The boundary compiler enforces module boundaries on application code. It is
+  # excluded in :test because test files and support modules deliberately cross
+  # boundaries; enforcement runs in :dev/:prod (CI runs a dev-env compile).
+  defp compilers(:test), do: Mix.compilers()
+  defp compilers(_), do: [:boundary] ++ Mix.compilers()
 
   # Specifies your project dependencies.
   #
@@ -79,6 +86,7 @@ defmodule Cake.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false},
+      {:boundary, "~> 0.10", runtime: false},
       {:oban, "~> 2.0"},
       {:rustler, "~> 0.37.1"},
       {:periscope, "~> 0.7.0"},
