@@ -110,7 +110,16 @@
           {Credo.Check.Warning.UnusedRegexOperation, []},
           {Credo.Check.Warning.UnusedStringOperation, []},
           {Credo.Check.Warning.UnusedTupleOperation, []},
-          {Credo.Check.Warning.UnsafeExec, []}
+          {Credo.Check.Warning.UnsafeExec, []},
+
+          # ── Third-party checks (credo_naming) ────────────────────────
+          # Enforce module-name/filename consistency for the domain. Excluded:
+          # the Phoenix web layer (controllers/live/components module names
+          # legitimately omit their directory segment), Mix tasks (dotted
+          # filenames like hooks.install.ex), and test files/support (Phoenix
+          # test conventions) — these are directory conventions, not defects.
+          {CredoNaming.Check.Consistency.ModuleFilename,
+           [excluded_paths: [~r{lib/cake_web/}, ~r{lib/mix/}, ~r{test/}]]}
         ],
         disabled: [{Credo.Check.Refactor.ModuleDependencies, []}]
       }
