@@ -109,8 +109,17 @@ defmodule Cake.MixProject do
         "esbuild cake --minify",
         "phx.digest"
       ],
-      quality: ["compile --warnings-as-errors", "credo --strict", "dialyzer"],
-      "quality.fast": ["compile --warnings-as-errors", "credo --strict"]
+      quality: [
+        "compile --warnings-as-errors",
+        "credo --strict",
+        "dialyzer",
+        "deps.unlock --check-unused"
+      ],
+      "quality.fast": [
+        "compile --warnings-as-errors",
+        "credo --strict",
+        "deps.unlock --check-unused"
+      ]
       # `mix hooks.install` is the Mix.Tasks.Hooks.Install task
       # (lib/mix/tasks/hooks.install.ex), which installs every hook in priv/hooks/.
       # No alias here — an alias of the same name would shadow that task.
