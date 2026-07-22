@@ -33,6 +33,15 @@ config :cake, Cake.Search.Deployment,
   username: "admin",
   password: System.get_env("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
 
+# Collections created at boot by Cake.Search.Deployment. Each entry is
+# {name_module, mapping_schema}: the first supplies collection_name/0, the
+# second the index mapping. Configured here (rather than named in the search
+# layer) so search does not depend on the ingestion contexts.
+config :cake, :search_collections, [
+  {Cake.Documents.ParsedDocument, Cake.Documents.ParsedDocument},
+  {Cake.Books.ParsedBook, Cake.Books.Chunk}
+]
+
 # Default parameters for starting a Cake.Conversation from a web entry point.
 # The :id is generated per session; everything else comes from here so the
 # search backend, GDS, embedder, provider, and response model stay consistent
