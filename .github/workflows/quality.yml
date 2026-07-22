@@ -68,6 +68,13 @@ jobs:
       - name: Format check
         run: mix format --check-formatted
 
+      # Report-only: surfaces retired/vulnerable Hex packages without failing
+      # the build. There is a pre-existing advisory backlog (see #206); this
+      # becomes a blocking gate once that backlog is cleared.
+      - name: Hex audit (report-only)
+        run: mix hex.audit
+        continue-on-error: true
+
   test:
     name: Tests
     runs-on: ubuntu-latest
