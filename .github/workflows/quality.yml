@@ -107,6 +107,12 @@ jobs:
       - name: Unused dependency check
         run: mix deps.unlock --check-unused
 
+      # Blocking: static security analysis of the Phoenix app. The baseline is
+      # clean; triaged false-positives are suppressed in .sobelow-conf and via
+      # inline `# sobelow_skip` annotations, so this fails only on new findings.
+      - name: Sobelow (static security analysis)
+        run: mix sobelow --config --exit
+
       # Report-only: surfaces retired/vulnerable Hex packages without failing
       # the build. There is a pre-existing advisory backlog (see #206); this
       # becomes a blocking gate once that backlog is cleared upstream.
