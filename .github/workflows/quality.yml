@@ -75,6 +75,13 @@ jobs:
         run: mix hex.audit
         continue-on-error: true
 
+      # Report-only: checks deps against the mix_audit advisory database.
+      # Blocked by the same backlog (#206); becomes a blocking gate — with the
+      # single unfixable advisory ignored — once that backlog is remediated.
+      - name: Dependency audit (report-only)
+        run: mix deps.audit
+        continue-on-error: true
+
   test:
     name: Tests
     runs-on: ubuntu-latest
