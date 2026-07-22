@@ -16,7 +16,7 @@
         ]
       },
       plugins: [],
-      requires: [],
+      requires: ["./credo/checks/case_on_boolean.ex"],
       strict: true,
       parse_timeout: 5000,
       color: true,
@@ -119,7 +119,10 @@
           # filenames like hooks.install.ex), and test files/support (Phoenix
           # test conventions) — these are directory conventions, not defects.
           {CredoNaming.Check.Consistency.ModuleFilename,
-           [excluded_paths: [~r{lib/cake_web/}, ~r{lib/mix/}, ~r{test/}]]}
+           [excluded_paths: [~r{lib/cake_web/}, ~r{lib/mix/}, ~r{test/}]]},
+
+          # ── Project-local checks (loaded via `requires` above) ───────
+          {Cake.CredoChecks.CaseOnBoolean, []}
         ],
         disabled: [{Credo.Check.Refactor.ModuleDependencies, []}]
       }
