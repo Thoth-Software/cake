@@ -120,6 +120,13 @@ defmodule Cake.MixProject do
         "compile --warnings-as-errors",
         "credo --strict",
         "deps.unlock --check-unused"
+      ],
+      # One command matching the on-push CI gate (see CLAUDE.md "Pre-push").
+      precommit: [
+        "compile --force --warnings-as-errors",
+        "format --check-formatted",
+        "credo --strict",
+        "test --exclude integration"
       ]
       # `mix hooks.install` is the Mix.Tasks.Hooks.Install task
       # (lib/mix/tasks/hooks.install.ex), which installs every hook in priv/hooks/.
