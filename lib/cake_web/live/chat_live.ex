@@ -224,7 +224,12 @@ defmodule CakeWeb.ChatLive do
         <h2 class="text-lg font-semibold">Select documents to use</h2>
         <span class="text-xs text-gray-400">{length(@candidates)} found</span>
       </div>
-      <.form for={@selection_form} phx-submit="submit_selection" phx-change="validate_selection">
+      <.form
+        for={@selection_form}
+        id="selection-form"
+        phx-submit="submit_selection"
+        phx-change="validate_selection"
+      >
         <input type="hidden" name="selection_form[selected_doc_ids][]" value="" />
         <div class="space-y-2 mb-4 max-h-80 overflow-y-auto">
           <%= for {doc_id, chunks} <- @candidates do %>

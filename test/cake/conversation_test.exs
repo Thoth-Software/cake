@@ -209,7 +209,7 @@ defmodule Cake.ConversationTest do
 
       assert :ok = Conversation.autoask(pid, "what is two plus two?")
 
-      assert_receive {:response_ready, %{response: _response, citations: _citations}}, 500
+      assert_receive {:response_ready, %{response: _response, citations: _citations}}
     end
   end
 
@@ -291,7 +291,7 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "test question")
 
-      assert_receive {:response_ready, %{response: response, citations: citations}}, 500
+      assert_receive {:response_ready, %{response: response, citations: citations}}
 
       assert is_binary(response)
       assert is_list(citations)
@@ -355,14 +355,14 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:prompt_captured, messages}, 500
+      assert_receive {:prompt_captured, messages}
 
       serialized = Enum.map_join(messages, "\n", & &1.content)
       assert serialized =~ marker
 
       # Wait for the full turn to complete before the test exits, so Mox
       # verify_on_exit! sees the Responses.Mock invocation.
-      assert_receive {:response_ready, _}, 500
+      assert_receive {:response_ready, _}
     end
   end
 
@@ -427,7 +427,7 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:response_ready, %{response: _response, citations: citations}}, 500
+      assert_receive {:response_ready, %{response: _response, citations: citations}}
 
       assert length(citations) == 2
 
@@ -501,12 +501,12 @@ defmodule Cake.ConversationTest do
       allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, turn_one_q)
-      assert_receive {:prompt_captured, turn_one_messages}, 500
-      assert_receive {:response_ready, _}, 500
+      assert_receive {:prompt_captured, turn_one_messages}
+      assert_receive {:response_ready, _}
 
       Conversation.autoask(pid, turn_two_q)
-      assert_receive {:prompt_captured, turn_two_messages}, 500
-      assert_receive {:response_ready, _}, 500
+      assert_receive {:prompt_captured, turn_two_messages}
+      assert_receive {:response_ready, _}
 
       turn_one_serialized = Enum.map_join(turn_one_messages, "\n", & &1.content)
       turn_two_serialized = Enum.map_join(turn_two_messages, "\n", & &1.content)
@@ -556,10 +556,10 @@ defmodule Cake.ConversationTest do
       allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, turn_one_q)
-      assert_receive {:response_ready, _}, 500
+      assert_receive {:response_ready, _}
 
       Conversation.autoask(pid, turn_two_q)
-      assert_receive {:response_ready, _}, 500
+      assert_receive {:response_ready, _}
 
       state = :sys.get_state(pid)
       assert state.message_history == [turn_two_a, turn_two_q, turn_one_a, turn_one_q]
@@ -640,7 +640,7 @@ defmodule Cake.ConversationTest do
 
       assert :ok = Conversation.autoask(pid, "hello")
 
-      assert_receive {:response_ready, _}, 500
+      assert_receive {:response_ready, _}
     end
   end
 
@@ -663,7 +663,7 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:error, :timeout}, 500
+      assert_receive {:error, :timeout}
 
       refute_receive {:DOWN, ^ref, :process, ^pid, _}, 100
 
@@ -698,7 +698,7 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:error, {:rate_limited, nil}}, 500
+      assert_receive {:error, {:rate_limited, nil}}
       refute_receive {:DOWN, ^ref, :process, ^pid, _}, 100
 
       state = :sys.get_state(pid)
@@ -737,9 +737,9 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q with no matching chunks")
 
-      assert_receive {:prompt_captured, _messages}, 500
-      assert_receive {:responses_indexed_chunks, indexed_chunks}, 500
-      assert_receive {:response_ready, _}, 500
+      assert_receive {:prompt_captured, _messages}
+      assert_receive {:responses_indexed_chunks, indexed_chunks}
+      assert_receive {:response_ready, _}
 
       assert indexed_chunks == []
     end
@@ -769,7 +769,7 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:response_ready, %{response: response, citations: citations}}, 500
+      assert_receive {:response_ready, %{response: response, citations: citations}}
 
       assert is_binary(response)
       assert citations == []
@@ -797,7 +797,7 @@ defmodule Cake.ConversationTest do
 
       # The unlinked Task absorbs the crash; the GenServer broadcasts
       # the error and stays alive.
-      assert_receive {:error, _reason}, 500
+      assert_receive {:error, _reason}
       refute_receive {:DOWN, ^ref, :process, ^pid, _}, 200
       refute_received {:response_ready, _}
     end
@@ -853,19 +853,19 @@ defmodule Cake.ConversationTest do
       assert :ok = Conversation.autoask(pid, "q2")
 
       # Turn 1 starts in its Task.
-      assert_receive {:first_started, task_pid}, 500
+      assert_receive {:first_started, task_pid}
 
       # Turn 2 has not started — it is queued in GenServer state.
       refute_receive :second_started, 100
 
       # Release turn 1; queued turn 2 replays automatically.
       send(task_pid, :release_first)
-      assert_receive :first_returning, 500
-      assert_receive :second_started, 500
+      assert_receive :first_returning
+      assert_receive :second_started
 
       # Both responses delivered.
-      assert_receive {:response_ready, _}, 500
-      assert_receive {:response_ready, _}, 500
+      assert_receive {:response_ready, _}
+      assert_receive {:response_ready, _}
     end
 
     test "GenServer remains responsive while a turn is generating" do
@@ -898,7 +898,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Generation.Mock, self(), pid)
 
       :ok = Conversation.autoask(pid, "q")
-      assert_receive :generation_started, 1_000
+      assert_receive :generation_started
 
       # The GenServer should be able to respond to a call while the LLM
       # turn is in flight. If the turn runs synchronously inside
@@ -915,7 +915,7 @@ defmodule Cake.ConversationTest do
       end
 
       # Wait for the turn to finish so Mox verify_on_exit! sees all calls.
-      assert_receive {:response_ready, _}, 1_000
+      assert_receive {:response_ready, _}
     end
   end
 
@@ -972,7 +972,7 @@ defmodule Cake.ConversationTest do
       end)
 
       Conversation.autoask(pid, "q")
-      assert_receive {:response_ready, _}, 500
+      assert_receive {:response_ready, _}
     end
 
     test "resolve_search_results/2 propagates embed error" do
@@ -985,7 +985,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
-      assert_receive {:error, :embed_failed}, 500
+      assert_receive {:error, :embed_failed}
     end
 
     test "select/1 returns indexed chunks from scored results" do
@@ -1049,7 +1049,7 @@ defmodule Cake.ConversationTest do
         s
       end)
 
-      assert_receive {:gen_result, {:ok, "hello"}}, 500
+      assert_receive {:gen_result, {:ok, "hello"}}
     end
 
     test "generate/2 propagates error" do
@@ -1068,7 +1068,7 @@ defmodule Cake.ConversationTest do
         s
       end)
 
-      assert_receive {:gen_result, {:error, :rate_limited}}, 500
+      assert_receive {:gen_result, {:error, :rate_limited}}
     end
 
     test "process_response/3 wraps Responses.process result in :ok tuple" do
@@ -1103,7 +1103,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
-      assert_receive {:error, :embed_failed}, 500
+      assert_receive {:error, :embed_failed}
     end
 
     test "generate failure short-circuits: responses never called" do
@@ -1128,7 +1128,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
-      assert_receive {:error, :generation_failed}, 500
+      assert_receive {:error, :generation_failed}
     end
 
     test "zero chunks: pipeline completes without short-circuit" do
@@ -1156,7 +1156,7 @@ defmodule Cake.ConversationTest do
       allow(Cake.Generation.Mock, self(), pid)
 
       Conversation.autoask(pid, "q")
-      assert_receive {:response_ready, %{response: "x", citations: []}}, 500
+      assert_receive {:response_ready, %{response: "x", citations: []}}
     end
   end
 
@@ -1262,7 +1262,7 @@ defmodule Cake.ConversationTest do
       assert :ok = Conversation.select_docs(pid, doc_ids)
 
       # Response broadcast via PubSub
-      assert_receive {:response_ready, %{response: "answer", citations: []}}, 500
+      assert_receive {:response_ready, %{response: "answer", citations: []}}
 
       # State back to idle
       post_select = :sys.get_state(pid)
@@ -1318,7 +1318,7 @@ defmodule Cake.ConversationTest do
 
       catch_exit(Conversation.select_docs(pid, ["some_id"]))
 
-      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 500
+      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
     end
 
     test "manualask in awaiting_selection state crashes the GenServer" do
@@ -1342,7 +1342,7 @@ defmodule Cake.ConversationTest do
       ref = Process.monitor(pid)
       catch_exit(Conversation.manualask(pid, "q2"))
 
-      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 500
+      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
     end
   end
 
@@ -1378,9 +1378,9 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:state_change, :generating}, 1_000
-      assert_receive {:response_ready, %{response: "x", citations: []}}, 1_000
-      assert_receive {:state_change, :idle}, 1_000
+      assert_receive {:state_change, :generating}
+      assert_receive {:response_ready, %{response: "x", citations: []}}
+      assert_receive {:state_change, :idle}
     end
 
     test "auto turn error emits :error and :state_change broadcasts" do
@@ -1397,9 +1397,9 @@ defmodule Cake.ConversationTest do
 
       Conversation.autoask(pid, "q")
 
-      assert_receive {:state_change, :generating}, 1_000
-      assert_receive {:error, :embed_failed}, 1_000
-      assert_receive {:state_change, :idle}, 1_000
+      assert_receive {:state_change, :generating}
+      assert_receive {:error, :embed_failed}
+      assert_receive {:state_change, :idle}
     end
 
     test "manual mode emits candidates_ready and state_change broadcasts" do
@@ -1433,17 +1433,17 @@ defmodule Cake.ConversationTest do
 
       {:ok, candidates} = Conversation.manualask(pid, "q")
 
-      assert_receive {:candidates_ready, ^candidates}, 1_000
-      assert_receive {:state_change, :awaiting_selection}, 1_000
+      assert_receive {:candidates_ready, ^candidates}
+      assert_receive {:state_change, :awaiting_selection}
 
       doc_ids =
         Enum.map(candidates, fn %Result{retrieval_unit: c} -> Cake.Citable.metadata(c).id end)
 
       :ok = Conversation.select_docs(pid, doc_ids)
 
-      assert_receive {:state_change, :generating}, 1_000
-      assert_receive {:response_ready, %{response: "x"}}, 1_000
-      assert_receive {:state_change, :idle}, 1_000
+      assert_receive {:state_change, :generating}
+      assert_receive {:response_ready, %{response: "x"}}
+      assert_receive {:state_change, :idle}
     end
   end
 end
