@@ -16,7 +16,7 @@
         ]
       },
       plugins: [],
-      requires: ["./credo/checks/case_on_boolean.ex"],
+      requires: ["./credo/checks/case_on_boolean.ex", "./credo/checks/raw_in_heex.ex"],
       strict: true,
       parse_timeout: 5000,
       color: true,
@@ -122,7 +122,8 @@
            [excluded_paths: [~r{lib/cake_web/}, ~r{lib/mix/}, ~r{test/}]]},
 
           # ── Project-local checks (loaded via `requires` above) ───────
-          {Cake.CredoChecks.CaseOnBoolean, []}
+          {Cake.CredoChecks.CaseOnBoolean, []},
+          {Cake.CredoChecks.RawInHeex, []}
         ],
         disabled: [{Credo.Check.Refactor.ModuleDependencies, []}]
       }
