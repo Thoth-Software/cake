@@ -136,13 +136,13 @@ On follow-up turns, retrieval is skipped — cached chunks are reused with the n
 
 ### Layer 4: Web — Phoenix LiveView Chat Interface
 
-**`CakeWeb.ChatLive`** is the user-facing chat UI. It starts a `Conversation` GenServer and subscribes to its PubSub topic for state-change, candidates-ready, response-ready, and error broadcasts. Domain-level candidate grouping and chunk-ID extraction are delegated to **`Cake.Candidates`**. Two embedded-schema form modules live under `chat_live/`: **`QuestionForm`** (question + mode validation) and **`SelectionForm`** (document-selection validation with subset checking against available IDs).
+**`CakeWeb.ChatLive`** is the user-facing chat UI. It starts a `Conversation` GenServer and subscribes to its PubSub topic for state-change, candidates-ready, response-ready, and error broadcasts. Domain-level candidate grouping and chunk-ID extraction are delegated to **Cake.Candidates** (an internal helper). Two embedded-schema form modules live under `chat_live/`: **`QuestionForm`** (question + mode validation) and **`SelectionForm`** (document-selection validation with subset checking against available IDs).
 
 **`CakeWeb.UserAuth`** provides authentication plugs.
 
 ### Supervision Tree Boot Order
 
-The application starts children in this order under `Cake.Application`:
+The application starts children in this order under Cake.Application:
 
 1. `CakeWeb.Telemetry` — telemetry metrics
 2. `Cake.Repo` — Postgres connection pool
@@ -161,7 +161,7 @@ The layer responsibilities above are enforced at compile time by the [`boundary`
 - **Ingestion** — `Cake.Books` and `Cake.Documents` depend on `Cake.Search`, `Cake.Embeddings`, and `Cake.Pipelines` (`Cake.Pipelines` in turn depends on `Cake.Search`).
 - **Retrieval** — `Cake.Search` depends only on the kernel. It no longer names the GDS modules: the collections created at boot come from `:search_collections` config, which is what keeps the search layer from depending back on the ingestion contexts (an otherwise-cyclic dependency).
 - **Conversation** — `Cake.Conversation` is the orchestrator; it depends on `Cake.Prompt`, `Cake.Search`, `Cake.Embeddings`, `Cake.Generation`, and `Cake.Responses`. Those service modules do not depend on each other except `Cake.Responses → Cake.Search`/`Cake.Generation`. Nothing depends back on `Cake.Conversation` except the web layer.
-- **Web / jobs / app** — `CakeWeb` depends on the domain contexts it drives; `Cake.Jobs` on `Cake.Documents`; `Cake.Application` (top-level) on what it supervises.
+- **Web / jobs / app** — `CakeWeb` depends on the domain contexts it drives; `Cake.Jobs` on `Cake.Documents`; Cake.Application (top-level) on what it supervises.
 
 The compiler runs in `:dev`/`:prod` only — test files and support modules deliberately cross boundaries, so `:test` is excluded — and CI enforces it with a dev-env compile. When you add a cross-context call, declare the `dep` (and `export` the target module) rather than working around the boundary.
 

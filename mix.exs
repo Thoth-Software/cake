@@ -12,7 +12,37 @@ defmodule Cake.MixProject do
       aliases: aliases(),
       deps: deps(),
       dialyzer: dialyzer(),
+      docs: docs(),
       test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  defp docs do
+    [
+      name: "Cake",
+      source_url: "https://github.com/Thoth-Software/cake",
+      extras: ["README.md"],
+      main: "readme",
+      groups_for_modules: [
+        Kernel: [
+          Cake,
+          Cake.Repo,
+          Cake.Schema,
+          Cake.Mailer,
+          Cake.GDS,
+          Cake.Citable,
+          Cake.Promptable,
+          Cake.Citations,
+          Cake.FailedIngests,
+          Cake.ParseBooks
+        ],
+        Ingestion: [~r/^Cake\.(Books|Documents|Pipelines)/],
+        Retrieval: [~r/^Cake\.(Search|Embeddings)/],
+        Conversation: [~r/^Cake\.(Conversation|Prompt|Generation|Responses|Candidates)/],
+        Accounts: [~r/^Cake\.Accounts/],
+        Jobs: [~r/^Cake\.Jobs/],
+        Web: [~r/^CakeWeb/]
+      ]
     ]
   end
 
@@ -87,6 +117,7 @@ defmodule Cake.MixProject do
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false},
       {:boundary, "~> 0.10", runtime: false},
+      {:ex_doc, "~> 0.36", only: :dev, runtime: false},
       {:oban, "~> 2.0"},
       {:rustler, "~> 0.37.1"},
       {:periscope, "~> 0.7.0"},

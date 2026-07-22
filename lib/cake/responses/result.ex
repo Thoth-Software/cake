@@ -1,6 +1,6 @@
 defmodule Cake.Responses.Result do
   @moduledoc """
-  The structured value returned by `Cake.Responses.process/3`.
+  The structured value returned by `c:Cake.Responses.Behaviour.process/3`.
 
   Each field has a clear owner in the pipeline:
 
