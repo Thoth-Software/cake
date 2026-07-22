@@ -28,7 +28,7 @@ defmodule Cake.ConversationTest do
   use ExUnit.Case, async: false
 
   import Mox
-  import Cake.Factory, only: [build: 1, build: 2, chunk_metadata: 1]
+  import Cake.Factory, only: [build: 2, chunk_metadata: 1]
 
   alias Cake.Conversation
   alias Cake.Search.Hit

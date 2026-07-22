@@ -65,6 +65,16 @@ jobs:
       - name: Format check
         run: mix format --check-formatted
 
+      # Ratchet gate against compile-time coupling creep. Run in the dev env so
+      # it measures only the application graph (excludes the Mox mocks in
+      # test/support, which structurally compile-depend on their behaviours).
+      # Baseline is the current count (3, from Cake.Conversation.State's
+      # defstruct DI defaults); ratchet it down to 0 once that is decoupled — #208.
+      - name: Compile-time coupling ratchet (xref)
+        env:
+          MIX_ENV: dev
+        run: mix xref graph --label compile-connected --fail-above 3
+
   security:
     name: Security & Dependency Audit
     runs-on: ubuntu-latest
@@ -171,7 +181,7 @@ jobs:
         run: mix compile --warnings-as-errors
 
       - name: Run tests with coverage (excluding integration)
-        run: mix coveralls.json --exclude integration
+        run: mix coveralls.json --exclude integration --warnings-as-errors
 
   integration:
     name: Integration Tests (merge gate)
