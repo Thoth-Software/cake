@@ -92,7 +92,7 @@ defmodule CakeWeb.SearchLiveTest do
       |> form("form", %{"query" => "hello"})
       |> render_submit()
 
-      assert_receive {:embed_called, body}, 1_000
+      assert_receive {:embed_called, body}
       assert body["model"] == "text-embedding-3-large"
     end
   end

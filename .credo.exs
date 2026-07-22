@@ -121,6 +121,40 @@
           {CredoNaming.Check.Consistency.ModuleFilename,
            [excluded_paths: [~r{lib/cake_web/}, ~r{lib/mix/}, ~r{test/}]]},
 
+          # ── Third-party checks (jump_credo_checks) ───────────────────
+          # Adopted the checks that fit Cake and fixed their findings
+          # (AssertReceiveTimeout — moved to a global assert_receive_timeout;
+          # LiveViewFormCanBeRehydrated — added the form id). The rest below are
+          # zero-finding guardrails.
+          #
+          # Intentionally NOT enabled, because they misfire on legitimate Cake
+          # patterns rather than surfacing real defects:
+          #   - UndeclaredExternalResource: false-positives on `@spec`/`@type`
+          #     that precede functions calling `File.read` at runtime (the check
+          #     targets compile-time `@attr File.read!(...)`).
+          #   - AvoidSocketAssignsInTest: flags UserAuth `on_mount`/plug unit
+          #     tests that assert `socket.assigns.current_user` — but for an auth
+          #     hook whose contract IS that assign, there is no rendered output
+          #     to assert instead.
+          #   - TestHasNoAssertions / VacuousTest: flag struct-contract tests
+          #     (`@enforce_keys`, defaults) and the `apply/3` FunctionClauseError
+          #     tests in pipelines_test (the check can't see `apply/3` as calling
+          #     application code) — enabling them would force artificial rewrites.
+          #   - WeakAssertion: flags ~26 `assert <truthy-call>` sites across the
+          #     suite. Strengthening each to a specific assertion is a worthwhile
+          #     but sizable, judgement-heavy test refactor — deferred to its own
+          #     pass rather than bundled here.
+          #   - ConditionalAssertion: flags legitimate `or`/`||` assertions — a
+          #     property test where a label validly matches either of two
+          #     formats, prompt-wording flexibility, and result-shape checks for
+          #     non-deterministic jobs; pinning a single value isn't possible.
+          {Jump.CredoChecks.SafeBinaryToTerm, []},
+          {Jump.CredoChecks.UnusedLiveViewAssign, []},
+          {Jump.CredoChecks.LiveViewFormCanBeRehydrated, []},
+          {Jump.CredoChecks.AssertReceiveTimeout, []},
+          {Jump.CredoChecks.AvoidLoggerConfigureInTest, []},
+          {Jump.CredoChecks.AssertElementSelectorCanNeverFail, []},
+
           # ── Project-local checks (loaded via `requires` above) ───────
           {Cake.CredoChecks.CaseOnBoolean, []},
           {Cake.CredoChecks.RawInHeex, []}
