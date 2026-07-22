@@ -31,19 +31,22 @@ defmodule Cake.Search.Deployment do
   def create_collections_unless_exist(pid) when is_pid(pid) do
     {:ok, existing} = OpenSearch.list_collections()
 
-    _ =
-      create_collection_if_missing(
-        existing,
-        Cake.Documents.ParsedDocument.collection_name(),
-        Cake.Documents.ParsedDocument
-      )
+    Enum.each(collections(), fn {name_module, mapping_schema} ->
+      create_collection_if_missing(existing, name_module.collection_name(), mapping_schema)
+    end)
+  end
 
-    _ =
-      create_collection_if_missing(
-        existing,
-        Cake.Books.ParsedBook.collection_name(),
-        Cake.Books.Chunk
-      )
+  @doc """
+  The collections to ensure at boot, read from `:search_collections` config.
+
+  Each entry is `{name_module, mapping_schema}`: `name_module.collection_name/0`
+  supplies the collection name and `mapping_schema` supplies the index mapping.
+  Keeping this list in config (rather than naming the GDS modules here) keeps
+  the search layer from depending on the ingestion contexts.
+  """
+  @spec collections() :: [{module(), module()}]
+  def collections do
+    Application.get_env(:cake, :search_collections, [])
   end
 
   defp create_collection_if_missing(existing, name, schema) do

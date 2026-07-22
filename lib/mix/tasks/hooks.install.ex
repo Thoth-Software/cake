@@ -11,6 +11,7 @@ defmodule Mix.Tasks.Hooks.Install do
   them executable. Run once after cloning the repo.
   """
 
+  use Boundary, top_level?: true, deps: []
   use Mix.Task
 
   @impl Mix.Task

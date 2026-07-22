@@ -3,6 +3,8 @@ defmodule Cake.Pipelines do
   Various assorted motley helpers, doohickeys, and dongles for data ingestion pipelines. Some of this may very well be cruft.
   """
 
+  use Boundary, top_level?: true, deps: [Cake, Cake.Search], exports: [Context]
+
   alias Cake.Pipelines
   alias Cake.Search.Backend
 

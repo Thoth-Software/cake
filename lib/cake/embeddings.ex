@@ -8,6 +8,8 @@ defmodule Cake.Embeddings do
 
   @behaviour Cake.Embeddings.Behaviour
 
+  use Boundary, top_level?: true, deps: [Cake], exports: [Behaviour]
+
   @impl Cake.Embeddings.Behaviour
   @spec embed(atom(), map(), String.t()) ::
           {:ok, Cake.Embeddings.Behaviour.embedding_result()} | {:error, String.t()}

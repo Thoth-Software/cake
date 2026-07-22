@@ -3,6 +3,11 @@ defmodule Cake.Books do
   The Books context.
   """
 
+  use Boundary,
+    top_level?: true,
+    deps: [Cake, Cake.Search, Cake.Embeddings, Cake.Pipelines],
+    exports: [Adapters, ParsedBook, Chunk, Pipeline, Pdf.Pipeline, ZipExtractor]
+
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
   alias Cake.Repo

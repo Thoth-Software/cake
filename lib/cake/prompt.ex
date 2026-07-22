@@ -8,6 +8,8 @@ defmodule Cake.Prompt do
   the LLM.
   """
 
+  use Boundary, top_level?: true, deps: [Cake, Cake.Search], exports: []
+
   alias Cake.Search.Result
 
   @type indexed_chunk :: {pos_integer(), Result.t()}

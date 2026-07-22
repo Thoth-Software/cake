@@ -16,6 +16,11 @@ defmodule Cake.Search do
   belongs here.
   """
 
+  use Boundary,
+    top_level?: true,
+    deps: [Cake],
+    exports: [Result, Query, Hit, Backend, Provenance, Deployment]
+
   alias Cake.Search.Backend
   alias Cake.Search.Hit
   alias Cake.Search.Provenance

@@ -3,6 +3,8 @@ defmodule Cake.Accounts do
   The Accounts context.
   """
 
+  use Boundary, top_level?: true, deps: [Cake], exports: [User]
+
   import Ecto.Query, warn: false
   alias Cake.Repo
 

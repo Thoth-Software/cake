@@ -153,6 +153,18 @@ The application starts children in this order under `Cake.Application`:
 7. `Cake.Search.Deployment` — OpenSearch connection + index creation
 8. `CakeWeb.Endpoint` — Phoenix HTTP server (last, so all dependencies are ready)
 
+### Module Boundaries (enforced by `boundary`)
+
+The layer responsibilities above are enforced at compile time by the [`boundary`](https://hex.pm/packages/boundary) compiler. Each top-level context is a boundary that declares the boundaries it may call (`deps`) and the modules it makes public (`exports`); any cross-boundary call not covered by a declared dep fails the build.
+
+- **`Cake`** — the shared kernel: `Repo`, `Schema`, `Mailer`, the `GDS` behaviour, the `Citable`/`Promptable` protocols, `Citations`, `FailedIngests`, `ParseBooks`. Depends on nothing internal; every context may depend on it.
+- **Ingestion** — `Cake.Books` and `Cake.Documents` depend on `Cake.Search`, `Cake.Embeddings`, and `Cake.Pipelines` (`Cake.Pipelines` in turn depends on `Cake.Search`).
+- **Retrieval** — `Cake.Search` depends only on the kernel. It no longer names the GDS modules: the collections created at boot come from `:search_collections` config, which is what keeps the search layer from depending back on the ingestion contexts (an otherwise-cyclic dependency).
+- **Conversation** — `Cake.Conversation` is the orchestrator; it depends on `Cake.Prompt`, `Cake.Search`, `Cake.Embeddings`, `Cake.Generation`, and `Cake.Responses`. Those service modules do not depend on each other except `Cake.Responses → Cake.Search`/`Cake.Generation`. Nothing depends back on `Cake.Conversation` except the web layer.
+- **Web / jobs / app** — `CakeWeb` depends on the domain contexts it drives; `Cake.Jobs` on `Cake.Documents`; `Cake.Application` (top-level) on what it supervises.
+
+The compiler runs in `:dev`/`:prod` only — test files and support modules deliberately cross boundaries, so `:test` is excluded — and CI enforces it with a dev-env compile. When you add a cross-context call, declare the `dep` (and `export` the target module) rather than working around the boundary.
+
 ---
 
 ## The RAG Loop: End-to-End Data Flow

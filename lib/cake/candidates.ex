@@ -1,6 +1,8 @@
 defmodule Cake.Candidates do
   @moduledoc false
 
+  use Boundary, top_level?: true, deps: [Cake, Cake.Search], exports: []
+
   # Domain-level grouping for the manual-selection UI. Consumes the
   # `Cake.Search.Result` structs that `Cake.Conversation` broadcasts as
   # candidates (everything above the search boundary speaks `Result`), groups

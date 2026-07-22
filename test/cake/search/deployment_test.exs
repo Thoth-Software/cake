@@ -2,6 +2,27 @@ defmodule Cake.Search.DeploymentTest do
   use ExUnit.Case, async: true
 
   alias Cake.Search.Backend.OpenSearch
+  alias Cake.Search.Deployment
+
+  describe "collections/0" do
+    test "reads the collection list from :search_collections config" do
+      # Each entry is {name_module, mapping_schema}: the first supplies the
+      # collection name via collection_name/0, the second the index mapping.
+      collections = Deployment.collections()
+
+      assert {Cake.Documents.ParsedDocument, Cake.Documents.ParsedDocument} in collections
+      assert {Cake.Books.ParsedBook, Cake.Books.Chunk} in collections
+    end
+
+    test "is overridable via application config" do
+      original = Application.get_env(:cake, :search_collections)
+      override = [{Cake.Books.ParsedBook, Cake.Books.Chunk}]
+      Application.put_env(:cake, :search_collections, override)
+      on_exit(fn -> Application.put_env(:cake, :search_collections, original) end)
+
+      assert Deployment.collections() == override
+    end
+  end
 
   describe "build_mapping/1" do
     test "maps :text fields to OpenSearch text type" do

@@ -29,6 +29,8 @@ defmodule Cake.Generation do
       `:malformed_json` error variant.
   """
 
+  use Boundary, top_level?: true, deps: [Cake], exports: [OpenAI]
+
   @type message :: %{role: String.t(), content: String.t()}
   @type messages :: [message()]
   @type model :: String.t()
