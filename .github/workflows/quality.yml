@@ -65,6 +65,15 @@ jobs:
       - name: Format check
         run: mix format --check-formatted
 
+      # Enforce module boundaries. The :boundary compiler runs in dev/prod only
+      # (test code deliberately crosses boundaries), so a dev compile with
+      # warnings-as-errors fails on any boundary violation. Runs before the xref
+      # step so both share the one dev-env build.
+      - name: Module boundaries (boundary)
+        env:
+          MIX_ENV: dev
+        run: mix compile --warnings-as-errors
+
       # Ratchet gate against compile-time coupling creep. Run in the dev env so
       # it measures only the application graph (excludes the Mox mocks in
       # test/support, which structurally compile-depend on their behaviours).
