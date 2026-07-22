@@ -31,6 +31,11 @@ defmodule Cake.Conversation do
   `"conversation:\#{id}"` topic.
   """
 
+  use Boundary,
+    top_level?: true,
+    deps: [Cake, Cake.Prompt, Cake.Search, Cake.Embeddings, Cake.Generation, Cake.Responses],
+    exports: [Events]
+
   use GenServer
 
   alias Cake.Conversation.Events

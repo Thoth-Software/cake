@@ -17,6 +17,18 @@ defmodule CakeWeb do
   those modules here.
   """
 
+  use Boundary,
+    deps: [
+      Cake,
+      Cake.Accounts,
+      Cake.Books,
+      Cake.Candidates,
+      Cake.Conversation,
+      Cake.Embeddings,
+      Cake.Search
+    ],
+    exports: [Endpoint, Telemetry]
+
   @spec static_paths() :: [String.t()]
   def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
 

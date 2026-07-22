@@ -12,6 +12,8 @@ defmodule Cake.Responses do
 
   @behaviour Cake.Responses.Behaviour
 
+  use Boundary, top_level?: true, deps: [Cake, Cake.Search, Cake.Generation], exports: [Result]
+
   alias Cake.Citable
   alias Cake.Citations
   alias Cake.Responses.Result
