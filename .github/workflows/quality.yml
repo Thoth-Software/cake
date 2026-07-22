@@ -84,6 +84,14 @@ jobs:
           MIX_ENV: dev
         run: mix xref graph --label compile-connected --fail-above 3
 
+      # Documentation gate: fails on broken @moduledoc/@doc references. ex_doc
+      # is a :dev dependency, so this runs in the dev env — reusing the dev
+      # build from the steps above.
+      - name: Docs (warnings as errors)
+        env:
+          MIX_ENV: dev
+        run: mix docs --warnings-as-errors
+
   security:
     name: Security & Dependency Audit
     runs-on: ubuntu-latest
