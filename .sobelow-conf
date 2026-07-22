@@ -1,0 +1,34 @@
+# Sobelow configuration. Run via `mix sobelow --config`.
+#
+# The findings suppressed here were triaged in #200 and judged safe:
+#
+#   Config.CSP / Config.HTTPS  — deployment-layer hardening. force_ssl and the
+#     HTTPS scheme are configured at deploy time (see config/runtime.exs); a
+#     Content-Security-Policy is a known follow-up, not a code defect.
+#
+#   lib/cake/books/adapters/disk.ex        — internal filesystem storage adapter.
+#   lib/cake/documents/hexdocs/pipeline.ex — ingestion pipeline reading files it
+#     checked out itself. Both operate on internally-generated paths, not on
+#     attacker-controlled request input, so the directory-traversal sink
+#     warnings do not apply.
+#
+# The two request-facing traversal findings (BooksController.send_book,
+# UploadLive.consume_all_uploads) are suppressed precisely at the call site with
+# `# sobelow_skip` so every other rule still covers those files. `skip: true`
+# honours those annotations.
+[
+  exit: false,
+  format: "txt",
+  ignore_files: [
+    "lib/cake/books/adapters/disk.ex",
+    "lib/cake/documents/hexdocs/pipeline.ex"
+  ],
+  ignore: ["Config.CSP", "Config.HTTPS"],
+  out: nil,
+  private: false,
+  router: nil,
+  skip: true,
+  threshold: :low,
+  verbose: false,
+  version: false
+]

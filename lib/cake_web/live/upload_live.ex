@@ -80,6 +80,9 @@ defmodule CakeWeb.UploadLive do
            | {:skipped, String.t()}
 
   @spec consume_all_uploads(Phoenix.LiveView.Socket.t()) :: [upload_result()]
+  # sobelow_skip ["Traversal.FileModule"]
+  # `tmp_path` is the temp file Phoenix LiveView writes each upload to; it is
+  # framework-generated, not a client-supplied path.
   defp consume_all_uploads(socket) do
     adapter = Adapters.adapter()
 

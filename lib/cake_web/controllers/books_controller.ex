@@ -36,6 +36,10 @@ defmodule CakeWeb.BooksController do
     end
   end
 
+  # sobelow_skip ["Traversal.SendFile"]
+  # `path` is not request input: it is a ParsedBook.source_file_path looked up
+  # in download/2 and confirmed by serve_book/2 to resolve within the configured
+  # books root before we get here.
   defp send_book(conn, path) do
     conn
     |> put_resp_header("content-disposition", ~s(attachment; filename="#{Path.basename(path)}"))
