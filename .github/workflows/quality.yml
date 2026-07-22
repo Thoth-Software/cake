@@ -65,6 +65,52 @@ jobs:
       - name: Format check
         run: mix format --check-formatted
 
+  security:
+    name: Security & Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache Mix deps + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      # Blocking: fails when mix.lock carries entries no longer required by the
+      # dependency tree.
+      - name: Unused dependency check
+        run: mix deps.unlock --check-unused
+
+      # Report-only: surfaces retired/vulnerable Hex packages without failing
+      # the build. There is a pre-existing advisory backlog (see #206); this
+      # becomes a blocking gate once that backlog is cleared upstream.
+      - name: Hex audit (report-only)
+        run: mix hex.audit
+        continue-on-error: true
+
+      # Report-only: checks deps against the mix_audit advisory database.
+      # Blocked by the same backlog (#206); becomes a blocking gate — with the
+      # single unfixable advisory ignored — once that backlog is remediated.
+      - name: Dependency audit (report-only)
+        run: mix deps.audit
+        continue-on-error: true
+
   test:
     name: Tests
     runs-on: ubuntu-latest

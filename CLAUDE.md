@@ -53,9 +53,11 @@ mix test                                   # Zero failures, zero warnings.
 mix coveralls.json                         # Must not reduce coverage below minimum (coveralls.json is the SSOT for the threshold).
 ```
 
-`mix quality.fast` (compile + credo) is the minimum local check. `mix quality` adds dialyzer. Tests run with `MIX_ENV=test`; the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first.
+`mix quality.fast` (compile + credo + `deps.unlock --check-unused`) is the minimum local check. `mix quality` adds dialyzer. Tests run with `MIX_ENV=test`; the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first.
 
 Dialyzer is not a push gate. In CI it runs only on PRs — the `dialyzer` job in `.github/workflows/quality.yml` is guarded by `if: github.event_name == 'pull_request'` — making it a hard *merge* gate, not a push gate.
+
+The `security` job in `.github/workflows/quality.yml` runs the dependency-audit gates: `mix deps.unlock --check-unused` (blocking — no unused lockfile entries) plus `mix hex.audit` and `mix deps.audit` (currently **report-only** while the advisory backlog in #206 is outstanding; they flip to blocking once it's cleared).
 
 ### Pre-push (matches the on-push CI gate)
 ```bash
