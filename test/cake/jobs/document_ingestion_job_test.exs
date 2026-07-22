@@ -13,8 +13,6 @@ defmodule Cake.Jobs.DocumentIngestionJobTest do
   alias Cake.Jobs.DocumentIngestionJob
   alias Cake.TestPipeline
 
-  require Logger
-
   # Allow mocks to be used in tests
   setup :verify_on_exit!
 

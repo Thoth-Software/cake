@@ -98,15 +98,17 @@ defmodule Cake.PipelinesTest do
     end
 
     test "raises FunctionClauseError when given a raw version string" do
-      # Guards against regression to the old callback signature.
+      # Guards against regression to the old callback signature. The bad arg is
+      # passed via apply/3 so the deliberate type mismatch stays a runtime
+      # concern instead of a compile-time warning.
       assert_raise FunctionClauseError, fn ->
-        TestPipeline.success_message("1.18.3")
+        apply(TestPipeline, :success_message, ["1.18.3"])
       end
     end
 
     test "raises FunctionClauseError when given a non-Context map" do
       assert_raise FunctionClauseError, fn ->
-        TestPipeline.success_message(%{version: "1.18.3", implementation: "x"})
+        apply(TestPipeline, :success_message, [%{version: "1.18.3", implementation: "x"}])
       end
     end
   end
@@ -124,7 +126,7 @@ defmodule Cake.PipelinesTest do
 
     test "raises FunctionClauseError when given a raw version string" do
       assert_raise FunctionClauseError, fn ->
-        FailingTestPipeline.success_message("1.18.3")
+        apply(FailingTestPipeline, :success_message, ["1.18.3"])
       end
     end
   end
