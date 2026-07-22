@@ -5,8 +5,8 @@ defmodule Cake.Generation.OpenAI do
   Uses the OpenAI Responses API. Handles transport-layer retries via Req's
   `:transient` policy (5xx and network blips get retried automatically;
   rate-limit, auth, and content-filter errors do not). Normalizes OpenAI's
-  response shape into `Cake.Generation.completion/0` and translates provider
-  errors into the taxonomy defined in `Cake.Generation.error_reason/0`.
+  response shape into `t:Cake.Generation.completion/0` and translates provider
+  errors into the taxonomy defined in `t:Cake.Generation.error_reason/0`.
 
   ## Configuration
 

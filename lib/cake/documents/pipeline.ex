@@ -52,7 +52,7 @@ defmodule Cake.Documents.Pipeline do
   @typedoc """
   Errors from single-document embedding, persistence, or indexing during retry.
 
-  Unlike `Cake.Books.Pipeline.embed_index_error/0`, document errors are not
+  Unlike `t:Cake.Books.Pipeline.embed_index_error/0`, document errors are not
   tagged with a chunk ID — each document is its own unit.
   """
   @type embed_index_error ::
