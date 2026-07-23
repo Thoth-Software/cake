@@ -17,15 +17,8 @@ defmodule Cake.Jobs.DocumentIngestionJobTest do
   setup :verify_on_exit!
 
   setup do
-    # Configure the application to use the mock embeddings module for tests
-    Application.put_env(:cake, :embeddings_module, Mock)
-
     # Set Logger level to info for tests to capture all logs
     Logger.configure(level: :info)
-
-    on_exit(fn ->
-      Application.delete_env(:cake, :embeddings_module)
-    end)
 
     :ok
   end

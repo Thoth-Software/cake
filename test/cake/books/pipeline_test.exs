@@ -101,12 +101,6 @@ defmodule Cake.Books.PipelineTest do
   end
 
   describe "embedding_status lifecycle" do
-    setup do
-      Application.put_env(:cake, :embeddings_module, Cake.Embeddings.Mock)
-      on_exit(fn -> Application.delete_env(:cake, :embeddings_module) end)
-      :ok
-    end
-
     test "sets :completed when all chunks embed successfully" do
       book = make_book("Good Book", "hash_good_#{System.unique_integer([:positive])}")
       chunk1 = make_chunk("First chunk of text")
