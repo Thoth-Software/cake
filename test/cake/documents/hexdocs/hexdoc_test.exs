@@ -115,7 +115,6 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       assert length(docs) == 2
 
       add_doc = Enum.find(docs, &(&1.text =~ "Adds two numbers."))
-      assert add_doc
       assert add_doc.text =~ "def add(a, b)"
       assert add_doc.url == "https://hexdocs.pm/elixir/Example.html"
       assert add_doc.package == "Example"

@@ -298,7 +298,6 @@ defmodule Cake.Jobs.DocumentIngestionJobTest do
 
       # The job should have been processed
       # drain_jobs returns a map with execution results
-      assert is_map(result)
       assert result.success == 1
       assert result.failure == 0
     end

@@ -294,11 +294,9 @@ defmodule Cake.ConversationTest do
       assert_receive {:response_ready, %{response: response, citations: citations}}
 
       assert is_binary(response)
-      assert is_list(citations)
       assert length(citations) == 3
 
       Enum.each(citations, fn citation ->
-        assert is_map(citation)
         assert Map.has_key?(citation, :old_index)
         assert Map.has_key?(citation, :new_index)
         assert Map.has_key?(citation, :id)

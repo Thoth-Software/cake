@@ -59,7 +59,6 @@ defmodule Cake.EmbeddingsTest do
       result = Embeddings.embed(:openai, %{input: "hello"}, "text-embedding-ada-002")
 
       assert {:error, message} = result
-      assert is_binary(message)
       assert message =~ "Cake.Embeddings"
       assert message =~ "Application layer error"
     end
