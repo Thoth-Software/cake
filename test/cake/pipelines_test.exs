@@ -121,7 +121,7 @@ defmodule Cake.PipelinesTest do
           version: {1, 18, 3}
         )
 
-      assert is_binary(FailingTestPipeline.success_message(ctx))
+      assert FailingTestPipeline.success_message(ctx) =~ "This should not be called"
     end
 
     test "raises FunctionClauseError when given a raw version string" do

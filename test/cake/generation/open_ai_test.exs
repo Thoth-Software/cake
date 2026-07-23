@@ -150,7 +150,7 @@ defmodule Cake.Generation.OpenAITest do
       end)
 
       assert {:error, {:auth, body}} = OpenAI.complete(@default_messages, @default_model)
-      assert is_binary(body)
+      assert body =~ "invalid api key"
     end
 
     test "429 with Retry-After header returns {:rate_limited, seconds}" do

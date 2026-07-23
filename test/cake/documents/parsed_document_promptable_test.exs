@@ -56,7 +56,10 @@ defmodule Cake.Documents.ParsedDocumentPromptableTest do
         text: "some text"
       }
 
-      assert is_binary(Promptable.prompt_context(doc))
+      assert Promptable.prompt_context(doc) ==
+               "Package: Enum | Function: map/2\n" <>
+                 "URL: https://hexdocs.pm/elixir/Enum.html#map/2\n\n" <>
+                 "some text"
     end
   end
 end
