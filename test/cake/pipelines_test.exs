@@ -25,12 +25,6 @@ defmodule Cake.PipelinesTest do
 
   setup :verify_on_exit!
 
-  setup do
-    Application.put_env(:cake, :embeddings_module, Mock)
-    on_exit(fn -> Application.delete_env(:cake, :embeddings_module) end)
-    :ok
-  end
-
   defp build_ctx(overrides) do
     Pipelines.build_context(
       Keyword.get(overrides, :behaviour, Cake.Documents.Pipeline),

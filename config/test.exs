@@ -51,3 +51,11 @@ config :cake, Cake.Generation.OpenAI,
 config :cake, :books_download_root, System.tmp_dir!()
 
 config :cake, book_storage_adapter: Cake.Books.Adapters.Mock
+
+# Resolve the embeddings collaborator to the Mox mock for the whole test run.
+# The ingestion pipelines read `Application.get_env(:cake, :embeddings_module,
+# Cake.Embeddings)` at call time; setting it here once (immutably) — rather than
+# per-test `put_env`/`delete_env` — avoids a global-state race where one async
+# module's teardown unset the key out from under another's in-flight embedding
+# tasks. Every embedding-exercising test sets its own `Mox.expect`. See #219.
+config :cake, :embeddings_module, Cake.Embeddings.Mock
