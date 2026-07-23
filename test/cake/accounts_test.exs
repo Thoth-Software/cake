@@ -89,7 +89,7 @@ defmodule Cake.AccountsTest do
       email = unique_user_email()
       {:ok, user} = Accounts.register_user(valid_user_attributes(email: email))
       assert user.email == email
-      assert is_binary(user.hashed_password)
+      assert user.hashed_password =~ ~r/^\$2[aby]\$/
       assert is_nil(user.confirmed_at)
       assert is_nil(user.password)
     end

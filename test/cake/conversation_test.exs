@@ -293,26 +293,24 @@ defmodule Cake.ConversationTest do
 
       assert_receive {:response_ready, %{response: response, citations: citations}}
 
-      assert is_binary(response)
-      assert is_list(citations)
+      assert response == "answer [1] with [2] and [3]"
       assert length(citations) == 3
 
-      Enum.each(citations, fn citation ->
-        assert is_map(citation)
-        assert Map.has_key?(citation, :old_index)
-        assert Map.has_key?(citation, :new_index)
-        assert Map.has_key?(citation, :id)
-        assert Map.has_key?(citation, :label)
-        assert Map.has_key?(citation, :preview)
-        assert Map.has_key?(citation, :source_ref)
-        assert Map.has_key?(citation, :extras)
+      for {citation, i} <- Enum.with_index(citations, 1) do
+        assert citation.old_index == i
+        assert citation.new_index == i
+        assert citation.id == "id-#{i}"
+        assert citation.label == "Book #{i}, p. #{i}"
+        assert citation.preview == "preview #{i}"
+        assert citation.source_ref == "book:#{i}#chunk:#{i}"
 
-        assert is_integer(citation.old_index)
-        assert is_integer(citation.new_index)
-        assert is_binary(citation.label)
-        assert is_binary(citation.preview)
-        assert is_map(citation.extras)
-      end)
+        assert citation.extras == %{
+                 book_title: "Book #{i}",
+                 page_number: i,
+                 section_title: "Section #{i}",
+                 chunk_index: i
+               }
+      end
     end
   end
 
@@ -771,7 +769,7 @@ defmodule Cake.ConversationTest do
 
       assert_receive {:response_ready, %{response: response, citations: citations}}
 
-      assert is_binary(response)
+      assert response == "answer with no citation markers"
       assert citations == []
     end
   end
@@ -1253,7 +1251,7 @@ defmodule Cake.ConversationTest do
       # State is now awaiting_selection
       pre_select = :sys.get_state(pid)
       assert pre_select.state == :awaiting_selection
-      assert pre_select.pending != nil
+      assert %{question: "manual question", candidates: _} = pre_select.pending
 
       # Step 2: select with chunk IDs completes the turn
       doc_ids =

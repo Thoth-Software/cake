@@ -59,7 +59,6 @@ defmodule Cake.EmbeddingsTest do
       result = Embeddings.embed(:openai, %{input: "hello"}, "text-embedding-ada-002")
 
       assert {:error, message} = result
-      assert is_binary(message)
       assert message =~ "Cake.Embeddings"
       assert message =~ "Application layer error"
     end
@@ -103,7 +102,7 @@ defmodule Cake.EmbeddingsTest do
 
       assert result.struct == doc
       assert result.attrs == %{embedding: [0.1, 0.2, 0.3]}
-      assert is_map(result.usage)
+      assert result.usage == %{"total_tokens" => 5}
     end
 
     test "struct is nil when the input carries no struct" do

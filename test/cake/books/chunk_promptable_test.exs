@@ -69,7 +69,7 @@ defmodule Cake.Books.ChunkPromptableTest do
     end
 
     test "returns a String" do
-      assert is_binary(Promptable.prompt_context(chunk(%{})))
+      assert Promptable.prompt_context(chunk(%{})) =~ "Book: RO-400 Manual | Page: 42"
     end
   end
 end

@@ -140,15 +140,12 @@
           #     (`@enforce_keys`, defaults) and the `apply/3` FunctionClauseError
           #     tests in pipelines_test (the check can't see `apply/3` as calling
           #     application code) — enabling them would force artificial rewrites.
-          #   - WeakAssertion: flags ~26 `assert <truthy-call>` sites across the
-          #     suite. Strengthening each to a specific assertion is a worthwhile
-          #     but sizable, judgement-heavy test refactor — deferred to its own
-          #     pass rather than bundled here.
           #   - ConditionalAssertion: flags legitimate `or`/`||` assertions — a
           #     property test where a label validly matches either of two
           #     formats, prompt-wording flexibility, and result-shape checks for
           #     non-deterministic jobs; pinning a single value isn't possible.
           {Jump.CredoChecks.SafeBinaryToTerm, []},
+          {Jump.CredoChecks.WeakAssertion, []},
           {Jump.CredoChecks.UnusedLiveViewAssign, []},
           {Jump.CredoChecks.LiveViewFormCanBeRehydrated, []},
           {Jump.CredoChecks.AssertReceiveTimeout, []},
