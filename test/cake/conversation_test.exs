@@ -293,7 +293,7 @@ defmodule Cake.ConversationTest do
 
       assert_receive {:response_ready, %{response: response, citations: citations}}
 
-      assert is_binary(response)
+      assert response == "answer [1] with [2] and [3]"
       assert length(citations) == 3
 
       Enum.each(citations, fn citation ->
@@ -769,7 +769,7 @@ defmodule Cake.ConversationTest do
 
       assert_receive {:response_ready, %{response: response, citations: citations}}
 
-      assert is_binary(response)
+      assert response == "answer with no citation markers"
       assert citations == []
     end
   end
@@ -1251,7 +1251,7 @@ defmodule Cake.ConversationTest do
       # State is now awaiting_selection
       pre_select = :sys.get_state(pid)
       assert pre_select.state == :awaiting_selection
-      assert pre_select.pending != nil
+      assert %{question: "manual question", candidates: _} = pre_select.pending
 
       # Step 2: select with chunk IDs completes the turn
       doc_ids =

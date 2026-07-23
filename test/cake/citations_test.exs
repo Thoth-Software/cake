@@ -50,8 +50,8 @@ defmodule Cake.CitationsTest do
   describe "extract/2" do
     test "returns a two-tuple of {citations, hallucinated}" do
       assert {citations, hallucinated} = Citations.extract("Use [1]", @chunk_map)
-      assert is_list(citations)
-      assert is_list(hallucinated)
+      assert length(citations) == 1
+      assert hallucinated == []
     end
 
     test "valid citations preserve first-appearance order" do
