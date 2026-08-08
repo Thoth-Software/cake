@@ -44,9 +44,23 @@ defmodule Cake.Decomposition.Result do
   @spec new(String.t(), [String.t()]) :: t()
   def new(original_question, sub_questions \\ [])
 
-  # Placeholder: always produces an atomic result. Replaced by the real
-  # constructor once the tests that pin its behaviour are in place.
-  def new(original_question, _sub_questions) when is_binary(original_question) do
+  def new(original_question, []) when is_binary(original_question) do
     %__MODULE__{original_question: original_question, strategy: :none}
+  end
+
+  def new(original_question, sub_questions)
+      when is_binary(original_question) and is_list(sub_questions) do
+    %__MODULE__{
+      original_question: original_question,
+      strategy: :flat,
+      sub_questions: sub_questions,
+      question_index: build_index(sub_questions)
+    }
+  end
+
+  defp build_index(sub_questions) do
+    sub_questions
+    |> Enum.with_index()
+    |> Map.new(fn {question, index} -> {index, question} end)
   end
 end
