@@ -23,6 +23,15 @@ defmodule Cake.Generation.OpenAITest do
   @default_messages [%{role: "user", content: "hello"}]
   @default_model "gpt-4o"
 
+  # A small JSON Schema used by the complete_json/3 tests.
+  @object_schema %{
+    "type" => "object",
+    "properties" => %{
+      "atomic" => %{"type" => "boolean"},
+      "sub_questions" => %{"type" => "array", "items" => %{"type" => "string"}}
+    }
+  }
+
   # ---------------------------------------------------------------------------
   # Success cases
   # ---------------------------------------------------------------------------
@@ -370,8 +379,98 @@ defmodule Cake.Generation.OpenAITest do
   end
 
   # ---------------------------------------------------------------------------
+  # complete_json/3 — JSON mode
+  # ---------------------------------------------------------------------------
+
+  describe "complete_json/3 success" do
+    test "returns {:ok, %{parsed}} when the model output matches the schema" do
+      Req.Test.stub(OpenAI, fn conn ->
+        Req.Test.json(conn, json_body(~s({"atomic": true})))
+      end)
+
+      assert {:ok, completion} =
+               OpenAI.complete_json(@default_messages, @default_model, schema: @object_schema)
+
+      assert completion.parsed == %{"atomic" => true}
+      assert completion.text == ~s({"atomic": true})
+      assert completion.finish_reason == :stop
+      assert completion.usage == %{input_tokens: 1, output_tokens: 1, total_tokens: 2}
+      assert completion.model == "gpt-4o"
+    end
+
+    test "decodes a decomposed-shape payload" do
+      Req.Test.stub(OpenAI, fn conn ->
+        Req.Test.json(conn, json_body(~s({"sub_questions": ["a", "b"]})))
+      end)
+
+      assert {:ok, %{parsed: %{"sub_questions" => ["a", "b"]}}} =
+               OpenAI.complete_json(@default_messages, @default_model, schema: @object_schema)
+    end
+  end
+
+  describe "complete_json/3 errors" do
+    test "valid JSON that violates the schema returns {:error, {:malformed_json, _, _}}" do
+      Req.Test.stub(OpenAI, fn conn ->
+        Req.Test.json(conn, json_body(~s({"atomic": "yes"})))
+      end)
+
+      assert {:error, {:malformed_json, _msg, _body}} =
+               OpenAI.complete_json(@default_messages, @default_model, schema: @object_schema)
+    end
+
+    test "non-JSON model output returns {:error, {:malformed_json, _, _}}" do
+      Req.Test.stub(OpenAI, fn conn ->
+        Req.Test.json(conn, json_body("this is not json {"))
+      end)
+
+      assert {:error, {:malformed_json, _msg, _body}} =
+               OpenAI.complete_json(@default_messages, @default_model, schema: @object_schema)
+    end
+
+    test "HTTP and transport errors propagate through the shared taxonomy" do
+      Req.Test.stub(OpenAI, fn conn ->
+        conn
+        |> Plug.Conn.put_status(401)
+        |> Req.Test.json(%{"error" => %{"message" => "invalid api key"}})
+      end)
+
+      assert {:error, {:auth, _}} =
+               OpenAI.complete_json(@default_messages, @default_model, schema: @object_schema)
+    end
+  end
+
+  describe "complete_json/3 request construction" do
+    test "requests structured JSON output carrying the schema" do
+      test_pid = self()
+
+      Req.Test.stub(OpenAI, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(test_pid, {:request_body, Jason.decode!(body)})
+        Req.Test.json(conn, json_body(~s({"atomic": true})))
+      end)
+
+      assert {:ok, _} =
+               OpenAI.complete_json(@default_messages, @default_model, schema: @object_schema)
+
+      assert_receive {:request_body, body}
+      assert body["text"]["format"]["type"] == "json_schema"
+      assert body["text"]["format"]["schema"] == @object_schema
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Helpers
   # ---------------------------------------------------------------------------
+
+  # Wraps an assistant text payload in the Responses API envelope. For
+  # complete_json/3 the assistant text is itself a JSON string.
+  defp json_body(text) do
+    %{
+      "output" => [%{"status" => "completed", "content" => [%{"text" => text}]}],
+      "usage" => %{"input_tokens" => 1, "output_tokens" => 1, "total_tokens" => 2},
+      "model" => "gpt-4o"
+    }
+  end
 
   defp success_body do
     %{
