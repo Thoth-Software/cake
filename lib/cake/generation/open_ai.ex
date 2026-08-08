@@ -61,12 +61,65 @@ defmodule Cake.Generation.OpenAI do
     result
   end
 
+  @impl Cake.Generation
+  @spec complete_json(
+          Cake.Generation.messages(),
+          Cake.Generation.model(),
+          Cake.Generation.json_opts()
+        ) ::
+          {:ok, Cake.Generation.json_completion()} | {:error, Cake.Generation.error_reason()}
+  def complete_json(messages, model, opts \\ []) do
+    config = Application.get_env(:cake, __MODULE__, [])
+    api_key = Keyword.fetch!(config, :openai_key)
+    url = Keyword.fetch!(config, :response_url)
+    schema = Keyword.fetch!(opts, :schema)
+
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    max_retries = Keyword.get(opts, :max_retries, @default_max_retries)
+    started_at = System.monotonic_time(:millisecond)
+
+    request_opts =
+      maybe_put_plug(
+        [
+          url: url,
+          json: build_json_body(messages, model, schema, opts),
+          auth: {:bearer, api_key},
+          receive_timeout: timeout,
+          retry: :transient,
+          max_retries: max_retries
+        ],
+        config
+      )
+
+    result =
+      request_opts
+      |> Req.new()
+      |> Req.post()
+      |> handle_json_response(timeout, schema)
+
+    log_result(result, model, started_at)
+    result
+  end
+
   # ---------------------------------------------------------------------------
   # Request construction
   # ---------------------------------------------------------------------------
 
   defp build_body(messages, model, opts) do
     base = %{model: model, input: messages}
+
+    case Keyword.get(opts, :temperature) do
+      nil -> base
+      temperature -> Map.put(base, :temperature, temperature)
+    end
+  end
+
+  defp build_json_body(messages, model, schema, opts) do
+    base = %{
+      model: model,
+      input: messages,
+      text: %{format: %{type: "json_schema", name: "response", schema: schema, strict: false}}
+    }
 
     case Keyword.get(opts, :temperature) do
       nil -> base
@@ -112,6 +165,46 @@ defmodule Cake.Generation.OpenAI do
 
   defp handle_response({:error, reason}, _timeout),
     do: {:error, {:transport, reason}}
+
+  # ---------------------------------------------------------------------------
+  # JSON-mode response handling
+  #
+  # Transport/HTTP/content outcomes reuse the shared handling above. On a 200,
+  # the assistant text is itself a JSON document: decode it, then validate it
+  # against the caller's schema before returning it under `:parsed`.
+  # ---------------------------------------------------------------------------
+
+  defp handle_json_response({:ok, %Req.Response{status: 200, body: body}}, _timeout, schema) do
+    with {:ok, completion} <- parse_success(body),
+         {:ok, parsed} <- decode_and_validate(completion.text, schema) do
+      {:ok, Map.put(completion, :parsed, parsed)}
+    end
+  end
+
+  defp handle_json_response(response, timeout, _schema),
+    do: handle_response(response, timeout)
+
+  defp decode_and_validate(text, schema) do
+    case Jason.decode(text) do
+      {:ok, decoded} -> validate_decoded(decoded, schema)
+      {:error, %Jason.DecodeError{} = error} -> malformed_json(Exception.message(error), text)
+    end
+  end
+
+  defp validate_decoded(decoded, schema) do
+    case ExJsonSchema.Validator.validate(schema, decoded) do
+      :ok -> {:ok, decoded}
+      {:error, errors} -> malformed_json(format_schema_errors(errors), decoded)
+    end
+  end
+
+  defp malformed_json(description, body), do: {:error, {:malformed_json, description, body}}
+
+  # ExJsonSchema returns a list of {message, path} tuples under the default
+  # string formatter; join them into a single description.
+  defp format_schema_errors(errors) do
+    Enum.map_join(errors, "; ", fn {message, path} -> "#{path} #{message}" end)
+  end
 
   # ---------------------------------------------------------------------------
   # Success body parsing

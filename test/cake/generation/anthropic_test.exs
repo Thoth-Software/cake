@@ -27,4 +27,24 @@ defmodule Cake.Generation.AnthropicTest do
                temperature: 0.5
              )
   end
+
+  test "complete_json/3 returns {:error, {:provider_error, _}} for any call" do
+    assert {:error, {:provider_error, msg}} =
+             Anthropic.complete_json([%{role: "user", content: "hi"}], "claude-3-5-sonnet",
+               schema: %{"type" => "object"}
+             )
+
+    assert msg =~ "not implemented"
+  end
+
+  test "complete_json/3 accepts opts without raising" do
+    assert {:error, {:provider_error, _}} =
+             Anthropic.complete_json(
+               [%{role: "user", content: "hi"}],
+               "claude-3-5-sonnet",
+               schema: %{"type" => "object"},
+               timeout: 5_000,
+               temperature: 0.5
+             )
+  end
 end

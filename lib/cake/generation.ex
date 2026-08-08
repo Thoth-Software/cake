@@ -25,8 +25,6 @@ defmodule Cake.Generation do
       Conversation should treat as "no answer available" not a system error.
     - Rate-limit backoff: Conversation could implement exponential backoff
       on `{:error, {:rate_limited, _}}` instead of failing immediately.
-    - Structured output validation: when JSON-mode is introduced, add a
-      `:malformed_json` error variant.
   """
 
   use Boundary, top_level?: true, deps: [Cake], exports: [OpenAI]
@@ -58,6 +56,20 @@ defmodule Cake.Generation do
         }
 
   @typedoc """
+  A successful JSON-mode completion.
+
+  Extends `t:completion/0` with `:parsed` — the decoded JSON payload, already
+  validated against the caller-supplied schema.
+  """
+  @type json_completion :: %{
+          text: String.t(),
+          finish_reason: :stop | :length | :content_filter | :tool_use,
+          usage: usage(),
+          model: model(),
+          parsed: map()
+        }
+
+  @typedoc """
   Normalized error reasons. Keeps the error space small and
   pattern-matchable so callers can decide handling without inspecting
   provider-specific error strings.
@@ -69,11 +81,23 @@ defmodule Cake.Generation do
           | {:auth, String.t()}
           | {:http, status :: pos_integer(), body :: term()}
           | {:malformed_response, description :: String.t(), body :: term()}
+          | {:malformed_json, description :: String.t(), body :: term()}
           | {:empty_response, body :: term()}
           | {:content_filtered, reason :: term()}
           | {:provider_error, String.t()}
 
   @type complete_opts :: [
+          timeout: non_neg_integer(),
+          max_retries: non_neg_integer(),
+          temperature: float()
+        ]
+
+  @typedoc """
+  Options for `c:complete_json/3`. Requires `:schema` — a JSON Schema map
+  describing the expected response shape.
+  """
+  @type json_opts :: [
+          schema: map(),
           timeout: non_neg_integer(),
           max_retries: non_neg_integer(),
           temperature: float()
@@ -88,4 +112,20 @@ defmodule Cake.Generation do
   """
   @callback complete(messages(), model(), complete_opts()) ::
               {:ok, completion()} | {:error, error_reason()}
+
+  @doc """
+  Send a messages list to the LLM in JSON mode and return the decoded,
+  schema-validated response.
+
+  `opts` must include a `:schema` key — a JSON Schema map describing the
+  expected response shape. The implementation requests JSON output from the
+  provider, decodes the response, and validates it against the schema. A
+  response that is not valid JSON, or that is valid JSON but does not satisfy
+  the schema, is returned as `{:error, {:malformed_json, description, body}}`.
+
+  Transport, HTTP, auth, and content errors follow the same `t:error_reason/0`
+  taxonomy as `c:complete/3`.
+  """
+  @callback complete_json(messages(), model(), json_opts()) ::
+              {:ok, json_completion()} | {:error, error_reason()}
 end
