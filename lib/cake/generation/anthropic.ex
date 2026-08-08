@@ -20,4 +20,15 @@ defmodule Cake.Generation.Anthropic do
   def complete(_messages, _model, _opts \\ []) do
     {:error, {:provider_error, "Cake.Generation.Anthropic not implemented"}}
   end
+
+  @impl Cake.Generation
+  @spec complete_json(
+          Cake.Generation.messages(),
+          Cake.Generation.model(),
+          Cake.Generation.json_opts()
+        ) ::
+          {:ok, Cake.Generation.json_completion()} | {:error, Cake.Generation.error_reason()}
+  def complete_json(_messages, _model, _opts \\ []) do
+    {:error, {:provider_error, "Cake.Generation.Anthropic not implemented"}}
+  end
 end
