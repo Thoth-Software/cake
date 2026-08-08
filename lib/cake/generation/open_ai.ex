@@ -68,8 +68,37 @@ defmodule Cake.Generation.OpenAI do
           Cake.Generation.json_opts()
         ) ::
           {:ok, Cake.Generation.json_completion()} | {:error, Cake.Generation.error_reason()}
-  def complete_json(_messages, _model, _opts \\ []) do
-    {:error, {:provider_error, "Cake.Generation.OpenAI.complete_json/3 not implemented"}}
+  def complete_json(messages, model, opts \\ []) do
+    config = Application.get_env(:cake, __MODULE__, [])
+    api_key = Keyword.fetch!(config, :openai_key)
+    url = Keyword.fetch!(config, :response_url)
+    schema = Keyword.fetch!(opts, :schema)
+
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    max_retries = Keyword.get(opts, :max_retries, @default_max_retries)
+    started_at = System.monotonic_time(:millisecond)
+
+    request_opts =
+      maybe_put_plug(
+        [
+          url: url,
+          json: build_json_body(messages, model, schema, opts),
+          auth: {:bearer, api_key},
+          receive_timeout: timeout,
+          retry: :transient,
+          max_retries: max_retries
+        ],
+        config
+      )
+
+    result =
+      request_opts
+      |> Req.new()
+      |> Req.post()
+      |> handle_json_response(timeout, schema)
+
+    log_result(result, model, started_at)
+    result
   end
 
   # ---------------------------------------------------------------------------
@@ -78,6 +107,19 @@ defmodule Cake.Generation.OpenAI do
 
   defp build_body(messages, model, opts) do
     base = %{model: model, input: messages}
+
+    case Keyword.get(opts, :temperature) do
+      nil -> base
+      temperature -> Map.put(base, :temperature, temperature)
+    end
+  end
+
+  defp build_json_body(messages, model, schema, opts) do
+    base = %{
+      model: model,
+      input: messages,
+      text: %{format: %{type: "json_schema", name: "response", schema: schema, strict: false}}
+    }
 
     case Keyword.get(opts, :temperature) do
       nil -> base
@@ -123,6 +165,106 @@ defmodule Cake.Generation.OpenAI do
 
   defp handle_response({:error, reason}, _timeout),
     do: {:error, {:transport, reason}}
+
+  # ---------------------------------------------------------------------------
+  # JSON-mode response handling
+  #
+  # Transport/HTTP/content outcomes reuse the shared handling above. On a 200,
+  # the assistant text is itself a JSON document: decode it, then validate it
+  # against the caller's schema before returning it under `:parsed`.
+  # ---------------------------------------------------------------------------
+
+  defp handle_json_response({:ok, %Req.Response{status: 200, body: body}}, _timeout, schema) do
+    with {:ok, completion} <- parse_success(body),
+         {:ok, parsed} <- decode_and_validate(completion.text, schema) do
+      {:ok, Map.put(completion, :parsed, parsed)}
+    end
+  end
+
+  defp handle_json_response(response, timeout, _schema),
+    do: handle_response(response, timeout)
+
+  defp decode_and_validate(text, schema) do
+    case Jason.decode(text) do
+      {:ok, decoded} -> validate_decoded(decoded, schema)
+      {:error, %Jason.DecodeError{} = error} -> malformed_json(Exception.message(error), text)
+    end
+  end
+
+  defp validate_decoded(decoded, schema) do
+    case validate_schema(decoded, schema) do
+      :ok -> {:ok, decoded}
+      {:error, description} -> malformed_json(description, decoded)
+    end
+  end
+
+  defp malformed_json(description, body), do: {:error, {:malformed_json, description, body}}
+
+  # ---------------------------------------------------------------------------
+  # Minimal JSON Schema validation
+  #
+  # Supports the subset Cake actually uses: `type`, `required`, `properties`,
+  # and `items`. Unknown keywords are ignored (treated as satisfied), so a
+  # looser schema never rejects a well-typed payload.
+  # ---------------------------------------------------------------------------
+
+  defp validate_schema(value, schema) when is_map(schema) do
+    with :ok <- validate_type(value, schema),
+         :ok <- validate_required(value, schema),
+         :ok <- validate_properties(value, schema) do
+      validate_items(value, schema)
+    end
+  end
+
+  defp validate_schema(_value, _schema), do: :ok
+
+  defp validate_type(value, %{"type" => type}), do: check_type(value, type)
+  defp validate_type(_value, _schema), do: :ok
+
+  defp check_type(v, "object") when is_map(v), do: :ok
+  defp check_type(v, "array") when is_list(v), do: :ok
+  defp check_type(v, "string") when is_binary(v), do: :ok
+  defp check_type(v, "boolean") when is_boolean(v), do: :ok
+  defp check_type(v, "integer") when is_integer(v), do: :ok
+  defp check_type(v, "number") when is_number(v), do: :ok
+  defp check_type(nil, "null"), do: :ok
+  defp check_type(value, type), do: {:error, "expected #{type}, got #{inspect(value)}"}
+
+  defp validate_required(value, %{"required" => keys}) when is_map(value) and is_list(keys) do
+    case Enum.reject(keys, &Map.has_key?(value, &1)) do
+      [] -> :ok
+      missing -> {:error, "missing required keys: #{inspect(missing)}"}
+    end
+  end
+
+  defp validate_required(_value, _schema), do: :ok
+
+  defp validate_properties(value, %{"properties" => props})
+       when is_map(value) and is_map(props) do
+    Enum.reduce_while(props, :ok, fn {key, subschema}, :ok ->
+      validate_property(value, key, subschema)
+    end)
+  end
+
+  defp validate_properties(_value, _schema), do: :ok
+
+  defp validate_property(value, key, subschema) do
+    case Map.fetch(value, key) do
+      {:ok, subvalue} -> continue_or_halt(validate_schema(subvalue, subschema))
+      :error -> {:cont, :ok}
+    end
+  end
+
+  defp validate_items(value, %{"items" => subschema}) when is_list(value) do
+    Enum.reduce_while(value, :ok, fn element, :ok ->
+      continue_or_halt(validate_schema(element, subschema))
+    end)
+  end
+
+  defp validate_items(_value, _schema), do: :ok
+
+  defp continue_or_halt(:ok), do: {:cont, :ok}
+  defp continue_or_halt({:error, _} = err), do: {:halt, err}
 
   # ---------------------------------------------------------------------------
   # Success body parsing

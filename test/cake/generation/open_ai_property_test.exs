@@ -32,8 +32,12 @@ defmodule Cake.Generation.OpenAIPropertyTest do
 
       result = OpenAI.complete_json(@default_messages, @default_model, schema: @object_schema)
 
+      # The invariant is no-crash: always a well-formed result tuple. Decodable,
+      # schema-valid output yields {:ok, %{parsed}}; everything else is an
+      # {:error, reason} from the taxonomy (:malformed_json for bad/invalid
+      # JSON, :empty_response for empty model output, etc.).
       assert match?({:ok, %{parsed: parsed}} when is_map(parsed), result) or
-               match?({:error, {:malformed_json, _, _}}, result)
+               match?({:error, _reason}, result)
     end
   end
 end

@@ -427,6 +427,15 @@ defmodule Cake.Generation.OpenAITest do
                OpenAI.complete_json(@default_messages, @default_model, schema: @object_schema)
     end
 
+    test "empty model output surfaces as {:error, {:empty_response, _}}" do
+      Req.Test.stub(OpenAI, fn conn ->
+        Req.Test.json(conn, json_body(""))
+      end)
+
+      assert {:error, {:empty_response, _}} =
+               OpenAI.complete_json(@default_messages, @default_model, schema: @object_schema)
+    end
+
     test "HTTP and transport errors propagate through the shared taxonomy" do
       Req.Test.stub(OpenAI, fn conn ->
         conn
