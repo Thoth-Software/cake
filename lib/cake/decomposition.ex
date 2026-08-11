@@ -9,8 +9,8 @@ defmodule Cake.Decomposition do
   retrieval and feeds results back in as data (see the Query Decomposition
   epic).
 
-  The first implementation is `Cake.Decomposition.LLM`; `Cake.Decomposition.Mock`
-  (Mox) stands in for tests.
+  The first implementation will be `Cake.Decomposition.LLM` (added in #225);
+  `Cake.Decomposition.Mock` (Mox) stands in for tests.
   """
 
   use Boundary, top_level?: true, deps: [Cake, Cake.Generation], exports: [Result]
