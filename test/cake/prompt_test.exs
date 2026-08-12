@@ -252,4 +252,27 @@ defmodule Cake.PromptTest do
       refute String.contains?(message, "[1]")
     end
   end
+
+  describe "decomposition_prompt/1" do
+    test "returns a system message followed by the question as the user message" do
+      question = "How does the RO-400 filter compare to the RO-500?"
+
+      assert [%{role: "system", content: system}, %{role: "user", content: ^question}] =
+               Cake.Prompt.decomposition_prompt(question)
+
+      assert String.contains?(system, "JSON")
+    end
+
+    test "system prompt documents the atomic JSON shape" do
+      [%{role: "system", content: system} | _] = Cake.Prompt.decomposition_prompt("q")
+
+      assert String.contains?(system, ~s({"atomic": true}))
+    end
+
+    test "system prompt documents the decomposed JSON shape" do
+      [%{role: "system", content: system} | _] = Cake.Prompt.decomposition_prompt("q")
+
+      assert String.contains?(system, ~s("sub_questions"))
+    end
+  end
 end

@@ -13,7 +13,7 @@ defmodule Cake.Decomposition do
   `Cake.Decomposition.Mock` (Mox) stands in for tests.
   """
 
-  use Boundary, top_level?: true, deps: [Cake, Cake.Generation], exports: [Result]
+  use Boundary, top_level?: true, deps: [Cake, Cake.Generation, Cake.Prompt], exports: [Result]
 
   alias Cake.Decomposition.Result
 

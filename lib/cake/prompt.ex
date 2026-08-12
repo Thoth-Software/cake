@@ -89,6 +89,38 @@ defmodule Cake.Prompt do
     """
   end
 
+  @doc """
+  Build the messages list for the decomposition LLM call.
+
+  The system prompt instructs the model to analyze the question and answer in
+  JSON: `{"atomic": true}` when the question needs no decomposition, or
+  `{"sub_questions": [...]}` when it does. `Cake.Decomposition.LLM` pairs this
+  with the matching JSON schema and `c:Cake.Generation.complete_json/3`.
+  """
+  @spec decomposition_prompt(String.t()) :: [message()]
+  def decomposition_prompt(question) when is_binary(question) do
+    [
+      %{role: "system", content: decomposition_system_message()},
+      %{role: "user", content: question}
+    ]
+  end
+
+  @spec decomposition_system_message() :: String.t()
+  def decomposition_system_message do
+    """
+    You analyze a user's question and decide whether it should be decomposed into simpler sub-questions before searching reference documents.
+
+    A question is atomic when it asks one thing about one subject and a single search serves it well. For an atomic question, respond with exactly this JSON:
+    {"atomic": true}
+
+    A question decomposes when answering it requires combining the answers to distinct, simpler questions — comparisons, multi-part questions, or questions with embedded prerequisites. For a decomposable question, respond with JSON matching this shape:
+    {"sub_questions": ["<sub-question 1>", "<sub-question 2>"]}
+
+    Each sub-question must be self-contained and independently searchable. Do not include any keys other than "atomic" or "sub_questions".
+    Respond with JSON only — no prose, no code fences.
+    """
+  end
+
   @spec system_message_no_context() :: String.t()
   def system_message_no_context do
     """
@@ -99,7 +131,7 @@ defmodule Cake.Prompt do
     """
   end
 
-  # TODO: Query decomposition and expansion will go here.
+  # TODO: Query expansion will go here.
   # TODO: Implement exponential memory decay per
   #   https://towardsdatascience.com/rag-isnt-enough-...
   # TODO: Future pass — summarize older history into a compressed preamble
