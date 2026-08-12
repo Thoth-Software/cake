@@ -252,18 +252,24 @@ defmodule Cake.Conversation do
     with {:ok, groups} <- result, do: {:ok, Enum.reverse(groups)}
   end
 
-defp stamp_decomposition([], _decomposition, _index), do: []
+  defp stamp_decomposition([], _decomposition, _index), do: []
 
-defp stamp_decomposition([%Result{provenance: provenance} | _] = results, decomposition, index) do
-  updated_provenance = %{
-    provenance
-    | decomposed: true,
-      original_query: decomposition.original_question,
-      sub_question_index: index
-  }
+  # Results from one search call share a single Provenance by reference (see
+  # Cake.Search.Provenance), so stamp one updated copy and share it across
+  # the group rather than allocating a copy per result.
+  defp stamp_decomposition(
+         [%Result{provenance: provenance} | _] = results,
+         decomposition,
+         index
+       ) do
+    updated_provenance = %{
+      provenance
+      | decomposed: true,
+        original_query: decomposition.original_question,
+        sub_question_index: index
+    }
 
-  Enum.map(results, &%{&1 | provenance: updated_provenance})
-end
+    Enum.map(results, &%{&1 | provenance: updated_provenance})
   end
 
   @doc false
