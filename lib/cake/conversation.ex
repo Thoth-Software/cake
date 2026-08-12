@@ -252,18 +252,18 @@ defmodule Cake.Conversation do
     with {:ok, groups} <- result, do: {:ok, Enum.reverse(groups)}
   end
 
-  defp stamp_decomposition(results, decomposition, index) do
-    Enum.map(results, fn %Result{provenance: provenance} = result ->
-      %{
-        result
-        | provenance: %{
-            provenance
-            | decomposed: true,
-              original_query: decomposition.original_question,
-              sub_question_index: index
-          }
-      }
-    end)
+defp stamp_decomposition([], _decomposition, _index), do: []
+
+defp stamp_decomposition([%Result{provenance: provenance} | _] = results, decomposition, index) do
+  updated_provenance = %{
+    provenance
+    | decomposed: true,
+      original_query: decomposition.original_question,
+      sub_question_index: index
+  }
+
+  Enum.map(results, &%{&1 | provenance: updated_provenance})
+end
   end
 
   @doc false
