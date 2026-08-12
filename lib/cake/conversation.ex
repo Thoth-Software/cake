@@ -33,7 +33,15 @@ defmodule Cake.Conversation do
 
   use Boundary,
     top_level?: true,
-    deps: [Cake, Cake.Prompt, Cake.Search, Cake.Embeddings, Cake.Generation, Cake.Responses],
+    deps: [
+      Cake,
+      Cake.Decomposition,
+      Cake.Embeddings,
+      Cake.Generation,
+      Cake.Prompt,
+      Cake.Responses,
+      Cake.Search
+    ],
     exports: [Events]
 
   use GenServer
@@ -92,6 +100,7 @@ defmodule Cake.Conversation do
       embeddings: Map.get(opts, :embeddings, Cake.Embeddings),
       responses: Map.get(opts, :responses, Cake.Responses),
       generation: Map.get(opts, :generation, Cake.Generation.OpenAI),
+      decomposition: Map.get(opts, :decomposition),
       gds: opts.gds
     }
   end
