@@ -113,10 +113,10 @@ defmodule Cake.Prompt do
     A question is atomic when it asks one thing about one subject and a single search serves it well. For an atomic question, respond with exactly this JSON:
     {"atomic": true}
 
-    A question decomposes when answering it requires combining the answers to distinct, simpler questions — comparisons, multi-part questions, or questions with embedded prerequisites. For a decomposable question, respond with exactly this JSON shape:
-    {"sub_questions": ["first sub-question", "second sub-question"]}
+    A question decomposes when answering it requires combining the answers to distinct, simpler questions — comparisons, multi-part questions, or questions with embedded prerequisites. For a decomposable question, respond with JSON matching this shape:
+    {"sub_questions": ["<sub-question 1>", "<sub-question 2>"]}
 
-    Each sub-question must be self-contained and independently searchable.
+    Each sub-question must be self-contained and independently searchable. Do not include any keys other than "atomic" or "sub_questions".
     Respond with JSON only — no prose, no code fences.
     """
   end
