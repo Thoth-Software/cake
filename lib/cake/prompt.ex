@@ -89,6 +89,21 @@ defmodule Cake.Prompt do
     """
   end
 
+  @doc """
+  Build the messages list for the decomposition LLM call.
+
+  The system prompt instructs the model to analyze the question and answer in
+  JSON: `{"atomic": true}` when the question needs no decomposition, or
+  `{"sub_questions": [...]}` when it does. `Cake.Decomposition.LLM` pairs this
+  with the matching JSON schema and `Cake.Generation.complete_json/3`.
+  """
+  @spec decomposition_prompt(String.t()) :: [message()]
+  def decomposition_prompt(question) when is_binary(question) do
+    # Placeholder: replaced once the tests pinning the message shape are in.
+    _ = question
+    []
+  end
+
   @spec system_message_no_context() :: String.t()
   def system_message_no_context do
     """

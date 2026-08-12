@@ -311,4 +311,16 @@ defmodule Cake.PromptPropertyTest do
       assert actual_pairs == expected_pairs
     end
   end
+
+  property "decomposition_prompt/1 is [system, user] with the question verbatim" do
+    check all(question <- string(:printable, min_length: 1)) do
+      assert [
+               %{role: "system", content: system},
+               %{role: "user", content: user}
+             ] = Prompt.decomposition_prompt(question)
+
+      assert user == question
+      assert String.contains?(system, "atomic")
+    end
+  end
 end
