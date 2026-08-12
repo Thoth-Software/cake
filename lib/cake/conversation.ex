@@ -31,6 +31,15 @@ defmodule Cake.Conversation do
   `Cake.Search.Provenance` is stamped with `decomposed: true`, the
   `original_query`, and its `sub_question_index`.
 
+  Sub-question searches fan out concurrently under `Cake.TaskSupervisor`,
+  capped by `config :cake, :max_sub_search_concurrency` (default 4; set to
+  1 to force sequential fan-out in constrained environments). Each
+  sub-search must finish within `config :cake, :sub_search_timeout`
+  (default 30s). Failure handling is all-or-nothing: any sub-search error,
+  timeout (`:sub_search_timeout`), or crash
+  (`{:sub_search_crashed, reason}`) fails the whole turn, reporting the
+  lowest-index failure — there is no partial context.
+
   ## Dependencies
 
   Search, embeddings, generation, responses, and (optionally) decomposition
