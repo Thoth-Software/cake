@@ -1444,4 +1444,258 @@ defmodule Cake.ConversationTest do
       assert_receive {:state_change, :idle}
     end
   end
+
+  describe ":decomposition option" do
+    test "the :decomposition opt is stored on state, defaulting to nil" do
+      {:ok, pid} = Conversation.start_link(valid_opts())
+      on_exit(fn -> if Process.alive?(pid), do: GenServer.stop(pid) end)
+
+      assert %{decomposition: nil} = :sys.get_state(pid)
+
+      {:ok, decomposing_pid} =
+        Conversation.start_link(valid_opts(%{decomposition: Cake.Decomposition.Mock}))
+
+      on_exit(fn -> if Process.alive?(decomposing_pid), do: GenServer.stop(decomposing_pid) end)
+
+      assert %{decomposition: Cake.Decomposition.Mock} = :sys.get_state(decomposing_pid)
+    end
+
+    test "without :decomposition the original question is searched once (backward compat)" do
+      question = "what is the flow rate of the RO-400?"
+      test_pid = self()
+      hit = build_search_hit(id: "unit-a", body: "flow rate chunk")
+
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, %{input: input}, _model ->
+        send(test_pid, {:embedded, input})
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query -> {:ok, [hit]} end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, indexed, _opts ->
+        send(test_pid, {:indexed_chunks, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: "answer",
+          final_text: "answer",
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed()
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:response_ready, %{response: "answer"}}
+      assert_receive {:embedded, ^question}
+      assert_receive {:indexed_chunks, indexed}
+
+      Enum.each(indexed, fn {_idx, result} ->
+        assert result.provenance.decomposed == false
+        assert result.provenance.sub_question_index == nil
+      end)
+    end
+
+    test "an atomic decomposition result flows through the single-search path unchanged" do
+      question = "what is the flow rate of the RO-400?"
+      test_pid = self()
+      hit = build_search_hit(id: "unit-a", body: "flow rate chunk")
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question)}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, %{input: input}, _model ->
+        send(test_pid, {:embedded, input})
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query -> {:ok, [hit]} end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, indexed, _opts ->
+        send(test_pid, {:indexed_chunks, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: "answer",
+          final_text: "answer",
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer", usage: %{}}}
+      end)
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:response_ready, %{response: "answer"}}
+      assert_receive {:embedded, ^question}
+      assert_receive {:indexed_chunks, indexed}
+
+      Enum.each(indexed, fn {_idx, result} ->
+        assert result.provenance.decomposed == false
+        assert result.provenance.sub_question_index == nil
+      end)
+    end
+
+    test "a decomposed question merges deduplicated results from every sub-question search" do
+      question = "How does the RO-400 flow rate compare to the RO-500?"
+      sub_a = "What is the flow rate of the RO-400?"
+      sub_b = "What is the flow rate of the RO-500?"
+      test_pid = self()
+
+      hit_a = build_search_hit(id: "unit-a", body: "RO-400 chunk")
+      hit_shared = build_search_hit(id: "unit-b", body: "shared spec chunk")
+      hit_c = build_search_hit(id: "unit-c", body: "RO-500 chunk")
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, _model ->
+        send(test_pid, {:embedded, input})
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, 2, fn query ->
+        text =
+          Enum.find_value(query.should, fn
+            %{"multi_match" => %{"query" => text}} -> text
+            _clause -> nil
+          end)
+
+        case text do
+          ^sub_a -> {:ok, [hit_a, hit_shared]}
+          ^sub_b -> {:ok, [hit_shared, hit_c]}
+        end
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, indexed, _opts ->
+        send(test_pid, {:indexed_chunks, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: "answer",
+          final_text: "answer",
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer", usage: %{}}}
+      end)
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:response_ready, %{response: "answer"}}
+
+      # Each sub-question is embedded and searched; the original never is.
+      assert_receive {:embedded, ^sub_a}
+      assert_receive {:embedded, ^sub_b}
+      refute_received {:embedded, ^question}
+
+      assert_receive {:indexed_chunks, indexed}
+      results = Enum.map(indexed, fn {_idx, result} -> result end)
+      ids = Enum.map(results, &Cake.Citable.metadata(&1.retrieval_unit).id)
+
+      # Merged context: the shared unit appears exactly once.
+      assert Enum.sort(ids) == ["unit-a", "unit-b", "unit-c"]
+
+      by_id = Map.new(results, &{Cake.Citable.metadata(&1.retrieval_unit).id, &1})
+
+      Enum.each(results, fn result ->
+        assert result.provenance.decomposed == true
+        assert result.provenance.original_query == question
+      end)
+
+      assert by_id["unit-a"].provenance.sub_question_index == 0
+      assert by_id["unit-a"].provenance.query_text == sub_a
+      assert by_id["unit-c"].provenance.sub_question_index == 1
+      assert by_id["unit-c"].provenance.query_text == sub_b
+      assert by_id["unit-b"].provenance.sub_question_index in [0, 1]
+    end
+
+    test "a decomposition error fails the turn with that error" do
+      expect(Cake.Decomposition.Mock, :decompose, fn _question, _opts ->
+        {:error, {:generation, :rate_limited}}
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+      allow(Cake.Decomposition.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, "compare A and B")
+
+      assert_receive {:error, {:generation, :rate_limited}}
+      assert_receive {:state_change, :idle}
+    end
+  end
+
+  describe "merge_decomposed_results/1" do
+    # Called via apply/3 so the suite compiles before the function exists
+    # (red phase) — a literal call would trip --warnings-as-errors.
+
+    test "dedups by retrieval-unit id, keeping the highest-relevance duplicate" do
+      unit_a = build(:convo_chunk, metadata: chunk_metadata(id: "unit-a"))
+      unit_b = build(:convo_chunk, metadata: chunk_metadata(id: "unit-b"))
+
+      result_a = wrap_result(unit_a, relevance_score: 0.7)
+      low_b = wrap_result(unit_b, relevance_score: 0.4)
+      high_b = wrap_result(unit_b, relevance_score: 0.9)
+
+      merged =
+        apply(Conversation, :merge_decomposed_results, [[[result_a, low_b], [high_b]]])
+
+      assert Enum.map(merged, & &1.relevance_score) == [0.9, 0.7]
+
+      ids = Enum.map(merged, &Cake.Citable.metadata(&1.retrieval_unit).id)
+      assert ids == ["unit-b", "unit-a"]
+    end
+
+    test "merges disjoint sub-question results into one relevance-sorted list" do
+      results =
+        for {id, score} <- [{"u1", 0.2}, {"u2", 0.9}, {"u3", 0.5}] do
+          unit = build(:convo_chunk, metadata: chunk_metadata(id: id))
+          wrap_result(unit, relevance_score: score)
+        end
+
+      merged = apply(Conversation, :merge_decomposed_results, [Enum.map(results, &[&1])])
+
+      assert Enum.map(merged, & &1.relevance_score) == [0.9, 0.5, 0.2]
+    end
+
+    test "empty sub-question result lists merge to an empty list" do
+      assert apply(Conversation, :merge_decomposed_results, [[]]) == []
+      assert apply(Conversation, :merge_decomposed_results, [[[], []]]) == []
+    end
+  end
 end
