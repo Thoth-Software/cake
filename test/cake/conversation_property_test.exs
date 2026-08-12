@@ -143,9 +143,7 @@ defmodule Cake.ConversationPropertyTest do
 
   defp unit_id(%Result{retrieval_unit: unit}), do: Cake.Citable.metadata(unit).id
 
-  # Red phase: called via apply/3 so the suite compiles before the function
-  # exists — a literal call would trip --warnings-as-errors.
-  defp merge(groups), do: apply(Conversation, :merge_decomposed_results, [groups])
+  defp merge(groups), do: Conversation.merge_decomposed_results(groups)
 
   # ---------------------------------------------------------------------------
   # Properties

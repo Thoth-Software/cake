@@ -1661,9 +1661,6 @@ defmodule Cake.ConversationTest do
   end
 
   describe "merge_decomposed_results/1" do
-    # Called via apply/3 so the suite compiles before the function exists
-    # (red phase) — a literal call would trip --warnings-as-errors.
-
     test "dedups by retrieval-unit id, keeping the highest-relevance duplicate" do
       unit_a = build(:convo_chunk, metadata: chunk_metadata(id: "unit-a"))
       unit_b = build(:convo_chunk, metadata: chunk_metadata(id: "unit-b"))
@@ -1672,8 +1669,7 @@ defmodule Cake.ConversationTest do
       low_b = wrap_result(unit_b, relevance_score: 0.4)
       high_b = wrap_result(unit_b, relevance_score: 0.9)
 
-      merged =
-        apply(Conversation, :merge_decomposed_results, [[[result_a, low_b], [high_b]]])
+      merged = Conversation.merge_decomposed_results([[result_a, low_b], [high_b]])
 
       assert Enum.map(merged, & &1.relevance_score) == [0.9, 0.7]
 
@@ -1688,14 +1684,14 @@ defmodule Cake.ConversationTest do
           wrap_result(unit, relevance_score: score)
         end
 
-      merged = apply(Conversation, :merge_decomposed_results, [Enum.map(results, &[&1])])
+      merged = Conversation.merge_decomposed_results(Enum.map(results, &[&1]))
 
       assert Enum.map(merged, & &1.relevance_score) == [0.9, 0.5, 0.2]
     end
 
     test "empty sub-question result lists merge to an empty list" do
-      assert apply(Conversation, :merge_decomposed_results, [[]]) == []
-      assert apply(Conversation, :merge_decomposed_results, [[[], []]]) == []
+      assert Conversation.merge_decomposed_results([]) == []
+      assert Conversation.merge_decomposed_results([[], []]) == []
     end
   end
 end

@@ -230,21 +230,26 @@ defmodule Cake.Conversation do
   end
 
   defp search_decomposed(%Cake.Decomposition.Result{} = decomposition, s) do
-    decomposition.question_index
-    |> Enum.sort_by(fn {index, _sub_question} -> index end)
-    |> Enum.reduce_while({:ok, []}, fn {index, sub_question}, {:ok, groups} ->
-      case embed_and_search(sub_question, s) do
-        {:ok, results} ->
-          {:cont, {:ok, [stamp_decomposition(results, decomposition, index) | groups]}}
-
-        {:error, _} = error ->
-          {:halt, error}
-      end
-    end)
-    |> case do
-      {:ok, groups} -> {:ok, List.flatten(Enum.reverse(groups))}
-      {:error, _} = error -> error
+    with {:ok, groups} <- search_sub_questions(decomposition, s) do
+      {:ok, merge_decomposed_results(groups)}
     end
+  end
+
+  defp search_sub_questions(decomposition, s) do
+    result =
+      decomposition.question_index
+      |> Enum.sort_by(fn {index, _sub_question} -> index end)
+      |> Enum.reduce_while({:ok, []}, fn {index, sub_question}, {:ok, groups} ->
+        case embed_and_search(sub_question, s) do
+          {:ok, results} ->
+            {:cont, {:ok, [stamp_decomposition(results, decomposition, index) | groups]}}
+
+          {:error, _} = error ->
+            {:halt, error}
+        end
+      end)
+
+    with {:ok, groups} <- result, do: {:ok, Enum.reverse(groups)}
   end
 
   defp stamp_decomposition(results, decomposition, index) do
@@ -259,6 +264,16 @@ defmodule Cake.Conversation do
           }
       }
     end)
+  end
+
+  @doc false
+  @spec merge_decomposed_results([[Result.t()]]) :: [Result.t()]
+  def merge_decomposed_results(groups) when is_list(groups) do
+    groups
+    |> List.flatten()
+    |> Enum.group_by(fn %Result{retrieval_unit: unit} -> Cake.Citable.metadata(unit).id end)
+    |> Enum.map(fn {_id, duplicates} -> Enum.max_by(duplicates, & &1.relevance_score) end)
+    |> Cake.Search.sort_by_relevance()
   end
 
   # --- Stage 1a: apply_selection (manual mode) ---
