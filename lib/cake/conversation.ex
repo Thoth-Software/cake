@@ -13,17 +13,29 @@ defmodule Cake.Conversation do
 
   ## Pipelines
 
-  - `run_turn/2` — full auto-mode pipeline (search → select → prompt →
-    generate → cite).
+  - `run_turn/2` — full auto-mode pipeline (decompose → search → select →
+    prompt → generate → cite).
   - `run_manual_turn/4` — manual-mode back-half (apply_selection → prompt →
     generate → cite) after user picks documents.
 
   Stages are `@doc false` public functions for direct testability.
 
+  ## Query decomposition
+
+  Opt-in via the `:decomposition` opt (a module implementing
+  `Cake.Decomposition`; default `nil` — no decomposition). When set, the
+  first turn's question is decomposed before searching: an atomic result
+  searches the original question exactly as before, while a decomposed one
+  runs one embed+search per sub-question and merges the deduplicated
+  results into a single context. Each merged result's
+  `Cake.Search.Provenance` is stamped with `decomposed: true`, the
+  `original_query`, and its `sub_question_index`.
+
   ## Dependencies
 
-  Search, embeddings, generation, and responses modules are passed as opts at
-  `start_link/1` time to support Mox-based testing.
+  Search, embeddings, generation, responses, and (optionally) decomposition
+  modules are passed as opts at `start_link/1` time to support Mox-based
+  testing.
 
   ## Broadcasts
 
@@ -33,7 +45,15 @@ defmodule Cake.Conversation do
 
   use Boundary,
     top_level?: true,
-    deps: [Cake, Cake.Prompt, Cake.Search, Cake.Embeddings, Cake.Generation, Cake.Responses],
+    deps: [
+      Cake,
+      Cake.Decomposition,
+      Cake.Embeddings,
+      Cake.Generation,
+      Cake.Prompt,
+      Cake.Responses,
+      Cake.Search
+    ],
     exports: [Events]
 
   use GenServer
@@ -92,6 +112,7 @@ defmodule Cake.Conversation do
       embeddings: Map.get(opts, :embeddings, Cake.Embeddings),
       responses: Map.get(opts, :responses, Cake.Responses),
       generation: Map.get(opts, :generation, Cake.Generation.OpenAI),
+      decomposition: Map.get(opts, :decomposition),
       gds: opts.gds
     }
   end
@@ -182,13 +203,83 @@ defmodule Cake.Conversation do
 
   @doc false
   @spec resolve_search_results(String.t(), State.t()) ::
-          {:ok, [Result.t()]} | {:error, String.t() | Cake.Search.Backend.search_error()}
+          {:ok, [Result.t()]}
+          | {:error,
+             String.t()
+             | Cake.Search.Backend.search_error()
+             | Cake.Decomposition.error_reason()}
   def resolve_search_results(_question, %State{search_results: results}) when results != [] do
     {:ok, results}
   end
 
-  def resolve_search_results(question, %State{} = s) do
+  def resolve_search_results(question, %State{decomposition: nil} = s) do
     embed_and_search(question, s)
+  end
+
+  def resolve_search_results(question, %State{} = s) do
+    with {:ok, decomposition} <- s.decomposition.decompose(question, []) do
+      search_decomposed(decomposition, s)
+    end
+  end
+
+  # An atomic decomposition takes the same single-search path as no
+  # decomposition at all; a decomposed one searches each sub-question in
+  # index order, halting on the first error.
+  defp search_decomposed(%Cake.Decomposition.Result{sub_questions: []} = decomposition, s) do
+    embed_and_search(decomposition.original_question, s)
+  end
+
+  defp search_decomposed(%Cake.Decomposition.Result{} = decomposition, s) do
+    with {:ok, groups} <- search_sub_questions(decomposition, s) do
+      {:ok, merge_decomposed_results(groups)}
+    end
+  end
+
+  defp search_sub_questions(decomposition, s) do
+    result =
+      decomposition.question_index
+      |> Enum.sort_by(fn {index, _sub_question} -> index end)
+      |> Enum.reduce_while({:ok, []}, fn {index, sub_question}, {:ok, groups} ->
+        case embed_and_search(sub_question, s) do
+          {:ok, results} ->
+            {:cont, {:ok, [stamp_decomposition(results, decomposition, index) | groups]}}
+
+          {:error, _} = error ->
+            {:halt, error}
+        end
+      end)
+
+    with {:ok, groups} <- result, do: {:ok, Enum.reverse(groups)}
+  end
+
+  defp stamp_decomposition([], _decomposition, _index), do: []
+
+  # Results from one search call share a single Provenance by reference (see
+  # Cake.Search.Provenance), so stamp one updated copy and share it across
+  # the group rather than allocating a copy per result.
+  defp stamp_decomposition(
+         [%Result{provenance: provenance} | _] = results,
+         decomposition,
+         index
+       ) do
+    updated_provenance = %{
+      provenance
+      | decomposed: true,
+        original_query: decomposition.original_question,
+        sub_question_index: index
+    }
+
+    Enum.map(results, &%{&1 | provenance: updated_provenance})
+  end
+
+  @doc false
+  @spec merge_decomposed_results([[Result.t()]]) :: [Result.t()]
+  def merge_decomposed_results(groups) when is_list(groups) do
+    groups
+    |> List.flatten()
+    |> Enum.group_by(fn %Result{retrieval_unit: unit} -> Cake.Citable.metadata(unit).id end)
+    |> Enum.map(fn {_id, duplicates} -> Enum.max_by(duplicates, & &1.relevance_score) end)
+    |> Cake.Search.sort_by_relevance()
   end
 
   # --- Stage 1a: apply_selection (manual mode) ---
