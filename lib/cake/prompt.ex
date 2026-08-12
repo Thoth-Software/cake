@@ -95,7 +95,7 @@ defmodule Cake.Prompt do
   The system prompt instructs the model to analyze the question and answer in
   JSON: `{"atomic": true}` when the question needs no decomposition, or
   `{"sub_questions": [...]}` when it does. `Cake.Decomposition.LLM` pairs this
-  with the matching JSON schema and `Cake.Generation.complete_json/3`.
+  with the matching JSON schema and `c:Cake.Generation.complete_json/3`.
   """
   @spec decomposition_prompt(String.t()) :: [message()]
   def decomposition_prompt(question) when is_binary(question) do
