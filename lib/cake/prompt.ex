@@ -99,9 +99,26 @@ defmodule Cake.Prompt do
   """
   @spec decomposition_prompt(String.t()) :: [message()]
   def decomposition_prompt(question) when is_binary(question) do
-    # Placeholder: replaced once the tests pinning the message shape are in.
-    _ = question
-    []
+    [
+      %{role: "system", content: decomposition_system_message()},
+      %{role: "user", content: question}
+    ]
+  end
+
+  @spec decomposition_system_message() :: String.t()
+  def decomposition_system_message do
+    """
+    You analyze a user's question and decide whether it should be decomposed into simpler sub-questions before searching reference documents.
+
+    A question is atomic when it asks one thing about one subject and a single search serves it well. For an atomic question, respond with exactly this JSON:
+    {"atomic": true}
+
+    A question decomposes when answering it requires combining the answers to distinct, simpler questions — comparisons, multi-part questions, or questions with embedded prerequisites. For a decomposable question, respond with exactly this JSON shape:
+    {"sub_questions": ["first sub-question", "second sub-question"]}
+
+    Each sub-question must be self-contained and independently searchable.
+    Respond with JSON only — no prose, no code fences.
+    """
   end
 
   @spec system_message_no_context() :: String.t()
@@ -114,7 +131,7 @@ defmodule Cake.Prompt do
     """
   end
 
-  # TODO: Query decomposition and expansion will go here.
+  # TODO: Query expansion will go here.
   # TODO: Implement exponential memory decay per
   #   https://towardsdatascience.com/rag-isnt-enough-...
   # TODO: Future pass — summarize older history into a compressed preamble
