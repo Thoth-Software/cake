@@ -1,5 +1,6 @@
 Mox.defmock(Cake.Embeddings.Mock, for: Cake.Embeddings.Behaviour)
 Mox.defmock(Cake.Generation.Mock, for: Cake.Generation)
+Mox.defmock(Cake.Decomposition.Mock, for: Cake.Decomposition)
 Mox.defmock(Cake.Responses.Mock, for: Cake.Responses.Behaviour)
 Mox.defmock(Cake.Books.Adapters.Mock, for: Cake.Books.Adapters)
 Mox.defmock(Cake.Search.Backend.Mock, for: Cake.Search.Backend)
