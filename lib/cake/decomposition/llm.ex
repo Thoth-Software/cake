@@ -47,15 +47,15 @@ defmodule Cake.Decomposition.LLM do
     end
   end
 
-defp parse_result(_question, %{"atomic" => true, "sub_questions" => _} = parsed) do
-  {:error, {:invalid_response, "unexpected decomposition shape: #{inspect(parsed)}"}}
-end
+  defp parse_result(_question, %{"atomic" => true, "sub_questions" => _} = parsed) do
+    {:error, {:invalid_response, "unexpected decomposition shape: #{inspect(parsed)}"}}
+  end
 
-defp parse_result(question, %{"atomic" => true}), do: {:ok, Result.new(question)}
+  defp parse_result(question, %{"atomic" => true}), do: {:ok, Result.new(question)}
 
-defp parse_result(question, %{"sub_questions" => sub_questions}) when is_list(sub_questions) do
-  {:ok, Result.new(question, sub_questions)}
-end
+  defp parse_result(question, %{"sub_questions" => sub_questions}) when is_list(sub_questions) do
+    {:ok, Result.new(question, sub_questions)}
+  end
 
   defp parse_result(_question, parsed) do
     {:error, {:invalid_response, "unexpected decomposition shape: #{inspect(parsed)}"}}
