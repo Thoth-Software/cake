@@ -16,6 +16,7 @@ A checklist of RAG capabilities for Cake, organised into eight capability areas 
 - [8. Evaluation and Feedback Loops](#8-evaluation-and-feedback-loops)
 - [Design Groundwork](#design-groundwork)
 - [Reach Goals](#reach-goals)
+- [Further Reading](#further-reading)
 
 ---
 
@@ -153,3 +154,48 @@ Directions too open-ended to be checklist items yet — candidates for promotion
 - Position conversation-aware RAG and built-in evaluation as the core product story ("we measure and monitor, not just build")
 - Auto-suggest preferred-vocabulary lists from a tenant's corpus
 - Framework-level drift dashboards per corpus, tenant, and model version
+
+## Further Reading
+
+A curated shelf of current work worth tracking, grouped by what it means for Cake. These are not roadmap commitments — they are the frontier the roadmap should be steered against. Links verified as of 2026-08.
+
+### Agentic retrieval and learned planning
+
+Where the decompose → retrieve → answer loop is heading: models trained to decide when and what to retrieve, rather than pipelines that hard-code it.
+
+- [**Search-R1: Training LLMs to Reason and Leverage Search Engines with Reinforcement Learning**](https://arxiv.org/abs/2503.09516) (Jin et al., 2025) — RL-trains an LLM to interleave multi-turn search calls inside its reasoning chain, beating standard RAG baselines by 20–41%. The founding paper of the agentic-search-RL line, and the template for what could eventually replace a hand-written decomposition loop like `Cake.Decomposition`.
+- [**Chain-of-Retrieval Augmented Generation (CoRAG)**](https://arxiv.org/abs/2501.14342) (Wang et al., Microsoft Research, 2025; NeurIPS 2025) — trains models to plan chains of retrievals, reformulating the query as evidence accumulates, and studies test-time scaling of retrieval steps. The natural successor to single-shot decomposition.
+- [**Tongyi DeepResearch Technical Report**](https://arxiv.org/abs/2510.24701) (Tongyi Lab, 2025) — the strongest fully open deep-research agent (30.5B MoE), trained end-to-end on synthetic agentic data. The best public blueprint of a production-grade iterative-retrieval stack.
+- [**Recursive Language Models**](https://arxiv.org/abs/2512.24601) (Zhang et al., MIT CSAIL, 2025) — treats a long prompt as an environment the model programmatically inspects, chunks, and recursively calls itself over, handling inputs roughly 100× the context window. Reframes the long-context-vs-RAG debate as "retrieval is recursive inference-time decomposition".
+
+### Retrievers, rankers, and representations
+
+- [**ReasonIR: Training Retrievers for Reasoning Tasks**](https://arxiv.org/abs/2504.20595) (Shao et al., Meta FAIR/UW, 2025) — the first retriever trained specifically for reasoning-intensive queries, via synthetic hard queries and plausible-but-unhelpful hard negatives. Evidence that similarity-trained embedders underperform once queries require inference — relevant to any embedding-model choice.
+- [**Qwen3 Embedding**](https://arxiv.org/abs/2506.05176) (Qwen team, 2025) — the current default open embedding + reranker family (Apache-2.0, instruction-tunable, Matryoshka dimensions); a practical answer to which open models to plug into the dense and re-ranking stages. The follow-up [Qwen3-VL-Embedding and Reranker](https://arxiv.org/abs/2601.04720) (2026) extends the same stack to images, document screenshots, and video in one vector space.
+- [**ColPali: Efficient Document Retrieval with Vision Language Models**](https://arxiv.org/abs/2407.01449) (Faysse et al., ICLR 2025) — OCR-free visual document retrieval: ColBERT-style late interaction over patch embeddings of page images. Directly relevant to PDF-heavy ingestion — retrieval over page images instead of lossy parsed text.
+- [**MUVERA: Multi-Vector Retrieval via Fixed Dimensional Encodings**](https://arxiv.org/abs/2405.19504) (Dhulipala, Jayaram et al., Google Research) — compresses ColBERT/ColPali-style multi-vector sets into single fixed-dimension vectors whose inner product provably approximates MaxSim, making late-interaction retrieval servable on ordinary ANN infrastructure. What makes the ColPali lineage production-feasible.
+- [**Towards Competitive Search Relevance for Inference-Free Learned Sparse Retrievers**](https://arxiv.org/abs/2411.04403) (Geng et al., Amazon OpenSearch neural-sparse team, 2024–25) — document-side-only learned sparse retrieval approaching SPLADE relevance on a plain Lucene inverted index, with zero query-time inference cost. Maximally relevant to Cake's stack: a third hybrid signal that is nearly free at query time.
+- [**Late Chunking: Contextual Chunk Embeddings Using Long-Context Embedding Models**](https://arxiv.org/abs/2409.04701) (Günther et al., Jina AI) — embed the whole document through a long-context encoder first and chunk the token embeddings afterward, so every chunk vector carries document-wide context. The cheapest known fix for the context-stripping problem that page-per-chunk pipelines share.
+
+### Context engineering and long context
+
+- [**Context Rot: How Increasing Input Tokens Impacts LLM Performance**](https://research.trychroma.com/context-rot) (Hong, Troynikov, Huber — Chroma, 2025) — eighteen frontier models degrade non-uniformly with input length, even on trivial tasks, and distractors make it worse. The empirical backbone of "retrieve tightly, don't stuff the window".
+- [**NoLiMa: Long-Context Evaluation Beyond Literal Matching**](https://arxiv.org/abs/2502.05167) (Modarressi et al., ICML 2025) — needle-in-a-haystack with no lexical overlap between needle and question: most models collapse below 50% of their short-context baseline by 32K tokens. Data against the "just use long context instead of retrieval" argument.
+- [**Effective Context Engineering for AI Agents**](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) (Anthropic, 2025) — the post that codified context engineering as a discipline: context as a finite resource, compaction, structured note-taking, just-in-time retrieval, sub-agent architectures. Reframes what a RAG framework's job is once its consumer is an agent rather than a single prompt.
+- [**REFRAG: Rethinking RAG based Decoding**](https://arxiv.org/abs/2509.01092) (Lin et al., Meta, 2025) — feeds precomputed compressed chunk embeddings directly to the decoder, expanding only the chunks an RL policy deems worth full tokens: up to ~30× faster time-to-first-token at matched accuracy. The most credible context-compression result for high-throughput serving.
+- [**DeepSeek-OCR: Contexts Optical Compression**](https://arxiv.org/abs/2510.18234) (DeepSeek-AI, 2025) — a 3B VLM that decodes document pages from ~100 vision tokens at ~97% precision (about 10× compression versus text tokens). State-of-the-art ingestion parsing, and a provocation about whether "chunk as text" is the right substrate at all.
+
+### Evaluation, citations, and memory
+
+- [**Reliability without Validity**](https://arxiv.org/abs/2606.19544) (Norman, 2026) — a systematic evaluation of 21 LLM-as-judge models: agreement metrics overstate discriminative ability, and judge rankings are unstable across datasets. Required reading before wiring an LLM judge into CI as a quality gate (see §8).
+- [**Generation-Time vs. Post-hoc Citation: A Holistic Evaluation of LLM Attribution**](https://arxiv.org/abs/2509.21557) (Saxena et al., 2025) — cite-while-generating versus attribute-after-drafting is a coverage/correctness trade-off, with retrieval quality the dominant driver of attribution quality. Load-bearing for where the citation step sits in Cake's turn pipeline.
+- [**Cited but Not Verified: Parsing and Evaluating Source Attribution in LLM Deep Research Agents**](https://arxiv.org/abs/2605.06635) (Onweller, 2026) — audits deployed research agents and finds 11–57% citation hallucination rates, proposing a three-axis check: link resolves, content relevant, fact supported. A ready-made rubric for end-to-end evaluation of `Citable` output.
+- [**Memory OS of AI Agent**](https://arxiv.org/abs/2506.06326) (Kang et al., 2025) — an OS-inspired three-tier memory manager (short/mid/long-term) with dynamic promotion and eviction; the most-cited post-MemGPT memory design, and a plausible growth path for a long-lived `Conversation` process. Pair with [MemoryAgentBench](https://arxiv.org/abs/2507.05257) (Hu et al., 2025–26), which finds no current memory system masters accurate retrieval, test-time learning, long-range understanding, and selective forgetting at once.
+- [**OP-Bench: Benchmarking Over-Personalization**](https://arxiv.org/abs/2601.13722) (Hu, 2026) — memory-augmented personalization backfires in three measurable patterns: irrelevance, repetition, sycophancy. The failure-mode catalogue to consult before building any per-user memory feature.
+
+### Security and structured data
+
+- [**PoisonedRAG: Knowledge Corruption Attacks to Retrieval-Augmented Generation**](https://arxiv.org/abs/2402.07867) (Zou et al., USENIX Security 2025) — roughly five injected documents in a 2.6M-text corpus steer answers to attacker-chosen outputs with ~97% success. The paper that made "who can write to the index?" a security question every enterprise RAG deployment must answer.
+- [**Architecture Matters: Comparing RAG Systems under Knowledge Base Poisoning**](https://arxiv.org/abs/2605.05632) (Korn, 2026) — poisoning success varies from 81.9% for naive retrieve-and-stuff down to 24.4% for more mediated designs: pipeline architecture is itself a poisoning defense.
+- [**Spider 2.0: Evaluating Language Models on Real-World Enterprise Text-to-SQL Workflows**](https://arxiv.org/abs/2411.07763) (Lei et al., ICLR 2025) — 632 real enterprise workflow problems over 1,000+-column schemas; the best reasoning models solve about a fifth of them. Defines the actual difficulty behind §6's schema-aware retrieval.
+- [**LinearRAG: Linear Graph Retrieval Augmented Generation on Large-scale Corpora**](https://arxiv.org/abs/2510.10114) (Zhuang et al., 2025) — graph RAG without LLM relation extraction: lightweight entity extraction plus semantic linking, with construction cost linear in corpus size. The pragmatic on-ramp for §6's document-derived entity graph.
