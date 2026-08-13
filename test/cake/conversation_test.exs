@@ -46,6 +46,22 @@ defmodule Cake.ConversationTest do
     :ok
   end
 
+  # Sets an app-env override for the duration of the test, restoring the
+  # pre-test value on exit — or deleting the key if it was previously unset —
+  # so overrides can't leak into later tests. fetch_env/2 (not get_env/2)
+  # keeps a key stored as nil distinguishable from an absent key.
+  defp put_temporary_env(key, value) do
+    original = Application.fetch_env(:cake, key)
+    Application.put_env(:cake, key, value)
+
+    on_exit(fn ->
+      case original do
+        {:ok, original_value} -> Application.put_env(:cake, key, original_value)
+        :error -> Application.delete_env(:cake, key)
+      end
+    end)
+  end
+
   defp test_provenance, do: %Provenance{search_type: :hybrid, query_text: "test"}
 
   defp wrap_result(unit, opts \\ []) do
@@ -1754,8 +1770,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "a timed-out sub-question search fails the turn" do
-      Application.put_env(:cake, :sub_search_timeout, 50)
-      on_exit(fn -> Application.delete_env(:cake, :sub_search_timeout) end)
+      put_temporary_env(:sub_search_timeout, 50)
 
       question = "How does the RO-400 flow rate compare to the RO-500?"
       sub_a = "What is the flow rate of the RO-400?"
@@ -1844,8 +1859,7 @@ defmodule Cake.ConversationTest do
     end
 
     test "max_sub_search_concurrency: 1 forces sequential sub-searches" do
-      Application.put_env(:cake, :max_sub_search_concurrency, 1)
-      on_exit(fn -> Application.delete_env(:cake, :max_sub_search_concurrency) end)
+      put_temporary_env(:max_sub_search_concurrency, 1)
 
       question = "How does the RO-400 flow rate compare to the RO-500?"
       sub_a = "What is the flow rate of the RO-400?"
