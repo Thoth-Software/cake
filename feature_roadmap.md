@@ -78,9 +78,9 @@ Hybrid search, re-ranking, and query expansion should all be first-class pipelin
 
 **Relevant work**
 
-- Wang et al., 2024, *Searching for Best Practices in Retrieval-Augmented Generation* — a broad empirical study of RAG configurations (retrievers, chunking, re-ranking) finding that hybrid search combined with HyDE-style query rewriting is often the best accuracy/latency trade-off. For Cake, their recommended "hybrid + HyDE" recipe is a strong candidate for the default retrieval preset.
-- Zhang et al., 2025, *LevelRAG: Enhancing Retrieval-Augmented Generation with Multi-hop Logic Planning over Rewriting Augmented Searchers* — decomposes complex queries into atomic sub-queries routed across multiple retrievers, independent of retriever-specific optimisation. Aligns with a "structured retrieval" preset combining graph, dense, and re-ranking stages.
-- AWS OpenSearch hybrid retrieval guidance (2024) — demonstrates neural sparse + dense hybrids on OpenSearch, directly applicable to Cake's stack. Suggests shipping a standard OpenSearch hybrid retriever module with tunable weights and field boosts, plus configuration templates for common corpus shapes (documentation, code, FAQ-heavy knowledge bases).
+- Wang et al., 2024, [*Searching for Best Practices in Retrieval-Augmented Generation*](https://arxiv.org/abs/2407.01219) (EMNLP 2024) — a broad empirical study of RAG configurations (retrievers, chunking, re-ranking) finding that hybrid search combined with HyDE-style query rewriting is often the best accuracy/latency trade-off. For Cake, their recommended "hybrid + HyDE" recipe is a strong candidate for the default retrieval preset.
+- Zhang et al., 2025, [*LevelRAG: Enhancing Retrieval-Augmented Generation with Multi-hop Logic Planning over Rewriting Augmented Searchers*](https://arxiv.org/abs/2502.18139) — decomposes complex queries into atomic sub-queries routed across multiple retrievers, independent of retriever-specific optimisation. Aligns with a "structured retrieval" preset combining graph, dense, and re-ranking stages.
+- AWS, 2024, [*Integrate sparse and dense vectors to enhance knowledge retrieval in RAG using Amazon OpenSearch Service*](https://aws.amazon.com/blogs/big-data/integrate-sparse-and-dense-vectors-to-enhance-knowledge-retrieval-in-rag-using-amazon-opensearch-service) — demonstrates neural sparse + dense hybrids on OpenSearch, directly applicable to Cake's stack. Suggests shipping a standard OpenSearch hybrid retriever module with tunable weights and field boosts, plus configuration templates for common corpus shapes (documentation, code, FAQ-heavy knowledge bases).
 - Domain-specific hybrid QA studies (2024–2025) report that dense + BM25 hybrids significantly improve question answering in specialised domains.
 
 **Open questions**
@@ -112,8 +112,8 @@ Hybrid search, re-ranking, and query expansion should all be first-class pipelin
 
 **Relevant work**
 
-- Zhu et al., 2025, *KG²RAG* — combines semantic retrieval with knowledge-graph-guided organisation and cross-encoder re-ranking. Points toward graph-aware re-rankers as an advanced option for tenants with graph data.
-- *Beyond Retrieval: Ensembling Cross-Encoders and GPT* (2025) — ensembles cross-encoders with LLM re-rankers for biomedical QA. Motivates pluggable re-ranker backends in Cake ("lightweight cross-encoder", "LLM re-ranker", "ensemble"), configurable per tenant.
+- Zhu et al., 2025, [*Knowledge Graph-Guided Retrieval Augmented Generation* (KG²RAG)](https://arxiv.org/abs/2502.06864) (NAACL 2025) — combines semantic retrieval with knowledge-graph-guided organisation and cross-encoder re-ranking. Points toward graph-aware re-rankers as an advanced option for tenants with graph data.
+- Verma et al., 2025, [*Beyond Retrieval: Ensembling Cross-Encoders and GPT Rerankers with LLMs for Biomedical QA*](https://arxiv.org/abs/2507.05577) — ensembles cross-encoders with LLM re-rankers for biomedical QA. Motivates pluggable re-ranker backends in Cake ("lightweight cross-encoder", "LLM re-ranker", "ensemble"), configurable per tenant.
 - Industry analyses (Pinecone, Databricks, and others) consistently identify re-ranking as one of the simplest high-impact additions to a RAG stack.
 
 **Open questions**
@@ -145,14 +145,14 @@ Hybrid search, re-ranking, and query expansion should all be first-class pipelin
 
 **Relevant work**
 
-- Zhang et al., 2025, *LevelRAG* — treats query rewriting as a general planning layer decoupled from any single retriever. For Cake, this suggests a "retrieval planner" abstraction: one module performs query decomposition and expansion, then routes sub-queries across hybrid retrievers.
-- Pan et al., 2025, *LLM-QE* — LLM-based query expansion using a Gaussian-kernel semantic space to refine multiple expansion vectors for dense retrieval. A future research direction rather than an MVP feature; a simplified multi-embedding expansion mode could follow later.
-- Zhang et al., 2024, *Exploring Best Practices of Query Expansion with LLMs for IR* — systematic study showing that query expansion helps weaker retrievers most; strong dense models already perform some semantic expansion implicitly. For Cake, expansion should be optional and primarily valuable for tenants using cheaper embedding models.
+- Zhang et al., 2025, [*LevelRAG*](https://arxiv.org/abs/2502.18139) — treats query rewriting as a general planning layer decoupled from any single retriever. For Cake, this suggests a "retrieval planner" abstraction: one module performs query decomposition and expansion, then routes sub-queries across hybrid retrievers.
+- Pan et al., 2025, [*LLM-Based Query Expansion with Gaussian Kernel Semantic Enhancement for Dense Retrieval*](https://www.mdpi.com/2079-9292/14/9/1744) (Electronics 14(9)) — query expansion using a Gaussian-kernel semantic space to refine multiple expansion vectors for dense retrieval. A future research direction rather than an MVP feature; a simplified multi-embedding expansion mode could follow later.
+- Zhang et al., 2024, [*Exploring the Best Practices of Query Expansion with Large Language Models*](https://aclanthology.org/2024.findings-emnlp.103/) (Findings of EMNLP 2024) — systematic study showing that query expansion helps weaker retrievers most; strong dense models already perform some semantic expansion implicitly. For Cake, expansion should be optional and primarily valuable for tenants using cheaper embedding models.
 
 **Open questions**
 
 - Evaluate per tenant whether query expansion helps, using small offline tests.
-- Investigate retrieval-based expansion (Olivera, 2025), where expansions are themselves retrieved and re-scored.
+- Investigate retrieval-grounded expansion in the style of the [RFG framework](https://www.scitepress.org/Link.aspx?doi=10.5220/0013836900004000) (Vega Centeno Olivera et al., KDIR 2025), where expansions are grounded in feedback from an initial retrieval and re-scored.
 
 ---
 
@@ -190,9 +190,9 @@ Chunking determines how raw documents are divided into embedding units. Recent l
 
 **Relevant work**
 
-- Chroma, 2024, *Evaluating Chunking Strategies for Retrieval* — rigorous comparison of chunking strategies using recall, precision, and IoU-style metrics; semantic and metadata-aware chunkers outperform naive ones, with open-source tooling. Cake could productise a comparable chunking evaluation lab — something few frameworks offer.
-- Merola et al., 2025, *Evaluating Advanced Chunking Strategies for RAG* — compares late chunking with contextual retrieval; contextual retrieval preserves coherence at higher cost, late chunking is efficient but loses detail. Suggests a "contextual retrieval mode" as an advanced option for high-value tenants.
-- Multimodal chunking for PDFs (2025) — uses multimodal models to handle tables, figures, and cross-page structure. Relevant for enterprises with heavy reporting output.
+- Smith and Troynikov (Chroma), 2024, [*Evaluating Chunking Strategies for Retrieval*](https://research.trychroma.com/evaluating-chunking) — rigorous comparison of chunking strategies using recall, precision, and IoU-style metrics; semantic and metadata-aware chunkers outperform naive ones, with open-source tooling. Cake could productise a comparable chunking evaluation lab — something few frameworks offer.
+- Merola and Singh, 2025, [*Reconstructing Context: Evaluating Advanced Chunking Strategies for Retrieval-Augmented Generation*](https://arxiv.org/abs/2504.19754) — compares late chunking with contextual retrieval; contextual retrieval preserves coherence at higher cost, late chunking is efficient but loses detail. Suggests a "contextual retrieval mode" as an advanced option for high-value tenants.
+- Tripathi et al., 2025, [*Vision-Guided Chunking Is All You Need: Enhancing RAG with Multimodal Document Understanding*](https://arxiv.org/abs/2506.16035) — uses multimodal models to handle tables, figures, and cross-page structure. Relevant for enterprises with heavy reporting output.
 
 ### 2.2 Overlapping Windows
 
@@ -375,8 +375,8 @@ Rather than passing context to the LLM with a bare "answer this", augmented gene
 
 **Relevant work**
 
-- Zhang et al., 2025, *LevelRAG* — a high-level searcher coordinating multiple low-level searchers via query decomposition.
-- Verma et al., 2025, *PLAN-RAG: Planning-guided Retrieval Augmented Generation* — matches the plan-then-retrieve paradigm.
+- Zhang et al., 2025, [*LevelRAG*](https://arxiv.org/abs/2502.18139) — a high-level searcher coordinating multiple low-level searchers via query decomposition.
+- Verma et al., 2024, [*Plan\*RAG: Efficient Test-Time Planning for Retrieval Augmented Generation*](https://arxiv.org/abs/2410.20753) (originally circulated as *Plan×RAG: Planning-guided Retrieval Augmented Generation*) — matches the plan-then-retrieve paradigm.
 - Work on question decomposition with cross-encoder re-ranking further supports staged, planned retrieval.
 
 For Cake: make the retrieval plan an explicit data structure in the pipeline rather than hidden prompt text, and keep the pipeline modular enough to add a planner stage later. Eventually, advanced users could supply simple planners (in Elixir) that choose retrieval strategy by question type.
@@ -411,9 +411,9 @@ This area covers preventing and detecting hallucinations and unfaithful answers 
 
 **Relevant work**
 
-- FaithJudge and the Vectara hallucination leaderboards (2025) — benchmark RAG faithfulness via LLM-as-judge.
-- Wallat et al., 2025, *Correctness is Not Faithfulness in RAG* — demonstrates that a correct citation is insufficient; the citation must actually ground the answer.
-- MetaRAG (2025) — a metamorphic testing framework for hallucination detection in production RAG systems where gold labels are unavailable.
+- Tamber et al. (Vectara), 2025, [*Benchmarking LLM Faithfulness in RAG with Evolving Leaderboards*](https://arxiv.org/abs/2505.04847) (EMNLP 2025 Industry) — introduces the FaithJudge framework and [hallucination leaderboard](https://github.com/vectara/FaithJudge) for LLM-as-judge faithfulness evaluation.
+- Wallat et al., 2024, [*Correctness is not Faithfulness in RAG Attributions*](https://arxiv.org/abs/2412.18004) — demonstrates that a correct citation is insufficient; the citation must actually ground the answer.
+- Sok et al., 2025, [*MetaRAG: Metamorphic Testing for Hallucination Detection in RAG Systems*](https://arxiv.org/abs/2509.09360) — a metamorphic testing framework for hallucination detection in production RAG systems where gold labels are unavailable.
 
 For Cake: short term, a simple faithfulness scorer using LLM-as-judge over the retrieved context; longer term, metamorphic tests integrated into the evaluation suite.
 
@@ -439,8 +439,8 @@ For Cake: short term, a simple faithfulness scorer using LLM-as-judge over the r
 
 **Relevant work**
 
-- CiteFix (2025) — post-processing that improves citation accuracy at minimal cost.
-- RAGE and related work — citation metrics for evaluating and tuning RAG systems.
+- Maheshwari et al., 2025, [*CiteFix: Enhancing RAG Accuracy Through Post-Processing Citation Correction*](https://arxiv.org/abs/2504.15629) (ACL 2025 Industry) — post-processing that improves citation accuracy at minimal cost.
+- Penzkofer and Baumann, 2024, [*Evaluating and Fine-Tuning Retrieval-Augmented Language Models to Generate Text with Accurate Citations*](https://aclanthology.org/2024.konvens-main.6/) (KONVENS 2024; the RAGE toolkit) — citation precision/recall metrics for evaluating and tuning RAG systems.
 
 For Cake: make citations mandatory for factual QA modes; build a generic citation data model (`chunk_id`, `char_span`, `doc_url`); and let tenant UIs style citations as they see fit.
 
@@ -471,7 +471,7 @@ This area moves beyond treating documents as bags of words, exploiting schemas, 
 - Combine structured queries (SQL, filters) with text search.
 - Summarise structured outputs into LLM-friendly snippets.
 
-**Relevant work.** Cheerla et al., 2025, *Advancing RAG for Structured and Semi-Structured Data* — hybrid retrieval combining BM25, dense retrieval, and metadata-aware filtering over structured data. For Cake: define a schema ingestion interface so that, given a table or API, Cake can build metadata-aware filters and join structured results with text context.
+**Relevant work.** Cheerla, 2025, [*Advancing Retrieval-Augmented Generation for Structured Enterprise and Internal Data*](https://arxiv.org/abs/2507.12425) — hybrid retrieval combining BM25, dense retrieval, and metadata-aware filtering over structured data. For Cake: define a schema ingestion interface so that, given a table or API, Cake can build metadata-aware filters and join structured results with text context.
 
 ### 6.2 Graph-Augmented Retrieval
 
@@ -497,9 +497,9 @@ This area moves beyond treating documents as bags of words, exploiting schemas, 
 
 **Relevant work**
 
-- Zhu et al., 2025, *KG²RAG* — semantic retrieval, then knowledge-graph-guided expansion and organisation into paragraphs for RAG.
-- Liu et al., 2025, *GGR* — GNN-guided KG-RAG that preserves key reasoning paths.
-- GraphRAG and related enterprise deployments report substantial gains on cross-document reasoning.
+- Zhu et al., 2025, [*KG²RAG*](https://arxiv.org/abs/2502.06864) — semantic retrieval, then knowledge-graph-guided expansion and organisation into paragraphs for RAG.
+- Liu et al., 2025, [*Knowledge Graph Retrieval-Augmented Generation via GNN-Guided Prompting*](https://openreview.net/forum?id=R1NWMExESj) (GGR) — GNN-guided KG-RAG that preserves key reasoning paths.
+- Edge et al., 2024, [*From Local to Global: A Graph RAG Approach to Query-Focused Summarization*](https://arxiv.org/abs/2404.16130) (Microsoft GraphRAG) and related enterprise deployments report substantial gains on cross-document reasoning.
 
 For Cake: do not attempt full GraphRAG in v1. Instead, provide hooks for tenants who already have graphs, and offer a basic document-derived graph (entities, document IDs, links).
 
@@ -552,7 +552,7 @@ Multi-turn RAG requires tracking what has been said, what has been retrieved, an
 - Bound short-term memory: the last N turns plus a running summary.
 - Summarise older turns.
 
-**Relevant work.** Surveys of RAG-driven memory architectures (2025) and multi-turn benchmarks such as MTRAG evaluate multi-turn retrieval and reasoning directly. For Cake: provide a built-in conversation memory store and retrieval hook, separate from the main knowledge base, with tenant-tunable memory length and summarisation strategy.
+**Relevant work.** Surveys of memory architectures in LLM systems (e.g. Wu et al., 2025, [*From Human Memory to AI Memory*](https://arxiv.org/abs/2504.15965)) and multi-turn benchmarks such as [MTRAG](https://arxiv.org/abs/2501.03468) evaluate multi-turn retrieval and reasoning directly. For Cake: provide a built-in conversation memory store and retrieval hook, separate from the main knowledge base, with tenant-tunable memory length and summarisation strategy.
 
 ### 7.2 Long-Term Memory
 
@@ -593,7 +593,7 @@ Multi-turn RAG requires tracking what has been said, what has been retrieved, an
 - Use a small coreference resolver over recent turns.
 - Use retrieval over conversation memory to find the most recently discussed entity.
 
-**Relevant work.** Multi-turn benchmarks such as MTRAG (2025) centre on QA where context tracking is essential. For Cake: make reference resolution an explicit pipeline step that rewrites the raw user query into a fully de-referenced query.
+**Relevant work.** Multi-turn benchmarks such as [MTRAG](https://arxiv.org/abs/2501.03468) (Katsis et al., 2025) centre on QA where context tracking is essential. For Cake: make reference resolution an explicit pipeline step that rewrites the raw user query into a fully de-referenced query.
 
 ---
 
@@ -625,9 +625,9 @@ Evaluation cannot be an afterthought. Production RAG requires constant measureme
 
 **Relevant work**
 
-- Saad-Falcon et al., 2024, *ARES* — automated RAG evaluation using synthetic queries and LLM judges.
-- FRAMES (2024) — a unified dataset for evaluating factuality, retrieval, and reasoning in RAG.
-- Synthetic test collections for IR (2024) — fully synthetic IR benchmarks built with LLMs.
+- Saad-Falcon et al., 2024, [*ARES: An Automated Evaluation Framework for Retrieval-Augmented Generation Systems*](https://aclanthology.org/2024.naacl-long.20/) (NAACL 2024) — automated RAG evaluation using synthetic queries and LLM judges.
+- Krishna et al., 2024, [*Fact, Fetch, and Reason: A Unified Evaluation of Retrieval-Augmented Generation*](https://arxiv.org/abs/2409.12941) (the FRAMES benchmark) — a unified dataset for evaluating factuality, retrieval, and reasoning in RAG.
+- Rahmani et al., 2024, [*Synthetic Test Collections for Retrieval Evaluation*](https://arxiv.org/abs/2405.07767) (SIGIR 2024) — fully synthetic IR benchmarks built with LLMs.
 
 For Cake: build a synthetic evaluation kit — given a corpus, auto-generate 100–500 synthetic queries and answers, run them through different Cake pipelines, and report recall, precision, and faithfulness metrics.
 
