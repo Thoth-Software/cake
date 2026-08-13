@@ -46,6 +46,22 @@ defmodule Cake.ConversationTest do
     :ok
   end
 
+  # Sets an app-env override for the duration of the test, restoring the
+  # pre-test value on exit — or deleting the key if it was previously unset —
+  # so overrides can't leak into later tests. fetch_env/2 (not get_env/2)
+  # keeps a key stored as nil distinguishable from an absent key.
+  defp put_temporary_env(key, value) do
+    original = Application.fetch_env(:cake, key)
+    Application.put_env(:cake, key, value)
+
+    on_exit(fn ->
+      case original do
+        {:ok, original_value} -> Application.put_env(:cake, key, original_value)
+        :error -> Application.delete_env(:cake, key)
+      end
+    end)
+  end
+
   defp test_provenance, do: %Provenance{search_type: :hybrid, query_text: "test"}
 
   defp wrap_result(unit, opts \\ []) do
@@ -1692,6 +1708,218 @@ defmodule Cake.ConversationTest do
     test "empty sub-question result lists merge to an empty list" do
       assert Conversation.merge_decomposed_results([]) == []
       assert Conversation.merge_decomposed_results([[], []]) == []
+    end
+  end
+
+  describe "concurrent sub-question fan-out" do
+    test "sub-question searches run concurrently" do
+      question = "How does the RO-400 flow rate compare to the RO-500?"
+      sub_a = "What is the flow rate of the RO-400?"
+      sub_b = "What is the flow rate of the RO-500?"
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+      end)
+
+      # Each embed announces itself and then blocks until the test releases
+      # it. Receiving BOTH announcements while neither embed has been
+      # released is only possible if the sub-searches run concurrently.
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, _model ->
+        send(test_pid, {:embed_started, input, self()})
+
+        receive do
+          :release -> {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+        end
+      end)
+
+      stub(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-a", body: "flow rate chunk")]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
+        %Cake.Responses.Result{
+          raw_text: "answer",
+          final_text: "answer",
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer", usage: %{}}}
+      end)
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:embed_started, _first, embedder_a}
+      assert_receive {:embed_started, _second, embedder_b}
+      send(embedder_a, :release)
+      send(embedder_b, :release)
+
+      assert_receive {:response_ready, %{response: "answer"}}
+    end
+
+    test "a timed-out sub-question search fails the turn" do
+      put_temporary_env(:sub_search_timeout, 50)
+
+      question = "How does the RO-400 flow rate compare to the RO-500?"
+      sub_a = "What is the flow rate of the RO-400?"
+      sub_b = "What is the flow rate of the RO-500?"
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+      end)
+
+      # Never released: with the 50ms config ceiling, the sub-searches
+      # exceed their budget and the turn must fail.
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _params, _model ->
+        receive do
+          :release -> {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+        end
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:error, :sub_search_timeout}
+      assert_receive {:state_change, :idle}
+    end
+
+    test "one failing sub-search fails the turn even when the others succeed" do
+      question = "How does the RO-400 flow rate compare to the RO-500?"
+      sub_a = "What is the flow rate of the RO-400?"
+      sub_b = "What is the flow rate of the RO-500?"
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+      end)
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, %{input: input}, _model ->
+        case input do
+          ^sub_a -> {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+          ^sub_b -> {:error, :embed_failed_b}
+        end
+      end)
+
+      stub(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-a", body: "flow rate chunk")]}
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:error, :embed_failed_b}
+      assert_receive {:state_change, :idle}
+    end
+
+    test "when several sub-searches fail, the lowest-index error is reported" do
+      question = "How does the RO-400 flow rate compare to the RO-500?"
+      sub_a = "What is the flow rate of the RO-400?"
+      sub_b = "What is the flow rate of the RO-500?"
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+      end)
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, %{input: input}, _model ->
+        case input do
+          ^sub_a -> {:error, :embed_failed_a}
+          ^sub_b -> {:error, :embed_failed_b}
+        end
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:error, :embed_failed_a}
+      assert_receive {:state_change, :idle}
+    end
+
+    test "max_sub_search_concurrency: 1 forces sequential sub-searches" do
+      put_temporary_env(:max_sub_search_concurrency, 1)
+
+      question = "How does the RO-400 flow rate compare to the RO-500?"
+      sub_a = "What is the flow rate of the RO-400?"
+      sub_b = "What is the flow rate of the RO-500?"
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, _model ->
+        send(test_pid, {:embed_started, input, self()})
+
+        receive do
+          :release -> {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+        end
+      end)
+
+      stub(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-a", body: "flow rate chunk")]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
+        %Cake.Responses.Result{
+          raw_text: "answer",
+          final_text: "answer",
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer", usage: %{}}}
+      end)
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:embed_started, first_input, first_embedder}
+      assert first_input == sub_a
+
+      # With the cap at 1, the second sub-search must not start while the
+      # first is still in flight.
+      refute_receive {:embed_started, _input, _pid}, 100
+
+      send(first_embedder, :release)
+
+      assert_receive {:embed_started, second_input, second_embedder}
+      assert second_input == sub_b
+      send(second_embedder, :release)
+
+      assert_receive {:response_ready, %{response: "answer"}}
     end
   end
 end

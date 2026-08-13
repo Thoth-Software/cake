@@ -52,6 +52,12 @@ config :cake, Cake.Conversation,
   response_model: "gpt-4o-mini",
   provider: :openai
 
+# Concurrency cap for decomposed sub-question searches within one turn.
+# Each sub-search is an embedding call plus a search-backend query, so the
+# provider rate limit is the real ceiling. Set to 1 to force sequential
+# fan-out in constrained environments (e.g. Colima's default FD limits).
+config :cake, :max_sub_search_concurrency, 4
+
 # Filesystem root that book downloads must resolve under. BooksController
 # refuses to serve any ParsedBook whose source_file_path escapes this directory,
 # so a poisoned/buggy path in the DB can't be used to read arbitrary files.

@@ -31,6 +31,15 @@ defmodule Cake.Conversation do
   `Cake.Search.Provenance` is stamped with `decomposed: true`, the
   `original_query`, and its `sub_question_index`.
 
+  Sub-question searches fan out concurrently under `Cake.TaskSupervisor`,
+  capped by `config :cake, :max_sub_search_concurrency` (default 4; set to
+  1 to force sequential fan-out in constrained environments). Each
+  sub-search must finish within `config :cake, :sub_search_timeout`
+  (default 30s). Failure handling is all-or-nothing: any sub-search error,
+  timeout (`:sub_search_timeout`), or crash
+  (`{:sub_search_crashed, reason}`) fails the whole turn, reporting the
+  lowest-index failure — there is no partial context.
+
   ## Dependencies
 
   Search, embeddings, generation, responses, and (optionally) decomposition
@@ -63,6 +72,9 @@ defmodule Cake.Conversation do
   alias Cake.Search.Result
 
   require Logger
+
+  @default_max_sub_search_concurrency 4
+  @default_sub_search_timeout :timer.seconds(30)
 
   @spec child_spec(map()) :: Supervisor.child_spec()
   def child_spec(opts) do
@@ -223,8 +235,9 @@ defmodule Cake.Conversation do
   end
 
   # An atomic decomposition takes the same single-search path as no
-  # decomposition at all; a decomposed one searches each sub-question in
-  # index order, halting on the first error.
+  # decomposition at all; a decomposed one searches every sub-question
+  # concurrently, all-or-nothing: any sub-search error or timeout fails the
+  # turn, reporting the lowest-index failure.
   defp search_decomposed(%Cake.Decomposition.Result{sub_questions: []} = decomposition, s) do
     embed_and_search(decomposition.original_question, s)
   end
@@ -235,21 +248,50 @@ defmodule Cake.Conversation do
     end
   end
 
+  # Fan-out reuses the shared Cake.TaskSupervisor (the turn task's home). If
+  # decomposition ever climbs above ~5 sub-questions per turn, give
+  # sub-search fan-out a dedicated Task.Supervisor so it can't starve turn
+  # tasks.
   defp search_sub_questions(decomposition, s) do
     result =
-      decomposition.question_index
-      |> Enum.sort_by(fn {index, _sub_question} -> index end)
-      |> Enum.reduce_while({:ok, []}, fn {index, sub_question}, {:ok, groups} ->
-        case embed_and_search(sub_question, s) do
-          {:ok, results} ->
-            {:cont, {:ok, [stamp_decomposition(results, decomposition, index) | groups]}}
-
-          {:error, _} = error ->
-            {:halt, error}
-        end
-      end)
+      Cake.TaskSupervisor
+      |> Task.Supervisor.async_stream_nolink(
+        Enum.sort_by(decomposition.question_index, fn {index, _sub_question} -> index end),
+        fn {index, sub_question} ->
+          with {:ok, results} <- embed_and_search(sub_question, s) do
+            {:ok, stamp_decomposition(results, decomposition, index)}
+          end
+        end,
+        ordered: true,
+        max_concurrency: max_sub_search_concurrency(),
+        timeout: sub_search_timeout(),
+        on_timeout: :kill_task
+      )
+      |> Enum.reduce_while({:ok, []}, &collect_sub_search/2)
 
     with {:ok, groups} <- result, do: {:ok, Enum.reverse(groups)}
+  end
+
+  # `ordered: true` yields task outcomes in question_index order, so the
+  # first non-ok outcome is the lowest-index failure; halting also shuts
+  # down the still-running sibling tasks.
+  defp collect_sub_search({:ok, {:ok, group}}, {:ok, groups}),
+    do: {:cont, {:ok, [group | groups]}}
+
+  defp collect_sub_search({:ok, {:error, _} = error}, _acc), do: {:halt, error}
+  defp collect_sub_search({:exit, :timeout}, _acc), do: {:halt, {:error, :sub_search_timeout}}
+
+  defp collect_sub_search({:exit, reason}, _acc),
+    do: {:halt, {:error, {:sub_search_crashed, reason}}}
+
+  defp max_sub_search_concurrency do
+    Application.get_env(:cake, :max_sub_search_concurrency, @default_max_sub_search_concurrency)
+  end
+
+  # JC-1 fixed the production ceiling at 30s; the config read exists so
+  # tests can shrink it to trigger the timeout path deterministically.
+  defp sub_search_timeout do
+    Application.get_env(:cake, :sub_search_timeout, @default_sub_search_timeout)
   end
 
   defp stamp_decomposition([], _decomposition, _index), do: []
