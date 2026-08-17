@@ -33,7 +33,7 @@ Raw data structs hold the original fetched content before it is parsed into a GD
 
 Current raw data structs:
 
-- **`Cake.Documents.Hexdocs.Hexdoc`** — stores the raw HTML content fetched from hex.pm tarballs. Intermediate storage between download and parsing into `ParsedDocument`.
+- **`Cake.Documents.Hexdocs.Hexdoc`** — stores raw Elixir source cloned from the elixir-lang/elixir repository. Intermediate storage between download and parsing into `ParsedDocument`.
 
 ### Retrievables (Searchable Units)
 
@@ -191,7 +191,7 @@ Every custom struct in Cake, its module, its purpose, and whether it defines a `
 | `ParsedBook` | `Cake.Books.ParsedBook` | Book-level metadata for book-like documents. GDS identity module for the Books GDS. |
 | `Chunk` | `Cake.Books.Chunk` | Atomic searchable text fragment within a book. Retrieval unit for the Books GDS. |
 | `ParsedDocument` | `Cake.Documents.ParsedDocument` | Programming documentation entry. Both GDS identity and retrieval unit for the Documents GDS. |
-| `Hexdoc` | `Cake.Documents.Hexdocs.Hexdoc` | Raw HTML content fetched from hex.pm. Intermediate storage (raw data struct). |
+| `Hexdoc` | `Cake.Documents.Hexdocs.Hexdoc` | Raw Elixir source cloned from the elixir-lang/elixir repository. Intermediate storage (raw data struct). |
 | `FailedIngest` | `Cake.FailedIngests.FailedIngest` | Persists item-level pipeline failures for retry via `sweep/5`. |
 | `User` | `Cake.Accounts.User` | Phoenix authentication user record. |
 | `UserToken` | `Cake.Accounts.UserToken` | Session and email confirmation tokens. |
@@ -204,12 +204,20 @@ Every custom struct in Cake, its module, its purpose, and whether it defines a `
 | `Search.Query` | `Cake.Search.Query` | Composable query builder. Fields: `index`, `size`, `must`, `should`, `filter`, `min_score`. |
 | `Search.Hit` | `Cake.Search.Hit` | Backend-agnostic search hit. Every backend maps its native hit type into this struct at the boundary. Fields: `id`, `score`, `source`. |
 | `Search.Result` | `Cake.Search.Result` | Normalized search result. Carries retrieval unit, backend score, CAKE-computed scores (cosine, relevance), hit provenance (search vs. expansion), search conditions, and prompt index. Single carrier of all retrieval metadata through the pipeline. |
-| `Search.Provenance` | `Cake.Search.Provenance` | Search conditions (type, query text, decomposition flag, embedding model) attached to each `Search.Result`. |
+| `Search.Provenance` | `Cake.Search.Provenance` | Search conditions attached to each `Search.Result`: search type, query text, decomposition traceability (`decomposed`, `original_query`, `sub_question_index`), and embedding model. |
 | `Responses.Result` | `Cake.Responses.Result` | Output struct from post-generation processing. Contains the formatted response, citations, and chunk map. |
-| `Conversation.State` | `Cake.Conversation.State` | Internal state for the `Conversation` GenServer: id, collaborator modules (embeddings, generation, responses, gds), message history, retrieved results, chunk map, citations, and the turn FSM state. |
+| `Conversation.State` | `Cake.Conversation.State` | Internal state for the `Conversation` GenServer: id, collaborator modules (embeddings, generation, responses, decomposition, gds), message history, retrieved results, chunk map, citations, and the turn FSM state. |
 | `Books.PageContent` | `Cake.Books.PageContent` | Elixir-side struct the Rust PDF NIF decodes into (via NifStruct): one page's extracted text and page number. |
 | `Books.PdfExtraction` | `Cake.Books.PdfExtraction` | Elixir-side struct the Rust PDF NIF decodes into: the full extraction result (pages, skipped pages, title). |
 | `Books.SkippedPage` | `Cake.Books.SkippedPage` | Elixir-side struct the Rust PDF NIF decodes into: a page that could not be extracted, with its page number. |
+| `Decomposition.Result` | `Cake.Decomposition.Result` | Outcome of decomposing a question: `original_question`, `strategy` (`:none` \| `:flat`), `sub_questions`, and `question_index` mapping positional index → sub-question text so `Search.Provenance` can reference sub-questions by index. |
+
+### Embedded Schemas (LiveView forms)
+
+| Struct | Module | Purpose |
+|---|---|---|
+| `QuestionForm` | `CakeWeb.ChatLive.QuestionForm` | Embedded schema validating the chat question and mode (`:auto`/`:manual`). |
+| `SelectionForm` | `CakeWeb.ChatLive.SelectionForm` | Embedded schema validating document selection as a non-empty subset of the offered candidate IDs. |
 
 ---
 

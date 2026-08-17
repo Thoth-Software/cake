@@ -124,7 +124,7 @@ After any task that changes architecture, module boundaries, conventions, or too
 3. Make approved edits before closing.
 4. Unsure whether a change warrants a doc update? Ask.
 
-**Enumeration rule:** if the README lists things (behaviours, protocols, structs, implementations, pipeline implementations) and you create a new instance of that kind, add it to the list.
+**Enumeration rule:** if the README lists things (behaviours, protocols, structs, implementations, pipeline implementations) and you create a new instance of that kind, add it to the list. Every new issue cut must include, as its **final checkbox**, a documentation update that applies this rule — in particular, adding any custom structs the work introduces to the README's struct inventory.
 
 ---
 
