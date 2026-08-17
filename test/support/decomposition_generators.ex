@@ -28,13 +28,17 @@ defmodule Cake.DecompositionGenerators do
     StreamData.string(:printable, min_length: 1, max_length: 40)
   end
 
-  @doc "Generates 1..4 distinct sub-question strings."
-  @spec sub_questions() :: StreamData.t([String.t()])
+  @doc "Generates 1..4 flat sub-question entries (`depends_on: []`) with distinct texts."
+  @spec sub_questions() ::
+          StreamData.t([%{question: String.t(), depends_on: [non_neg_integer()]}])
   def sub_questions do
-    StreamData.uniq_list_of(
-      StreamData.string(:printable, min_length: 1, max_length: 30),
-      min_length: 1,
-      max_length: 4
+    StreamData.map(
+      StreamData.uniq_list_of(
+        StreamData.string(:printable, min_length: 1, max_length: 30),
+        min_length: 1,
+        max_length: 4
+      ),
+      fn questions -> Enum.map(questions, &%{question: &1, depends_on: []}) end
     )
   end
 
@@ -135,7 +139,7 @@ defmodule Cake.DecompositionGenerators do
   defp decomposed_provenance(decomposition, index) do
     %Provenance{
       search_type: :hybrid,
-      query_text: Map.fetch!(decomposition.question_index, index),
+      query_text: Map.fetch!(decomposition.question_index, index).question,
       decomposed: true,
       original_query: decomposition.original_question,
       sub_question_index: index

@@ -1586,7 +1586,11 @@ defmodule Cake.ConversationTest do
       hit_c = build_search_hit(id: "unit-c", body: "RO-500 chunk")
 
       expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
-        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+        {:ok,
+         Cake.Decomposition.Result.new(question, [
+           %{question: sub_a, depends_on: []},
+           %{question: sub_b, depends_on: []}
+         ])}
       end)
 
       expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, _model ->
@@ -1719,7 +1723,11 @@ defmodule Cake.ConversationTest do
       test_pid = self()
 
       expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
-        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+        {:ok,
+         Cake.Decomposition.Result.new(question, [
+           %{question: sub_a, depends_on: []},
+           %{question: sub_b, depends_on: []}
+         ])}
       end)
 
       # Each embed announces itself and then blocks until the test releases
@@ -1777,7 +1785,11 @@ defmodule Cake.ConversationTest do
       sub_b = "What is the flow rate of the RO-500?"
 
       expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
-        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+        {:ok,
+         Cake.Decomposition.Result.new(question, [
+           %{question: sub_a, depends_on: []},
+           %{question: sub_b, depends_on: []}
+         ])}
       end)
 
       # Never released: with the 50ms config ceiling, the sub-searches
@@ -1805,7 +1817,11 @@ defmodule Cake.ConversationTest do
       sub_b = "What is the flow rate of the RO-500?"
 
       expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
-        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+        {:ok,
+         Cake.Decomposition.Result.new(question, [
+           %{question: sub_a, depends_on: []},
+           %{question: sub_b, depends_on: []}
+         ])}
       end)
 
       stub(Cake.Embeddings.Mock, :embed, fn :openai, %{input: input}, _model ->
@@ -1837,7 +1853,11 @@ defmodule Cake.ConversationTest do
       sub_b = "What is the flow rate of the RO-500?"
 
       expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
-        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+        {:ok,
+         Cake.Decomposition.Result.new(question, [
+           %{question: sub_a, depends_on: []},
+           %{question: sub_b, depends_on: []}
+         ])}
       end)
 
       stub(Cake.Embeddings.Mock, :embed, fn :openai, %{input: input}, _model ->
@@ -1867,7 +1887,11 @@ defmodule Cake.ConversationTest do
       test_pid = self()
 
       expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
-        {:ok, Cake.Decomposition.Result.new(question, [sub_a, sub_b])}
+        {:ok,
+         Cake.Decomposition.Result.new(question, [
+           %{question: sub_a, depends_on: []},
+           %{question: sub_b, depends_on: []}
+         ])}
       end)
 
       expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, _model ->

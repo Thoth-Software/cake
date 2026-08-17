@@ -49,9 +49,11 @@ defmodule Cake.Decomposition.LLMTest do
       assert result.question_index == %{}
     end
 
-    test "a decomposed response produces strategy :flat with the sub-questions indexed" do
+    test "a decomposed response produces a flat DAG with the entries indexed" do
       sub_question_a = "What are the specs of the RO-400?"
       sub_question_b = "What are the specs of the RO-500?"
+      entry_a = %{question: sub_question_a, depends_on: []}
+      entry_b = %{question: sub_question_b, depends_on: []}
 
       expect(Cake.Generation.Mock, :complete_json, fn _messages, _model, _opts ->
         completion(%{"sub_questions" => [sub_question_a, sub_question_b]})
@@ -60,8 +62,8 @@ defmodule Cake.Decomposition.LLMTest do
       assert {:ok, result} = LLM.decompose(@question, generation: Cake.Generation.Mock)
       assert result.original_question == @question
       assert result.strategy == :flat
-      assert result.sub_questions == [sub_question_a, sub_question_b]
-      assert result.question_index == %{0 => sub_question_a, 1 => sub_question_b}
+      assert result.sub_questions == [entry_a, entry_b]
+      assert result.question_index == %{0 => entry_a, 1 => entry_b}
     end
 
     test "an empty sub-question list collapses to an atomic result" do

@@ -55,8 +55,13 @@ defmodule Cake.Decomposition.LLMPropertyTest do
       end)
 
       case LLM.decompose("any question", generation: Cake.Generation.Mock) do
-        {:ok, %Result{} = result} -> assert result.original_question == "any question"
-        {:error, reason} -> assert elem(reason, 0) in [:invalid_response, :generation]
+        {:ok, %Result{} = result} ->
+          assert result.original_question == "any question"
+          # The LLM strategy emits flat DAGs only: no entry has dependencies.
+          assert Enum.all?(result.sub_questions, &(&1.depends_on == []))
+
+        {:error, reason} ->
+          assert elem(reason, 0) in [:invalid_response, :generation]
       end
     end
   end
