@@ -96,6 +96,48 @@ defmodule Cake.DecompositionGenerators do
   end
 
   @doc """
+  Generates valid DAG sub-question entry lists: each entry's `depends_on`
+  references only indices that precede it in a hidden topological order, so
+  the graph is acyclic by construction. Half the runs reverse that order,
+  so dependencies point at both lower and higher positional indices.
+  """
+  @spec dag_entries() ::
+          StreamData.t([%{question: String.t(), depends_on: [non_neg_integer()]}])
+  def dag_entries do
+    StreamData.bind(StreamData.integer(1..5), fn count ->
+      deps_gen = StreamData.fixed_list(Enum.map(0..(count - 1), &deps_from_earlier/1))
+
+      StreamData.bind(deps_gen, fn deps_list ->
+        StreamData.map(StreamData.boolean(), &build_dag(deps_list, &1))
+      end)
+    end)
+  end
+
+  defp build_dag(deps_list, reversed?) do
+    entries =
+      deps_list
+      |> Enum.with_index()
+      |> Enum.map(fn {deps, index} -> %{question: "sub-question #{index}", depends_on: deps} end)
+
+    if reversed?, do: reverse_dag(entries), else: entries
+  end
+
+  @doc """
+  Generates dependency rings (entry `i` depends on entry `i + 1`, wrapping
+  around), the minimal cyclic graphs `Cake.Decomposition.Result.new/2`
+  must reject.
+  """
+  @spec cyclic_entries() ::
+          StreamData.t([%{question: String.t(), depends_on: [non_neg_integer()]}])
+  def cyclic_entries do
+    StreamData.map(StreamData.integer(2..5), fn count ->
+      Enum.map(0..(count - 1), fn index ->
+        %{question: "sub-question #{index}", depends_on: [rem(index + 1, count)]}
+      end)
+    end)
+  end
+
+  @doc """
   Generates LLM response text: words interleaved with `[N]` citation
   markers, `N` in `1..#{@max_citation_index}`. Markers beyond the indexed
   context's size exercise the hallucinated-citation path.
@@ -109,6 +151,27 @@ defmodule Cake.DecompositionGenerators do
       ])
 
     StreamData.map(StreamData.list_of(segment, max_length: 12), &Enum.join(&1, " "))
+  end
+
+  defp deps_from_earlier(0), do: StreamData.constant([])
+
+  defp deps_from_earlier(index) do
+    StreamData.map(
+      StreamData.list_of(StreamData.integer(0..(index - 1)), max_length: index),
+      &Enum.uniq/1
+    )
+  end
+
+  # Reversing the entry order (and relabeling dependencies to match)
+  # preserves acyclicity while producing dependencies on higher indices.
+  defp reverse_dag(entries) do
+    count = length(entries)
+
+    entries
+    |> Enum.reverse()
+    |> Enum.map(fn %{question: question, depends_on: deps} ->
+      %{question: question, depends_on: Enum.map(deps, &(count - 1 - &1))}
+    end)
   end
 
   defp unit_id_pool do
@@ -135,7 +198,7 @@ defmodule Cake.DecompositionGenerators do
   defp decomposed_provenance(decomposition, index) do
     %Provenance{
       search_type: :hybrid,
-      query_text: Map.fetch!(decomposition.question_index, index),
+      query_text: Map.fetch!(decomposition.question_index, index).question,
       decomposed: true,
       original_query: decomposition.original_question,
       sub_question_index: index
