@@ -40,7 +40,7 @@ defmodule Cake.Conversation do
   resolves least-to-most: sub-questions run one at a time in topological
   order, each prompt carrying the accumulated prior question/answer pairs,
   budgeted by the `:max_context_tokens` opt (default from
-  `config :cake, :decomposition_max_context_tokens`, 4096) with the oldest
+  `config :cake, :decomposition_max_context_tokens, 4096`) with the oldest
   pairs evicted first. The final answer is generated over the merged,
   deduplicated context plus the surviving accumulated answers. Any
   intermediate search or generation error fails the whole turn.
