@@ -100,6 +100,22 @@ defmodule Cake.Decomposition.ResultTest do
              ]
     end
 
+    test "resolving an entry lets a lower ready index win the next tie" do
+      # 1 and 2 start ready; taking 1 unlocks 0, and the ascending tie-break
+      # must then prefer 0 over the still-waiting 2 — a batch peel that
+      # commits to [1, 2] up front gets this wrong.
+      entries = [
+        %{question: "Given B, what is A?", depends_on: [1]},
+        %{question: "What is B?", depends_on: []},
+        %{question: "What is C?", depends_on: []}
+      ]
+
+      result = Result.new("q", entries)
+      order = apply(Result, :topological_order, [result])
+
+      assert Enum.map(order, fn {index, _entry} -> index end) == [1, 0, 2]
+    end
+
     test "independent entries break ties by ascending index" do
       entries = [
         %{question: "What is B?", depends_on: []},

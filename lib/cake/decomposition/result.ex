@@ -101,9 +101,10 @@ defmodule Cake.Decomposition.Result do
 
   @doc """
   Resolution order for the sub-question DAG: every entry appears exactly
-  once, each after all of its dependencies, with independent entries
-  tie-broken by ascending index (so a flat decomposition resolves in
-  positional order). An atomic result yields `[]`.
+  once, each after all of its dependencies, and at every step the
+  smallest ready index resolves next — including indices a just-resolved
+  entry unlocked — so a flat decomposition resolves in positional order.
+  An atomic result yields `[]`.
 
   Total for any `Result` built by `new/2`, which rejects cyclic graphs;
   raises `ArgumentError` on a hand-rolled struct whose graph cycles.
@@ -116,6 +117,9 @@ defmodule Cake.Decomposition.Result do
     |> Enum.map(fn index -> {index, Map.fetch!(question_index, index)} end)
   end
 
+  # One entry per iteration, not a batch: resolving an entry can unlock a
+  # lower index, and the ascending tie-break must consider it before any
+  # higher index that was already ready.
   defp peel_in_order(deps_by_index, order) when map_size(deps_by_index) == 0 do
     Enum.reverse(order)
   end
@@ -125,18 +129,17 @@ defmodule Cake.Decomposition.Result do
       deps_by_index
       |> Enum.filter(fn {_index, deps} -> MapSet.size(deps) == 0 end)
       |> Enum.map(fn {index, _deps} -> index end)
-      |> Enum.sort()
 
     if ready == [] do
       raise ArgumentError, "sub-question dependencies form a cycle"
     end
 
-    ready_set = MapSet.new(ready)
+    next = Enum.min(ready)
 
     deps_by_index
-    |> Map.drop(ready)
-    |> Map.new(fn {index, deps} -> {index, MapSet.difference(deps, ready_set)} end)
-    |> peel_in_order(Enum.reverse(ready) ++ order)
+    |> Map.delete(next)
+    |> Map.new(fn {index, deps} -> {index, MapSet.delete(deps, next)} end)
+    |> peel_in_order([next | order])
   end
 
   defp derive_strategy(entries) do

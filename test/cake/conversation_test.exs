@@ -2065,6 +2065,84 @@ defmodule Cake.ConversationTest do
       end)
     end
 
+    test "strips citation markers from intermediate answers before threading them forward" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      sq_pump = "Which pump does the RO-400 use?"
+      sq_warranty = "What is the warranty on that pump?"
+      marked_answer = "The RO-400 uses the P-100 pump [1]."
+      clean_answer = "The RO-400 uses the P-100 pump."
+      test_pid = self()
+
+      entries = [
+        %{question: sq_pump, depends_on: []},
+        %{question: sq_warranty, depends_on: [0]}
+      ]
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question, entries)}
+      end)
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _params, _model ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      stub(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-a", body: "manual chunk")]}
+      end)
+
+      expect(Cake.Generation.Mock, :complete, 3, fn messages, _model, _opts ->
+        send(test_pid, {:generated, messages})
+
+        answer =
+          case List.last(messages).content do
+            ^sq_pump -> marked_answer
+            ^sq_warranty -> "The P-100 has a 5-year warranty [1]."
+            _final -> "final answer [1]"
+          end
+
+        {:ok, %{text: answer, usage: %{}}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
+        %Cake.Responses.Result{
+          raw_text: "final answer [1]",
+          final_text: "final answer [1]",
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:generated, _step_one}
+      assert_receive {:generated, step_two}
+      assert_receive {:generated, final_step}
+
+      # The pump answer's [1] referred to step one's local chunk numbering;
+      # threaded forward it must arrive marker-free, so a stale index can't
+      # collide with a later prompt's numbering or leak into final citation
+      # resolution.
+      step_two_text = Enum.map_join(step_two, "\n", & &1.content)
+      final_text = Enum.map_join(final_step, "\n", & &1.content)
+
+      assert String.contains?(step_two_text, clean_answer)
+      refute String.contains?(step_two_text, marked_answer)
+      assert String.contains?(final_text, clean_answer)
+      refute String.contains?(final_text, marked_answer)
+      refute String.contains?(final_text, "warranty [1]")
+
+      assert_receive {:response_ready, %{response: "final answer [1]"}}
+    end
+
     test "a zero :max_context_tokens ceiling strips prior answers from every prompt" do
       question = "What is the warranty on the pump used in the RO-400?"
       sq_pump = "Which pump does the RO-400 use?"

@@ -424,8 +424,15 @@ defmodule Cake.Conversation do
              max_context_tokens: s.max_context_tokens
            ),
          {:ok, answer} <- generate(messages, s) do
-      {:ok, {answer, stamped}}
+      {:ok, {strip_citation_markers(answer), stamped}}
     end
+  end
+
+  # An intermediate answer's [N] markers cite that step's local chunk
+  # numbering; threaded forward verbatim they would collide with later
+  # prompts' numbering and could leak into final citation resolution.
+  defp strip_citation_markers(answer) do
+    String.replace(answer, ~r/\s*\[\d+\]/, "")
   end
 
   defp final_sequential_prompt(indexed_chunks, question, answer_pairs, %State{} = s) do
