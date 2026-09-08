@@ -1922,4 +1922,256 @@ defmodule Cake.ConversationTest do
       assert_receive {:response_ready, %{response: "answer"}}
     end
   end
+
+  describe ":max_context_tokens option" do
+    test "defaults from :decomposition_max_context_tokens config, opt wins" do
+      {:ok, default_pid} = Conversation.start_link(valid_opts())
+      on_exit(fn -> if Process.alive?(default_pid), do: GenServer.stop(default_pid) end)
+
+      assert %{max_context_tokens: 4096} = :sys.get_state(default_pid)
+
+      put_temporary_env(:decomposition_max_context_tokens, 1234)
+
+      {:ok, config_pid} = Conversation.start_link(valid_opts())
+      on_exit(fn -> if Process.alive?(config_pid), do: GenServer.stop(config_pid) end)
+
+      assert %{max_context_tokens: 1234} = :sys.get_state(config_pid)
+
+      {:ok, opt_pid} = Conversation.start_link(valid_opts(%{max_context_tokens: 55}))
+      on_exit(fn -> if Process.alive?(opt_pid), do: GenServer.stop(opt_pid) end)
+
+      assert %{max_context_tokens: 55} = :sys.get_state(opt_pid)
+    end
+  end
+
+  describe "sequential resolution (least-to-most)" do
+    test "resolves sub-questions in dependency order, threading prior answers" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      sq_pump = "Which pump does the RO-400 use?"
+      sq_warranty = "What is the warranty on that pump?"
+      answer_pump = "The RO-400 uses the P-100 pump."
+      answer_warranty = "The P-100 has a 5-year warranty."
+      test_pid = self()
+
+      # Positional order is warranty-first; the dependency forces the pump
+      # sub-question to resolve first, so a positional loop fails this test.
+      entries = [
+        %{question: sq_warranty, depends_on: [1]},
+        %{question: sq_pump, depends_on: []}
+      ]
+
+      hit_pump = build_search_hit(id: "unit-pump", body: "pump spec chunk")
+      hit_warranty = build_search_hit(id: "unit-warranty", body: "warranty chunk")
+      hit_shared = build_search_hit(id: "unit-shared", body: "shared manual chunk")
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question, entries)}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, _model ->
+        send(test_pid, {:embedded, input})
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, 2, fn query ->
+        text =
+          Enum.find_value(query.should, fn
+            %{"multi_match" => %{"query" => text}} -> text
+            _clause -> nil
+          end)
+
+        case text do
+          ^sq_pump -> {:ok, [hit_pump, hit_shared]}
+          ^sq_warranty -> {:ok, [hit_shared, hit_warranty]}
+        end
+      end)
+
+      expect(Cake.Generation.Mock, :complete, 3, fn messages, _model, _opts ->
+        send(test_pid, {:generated, messages})
+
+        answer =
+          case List.last(messages).content do
+            ^sq_pump -> answer_pump
+            ^sq_warranty -> answer_warranty
+            _final -> "final answer [1]"
+          end
+
+        {:ok, %{text: answer, usage: %{}}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, indexed, _opts ->
+        send(test_pid, {:indexed_chunks, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: "final answer [1]",
+          final_text: "final answer [1]",
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      # Dependency order: the pump search happens first despite its
+      # positional index of 1.
+      assert_receive {:embedded, first_embedded}
+      assert first_embedded == sq_pump
+      assert_receive {:embedded, second_embedded}
+      assert second_embedded == sq_warranty
+
+      # Step 1: pump prompt carries no prior answers.
+      assert_receive {:generated, step_one}
+      assert %{role: "user", content: ^sq_pump} = List.last(step_one)
+      step_one_text = Enum.map_join(step_one, "\n", & &1.content)
+      refute String.contains?(step_one_text, answer_pump)
+
+      # Step 2: warranty prompt includes the pump Q/A pair.
+      assert_receive {:generated, step_two}
+      assert %{role: "user", content: ^sq_warranty} = List.last(step_two)
+      step_two_text = Enum.map_join(step_two, "\n", & &1.content)
+      assert String.contains?(step_two_text, sq_pump)
+      assert String.contains?(step_two_text, answer_pump)
+
+      # Final: the original question plus both accumulated answers.
+      assert_receive {:generated, final_step}
+      assert %{role: "user", content: ^question} = List.last(final_step)
+      final_text = Enum.map_join(final_step, "\n", & &1.content)
+      assert String.contains?(final_text, answer_pump)
+      assert String.contains?(final_text, answer_warranty)
+
+      assert_receive {:response_ready, %{response: "final answer [1]"}}
+
+      # The final context merges and dedups both sub-questions' results,
+      # with decomposition provenance stamped.
+      assert_receive {:indexed_chunks, indexed}
+      results = Enum.map(indexed, fn {_idx, result} -> result end)
+      ids = Enum.map(results, &Cake.Citable.metadata(&1.retrieval_unit).id)
+
+      assert Enum.sort(ids) == ["unit-pump", "unit-shared", "unit-warranty"]
+
+      Enum.each(results, fn result ->
+        assert result.provenance.decomposed == true
+        assert result.provenance.original_query == question
+        assert result.provenance.sub_question_index in [0, 1]
+      end)
+    end
+
+    test "a zero :max_context_tokens ceiling strips prior answers from every prompt" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      sq_pump = "Which pump does the RO-400 use?"
+      sq_warranty = "What is the warranty on that pump?"
+      answer_pump = "The RO-400 uses the P-100 pump."
+      test_pid = self()
+
+      entries = [
+        %{question: sq_pump, depends_on: []},
+        %{question: sq_warranty, depends_on: [0]}
+      ]
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question, entries)}
+      end)
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _params, _model ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      stub(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-a", body: "manual chunk")]}
+      end)
+
+      expect(Cake.Generation.Mock, :complete, 3, fn messages, _model, _opts ->
+        send(test_pid, {:generated, messages})
+
+        answer =
+          case List.last(messages).content do
+            ^sq_pump -> answer_pump
+            ^sq_warranty -> "The P-100 has a 5-year warranty."
+            _final -> "final answer"
+          end
+
+        {:ok, %{text: answer, usage: %{}}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
+        %Cake.Responses.Result{
+          raw_text: "final answer",
+          final_text: "final answer",
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid =
+        start_subscribed(%{decomposition: Cake.Decomposition.Mock, max_context_tokens: 0})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:generated, _step_one}
+      assert_receive {:generated, step_two}
+      assert_receive {:generated, final_step}
+
+      # With no answer budget, neither the second step nor the final
+      # prompt may carry the accumulated pump answer.
+      step_two_text = Enum.map_join(step_two, "\n", & &1.content)
+      final_text = Enum.map_join(final_step, "\n", & &1.content)
+      refute String.contains?(step_two_text, answer_pump)
+      refute String.contains?(final_text, answer_pump)
+
+      assert_receive {:response_ready, %{response: "final answer"}}
+    end
+
+    test "an intermediate generation error fails the turn with that error" do
+      question = "What is the warranty on the pump used in the RO-400?"
+
+      entries = [
+        %{question: "Which pump does the RO-400 use?", depends_on: []},
+        %{question: "What is the warranty on that pump?", depends_on: [0]}
+      ]
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question, entries)}
+      end)
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _params, _model ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      stub(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-a", body: "manual chunk")]}
+      end)
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:error, :llm_down}
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:error, :llm_down}
+      assert_receive {:state_change, :idle}
+    end
+  end
 end

@@ -76,6 +76,48 @@ defmodule Cake.Decomposition.ResultTest do
     end
   end
 
+  describe "topological_order/1" do
+    # Red phase: apply/3 keeps the suite compiling before the function
+    # exists — a literal call would trip --warnings-as-errors.
+    test "orders dependencies before their dependents regardless of position" do
+      entry_warranty = %{question: "What is the warranty on that pump?", depends_on: [1]}
+      entry_pump = %{question: "Which pump does the RO-400 use?", depends_on: []}
+
+      result = Result.new("Warranty on the RO-400's pump?", [entry_warranty, entry_pump])
+
+      assert apply(Result, :topological_order, [result]) == [
+               {1, entry_pump},
+               {0, entry_warranty}
+             ]
+    end
+
+    test "a flat decomposition resolves in positional order" do
+      result = Result.new("Compare A and B", ["What is A?", "What is B?"])
+
+      assert apply(Result, :topological_order, [result]) == [
+               {0, %{question: "What is A?", depends_on: []}},
+               {1, %{question: "What is B?", depends_on: []}}
+             ]
+    end
+
+    test "independent entries break ties by ascending index" do
+      entries = [
+        %{question: "What is B?", depends_on: []},
+        %{question: "What is A?", depends_on: []},
+        %{question: "Compare them.", depends_on: [0, 1]}
+      ]
+
+      result = Result.new("q", entries)
+      order = apply(Result, :topological_order, [result])
+
+      assert Enum.map(order, fn {index, _entry} -> index end) == [0, 1, 2]
+    end
+
+    test "an atomic result has an empty order" do
+      assert apply(Result, :topological_order, [Result.new("q")]) == []
+    end
+  end
+
   describe "new/2 DAG validation" do
     test "an out-of-range dependency raises ArgumentError" do
       assert_raise ArgumentError, fn ->
