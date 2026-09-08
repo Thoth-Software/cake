@@ -77,6 +77,27 @@ defmodule Cake.Decomposition.ResultPropertyTest do
     end
   end
 
+  property "topological_order/1 visits every entry once, dependencies first" do
+    check all(entries <- dag_entries()) do
+      result = Result.new("q", entries)
+
+      # Red phase: apply/3 so the suite compiles before the function exists.
+      order = apply(Result, :topological_order, [result])
+
+      ordered_entries = Enum.map(order, fn {_index, entry} -> entry end)
+      assert Enum.sort(ordered_entries) == Enum.sort(result.sub_questions)
+
+      indices = Enum.map(order, fn {index, _entry} -> index end)
+      assert Enum.sort(indices) == Enum.to_list(0..(length(entries) - 1))
+
+      position = indices |> Enum.with_index() |> Map.new()
+
+      for {index, %{depends_on: deps}} <- order, dep <- deps do
+        assert position[dep] < position[index]
+      end
+    end
+  end
+
   # Kahn's algorithm, test-side. The public ordering API lands with the
   # tier-3 resolution loop (#230); these properties only need to prove an
   # order exists.

@@ -323,4 +323,48 @@ defmodule Cake.PromptPropertyTest do
       assert String.contains?(system, "atomic")
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # fit_answer_pairs/2 — the accumulated-answer context budget (#230)
+  # ---------------------------------------------------------------------------
+
+  defp answer_pairs do
+    list_of(
+      {string(:alphanumeric, min_length: 1, max_length: 30),
+       string(:alphanumeric, min_length: 1, max_length: 60)},
+      max_length: 8
+    )
+  end
+
+  # Red phase: apply/3 so the suite compiles before the functions exist.
+  defp fit(pairs, budget), do: apply(Prompt, :fit_answer_pairs, [pairs, budget])
+
+  defp cost({question, answer}) do
+    apply(Prompt, :estimate_tokens, [question]) + apply(Prompt, :estimate_tokens, [answer])
+  end
+
+  property "fit_answer_pairs/2 never exceeds the configured ceiling" do
+    check all(pairs <- answer_pairs(), budget <- integer(0..200)) do
+      kept = fit(pairs, budget)
+
+      assert kept |> Enum.map(&cost/1) |> Enum.sum() <= budget
+    end
+  end
+
+  property "fit_answer_pairs/2 keeps a maximal suffix — newest pairs survive" do
+    check all(pairs <- answer_pairs(), budget <- integer(0..200)) do
+      kept = fit(pairs, budget)
+
+      # Suffix: what survives is the newest run of pairs, verbatim.
+      assert kept == Enum.take(pairs, -length(kept))
+
+      # Maximal: if anything was dropped, re-admitting the newest dropped
+      # pair would blow the budget.
+      if length(kept) < length(pairs) do
+        newest_dropped = Enum.at(pairs, length(pairs) - length(kept) - 1)
+
+        assert cost(newest_dropped) + (kept |> Enum.map(&cost/1) |> Enum.sum()) > budget
+      end
+    end
+  end
 end
