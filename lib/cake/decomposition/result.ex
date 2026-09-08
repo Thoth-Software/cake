@@ -99,6 +99,46 @@ defmodule Cake.Decomposition.Result do
             "map, got: #{inspect(other)}"
   end
 
+  @doc """
+  Resolution order for the sub-question DAG: every entry appears exactly
+  once, each after all of its dependencies, with independent entries
+  tie-broken by ascending index (so a flat decomposition resolves in
+  positional order). An atomic result yields `[]`.
+
+  Total for any `Result` built by `new/2`, which rejects cyclic graphs;
+  raises `ArgumentError` on a hand-rolled struct whose graph cycles.
+  """
+  @spec topological_order(t()) :: [{non_neg_integer(), entry()}]
+  def topological_order(%__MODULE__{question_index: question_index}) do
+    question_index
+    |> Map.new(fn {index, %{depends_on: deps}} -> {index, MapSet.new(deps)} end)
+    |> peel_in_order([])
+    |> Enum.map(fn index -> {index, Map.fetch!(question_index, index)} end)
+  end
+
+  defp peel_in_order(deps_by_index, order) when map_size(deps_by_index) == 0 do
+    Enum.reverse(order)
+  end
+
+  defp peel_in_order(deps_by_index, order) do
+    ready =
+      deps_by_index
+      |> Enum.filter(fn {_index, deps} -> MapSet.size(deps) == 0 end)
+      |> Enum.map(fn {index, _deps} -> index end)
+      |> Enum.sort()
+
+    if ready == [] do
+      raise ArgumentError, "sub-question dependencies form a cycle"
+    end
+
+    ready_set = MapSet.new(ready)
+
+    deps_by_index
+    |> Map.drop(ready)
+    |> Map.new(fn {index, deps} -> {index, MapSet.difference(deps, ready_set)} end)
+    |> peel_in_order(Enum.reverse(ready) ++ order)
+  end
+
   defp derive_strategy(entries) do
     if Enum.all?(entries, &(&1.depends_on == [])), do: :flat, else: :sequential
   end
