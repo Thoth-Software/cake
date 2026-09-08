@@ -256,9 +256,9 @@ defmodule Cake.Conversation do
     result =
       Cake.TaskSupervisor
       |> Task.Supervisor.async_stream_nolink(
-        Enum.sort_by(decomposition.question_index, fn {index, _sub_question} -> index end),
-        fn {index, sub_question} ->
-          with {:ok, results} <- embed_and_search(sub_question, s) do
+        Enum.sort_by(decomposition.question_index, fn {index, _entry} -> index end),
+        fn {index, entry} ->
+          with {:ok, results} <- embed_and_search(entry.question, s) do
             {:ok, stamp_decomposition(results, decomposition, index)}
           end
         end,
