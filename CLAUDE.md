@@ -7,8 +7,9 @@ Refactored 2026-07-12: task-specific policy moved out of this file to
   priv/reference/creating-things.md (trigger-loaded) and
   .claude/rules/test-conventions.md (path-scoped, auto-loads under test/).
   This file now holds only universal, always-on rules.
-2026-09-15 (#256): creating-things.md no longer exists in priv/reference/;
-  its trigger row now points at the README how-to sections instead.
+2026-09-15 (#256): creating-things.md had gone missing from priv/reference/;
+  restored same day (content re-reviewed against code — result-tuple bullet
+  aligned with the corrected rule below) and the trigger row points at it again.
 -->
 
 # CLAUDE.md — Operational Contract for Cake
@@ -37,7 +38,7 @@ Load the full file when the task matches the trigger. Reference files live in `p
 | Create/modify/supervise GenServers/Agents/Tasks, modify supervision tree, use spawn/Task.async, work with Registry/PubSub/message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` (+ `dynamic-supervisor.md` if dynamic spawning) |
 | Write/modify `@type`/`@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
 | Write/modify public API for external use, design behaviours for third-party use | `library-guidelines.md` |
-| Create a new GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct | README "Adding a New GDS" + "Adding a New Ingestion Pipeline" + `design-anti-patterns.md` |
+| Create a new GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct | `priv/reference/creating-things.md` |
 | Add/modify a GDS, or implement `Cake.GDS`/`Cake.Promptable`/`Cake.Citable` | README "Cardinality" + "Adding a New GDS"; `lib/cake/gds.ex` + `promptable.ex` + `citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md` |
 
 Work under `test/` auto-loads `.claude/rules/test-conventions.md` (path-scoped) — no manual trigger needed.
