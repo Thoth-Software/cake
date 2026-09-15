@@ -218,6 +218,14 @@ defmodule Cake.Conversation do
 
   # Decomposition drives the first turn only: cached search results mean
   # the question flows through the standard chain (and its reuse clause).
+  #
+  # Known defect (#255): [] is both the fresh-state default and a completed
+  # retrieval that found nothing, so a first turn with empty retrieval
+  # re-decomposes (an extra LLM call — for :sequential, a whole re-resolution)
+  # on every later turn. The fix is a distinct uninitialized sentinel (or a
+  # retrieved? flag) on State; this guard, resolve_search_results/2's reuse
+  # clause, and update_state/5's first-turn history branch must migrate
+  # together.
   defp maybe_decompose(_question, %State{search_results: results}) when results != [] do
     {:ok, nil}
   end
@@ -268,6 +276,10 @@ defmodule Cake.Conversation do
 
   # --- Stage 0: resolve search results (search on first turn, reuse on subsequent) ---
 
+  # The reuse guard shares #255's empty-list ambiguity (see
+  # maybe_decompose/2): a retrieval that found nothing is indistinguishable
+  # from no retrieval, so it re-searches on later turns.
+  #
   # Decomposition dispatch lives upstream in maybe_decompose/2 and
   # resolve_context/3; this stage only reuses cached results or runs the
   # plain single search.
