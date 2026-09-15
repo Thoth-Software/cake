@@ -16,9 +16,14 @@ defmodule Cake.Prompt do
   @type context_quality :: :good | :none
   @type message :: %{role: String.t(), content: String.t()}
 
+  @typedoc "A resolved sub-question and its intermediate answer, oldest first."
+  @type answer_pair :: {String.t(), String.t()}
+
   @default_max_chunks 10
   @default_min_relevance 0.3
   @max_history_exchanges 5
+  @default_max_context_tokens 4096
+  @chars_per_token 4
 
   @spec prepare_context([Result.t()], keyword()) ::
           {[indexed_chunk()], context_quality()}
@@ -87,6 +92,74 @@ defmodule Cake.Prompt do
     Context:
     #{context_block}
     """
+  end
+
+  @doc """
+  Build the messages list for a sequential-resolution step (#230).
+
+  Like `build/4`, but folds the accumulated sub-question/answer pairs into
+  the system message so each least-to-most step (and the final synthesis
+  prompt) can condition on what was already answered. Pairs are budgeted by
+  `fit_answer_pairs/2` against the `:max_context_tokens` opt (default
+  #{@default_max_context_tokens}): the oldest pairs are evicted first, and
+  with no surviving pairs the output is exactly `build/4`'s.
+  """
+  @spec build_with_prior_answers(
+          [indexed_chunk()],
+          String.t(),
+          [answer_pair()],
+          [String.t()],
+          keyword()
+        ) ::
+          [message()]
+  def build_with_prior_answers(indexed_chunks, question, prior_answers, history, opts \\ []) do
+    budget = Keyword.get(opts, :max_context_tokens, @default_max_context_tokens)
+
+    case fit_answer_pairs(prior_answers, budget) do
+      [] ->
+        build(indexed_chunks, question, history)
+
+      kept ->
+        [%{role: "system", content: system} | rest] = build(indexed_chunks, question, history)
+        [%{role: "system", content: system <> "\n" <> answers_block(kept)} | rest]
+    end
+  end
+
+  @doc """
+  Keep the newest suffix of `answer_pairs` whose summed token cost (per
+  `estimate_tokens/1`, question plus answer) fits within `budget` tokens,
+  evicting the oldest pairs first.
+  """
+  @spec fit_answer_pairs([answer_pair()], non_neg_integer()) :: [answer_pair()]
+  def fit_answer_pairs(answer_pairs, budget) when is_list(answer_pairs) do
+    total = answer_pairs |> Enum.map(&pair_cost/1) |> Enum.sum()
+    drop_oldest_until_fit(answer_pairs, total, budget)
+  end
+
+  defp drop_oldest_until_fit(pairs, total, budget) when total <= budget, do: pairs
+
+  defp drop_oldest_until_fit([oldest | rest], total, budget) do
+    drop_oldest_until_fit(rest, total - pair_cost(oldest), budget)
+  end
+
+  defp drop_oldest_until_fit([], _total, _budget), do: []
+
+  defp pair_cost({question, answer}), do: estimate_tokens(question) + estimate_tokens(answer)
+
+  defp answers_block(pairs) do
+    rendered =
+      Enum.map_join(pairs, "\n", fn {question, answer} -> "Q: #{question}\nA: #{answer}" end)
+
+    "Previously answered sub-questions:\n#{rendered}"
+  end
+
+  @doc """
+  Crude token estimate: ~#{@chars_per_token} characters per token, rounding
+  up. Good enough for context budgeting; not a tokenizer.
+  """
+  @spec estimate_tokens(String.t()) :: non_neg_integer()
+  def estimate_tokens(text) when is_binary(text) do
+    div(String.length(text) + @chars_per_token - 1, @chars_per_token)
   end
 
   @doc """

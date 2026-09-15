@@ -52,6 +52,13 @@ config :cake, Cake.Conversation,
   response_model: "gpt-4o-mini",
   provider: :openai
 
+# Token ceiling for the accumulated sub-question answers carried between
+# steps of a sequential (least-to-most) decomposition turn. When the
+# accumulated answers exceed it, the oldest question/answer pairs are
+# dropped from the prompt first. Approximate tokens (~4 chars each), not
+# a tokenizer count.
+config :cake, :decomposition_max_context_tokens, 4096
+
 # Concurrency cap for decomposed sub-question searches within one turn.
 # Each sub-search is an embedding call plus a search-backend query, so the
 # provider rate limit is the real ceiling. Set to 1 to force sequential
