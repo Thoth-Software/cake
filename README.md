@@ -110,7 +110,7 @@ Conversation → Generation
 Conversation → Responses
 ```
 
-**`Cake.Conversation`** is a GenServer managing single-conversation state: message history, retrieved chunks, chunk map, citations, accumulated errors. `start/1` spawns it under the `Cake.ConversationSupervisor` DynamicSupervisor. A turn starts one of two ways: `autoask/2` runs the full retrieve-and-generate loop automatically, while `manualask/2` retrieves and returns candidate results (`[Search.Result.t()]`) for the user to pick from — `select_docs/2` then supplies the Citable ids of the chosen candidates (chunk ids, for books; the web layer groups candidates by document and expands a document selection back into candidate ids via `Cake.Candidates`) and generation proceeds. When the `:decomposition` opt is set (a `Cake.Decomposition` implementation; default `nil`), the first `autoask/2` turn's question is decomposed before searching — manual mode never decomposes (see "Query Decomposition" below). Follow-up turns reuse cached search results rather than re-retrieving (known defect #255: the reuse guard cannot distinguish a fresh state from a completed retrieval that found nothing — flagged at both call sites).
+**`Cake.Conversation`** is a GenServer managing single-conversation state: message history, retrieved chunks, chunk map, citations, accumulated errors. `start/1` spawns it under the `Cake.ConversationSupervisor` DynamicSupervisor. A turn starts one of two ways: `autoask/2` runs the full retrieve-and-generate loop automatically, while `manualask/2` retrieves and returns candidate results (`[Search.Result.t()]`) for the user to pick from — `select_docs/2` then supplies the Citable ids of the chosen candidates (chunk ids, for books; the web layer groups candidates by document and expands a document selection back into candidate ids via `Cake.Candidates`) and generation proceeds. When the `:decomposition` opt is set (a `Cake.Decomposition` implementation; default `nil`), an `autoask/2` turn that begins with no cached search results decomposes the question before searching — in the intended flow, the first auto-mode turn. Manual mode never decomposes, and a manual turn's cached candidates suppress decomposition on later auto turns (see "Query Decomposition" below). Follow-up turns reuse cached search results rather than re-retrieving (known defect #255: the reuse guard cannot distinguish a fresh state from a completed retrieval that found nothing — flagged at both call sites).
 
 **`Cake.Prompt`** owns prompt engineering. Builds the messages list for the LLM (system prompt, conversation history, retrieved context as a numbered block, user question). Filters chunks by relevance floor and chunk ceiling, assigns dense 1..N indices. Also owns the decomposition-side prompts and budgeting: `decomposition_prompt/1` (the JSON-answering prompt `Decomposition.LLM` sends), `build_with_prior_answers/5` (folds accumulated sub-question/answer pairs into the system message for sequential resolution), `fit_answer_pairs/2` (evicts oldest pairs to fit the token budget), and `estimate_tokens/1` (~4 chars/token estimate).
 
@@ -130,7 +130,7 @@ Conversation → Responses
 
 **Strategies and tiers.** `Cake.Decomposition.LLM` is the shipped strategy: prompt from `Prompt.decomposition_prompt/1`, schema-constrained output via `Generation.complete_json/3`; a Mox mock stands in for tests. Its JSON schema emits atomic-or-flat only — a `:sequential` result currently requires a strategy that emits dependency edges. The `Conversation`-side machinery for all three tiers (atomic, flat, sequential) is in place.
 
-**Integration.** Opt-in via `Conversation`'s `:decomposition` opt, applied on `autoask/2` first turns only (manual mode never decomposes). An atomic result searches the original question once. A `:flat` decomposition fans one embed+search per sub-question out concurrently under `Cake.TaskSupervisor` (capped by `config :cake, :max_sub_search_concurrency`, default 4; per-search timeout from `config :cake, :sub_search_timeout`, default 30s; failure is all-or-nothing) and merges the deduplicated results into a single context. A `:sequential` decomposition resolves least-to-most in topological order, each prompt carrying the accumulated prior question/answer pairs within the `:max_context_tokens` budget (default from `config :cake, :decomposition_max_context_tokens`, 4096; oldest pairs evicted first); the final answer is generated over the merged context plus the surviving answers.
+**Integration.** Opt-in via `Conversation`'s `:decomposition` opt. The implemented trigger is cache state, not turn count: decomposition runs when an `autoask/2` turn begins with `search_results == []` — in the intended flow, the first auto-mode turn. Manual mode never decomposes, a prior manual turn's cached candidates suppress it, and — per known defect #255 — an empty completed retrieval re-triggers it. An atomic result searches the original question once. A `:flat` decomposition fans one embed+search per sub-question out concurrently under `Cake.TaskSupervisor` (capped by `config :cake, :max_sub_search_concurrency`, default 4; per-search timeout from `config :cake, :sub_search_timeout`, default 30s; failure is all-or-nothing) and merges the deduplicated results into a single context. A `:sequential` decomposition resolves least-to-most in topological order, each prompt carrying the accumulated prior question/answer pairs within the `:max_context_tokens` budget (default from `config :cake, :decomposition_max_context_tokens`, 4096; oldest pairs evicted first); the final answer is generated over the merged context plus the surviving answers.
 
 **Traceability.** Each merged result's `Search.Provenance` is stamped `decomposed: true` with the `original_query` and a `sub_question_index` into `Decomposition.Result`'s `question_index`, so citations trace back to the specific sub-question that surfaced them.
 
@@ -139,7 +139,7 @@ Conversation → Responses
 Every arrow originates from `Conversation`:
 
 1. User message arrives at `Conversation`.
-2. First `autoask` turn, with `:decomposition` set: `Conversation` → `Decomposition.decompose` — an atomic result searches the original question once; otherwise one embed+search per sub-question (concurrent for `:flat`, topologically ordered with accumulated prior answers for `:sequential`), merged into one context. Manual mode skips decomposition.
+2. An `autoask` turn starting with no cached search results, with `:decomposition` set: `Conversation` → `Decomposition.decompose` — an atomic result searches the original question once; otherwise one embed+search per sub-question (concurrent for `:flat`, topologically ordered with accumulated prior answers for `:sequential`), merged into one context. Manual mode and turns with cached results skip decomposition.
 3. `Conversation` → `Prompt.prepare_context` (filter/rank/index chunks).
 4. `Conversation` → `Prompt.build` (assemble messages list).
 5. `Conversation` → `Generation.complete` (LLM call).
@@ -313,7 +313,7 @@ Implement the behaviour for the target GDS. Consult `Cake.Books.Pdf.Pipeline` or
 1. Create a raw document schema for intermediate storage.
 2. Implement callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`.
 3. Register with Oban via `DocumentIngestionJob.enqueue_for_version/4`.
-4. Ensure all callbacks return `{:ok, _}` / `{:error, _}`.
+4. Follow the result-tuple contract: `download/1` returns `{:ok, paths}` or the tagged `{:error, :download, reason}`; stream callbacks (`persist_raw_docs/2`, `parse/2`) detuple their per-item result tuples via `Pipelines.detuple_with_logging/3` before returning, so the streams they return carry bare successful values; `source/0` and `success_message/1` return bare values.
 5. Optionally implement `retry_from_raw/2`.
 
 ### Adding a New Book Format (Cake.Books.Pipeline)
@@ -324,7 +324,7 @@ Implement the behaviour for the target GDS. Consult `Cake.Books.Pdf.Pipeline` or
 
 ### Requirements for All Pipeline Implementations
 
-Every stream step must use `Pipelines.detuple_with_logging/3` with a descriptive step name. Callbacks return `{:ok, _}` / `{:error, _}`. Pipeline-fatal errors go in the `else` branch. Persist raw data first.
+Every stream step must use `Pipelines.detuple_with_logging/3` with a descriptive step name: fallible per-item work produces result tuples that the callback detuples (persisting failures) before returning, so the stream a callback returns carries bare successful values. Direct fallible callbacks return `{:ok, _}` / `{:error, _}` (plus `download/1`'s tagged `{:error, :download, reason}`); declarative callbacks return bare values. Pipeline-fatal errors go in the `else` branch (`Documents.Pipeline` today; Books tracked in #258). Persist raw data first.
 
 ---
 

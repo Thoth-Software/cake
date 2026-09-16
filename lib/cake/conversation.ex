@@ -32,8 +32,10 @@ defmodule Cake.Conversation do
   ## Query decomposition
 
   Opt-in via the `:decomposition` opt (a module implementing
-  `Cake.Decomposition`; default `nil` — no decomposition). When set, the
-  first turn's question is decomposed before searching: an atomic result
+  `Cake.Decomposition`; default `nil` — no decomposition). When set, an
+  autoask turn that begins with no cached search results has its question
+  decomposed before searching — in the intended flow, the first auto-mode
+  turn; the guard shares #255's empty-list ambiguity. An atomic result
   searches the original question exactly as before, while a decomposed one
   runs one embed+search per sub-question and merges the deduplicated
   results into a single context. Each merged result's
