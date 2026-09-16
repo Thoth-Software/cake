@@ -8,9 +8,10 @@ defmodule Cake.Documents.ParsedDocument do
   - `plaintext`: indexed for full-text keyword search
   - `metadata:<key>`: included in search backend metadata under the given key
 
-  :embedding should contain an embedding representing the value of :content.
-  That is, if you take the right deep learning model and decode the embedding, you should
-  get exactly what's in :content
+  :embedding should contain an embedding representing the value of :text
+  (the ingestion pipeline embeds the title-prepended text). That is, if you
+  take the right deep learning model and decode the embedding, you should
+  get back what's in :text.
   """
 
   use Cake.Schema

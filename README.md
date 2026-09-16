@@ -73,7 +73,7 @@ The system is organized into four layers. Each layer has a clear responsibility 
 
 The ingestion layer has two pipeline behaviours because the two GDSes have fundamentally different parsing requirements, metadata schemas, and chunking strategies. Each GDS owns its own ingestion contract.
 
-**`Cake.Documents.Pipeline`** is the behaviour for ingesting programming documentation. Its GDS is `ParsedDocument`. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`, and optionally `retry_from_raw/2`. The module also contains the `ingest/4` orchestrator that sequences callbacks into a stream pipeline — download → persist raw → parse → embed → index — plus an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Documents.Hexdocs.Pipeline`.
+**`Cake.Documents.Pipeline`** is the behaviour for ingesting programming documentation. Its GDS is `ParsedDocument`. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`, and optionally `retry_from_raw/2`. The module also contains the `ingest/4` orchestrator that sequences callbacks into a stream pipeline — download → persist raw → parse → persist parsed → embed → index — plus an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Documents.Hexdocs.Pipeline`.
 
 **`Cake.Books.Pipeline`** is the behaviour for ingesting books and book-like documents. Its GDS is `ParsedBook` + `Chunk`. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. Like `Documents.Pipeline`, the module also contains its own `ingest/4` orchestrator and an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Books.Pdf.Pipeline`, which uses a Rustler NIF (`parsebooks` Rust crate wrapping `pdf-extract`).
 
@@ -139,7 +139,7 @@ Conversation → Responses
 Every arrow originates from `Conversation`:
 
 1. User message arrives at `Conversation`.
-2. An `autoask` turn starting with no cached search results, with `:decomposition` set: `Conversation` → `Decomposition.decompose` — an atomic result searches the original question once; otherwise one embed+search per sub-question (concurrent for `:flat`, topologically ordered with accumulated prior answers for `:sequential`), merged into one context. Manual mode and turns with cached results skip decomposition.
+2. `Conversation` resolves search results: cached results are reused; otherwise it embeds the question and searches via `Cake.Search.search_chunks_with_context/5`. With `:decomposition` set on such a no-cache `autoask` turn, `Decomposition.decompose` runs first — an atomic result searches the original question once; otherwise one embed+search per sub-question (concurrent for `:flat`, topologically ordered with accumulated prior answers for `:sequential`), merged into one context. Manual mode retrieves through `manualask/2` and never decomposes.
 3. `Conversation` → `Prompt.prepare_context` (filter/rank/index chunks).
 4. `Conversation` → `Prompt.build` (assemble messages list).
 5. `Conversation` → `Generation.complete` (LLM call).
