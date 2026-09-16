@@ -1,7 +1,8 @@
 defmodule CakeWeb.SearchLive do
   @moduledoc """
-  Direct search UI: runs a search against the indexed collections and
-  renders the results, without starting a conversation.
+  Direct search UI: runs a search against the indexed book collection
+  (the `Cake.Books.ParsedBook` GDS is hardcoded) and renders the grouped
+  results, without starting a conversation.
   """
 
   use CakeWeb, :live_view

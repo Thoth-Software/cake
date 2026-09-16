@@ -59,7 +59,8 @@ defmodule Cake.Pipelines do
   search backend, fanning out up to five concurrent `index_document` calls.
   Per-item failures (including timeouts) are logged and persisted via
   `detuple_with_logging/3` under the `"search_backend.index"` step name.
-  Skipped entirely in test mode (`skip_opensearch`).
+  Skipped entirely when `config :cake, :skip_search_backend` is true
+  (the test helper sets it).
   """
   @spec add_to_search_backend(Enumerable.t(), String.t(), context()) :: Enumerable.t()
   def add_to_search_backend(docs_with_embeddings_stream, collection, %Context{} = ctx) do

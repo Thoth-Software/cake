@@ -99,7 +99,7 @@ Indices are one-per-GDS on a shared OpenSearch cluster: `collection_name/0` retu
 
 ### Layer 3: Conversation — Stateful Multi-Turn RAG
 
-This layer is organized around a single principle: **`Cake.Conversation` is the sole orchestrator, and every other module in the layer is a peer service that it calls.** The dependency graph is a DAG. Peer-to-peer knowledge is minimal and deliberate: `Prompt` and `Responses` consume `Cake.Search` result types, `Responses` also depends on `Generation` types, and `Cake.Decomposition.LLM` calls `Prompt.decomposition_prompt/1` and `Generation.complete_json/3`.
+This layer is organized around a single principle: **`Cake.Conversation` is the sole orchestrator, and every other module in the layer is a peer service that it calls.** The dependency graph is a DAG. Peer-to-peer knowledge is minimal and deliberate: `Prompt` and `Responses` consume `Cake.Search` result types, and `Cake.Decomposition.LLM` calls `Prompt.decomposition_prompt/1` and `Generation.complete_json/3`. (`Responses` also declares a Boundary dep on `Cake.Generation` that its code does not currently use — see #259.)
 
 ```
 Conversation → Prompt
@@ -110,11 +110,9 @@ Conversation → Generation
 Conversation → Responses
 ```
 
-**`Cake.Conversation`** is a GenServer managing single-conversation state: message history, retrieved chunks, chunk map, citations, accumulated errors. `start/1` spawns it under the `Cake.ConversationSupervisor` DynamicSupervisor. A turn starts one of two ways: `autoask/2` runs the full retrieve-and-generate loop automatically, while `manualask/2` retrieves and returns candidate documents (`[Search.Result.t()]`) for the user to pick from — `select_docs/2` then supplies the chosen document ids and generation proceeds. When the `:decomposition` opt is set (a `Cake.Decomposition` implementation; default `nil`), the first turn's question is decomposed before searching: a `:flat` decomposition fans one embed+search per sub-question out concurrently under `Cake.TaskSupervisor` and merges the deduplicated results into a single context, while a `:sequential` decomposition resolves least-to-most in topological order, each prompt carrying the accumulated prior question/answer pairs within the `:max_context_tokens` budget (default from `config :cake, :decomposition_max_context_tokens`, 4096; oldest pairs evicted first). Follow-up turns reuse cached search results rather than re-retrieving (known defect #255: the reuse guard cannot distinguish a fresh state from a completed retrieval that found nothing — flagged at both call sites).
+**`Cake.Conversation`** is a GenServer managing single-conversation state: message history, retrieved chunks, chunk map, citations, accumulated errors. `start/1` spawns it under the `Cake.ConversationSupervisor` DynamicSupervisor. A turn starts one of two ways: `autoask/2` runs the full retrieve-and-generate loop automatically, while `manualask/2` retrieves and returns candidate documents (`[Search.Result.t()]`) for the user to pick from — `select_docs/2` then supplies the chosen document ids and generation proceeds. When the `:decomposition` opt is set (a `Cake.Decomposition` implementation; default `nil`), the first `autoask/2` turn's question is decomposed before searching — manual mode never decomposes (see "Query Decomposition" below). Follow-up turns reuse cached search results rather than re-retrieving (known defect #255: the reuse guard cannot distinguish a fresh state from a completed retrieval that found nothing — flagged at both call sites).
 
 **`Cake.Prompt`** owns prompt engineering. Builds the messages list for the LLM (system prompt, conversation history, retrieved context as a numbered block, user question). Filters chunks by relevance floor and chunk ceiling, assigns dense 1..N indices. Also owns the decomposition-side prompts and budgeting: `decomposition_prompt/1` (the JSON-answering prompt `Decomposition.LLM` sends), `build_with_prior_answers/5` (folds accumulated sub-question/answer pairs into the system message for sequential resolution), `fit_answer_pairs/2` (evicts oldest pairs to fit the token budget), and `estimate_tokens/1` (~4 chars/token estimate).
-
-**`Cake.Decomposition`** is the behaviour for query-decomposition strategies (`decompose/2`): question in, `Decomposition.Result` out. Strategies are pure — they never touch `Search` or `Embeddings`; `Conversation` performs all retrieval and feeds results back as data. `Cake.Decomposition.LLM` is the real implementation (prompt from `Prompt.decomposition_prompt/1`, schema-constrained output via `Generation.complete_json/3`); a Mox mock stands in for tests. Opt-in via `Conversation`'s `:decomposition` opt.
 
 **`Cake.Retrieval`** (planned) will own retrieval strategy: search, scoring, autorating. Currently these responsibilities are split between `Conversation` and `Cake.Search`.
 
@@ -124,12 +122,24 @@ Conversation → Responses
 
 **`Cake.Citations`** is a pure function module. Parses `[N]` markers from response text, resolves against the chunk map, filters hallucinated citations, deduplicates, sorts.
 
+#### Query Decomposition
+
+**`Cake.Decomposition`** is the behaviour for query-decomposition strategies. Its single callback `decompose/2` is retrieval-free — question in, `{:ok, Decomposition.Result.t()}` or `{:error, reason}` out. Strategies never touch `Search` or `Embeddings`; `Conversation` performs all retrieval and feeds results back in as data.
+
+**The Result.** `Decomposition.Result` carries the outcome: `strategy` is `:none` (atomic), `:flat` (independent sub-questions), or `:sequential` (at least one `%{question, depends_on}` entry carries a dependency; `new/2` validates the DAG acyclic, and `topological_order/1` yields the resolution order).
+
+**Strategies and tiers.** `Cake.Decomposition.LLM` is the shipped strategy: prompt from `Prompt.decomposition_prompt/1`, schema-constrained output via `Generation.complete_json/3`; a Mox mock stands in for tests. Its JSON schema emits atomic-or-flat only — a `:sequential` result currently requires a strategy that emits dependency edges. The `Conversation`-side machinery for all three tiers (atomic, flat, sequential) is in place.
+
+**Integration.** Opt-in via `Conversation`'s `:decomposition` opt, applied on `autoask/2` first turns only (manual mode never decomposes). An atomic result searches the original question once. A `:flat` decomposition fans one embed+search per sub-question out concurrently under `Cake.TaskSupervisor` (capped by `config :cake, :max_sub_search_concurrency`, default 4; per-search timeout from `config :cake, :sub_search_timeout`, default 30s; failure is all-or-nothing) and merges the deduplicated results into a single context. A `:sequential` decomposition resolves least-to-most in topological order, each prompt carrying the accumulated prior question/answer pairs within the `:max_context_tokens` budget (default from `config :cake, :decomposition_max_context_tokens`, 4096; oldest pairs evicted first); the final answer is generated over the merged context plus the surviving answers.
+
+**Traceability.** Each merged result's `Search.Provenance` is stamped `decomposed: true` with the `original_query` and a `sub_question_index` into `Decomposition.Result`'s `question_index`, so citations trace back to the specific sub-question that surfaced them.
+
 #### The Per-Turn Pipeline
 
 Every arrow originates from `Conversation`:
 
 1. User message arrives at `Conversation`.
-2. First turn, with `:decomposition` set: `Conversation` → `Decomposition.decompose` — then one embed+search per sub-question (concurrent for `:flat`, topologically ordered with accumulated prior answers for `:sequential`), merged into one context.
+2. First `autoask` turn, with `:decomposition` set: `Conversation` → `Decomposition.decompose` — an atomic result searches the original question once; otherwise one embed+search per sub-question (concurrent for `:flat`, topologically ordered with accumulated prior answers for `:sequential`), merged into one context. Manual mode skips decomposition.
 3. `Conversation` → `Prompt.prepare_context` (filter/rank/index chunks).
 4. `Conversation` → `Prompt.build` (assemble messages list).
 5. `Conversation` → `Generation.complete` (LLM call).
@@ -240,7 +250,7 @@ Behaviours in Cake define module-level contracts. The question they answer is "w
 | `Cake.Documents.Pipeline` | `lib/cake/documents/pipeline.ex` | Ingestion behaviour for programming documentation. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`. | `Cake.Documents.Hexdocs.Pipeline` |
 | `Cake.Embeddings.Behaviour` | `lib/cake/embeddings/behaviour.ex` | Contract for embedding services. | `Cake.Embeddings` (OpenAI impl, in `lib/cake/embeddings.ex`) |
 | `Cake.Generation` | `lib/cake/generation.ex` | Contract for LLM completion services: `complete/3` and `complete_json/3` (schema-constrained JSON). | `Cake.Generation.OpenAI`, `Cake.Generation.Anthropic` (stub) |
-| `Cake.Decomposition` | `lib/cake/decomposition.ex` | Contract for query-decomposition strategies: `decompose/2`, a pure question → `Decomposition.Result` transform. | `Cake.Decomposition.LLM` |
+| `Cake.Decomposition` | `lib/cake/decomposition.ex` | Contract for query-decomposition strategies: retrieval-free `decompose/2`, returning `{:ok, Decomposition.Result.t()}` or `{:error, reason}`. | `Cake.Decomposition.LLM` |
 | `Cake.Search.Backend` | `lib/cake/search/backend.ex` | Contract for search backends. Translates `Query` to native format, executes, returns `[Hit.t()]`. | `Cake.Search.Backend.OpenSearch` |
 | `Cake.Responses.Behaviour` | `lib/cake/responses/behaviour.ex` | Contract for post-generation response processing. | `Cake.Responses` |
 | `Cake.Books.Adapters` | `lib/cake/books/adapters.ex` | Contract for raw binary storage of book files. | `Cake.Books.Adapters.Disk`, `Cake.Books.Adapters.S3` |
@@ -352,7 +362,7 @@ OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi
 
 ## Roadmap: Planned and Deferred
 
-**Shipped since first draft:** query decomposition, tiers 1–3 — flat concurrent fan-out and sequential least-to-most resolution — in its own `Cake.Decomposition` boundary (not inside `Prompt` as originally sketched).
+**Shipped since first draft:** query decomposition in its own `Cake.Decomposition` boundary (not inside `Prompt` as originally sketched): flat concurrent fan-out end-to-end, plus the `Conversation`-side sequential least-to-most machinery — the shipped LLM strategy emits flat decompositions only, so `:sequential` awaits a strategy that emits dependency edges. See "Query Decomposition" under Layer 3.
 
 **Post-demo planned:** conversation layer decomposition (extract `Prompt` and `Generation` fully; collapse `Responses` to post-processing only), test coverage expansion, Word/Excel/CSV/JPG pipelines.
 
@@ -448,7 +458,7 @@ lib/
     hooks.install.ex         # `mix hooks.install` — installs the git hooks from priv/hooks/
 
 test/                        # (abbreviated — test/cake/ and test/cake_web/ mirror lib/)
-  test_helper.exs            # Sets skip_opensearch; starts ExUnit
+  test_helper.exs            # Sets :skip_search_backend; starts ExUnit
   support/
     data_case.ex             #   Ecto sandbox setup
     conn_case.ex             #   Phoenix conn setup

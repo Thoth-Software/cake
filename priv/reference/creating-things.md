@@ -9,10 +9,10 @@ When asked to create new functionality, first reason about whether it is testabl
 Consult README "Adding a New Ingestion Pipeline" and "Requirements for All Pipeline Implementations" first. Short version:
 
 - Implement the behaviour for the target GDS (`Cake.Books.Pipeline` or `Cake.Documents.Pipeline`).
-- Every fallible callback reports through `{:ok, _}`/`{:error, _}` — directly (`download/1`, `retry_from_raw/2`, `load_binary/1`) or as the *elements* of the `Enumerable.t()` a stream callback returns (`persist_raw_docs/2`, `parse/2`). Declarative and pure callbacks return bare values by design (`Books.Pipeline.parse/1` → `{ParsedBook.t(), [Chunk.t()]}`; `format/0`, `source/0`, `success_message/*`).
+- Every fallible callback reports through `{:ok, _}`/`{:error, _}` — directly (`retry_from_raw/2`, `load_binary/1`) or as the *elements* of the `Enumerable.t()` a stream callback returns (`persist_raw_docs/2`, `parse/2`). One tagged exception: `Documents.Pipeline.download/1` returns `{:error, :download, reason}` so the orchestrator can attribute the failure to the download step. Declarative and pure callbacks return bare values by design (`Books.Pipeline.parse/1` → `{ParsedBook.t(), [Chunk.t()]}`; `format/0`, `source/0`, `success_message/*`).
 - Use `Pipelines.detuple_with_logging/3` with a descriptive step name — never a silent stream filter that drops `{:error, _}` without persisting it.
 - Step names follow `"pipeline.step"` (e.g. `"books.parse"`, `"docs.embed"`).
-- Pipeline-fatal errors go in the `else` branch of the `with` chain in the behaviour's `ingest` function.
+- Pipeline-fatal errors go in the `else` branch of the `with` chain in the behaviour's `ingest` function. (`Documents.Pipeline.ingest/4` follows this today; `Books.Pipeline.ingest/4` does not yet — see #258. New pipelines follow the rule.)
 - Schemas `use Cake.Schema` (not `Ecto.Schema`) and call `sanitize_text_fields/1` in changesets with string fields.
 - UUIDs are binary, not string.
 
