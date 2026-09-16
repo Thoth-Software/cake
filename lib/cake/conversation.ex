@@ -177,8 +177,10 @@ defmodule Cake.Conversation do
   @doc """
   Runs a full auto-mode turn for `question`. Asynchronous cast — the
   response, citations, and errors arrive via PubSub (see
-  `Cake.Conversation.Events`). If a turn is already running, the question
-  is queued and replayed when the turn completes.
+  `Cake.Conversation.Events`). While `:generating`, the question is queued
+  (a later one overwrites an earlier one) and replayed when the turn
+  completes; an autoask during `:awaiting_selection` is an invalid
+  transition and crashes the server.
   """
   @spec autoask(pid(), String.t()) :: :ok
   def autoask(pid, question), do: GenServer.cast(pid, {:autoask, question})
@@ -225,7 +227,7 @@ defmodule Cake.Conversation do
   @doc """
   Manual-mode turn, first half: retrieves and returns candidate results
   for the user to pick from. Generation proceeds once `select_docs/2`
-  supplies the chosen document ids.
+  supplies the ids of the chosen candidates.
   """
   @spec manualask(pid(), String.t()) ::
           {:ok, [Result.t()]} | {:error, String.t() | Cake.Search.Backend.search_error()}
@@ -234,10 +236,16 @@ defmodule Cake.Conversation do
   end
 
   @doc """
-  Manual-mode turn, second half: supplies the chosen document ids for a
-  pending `manualask/2` and kicks off generation over the selected
-  documents' chunks. Rejects ids that were not among the offered
-  candidates.
+  Manual-mode turn, second half: supplies the chosen candidate ids for a
+  pending `manualask/2` and kicks off generation over those chunks.
+
+  The ids are the `Cake.Citable` `metadata/1` `:id`s of the offered
+  candidates (chunk ids, for books) — not the document ids the web layer
+  displays. `CakeWeb.ChatLive` groups candidates by document and expands a
+  document selection back into candidate ids via
+  `Cake.Candidates.expand_to_chunk_ids/2` before calling this. Ids not
+  among the offered candidates are rejected (the `:unknown_doc_ids` error
+  atom is historical — it reports unknown candidate ids).
   """
   @spec select_docs(pid(), [String.t()]) ::
           :ok | {:error, {:unknown_doc_ids, [String.t()]} | Cake.Generation.error_reason()}

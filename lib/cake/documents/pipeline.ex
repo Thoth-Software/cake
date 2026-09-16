@@ -2,7 +2,7 @@ defmodule Cake.Documents.Pipeline do
   @moduledoc """
   Behaviour for document ingestion pipelines. These are understood to be programming language documentation with the structure that such docs normally have, e.g. Clojuredocs, Hexdocs, etc.
 
-  Modules implementing this pipeline live under the Cake.Documents namespace as Cake.Documents.<Source>.Pipeline (e.g. `Cake.Documents.Hexdocs.Pipeline`). Modules are abstractions over data types; in this case, the data type is "documents from a particular source". We want to do more-or-less the same thing with all our technical documents: turn them into embeddings and store 'em in Opensearch with some metadata. However, each body of documents has unique HTML to parse and may be acquired uniquely. So we have a situation where we want to take a lot of heterogeneous data and feed it all through the same pipeline and get the same result. The natural move here is to use a behaviour to abstract away those details and expose callbacks for all the things that have to be made bespoke for each doc source. Breaking these tasks apart and exposing each one as a public function allows for greater observability and easier debugging. Yes, we certainly COULD write a lot of this as ponderous hundred-liners, but I prefer things to be more modular.
+  Modules implementing this pipeline live under the Cake.Documents namespace as Cake.Documents.<Source>.Pipeline (e.g. `Cake.Documents.Hexdocs.Pipeline`). Modules are abstractions over data types; in this case, the data type is "documents from a particular source". We want to do more-or-less the same thing with all our technical documents: turn them into embeddings and store 'em in OpenSearch with some metadata. However, each body of documents has unique HTML to parse and may be acquired uniquely. So we have a situation where we want to take a lot of heterogeneous data and feed it all through the same pipeline and get the same result. The natural move here is to use a behaviour to abstract away those details and expose callbacks for all the things that have to be made bespoke for each doc source. Breaking these tasks apart and exposing each one as a public function allows for greater observability and easier debugging. Yes, we certainly COULD write a lot of this as ponderous hundred-liners, but I prefer things to be more modular.
 
   (Functional programming analect: The Master had a chain made, with hundreds of smaller links rather than a few dozen big ones. When asked why, he said, "When it breaks, I will know precisely where.")
 
@@ -37,10 +37,20 @@ defmodule Cake.Documents.Pipeline do
   @doc "Fetches the raw source for the versioned run, returning the file paths to ingest."
   @callback download(Context.t()) :: {:ok, [String.t()]} | {:error, :download, any()}
 
-  @doc "Persists the raw source files as the re-parseable source of truth. Returns a stream whose elements are result tuples."
+  @doc """
+  Persists the raw source files as the re-parseable source of truth.
+  Fallible per-item work happens in result tuples that the implementation
+  detuples via `Pipelines.detuple_with_logging/3` before returning: the
+  returned stream carries the bare successfully-persisted values.
+  """
   @callback persist_raw_docs([String.t()], Context.t()) :: Enumerable.t()
 
-  @doc "Parses raw docs into ParsedDocument attrs. Consumes and returns a stream whose elements are result tuples."
+  @doc """
+  Parses raw docs into ParsedDocument attrs. Consumes the bare values from
+  `persist_raw_docs/2`; failures are detupled, logged, and persisted inside
+  the implementation via `Pipelines.detuple_with_logging/3`, so the
+  returned stream carries bare parsed attrs.
+  """
   @callback parse(Enumerable.t(), Context.t()) :: Enumerable.t()
 
   @doc ~S(Identifies this pipeline's documentation source, e.g. "hexdocs". Currently uncalled by the orchestrator — see #259.)
