@@ -36,7 +36,14 @@ defmodule Cake.Books.Pipeline do
   @doc "Loads the file binary for a storage key, returning the key paired with the binary."
   @callback load_binary(String.t()) :: {:ok, {String.t(), binary()}} | {:error, any()}
 
-  @doc "Parses a loaded `{key, binary}` into a `{ParsedBook, [Chunk]}` pair. Pure transformation."
+  @doc """
+  Parses a loaded `{key, binary}` into a bare `{ParsedBook, [Chunk]}` pair.
+
+  Failure contract: raise. The orchestrator's `parse_all_binaries/3`
+  rescues the exception into a per-item error tuple. Do NOT return
+  `{:error, reason}` — every return value is wrapped `{:ok, _}` and
+  treated as a successfully parsed book.
+  """
   @callback parse({String.t(), binary()}) :: {ParsedBook.t(), [Chunk.t()]}
 
   @doc "The source format this pipeline handles (e.g. `:pdf`)."

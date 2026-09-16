@@ -324,7 +324,7 @@ Implement the behaviour for the target GDS. Consult `Cake.Books.Pdf.Pipeline` or
 
 ### Requirements for All Pipeline Implementations
 
-Every stream step must use `Pipelines.detuple_with_logging/3` with a descriptive step name: fallible per-item work produces result tuples that the callback detuples (persisting failures) before returning, so the stream a callback returns carries bare successful values. Direct fallible callbacks return `{:ok, _}` / `{:error, _}` (plus `download/1`'s tagged `{:error, :download, reason}`); declarative callbacks return bare values. Pipeline-fatal errors go in the `else` branch (`Documents.Pipeline` today; Books tracked in #258). Persist raw data first.
+Every stream step must use `Pipelines.detuple_with_logging/3` with a descriptive step name: fallible per-item work produces result tuples that the callback detuples (persisting failures) before returning, so the stream a callback returns carries bare successful values. Direct fallible callbacks return `{:ok, _}` / `{:error, _}` (plus `download/1`'s tagged `{:error, :download, reason}`); declarative callbacks return bare values; and `Books.Pipeline.parse/1` returns a bare pair on success and raises on failure — the orchestrator rescues the exception into the per-item error tuple, and any returned value (an `{:error, _}` included) is wrapped as success, so never signal failure from it by return value. Pipeline-fatal errors go in the `else` branch (`Documents.Pipeline` today; Books tracked in #258). Persist raw data first.
 
 ---
 
