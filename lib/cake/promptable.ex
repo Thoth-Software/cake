@@ -22,9 +22,10 @@ defprotocol Cake.Promptable do
   The same struct typically implements both, but the outputs are
   different strings serving different audiences. For a
   `Cake.Books.Chunk`, the Citable impl returns something like
-  `%{label: "Book Title — Page 12", source_ref: "book:42#chunk:5", ...}`
-  for the UI; the Promptable impl returns the chunk's `text` wrapped with
-  section title and page number, formatted for LLM consumption.
+  `%{label: "Book Title — Page 12", source_ref: "books/book-title.pdf", ...}`
+  (`source_ref` is the book's `source_file_path`) for the UI; the
+  Promptable impl returns the chunk's `text` wrapped with section title
+  and page number, formatted for LLM consumption.
 
   Keep them firmly separated. If a field makes sense only to the model,
   it belongs in the Promptable output. If it makes sense only to the end

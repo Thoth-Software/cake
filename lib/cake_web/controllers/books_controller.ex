@@ -1,4 +1,10 @@
 defmodule CakeWeb.BooksController do
+  @moduledoc """
+  Authenticated download of stored book files. `download/2` serves only
+  paths recorded on a `ParsedBook` row, and only when they resolve within
+  the configured books root; anything else is reported as not found.
+  """
+
   use CakeWeb, :controller
 
   import Ecto.Query

@@ -7,9 +7,13 @@ defmodule Cake.Conversation do
       :idle --{:autoask, q}-->       :generating        --> :idle
       :idle --{:manualask, q}-->     :awaiting_selection
       :awaiting_selection --{:select, ids}--> :generating --> :idle
+      :generating --{:autoask, q}--> :generating (question queued)
 
-  Invalid transitions crash the GenServer (no defensive clauses; the UI
-  is expected to prevent invalid messages).
+  An `:autoask` that arrives while `:generating` does not crash: the
+  question is stored in `queued_question` (a later one overwrites an
+  earlier one) and replayed as a fresh turn when the current turn
+  completes. Every other invalid transition crashes the GenServer (no
+  defensive clauses; the UI is expected to prevent invalid messages).
 
   ## Pipelines
 
@@ -56,9 +60,11 @@ defmodule Cake.Conversation do
 
   ## Dependencies
 
-  Search, embeddings, generation, responses, and (optionally) decomposition
-  modules are passed as opts at `start_link/1` time to support Mox-based
-  testing.
+  Embeddings, generation, responses, and (optionally) decomposition modules
+  are passed as opts at `start_link/1`/`start/1` time to support Mox-based
+  testing. Search is not injected: `Cake.Search` is called directly, and
+  test substitution happens one layer down, via the `:search_backend`
+  config.
 
   ## Broadcasts
 
@@ -100,6 +106,15 @@ defmodule Cake.Conversation do
     }
   end
 
+  @doc """
+  Starts a linked Conversation GenServer.
+
+  `opts` is a map. `:id` and `:gds` are required and validated before the
+  process spawns; `:embedder`, `:response_model`, and `:provider` are
+  required by state construction in `init/1`. Collaborator modules
+  (`:embeddings`, `:generation`, `:responses`, `:decomposition`) and
+  `:max_context_tokens` are optional and default in `init/1`.
+  """
   @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
     with {:ok, _id} <- fetch_required(opts, :id),
@@ -108,6 +123,11 @@ defmodule Cake.Conversation do
     end
   end
 
+  @doc """
+  Starts a Conversation under the `Cake.ConversationSupervisor`
+  DynamicSupervisor. Takes the same opts as `start_link/1`, with the same
+  pre-spawn validation of `:id` and `:gds`.
+  """
   @spec start(map()) :: DynamicSupervisor.on_start_child()
   def start(opts) when is_map(opts) do
     with {:ok, _id} <- fetch_required(opts, :id),
@@ -154,6 +174,12 @@ defmodule Cake.Conversation do
     }
   end
 
+  @doc """
+  Runs a full auto-mode turn for `question`. Asynchronous cast — the
+  response, citations, and errors arrive via PubSub (see
+  `Cake.Conversation.Events`). If a turn is already running, the question
+  is queued and replayed when the turn completes.
+  """
   @spec autoask(pid(), String.t()) :: :ok
   def autoask(pid, question), do: GenServer.cast(pid, {:autoask, question})
 
@@ -196,12 +222,23 @@ defmodule Cake.Conversation do
 
   # --- Manual mode ---
 
+  @doc """
+  Manual-mode turn, first half: retrieves and returns candidate results
+  for the user to pick from. Generation proceeds once `select_docs/2`
+  supplies the chosen document ids.
+  """
   @spec manualask(pid(), String.t()) ::
           {:ok, [Result.t()]} | {:error, String.t() | Cake.Search.Backend.search_error()}
   def manualask(pid, question) do
     GenServer.call(pid, {:manualask, question})
   end
 
+  @doc """
+  Manual-mode turn, second half: supplies the chosen document ids for a
+  pending `manualask/2` and kicks off generation over the selected
+  documents' chunks. Rejects ids that were not among the offered
+  candidates.
+  """
   @spec select_docs(pid(), [String.t()]) ::
           :ok | {:error, {:unknown_doc_ids, [String.t()]} | Cake.Generation.error_reason()}
   def select_docs(pid, doc_ids) do

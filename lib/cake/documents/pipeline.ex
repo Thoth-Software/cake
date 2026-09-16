@@ -2,28 +2,24 @@ defmodule Cake.Documents.Pipeline do
   @moduledoc """
   Behaviour for document ingestion pipelines. These are understood to be programming language documentation with the structure that such docs normally have, e.g. Clojuredocs, Hexdocs, etc.
 
-  Modules implementing this pipeline live under the Cake.Documents namespace, with Cake.Documents.DocumentSource being the name of each source_pipeline module. Modules are abstractions over data types; in this case, the data type is "documents from a particular documente want to do more-or-less the same thing with all our technical documents: turn them into embeddings and store 'em in Opensearch with some metadata. However, each body of documents has unique HTML to parse and may be acquired uniquely. So we have a situation where we want to take a lot of heterogeneous data and feed it all through the same pipeline and get the same result. The natural move here is to use a behaviour to abstract away those details and expose callbacks for all the things that have to be made bespoke for each doc source. Breaking these tasks apart and exposing each one as a public function allows for greater observability and easier debugging. Yes, we certainly COULD write a lot of this as ponderous hundred-liners, but I prefer things to be more modular.
+  Modules implementing this pipeline live under the Cake.Documents namespace as Cake.Documents.<Source>.Pipeline (e.g. `Cake.Documents.Hexdocs.Pipeline`). Modules are abstractions over data types; in this case, the data type is "documents from a particular source". We want to do more-or-less the same thing with all our technical documents: turn them into embeddings and store 'em in Opensearch with some metadata. However, each body of documents has unique HTML to parse and may be acquired uniquely. So wehave a situation where we want to take a lot of heterogeneous data and feed it all through the same pipeline and get the same result. The natural move here is to use a behaviour to abstract away those details and expose callbacks for all the things that have to be made bespoke for each doc source. Breaking these tasks apart and exposing each one as a public function allows for greater observability and easier debugging. Yes, we certainly COULD write a lot of this as ponderous hundred-liners, but I prefer things to be more modular.
 
   (Functional programming analect: The Master had a chain made, with hundreds of smaller links rather than a few dozen big ones. When asked why, he said, "When it breaks, I will know precisely where.")
 
-  The pipeline runs:
+  `ingest/4` sequences the callbacks into a stream pipeline:
 
-  version                   # For core modules, this is the language version. Otherwise, it's the package version.
-  |> download()
-  |> persist_raw_docs(file_paths)   # Save the raw data, most likely HTML. This is our source of truth.
-
-  version
-  |> parse()                # parse/1 is a callback and is therefore aware of which language it's fetching for; it just needs the version.
-  |> persist_parsed_docs() # no need for a callback because parsed_docs is generic
-
-  version
-  |> batch_embed()
-  |> save_embeddings(version)
+      download(ctx)                 # callback: fetch the raw source, return file paths
+      |> persist_raw_docs(ctx)      # callback: save the raw data (our source of truth)
+      |> parse(ctx)                 # callback: raw docs -> ParsedDocument attrs
+      |> persist_parsed_docs(ctx)   # generic: insert ParsedDocument records
+      |> batch_embed(...)           # generic: embed title-prepended text per document
+      |> Pipelines.add_to_search_backend(...)  # generic: index into the search collection
 
   Each transformation step is decoupled from storage. This enables streaming, chunking, observability, and intermediate debugging.
 
-  default embedding model, right now, is "text-embedding-ada-002"
-  Cake.Documents.Pipeline.ingest(:openai, Cake.Documents.Hexdocs.Pipeline, {1,18,3}, "text-embedding-ada-002")
+  The default embedding model, right now, is "text-embedding-ada-002":
+
+      Cake.Documents.Pipeline.ingest(:openai, Cake.Documents.Hexdocs.Pipeline, {1, 18, 3}, "text-embedding-ada-002")
   """
 
   alias Cake.Documents.ParsedDocument
@@ -36,11 +32,22 @@ defmodule Cake.Documents.Pipeline do
 
   @type version :: {integer(), integer(), integer()}
 
+  @doc "Fetches the raw source for the versioned run, returning the file paths to ingest."
   @callback download(Context.t()) :: {:ok, [String.t()]} | {:error, :download, any()}
+
+  @doc "Persists the raw source files as the re-parseable source of truth. Returns a stream whose elements are result tuples."
   @callback persist_raw_docs([String.t()], Context.t()) :: Enumerable.t()
+
+  @doc "Parses raw docs into ParsedDocument attrs. Consumes and returns a stream whose elements are result tuples."
   @callback parse(Enumerable.t(), Context.t()) :: Enumerable.t()
+
+  @doc ~S(The source identifier recorded on rows and error records, e.g. "hexdocs".)
   @callback source() :: String.t()
+
+  @doc "Human-readable message logged when a run completes."
   @callback success_message(Context.t()) :: String.t()
+
+  @doc "Optional: retries a single failed item from its persisted raw doc."
   @callback retry_from_raw(input_identifier :: String.t(), String.t()) ::
               {:ok, [map()]} | {:error, retry_from_raw_error()}
 
@@ -74,6 +81,16 @@ defmodule Cake.Documents.Pipeline do
           | {String.t(), String.t()}
           | embed_index_error()
 
+  @doc """
+  Runs the full ingestion pipeline for a source and version: download,
+  persist raw docs, parse, persist ParsedDocuments, embed (each document's
+  title prepended to its text), and index into the search backend.
+
+  Item-level failures are persisted to `FailedIngest` via
+  `Pipelines.detuple_with_logging/3`; pipeline-fatal errors short-circuit
+  to `Pipelines.handle_ingest_error/2`. Returns the honest run summary
+  from `Pipelines.finalize_ingest/4`.
+  """
   @spec ingest(atom(), atom(), version(), String.t()) ::
           {:ok, Pipelines.ingest_summary()} | {:error, any()}
   def ingest(embedding_service, source_pipeline, version_tuple, embedding_model) do

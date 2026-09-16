@@ -1,4 +1,11 @@
 defmodule CakeWeb.ChatLive do
+  @moduledoc """
+  The chat UI. Starts a `Cake.Conversation` per LiveView session and
+  subscribes to its PubSub topic, rendering state changes, manual-mode
+  candidate selection, responses with citations, and errors as they are
+  broadcast (see `Cake.Conversation.Events`).
+  """
+
   use CakeWeb, :live_view
 
   alias Cake.Candidates

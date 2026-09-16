@@ -5,8 +5,9 @@ defmodule Cake.Generation do
   The real implementations are `Cake.Generation.OpenAI` and
   `Cake.Generation.Anthropic`. In tests: `Cake.Generation.Mock` (Mox).
 
-  Callers receive the implementation module as an injected argument,
-  following the same pattern as `cluster` and `search` in Conversation.
+  Callers receive the implementation module as an injected argument — the
+  same collaborator-module pattern `Cake.Conversation` uses for its
+  `embeddings`, `responses`, and `decomposition` opts.
 
   Implementations are responsible for:
     - HTTP transport to the LLM provider

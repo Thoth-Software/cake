@@ -6,6 +6,11 @@ defmodule Cake.Prompt do
   ceiling, assigns dense 1..N indices, formats chunks into a numbered context
   block, integrates conversation history, and returns the messages list for
   the LLM.
+
+  Also owns the decomposition-side prompts and budgeting: the decomposition
+  prompt itself (`decomposition_prompt/1`) and the prior-answer folding for
+  sequential resolution (`build_with_prior_answers/5`, `fit_answer_pairs/2`,
+  `estimate_tokens/1`).
   """
 
   use Boundary, top_level?: true, deps: [Cake, Cake.Search], exports: []
@@ -25,6 +30,13 @@ defmodule Cake.Prompt do
   @default_max_context_tokens 4096
   @chars_per_token 4
 
+  @doc """
+  Filters scored results by the relevance floor (`:min_relevance`, default
+  #{@default_min_relevance}) and chunk ceiling (`:max_chunks`, default
+  #{@default_max_chunks}), assigns dense 1..N prompt indices (populating
+  each Result's `prompt_index`), and reports context quality — `:none`
+  when nothing survives the filter, `:good` otherwise.
+  """
   @spec prepare_context([Result.t()], keyword()) ::
           {[indexed_chunk()], context_quality()}
   def prepare_context(scored_results, opts \\ []) when is_list(scored_results) do
@@ -42,6 +54,12 @@ defmodule Cake.Prompt do
     {indexed, context_quality}
   end
 
+  @doc """
+  Builds the messages list for the LLM: a system message carrying the
+  numbered context block, recent conversation history, then the user
+  question. With no indexed chunks, the system message is the no-context
+  variant instead.
+  """
   @spec build([indexed_chunk()], String.t(), [String.t()], keyword()) :: [message()]
   def build(indexed_chunks, question, history, opts \\ [])
 

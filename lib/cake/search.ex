@@ -71,8 +71,9 @@ defmodule Cake.Search do
 
   @doc """
   Search the GDS's collection, then expand each hit by fetching neighboring
-  records via `gds.expand_with_neighbors/2`. Returns a list of
-  `Cake.Search.Result.t()` structs. Direct hits carry `hit_source: :search`
+  records via `gds.expand_with_neighbors/2`. Returns
+  `{:ok, [Cake.Search.Result.t()]}`, or the backend's error tuple.
+  Direct hits carry `hit_source: :search`
   and the backend `_score`; expanded neighbors carry `hit_source: :expansion`
   and `backend_score: nil`.
 

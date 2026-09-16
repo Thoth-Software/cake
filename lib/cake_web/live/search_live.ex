@@ -1,4 +1,9 @@
 defmodule CakeWeb.SearchLive do
+  @moduledoc """
+  Direct search UI: runs a search against the indexed collections and
+  renders the results, without starting a conversation.
+  """
+
   use CakeWeb, :live_view
 
   alias Cake.Search.Result

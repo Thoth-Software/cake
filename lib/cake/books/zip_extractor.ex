@@ -7,6 +7,11 @@ defmodule Cake.Books.ZipExtractor do
   and directory entries.
   """
 
+  @doc """
+  Extracts every PDF entry from a ZIP binary in memory, returning
+  `{filename, binary}` pairs. macOS resource-fork and directory entries
+  are skipped.
+  """
   @spec extract_pdfs(binary()) :: {:ok, [{String.t(), binary()}]} | {:error, term()}
   def extract_pdfs(zip_binary) when is_binary(zip_binary) do
     case :zip.unzip(zip_binary, [:memory]) do
