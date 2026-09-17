@@ -1,9 +1,11 @@
 defmodule Cake.Books.Pdf.Pipeline do
   @moduledoc """
-  Implements the Books.Pipeline behaviour for PDFs read from disk.
+  Implements the Books.Pipeline behaviour for PDFs.
 
-  Uses the Rust NIF at Cake.ParseBooks to extract page text, then
-  builds a {ParsedBook, [Chunk]} tuple for each file.
+  `load_binary/1` reads each PDF through the configured
+  `Cake.Books.Adapters` storage adapter (disk or S3). Uses the Rust NIF at
+  Cake.ParseBooks to extract page text, then builds a {ParsedBook, [Chunk]}
+  tuple for each file.
   """
 
   @behaviour Cake.Books.Pipeline

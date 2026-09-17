@@ -7,9 +7,13 @@ defmodule Cake.Conversation do
       :idle --{:autoask, q}-->       :generating        --> :idle
       :idle --{:manualask, q}-->     :awaiting_selection
       :awaiting_selection --{:select, ids}--> :generating --> :idle
+      :generating --{:autoask, q}--> :generating (question queued)
 
-  Invalid transitions crash the GenServer (no defensive clauses; the UI
-  is expected to prevent invalid messages).
+  An `:autoask` that arrives while `:generating` does not crash: the
+  question is stored in `queued_question` (a later one overwrites an
+  earlier one) and replayed as a fresh turn when the current turn
+  completes. Every other invalid transition crashes the GenServer (no
+  defensive clauses; the UI is expected to prevent invalid messages).
 
   ## Pipelines
 
@@ -28,8 +32,10 @@ defmodule Cake.Conversation do
   ## Query decomposition
 
   Opt-in via the `:decomposition` opt (a module implementing
-  `Cake.Decomposition`; default `nil` — no decomposition). When set, the
-  first turn's question is decomposed before searching: an atomic result
+  `Cake.Decomposition`; default `nil` — no decomposition). When set, an
+  autoask turn that begins with no cached search results has its question
+  decomposed before searching — in the intended flow, the first auto-mode
+  turn; the guard shares #255's empty-list ambiguity. An atomic result
   searches the original question exactly as before, while a decomposed one
   runs one embed+search per sub-question and merges the deduplicated
   results into a single context. Each merged result's
@@ -56,9 +62,11 @@ defmodule Cake.Conversation do
 
   ## Dependencies
 
-  Search, embeddings, generation, responses, and (optionally) decomposition
-  modules are passed as opts at `start_link/1` time to support Mox-based
-  testing.
+  Embeddings, generation, responses, and (optionally) decomposition modules
+  are passed as opts at `start_link/1`/`start/1` time to support Mox-based
+  testing. Search is not injected: `Cake.Search` is called directly, and
+  test substitution happens one layer down, via the `:search_backend`
+  config.
 
   ## Broadcasts
 
@@ -100,6 +108,15 @@ defmodule Cake.Conversation do
     }
   end
 
+  @doc """
+  Starts a linked Conversation GenServer.
+
+  `opts` is a map. `:id` and `:gds` are required and validated before the
+  process spawns; `:embedder`, `:response_model`, and `:provider` are
+  required by state construction in `init/1`. Collaborator modules
+  (`:embeddings`, `:generation`, `:responses`, `:decomposition`) and
+  `:max_context_tokens` are optional and default in `init/1`.
+  """
   @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
     with {:ok, _id} <- fetch_required(opts, :id),
@@ -108,6 +125,11 @@ defmodule Cake.Conversation do
     end
   end
 
+  @doc """
+  Starts a Conversation under the `Cake.ConversationSupervisor`
+  DynamicSupervisor. Takes the same opts as `start_link/1`, with the same
+  pre-spawn validation of `:id` and `:gds`.
+  """
   @spec start(map()) :: DynamicSupervisor.on_start_child()
   def start(opts) when is_map(opts) do
     with {:ok, _id} <- fetch_required(opts, :id),
@@ -154,6 +176,14 @@ defmodule Cake.Conversation do
     }
   end
 
+  @doc """
+  Runs a full auto-mode turn for `question`. Asynchronous cast — the
+  response, citations, and errors arrive via PubSub (see
+  `Cake.Conversation.Events`). While `:generating`, the question is queued
+  (a later one overwrites an earlier one) and replayed when the turn
+  completes; an autoask during `:awaiting_selection` is an invalid
+  transition and crashes the server.
+  """
   @spec autoask(pid(), String.t()) :: :ok
   def autoask(pid, question), do: GenServer.cast(pid, {:autoask, question})
 
@@ -196,12 +226,29 @@ defmodule Cake.Conversation do
 
   # --- Manual mode ---
 
+  @doc """
+  Manual-mode turn, first half: retrieves and returns candidate results
+  for the user to pick from. Generation proceeds once `select_docs/2`
+  supplies the ids of the chosen candidates.
+  """
   @spec manualask(pid(), String.t()) ::
           {:ok, [Result.t()]} | {:error, String.t() | Cake.Search.Backend.search_error()}
   def manualask(pid, question) do
     GenServer.call(pid, {:manualask, question})
   end
 
+  @doc """
+  Manual-mode turn, second half: supplies the chosen candidate ids for a
+  pending `manualask/2` and kicks off generation over those chunks.
+
+  The ids are the `Cake.Citable` `metadata/1` `:id`s of the offered
+  candidates (chunk ids, for books) — not the document ids the web layer
+  displays. `CakeWeb.ChatLive` groups candidates by document and expands a
+  document selection back into candidate ids via
+  `Cake.Candidates.expand_to_chunk_ids/2` before calling this. Ids not
+  among the offered candidates are rejected (the `:unknown_doc_ids` error
+  atom is historical — it reports unknown candidate ids).
+  """
   @spec select_docs(pid(), [String.t()]) ::
           :ok | {:error, {:unknown_doc_ids, [String.t()]} | Cake.Generation.error_reason()}
   def select_docs(pid, doc_ids) do

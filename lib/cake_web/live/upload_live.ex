@@ -1,4 +1,12 @@
 defmodule CakeWeb.UploadLive do
+  @moduledoc """
+  Book-upload UI. Accepts PDF and ZIP uploads (ZIPs are unpacked to PDFs
+  via `Cake.Books.ZipExtractor`), stores each file through the configured
+  `Cake.Books.Adapters` adapter, and runs Books ingestion
+  (`Cake.Books.Pipeline.ingest/4` with `Cake.Books.Pdf.Pipeline`) as an
+  async task.
+  """
+
   use CakeWeb, :live_view
 
   alias Cake.Books.Adapters

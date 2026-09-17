@@ -1,15 +1,27 @@
 defmodule Cake.Embeddings do
   @moduledoc """
-  Calls out to an external API to get embeddings.
-  Different APIs may require or return data having different shapes, so Embeddings defines bespoke functinos for each API we foresee using.
+  Calls out to an external API to get embeddings (OpenAI today).
 
-  We should look into an Embedding struct to be persisted to postgres with metadata
+  Implements `Cake.Embeddings.Behaviour`, so tests substitute a Mox mock.
+  The input text is embedded verbatim — callers own any preprocessing
+  (the ingestion pipelines prepend a title to the text; query-time callers
+  embed the question as-is). Different APIs may require or return data
+  having different shapes, so Embeddings defines bespoke functions for
+  each API we foresee using.
   """
 
   @behaviour Cake.Embeddings.Behaviour
 
   use Boundary, top_level?: true, deps: [Cake], exports: [Behaviour]
 
+  @doc """
+  Embeds `params.input` with the given provider and model.
+
+  Returns `{:ok, result}` where `result` carries the provider's token
+  `usage`, the optional `params.struct` passthrough, and the embedding
+  vector under `attrs.embedding` — or `{:error, message}` on a transport
+  or API failure.
+  """
   @impl Cake.Embeddings.Behaviour
   @spec embed(atom(), map(), String.t()) ::
           {:ok, Cake.Embeddings.Behaviour.embedding_result()} | {:error, String.t()}
