@@ -240,7 +240,8 @@ defmodule Cake.Prompt do
   def parse_self_ask_response(response) when is_binary(response) do
     cond do
       String.contains?(response, @self_ask_final_marker) ->
-        {:final, response |> after_last_marker(@self_ask_final_marker) |> String.trim()}
+        extracted = response |> after_last_marker(@self_ask_final_marker) |> String.trim()
+        if extracted == "", do: {:final, String.trim(response)}, else: {:final, extracted}
 
       String.contains?(response, @self_ask_follow_up_marker) ->
         case response |> after_last_marker(@self_ask_follow_up_marker) |> first_line() do
