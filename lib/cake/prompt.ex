@@ -8,9 +8,11 @@ defmodule Cake.Prompt do
   the LLM.
 
   Also owns the decomposition-side prompts and budgeting: the decomposition
-  prompt itself (`decomposition_prompt/1`) and the prior-answer folding for
+  prompt itself (`decomposition_prompt/1`), the prior-answer folding for
   sequential resolution (`build_with_prior_answers/5`, `fit_answer_pairs/2`,
-  `estimate_tokens/1`).
+  `estimate_tokens/1`), and the self-ask driver protocol — the prompt
+  template (`self_ask_prompt/3`) and the follow-up-vs-final classification
+  of the model's reply (`parse_self_ask_response/1`).
   """
 
   use Boundary, top_level?: true, deps: [Cake, Cake.Search], exports: []
@@ -29,6 +31,8 @@ defmodule Cake.Prompt do
   @max_history_exchanges 5
   @default_max_context_tokens 4096
   @chars_per_token 4
+  @self_ask_follow_up_marker "Follow up:"
+  @self_ask_final_marker "So the final answer is:"
 
   @doc """
   Filters scored results by the relevance floor (`:min_relevance`, default
@@ -178,6 +182,83 @@ defmodule Cake.Prompt do
   @spec estimate_tokens(String.t()) :: non_neg_integer()
   def estimate_tokens(text) when is_binary(text) do
     div(String.length(text) + @chars_per_token - 1, @chars_per_token)
+  end
+
+  @doc """
+  Build the self-ask driver prompt (#231).
+
+  The system message teaches the self-ask protocol: ask exactly one
+  follow-up question in the `#{@self_ask_follow_up_marker}` format, or
+  deliver the answer in the `#{@self_ask_final_marker}` format. Already
+  resolved follow-up/answer pairs fold into the system message the same
+  way `build_with_prior_answers/5` folds sequential answers, budgeted by
+  `fit_answer_pairs/2` against the `:max_context_tokens` opt (default
+  #{@default_max_context_tokens}) with the oldest pairs evicted first.
+  The driver prompt carries no retrieved context — retrieval serves the
+  follow-up questions, not the driver.
+  """
+  @spec self_ask_prompt(String.t(), [answer_pair()], keyword()) :: [message()]
+  def self_ask_prompt(question, answer_pairs, opts \\ [])
+      when is_binary(question) and is_list(answer_pairs) do
+    budget = Keyword.get(opts, :max_context_tokens, @default_max_context_tokens)
+
+    system =
+      case fit_answer_pairs(answer_pairs, budget) do
+        [] -> self_ask_system_message()
+        kept -> self_ask_system_message() <> "\n" <> answers_block(kept)
+      end
+
+    [%{role: "system", content: system}, %{role: "user", content: question}]
+  end
+
+  @spec self_ask_system_message() :: String.t()
+  def self_ask_system_message do
+    """
+    You are a helpful assistant answering a question that may take several steps to resolve.
+    When you need more information before you can answer, ask exactly one follow-up question, alone on its own line, in exactly this format:
+    #{@self_ask_follow_up_marker} <the follow-up question>
+    When you have enough information to answer the original question, respond in exactly this format:
+    #{@self_ask_final_marker} <the answer>
+    Respond with either one follow-up question or the final answer — never both, and never answer a follow-up question yourself.
+    """
+  end
+
+  @doc """
+  Classify a self-ask driver response (#231).
+
+  The final-answer marker wins when both markers appear (a model that
+  answers in one breath has answered); among several follow-up markers the
+  last one wins (earlier ones were already resolved in the transcript the
+  model echoed). A follow-up is the first line after its marker. A
+  response with no markers — or a follow-up marker trailed by nothing —
+  is taken as the final answer verbatim (trimmed): the model answered
+  directly rather than playing the protocol, and that answer is worth
+  more than an error.
+  """
+  @spec parse_self_ask_response(String.t()) ::
+          {:final, String.t()} | {:follow_up, String.t()}
+  def parse_self_ask_response(response) when is_binary(response) do
+    cond do
+      String.contains?(response, @self_ask_final_marker) ->
+        {:final, response |> after_last_marker(@self_ask_final_marker) |> String.trim()}
+
+      String.contains?(response, @self_ask_follow_up_marker) ->
+        case response |> after_last_marker(@self_ask_follow_up_marker) |> first_line() do
+          "" -> {:final, String.trim(response)}
+          follow_up -> {:follow_up, follow_up}
+        end
+
+      true ->
+        {:final, String.trim(response)}
+    end
+  end
+
+  defp after_last_marker(response, marker) do
+    response |> String.split(marker) |> List.last()
+  end
+
+  defp first_line(text) do
+    text |> String.split("\n", parts: 2) |> hd() |> String.trim()
   end
 
   @doc """
