@@ -489,5 +489,12 @@ defmodule Cake.PromptTest do
       assert apply(Cake.Prompt, :parse_self_ask_response, [response]) ==
                {:final, "I cannot decide what to ask.\nFollow up:"}
     end
+
+    test "a final-answer marker with nothing after it falls back to the whole response" do
+      response = "The answer is 5 years.\nSo the final answer is:   "
+
+      assert Cake.Prompt.parse_self_ask_response(response) ==
+               {:final, "The answer is 5 years.\nSo the final answer is:"}
+    end
   end
 end
