@@ -386,4 +386,108 @@ defmodule Cake.PromptTest do
              ]) == Cake.Prompt.build(indexed, "final?", [])
     end
   end
+
+  # Red phase (#231): routed through apply/3 so the suite compiles under
+  # --warnings-as-errors before the functions exist.
+  describe "self_ask_prompt/3" do
+    test "returns a system message followed by the question as the user message" do
+      question = "What is the warranty on the pump used in the RO-400?"
+
+      assert [%{role: "system", content: _system}, %{role: "user", content: ^question}] =
+               apply(Cake.Prompt, :self_ask_prompt, [question, [], []])
+    end
+
+    test "system message documents both self-ask markers verbatim" do
+      [%{role: "system", content: system} | _] =
+        apply(Cake.Prompt, :self_ask_prompt, ["q", [], []])
+
+      assert String.contains?(system, "Follow up:")
+      assert String.contains?(system, "So the final answer is:")
+    end
+
+    test "folds kept follow-up/answer pairs into the system message" do
+      pairs = [{"Which pump does the RO-400 use?", "The RO-400 uses the P-100 pump."}]
+
+      [%{role: "system", content: system} | _] =
+        apply(Cake.Prompt, :self_ask_prompt, [
+          "What is the warranty on that pump?",
+          pairs,
+          [max_context_tokens: 1_000_000]
+        ])
+
+      assert String.contains?(system, "Which pump does the RO-400 use?")
+      assert String.contains?(system, "The RO-400 uses the P-100 pump.")
+    end
+
+    test "evicts the oldest pair when the ceiling only fits the newest" do
+      oldest = {"first follow-up asked", "the very first intermediate answer"}
+      newest = {"last follow-up", "newest answer"}
+      budget = pair_cost(newest)
+
+      [%{role: "system", content: system} | _] =
+        apply(Cake.Prompt, :self_ask_prompt, [
+          "final?",
+          [oldest, newest],
+          [max_context_tokens: budget]
+        ])
+
+      refute String.contains?(system, "the very first intermediate answer")
+      assert String.contains?(system, "newest answer")
+    end
+
+    test "a zero ceiling matches the no-pairs prompt exactly" do
+      pairs = [{"q-old", "a-old"}, {"q-new", "a-new"}]
+
+      assert apply(Cake.Prompt, :self_ask_prompt, ["final?", pairs, [max_context_tokens: 0]]) ==
+               apply(Cake.Prompt, :self_ask_prompt, ["final?", [], []])
+    end
+  end
+
+  describe "parse_self_ask_response/1" do
+    test "a final-answer marker yields {:final, _} with the text after the marker" do
+      response = "Thinking it through.\nSo the final answer is: The warranty is 5 years."
+
+      assert apply(Cake.Prompt, :parse_self_ask_response, [response]) ==
+               {:final, "The warranty is 5 years."}
+    end
+
+    test "a follow-up marker yields {:follow_up, _} with the first line after the marker" do
+      response = "I need more information.\nFollow up: Which pump does the RO-400 use?\n"
+
+      assert apply(Cake.Prompt, :parse_self_ask_response, [response]) ==
+               {:follow_up, "Which pump does the RO-400 use?"}
+    end
+
+    test "the final-answer marker wins when both markers appear" do
+      response =
+        "Follow up: Which pump does the RO-400 use?\n" <>
+          "Intermediate answer: the P-100.\n" <>
+          "So the final answer is: The warranty is 5 years."
+
+      assert apply(Cake.Prompt, :parse_self_ask_response, [response]) ==
+               {:final, "The warranty is 5 years."}
+    end
+
+    test "the last follow-up marker wins when several appear" do
+      response =
+        "Follow up: Which pump does the RO-400 use?\n" <>
+          "Intermediate answer: the P-100.\n" <>
+          "Follow up: What is the warranty on the P-100?"
+
+      assert apply(Cake.Prompt, :parse_self_ask_response, [response]) ==
+               {:follow_up, "What is the warranty on the P-100?"}
+    end
+
+    test "a response with no markers is the final answer, trimmed" do
+      assert apply(Cake.Prompt, :parse_self_ask_response, ["  A direct answer.  "]) ==
+               {:final, "A direct answer."}
+    end
+
+    test "a follow-up marker with nothing after it falls back to {:final, _}" do
+      response = "I cannot decide what to ask.\nFollow up:   "
+
+      assert apply(Cake.Prompt, :parse_self_ask_response, [response]) ==
+               {:final, "I cannot decide what to ask.\nFollow up:"}
+    end
+  end
 end
