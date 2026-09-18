@@ -933,6 +933,15 @@ defmodule Cake.ConversationTest do
     end
   end
 
+  # State's budget fields are enforced keys with no struct defaults, so a
+  # test building a State directly must supply what build_state/1 normally
+  # does.
+  defp state_attrs(overrides) do
+    mocked_opts()
+    |> Map.merge(%{max_context_tokens: 4096, max_self_ask_iterations: 5})
+    |> Map.merge(overrides)
+  end
+
   describe "pipeline stages" do
     test "resolve_search_results/2 returns cached results when search_results is non-empty" do
       cached = [
@@ -946,7 +955,7 @@ defmodule Cake.ConversationTest do
       state =
         struct!(
           Cake.Conversation.State,
-          Map.merge(mocked_opts(), %{search_results: cached})
+          state_attrs(%{search_results: cached})
         )
 
       assert {:ok, ^cached} = Conversation.resolve_search_results("ignored", state)
@@ -1098,7 +1107,7 @@ defmodule Cake.ConversationTest do
       state =
         struct!(
           Cake.Conversation.State,
-          Map.put(mocked_opts(), :responses, Cake.Responses.Mock)
+          state_attrs(%{responses: Cake.Responses.Mock})
         )
 
       assert {:ok, %Cake.Responses.Result{final_text: "processed"}} =

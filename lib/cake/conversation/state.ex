@@ -48,13 +48,27 @@ defmodule Cake.Conversation.State do
           errors: list()
         }
 
-  @enforce_keys [:id, :embedder, :response_model, :provider, :gds]
+  # The budget fields are enforced rather than defaulted: their defaults
+  # live in config.exs (read at runtime by Conversation.build_state/1, the
+  # sole constructor), and a struct-level copy could silently drift from
+  # the config value.
+  @enforce_keys [
+    :id,
+    :embedder,
+    :response_model,
+    :provider,
+    :gds,
+    :max_context_tokens,
+    :max_self_ask_iterations
+  ]
   defstruct [
     :id,
     :embedder,
     :response_model,
     :provider,
     :gds,
+    :max_context_tokens,
+    :max_self_ask_iterations,
     state: :idle,
     pending: nil,
     turn_ref: nil,
@@ -63,8 +77,6 @@ defmodule Cake.Conversation.State do
     responses: Cake.Responses,
     generation: Cake.Generation.OpenAI,
     decomposition: nil,
-    max_context_tokens: 4096,
-    max_self_ask_iterations: 5,
     search_results: [],
     message_history: [],
     chunk_map: %{},
