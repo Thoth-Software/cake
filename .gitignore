@@ -51,3 +51,8 @@ priv/plts/
 # emacs config
 
 .dir-locals.el
+
+
+.env
+
+.codex
