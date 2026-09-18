@@ -59,6 +59,11 @@ config :cake, Cake.Conversation,
 # a tokenizer count.
 config :cake, :decomposition_max_context_tokens, 4096
 
+# Iteration cap for a self-ask decomposition turn: the maximum number of
+# follow-up rounds (driver prompt + follow-up resolution) before the turn
+# stops asking and synthesizes a final answer from what it has.
+config :cake, :max_self_ask_iterations, 5
+
 # Concurrency cap for decomposed sub-question searches within one turn.
 # Each sub-search is an embedding call plus a search-backend query, so the
 # provider rate limit is the real ceiling. Set to 1 to force sequential

@@ -24,6 +24,10 @@ defmodule Cake.Conversation do
     sub-question in topological order (search → prompt with accumulated
     prior answers → intermediate answer), then synthesize the final answer
     over the merged context plus the accumulated answers.
+  - `run_self_ask_turn/3` — self-ask back-half: drive the model with the
+    original question, resolving each follow-up it asks (search → prompt
+    with accumulated prior answers → intermediate answer) until it emits
+    the final-answer marker or the iteration cap is exhausted.
   - `run_manual_turn/4` — manual-mode back-half (apply_selection → prompt →
     generate → cite) after user picks documents.
 
@@ -50,6 +54,20 @@ defmodule Cake.Conversation do
   pairs evicted first. The final answer is generated over the merged,
   deduplicated context plus the surviving accumulated answers. Any
   intermediate search or generation error fails the whole turn.
+
+  A `:self_ask` decomposition (a `Result` a strategy module marks with
+  that strategy; it carries no upfront sub-questions) hands control to the
+  model: `Cake.Prompt.self_ask_prompt/3` drives it with the original
+  question, each "Follow up:" it emits is resolved like a discovered
+  sub-question (embed+search, intermediate answer over the retrieved
+  context, pair folded into the next driver prompt, `Provenance`
+  stamped with the follow-up's zero-based round index), and the turn ends
+  when the model emits "So the final answer is:" — or, after
+  `:max_self_ask_iterations` rounds (default from
+  `config :cake, :max_self_ask_iterations, 5`), by synthesizing a final
+  answer over the merged context plus the accumulated pairs, exactly like
+  the sequential ending. The same `:max_context_tokens` budget applies.
+  Any intermediate search or generation error fails the whole turn.
 
   For `:flat` decompositions, sub-question searches fan out concurrently under `Cake.TaskSupervisor`,
   capped by `config :cake, :max_sub_search_concurrency` (default 4; set to
@@ -98,6 +116,7 @@ defmodule Cake.Conversation do
   @default_max_sub_search_concurrency 4
   @default_sub_search_timeout :timer.seconds(30)
   @default_max_context_tokens 4096
+  @default_max_self_ask_iterations 5
 
   @spec child_spec(map()) :: Supervisor.child_spec()
   def child_spec(opts) do
@@ -114,8 +133,9 @@ defmodule Cake.Conversation do
   `opts` is a map. `:id` and `:gds` are required and validated before the
   process spawns; `:embedder`, `:response_model`, and `:provider` are
   required by state construction in `init/1`. Collaborator modules
-  (`:embeddings`, `:generation`, `:responses`, `:decomposition`) and
-  `:max_context_tokens` are optional and default in `init/1`.
+  (`:embeddings`, `:generation`, `:responses`, `:decomposition`),
+  `:max_context_tokens`, and `:max_self_ask_iterations` are optional and
+  default in `init/1`.
   """
   @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
@@ -170,6 +190,16 @@ defmodule Cake.Conversation do
             :cake,
             :decomposition_max_context_tokens,
             @default_max_context_tokens
+          )
+        ),
+      max_self_ask_iterations:
+        Map.get(
+          opts,
+          :max_self_ask_iterations,
+          Application.get_env(
+            :cake,
+            :max_self_ask_iterations,
+            @default_max_self_ask_iterations
           )
         ),
       gds: opts.gds
@@ -287,6 +317,10 @@ defmodule Cake.Conversation do
          s
        ) do
     run_sequential_turn(question, decomposition, s)
+  end
+
+  defp run_turn_for(%Cake.Decomposition.Result{strategy: :self_ask} = decomposition, question, s) do
+    run_self_ask_turn(question, decomposition, s)
   end
 
   defp run_turn_for(decomposition, question, %State{} = s) do
@@ -442,7 +476,7 @@ defmodule Cake.Conversation do
     with {:ok, {answer_pairs, groups}} <- resolve_sub_questions(decomposition, s),
          merged = merge_decomposed_results(groups),
          {:ok, indexed_chunks} <- select(merged),
-         messages = final_sequential_prompt(indexed_chunks, question, answer_pairs, s),
+         messages = final_synthesis_prompt(indexed_chunks, question, answer_pairs, s),
          {:ok, response} <- generate(messages, s),
          {:ok, result} <- process_response(response, indexed_chunks, s) do
       finalize_turn(s, merged, question, response, result)
@@ -457,7 +491,7 @@ defmodule Cake.Conversation do
     |> Enum.reduce_while({:ok, {[], []}}, fn {index, entry}, {:ok, {answers_rev, groups}} ->
       prior_answers = Enum.reverse(answers_rev)
 
-      case resolve_sub_question(entry, index, decomposition, prior_answers, s) do
+      case resolve_sub_question(entry.question, index, decomposition, prior_answers, s) do
         {:ok, {answer, stamped}} ->
           {:cont, {:ok, {[{entry.question, answer} | answers_rev], [stamped | groups]}}}
 
@@ -474,12 +508,16 @@ defmodule Cake.Conversation do
 
   defp normalize_sub_question_groups({:error, _} = error), do: error
 
-  defp resolve_sub_question(entry, index, decomposition, prior_answers, %State{} = s) do
-    with {:ok, results} <- embed_and_search(entry.question, s),
+  # Shared by the sequential and self-ask loops: a sub-question is a
+  # sub-question whether the decomposition named it upfront or the model
+  # discovered it as a follow-up mid-resolution.
+  defp resolve_sub_question(sub_question, index, decomposition, prior_answers, %State{} = s)
+       when is_binary(sub_question) do
+    with {:ok, results} <- embed_and_search(sub_question, s),
          stamped = stamp_decomposition(results, decomposition, index),
          {:ok, indexed_chunks} <- select(stamped),
          messages =
-           Cake.Prompt.build_with_prior_answers(indexed_chunks, entry.question, prior_answers, [],
+           Cake.Prompt.build_with_prior_answers(indexed_chunks, sub_question, prior_answers, [],
              max_context_tokens: s.max_context_tokens
            ),
          {:ok, answer} <- generate(messages, s) do
@@ -494,7 +532,10 @@ defmodule Cake.Conversation do
     String.replace(answer, ~r/\s*\[\d+\]/, "")
   end
 
-  defp final_sequential_prompt(indexed_chunks, question, answer_pairs, %State{} = s) do
+  # Shared by the sequential and self-ask (cap-exhaustion) endings: the
+  # original question over the merged context plus the surviving
+  # accumulated answers.
+  defp final_synthesis_prompt(indexed_chunks, question, answer_pairs, %State{} = s) do
     Cake.Prompt.build_with_prior_answers(
       indexed_chunks,
       question,
@@ -502,6 +543,114 @@ defmodule Cake.Conversation do
       Enum.reverse(s.message_history),
       max_context_tokens: s.max_context_tokens
     )
+  end
+
+  # --- Self-ask (interleaving) turn pipeline ---
+
+  # Drive the model with the original question until it emits the
+  # final-answer marker or the iteration cap is exhausted. Each follow-up
+  # the model asks resolves like a discovered sub-question — embed+search,
+  # intermediate answer over the retrieved context conditioned on the
+  # prior pairs — and the pair folds into the next driver prompt. On the
+  # marker path the extracted answer is the final text; on cap exhaustion
+  # the final answer is synthesized over the merged context plus the
+  # accumulated pairs, exactly like the sequential ending. Any
+  # intermediate search or generation error fails the whole turn.
+  defp run_self_ask_turn(question, %Cake.Decomposition.Result{} = decomposition, %State{} = s) do
+    with {:ok, {conclusion, answer_pairs, groups}} <- self_ask_loop(question, decomposition, s),
+         merged = merge_decomposed_results(groups),
+         {:ok, indexed_chunks} <- select(merged),
+         {:ok, response} <-
+           conclude_self_ask(conclusion, indexed_chunks, question, answer_pairs, s),
+         {:ok, result} <- process_response(response, indexed_chunks, s) do
+      finalize_turn(s, merged, question, response, result)
+    end
+  end
+
+  defp self_ask_loop(question, decomposition, %State{} = s) do
+    self_ask_round(question, decomposition, s, {[], []}, 0)
+  end
+
+  # Accumulators build newest-first and flip back to resolution order on
+  # termination (prompts want prior pairs oldest-first). `round` is both
+  # the follow-up count so far and the next follow-up's provenance index.
+  defp self_ask_round(
+         _question,
+         _decomposition,
+         %State{max_self_ask_iterations: cap},
+         {answers_rev, groups_rev},
+         round
+       )
+       when round >= cap do
+    {:ok, {:cap_exhausted, Enum.reverse(answers_rev), Enum.reverse(groups_rev)}}
+  end
+
+  defp self_ask_round(
+         question,
+         decomposition,
+         %State{} = s,
+         {answers_rev, groups_rev} = acc,
+         round
+       ) do
+    prior_answers = Enum.reverse(answers_rev)
+
+    case self_ask_drive(question, prior_answers, s) do
+      {:ok, {:final, answer}} ->
+        {:ok, {{:final, answer}, prior_answers, Enum.reverse(groups_rev)}}
+
+      {:ok, {:follow_up, follow_up}} ->
+        resolve_follow_up(question, decomposition, s, acc, round, follow_up)
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp resolve_follow_up(question, decomposition, s, {answers_rev, groups_rev}, round, follow_up) do
+    prior_answers = Enum.reverse(answers_rev)
+
+    with {:ok, {answer, stamped}} <-
+           resolve_sub_question(follow_up, round, decomposition, prior_answers, s) do
+      self_ask_round(
+        question,
+        decomposition,
+        s,
+        {[{follow_up, answer} | answers_rev], [stamped | groups_rev]},
+        round + 1
+      )
+    end
+  end
+
+  # One driver generation, classified. A final answer's [N] markers are
+  # stale references to intermediate steps' local numbering, so they are
+  # stripped here — citation resolution over the merged numbering must
+  # find none rather than false matches.
+  defp self_ask_drive(question, prior_answers, %State{} = s) do
+    messages =
+      Cake.Prompt.self_ask_prompt(question, prior_answers,
+        max_context_tokens: s.max_context_tokens
+      )
+
+    with {:ok, driver_response} <- generate(messages, s) do
+      case Cake.Prompt.parse_self_ask_response(driver_response) do
+        {:final, answer} -> {:ok, {:final, strip_citation_markers(answer)}}
+        {:follow_up, follow_up} -> {:ok, {:follow_up, follow_up}}
+      end
+    end
+  end
+
+  # Marker path: the extracted answer (markers already stripped in
+  # self_ask_drive/3) is the final text. Cap path: one last generation
+  # over the merged context plus the accumulated pairs, whose markers do
+  # cite the merged numbering.
+  defp conclude_self_ask({:final, answer}, _indexed_chunks, _question, _answer_pairs, %State{}) do
+    {:ok, answer}
+  end
+
+  defp conclude_self_ask(:cap_exhausted, indexed_chunks, question, answer_pairs, %State{} = s) do
+    indexed_chunks
+    |> final_synthesis_prompt(question, answer_pairs, s)
+    |> generate(s)
   end
 
   # --- Stage 1a: apply_selection (manual mode) ---

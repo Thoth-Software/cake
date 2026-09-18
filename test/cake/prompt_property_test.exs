@@ -367,4 +367,56 @@ defmodule Cake.PromptPropertyTest do
       end
     end
   end
+
+  # Red phase (#231): apply/3 so the suite compiles before the functions exist.
+  defp self_ask_prompt(question, pairs, opts) do
+    apply(Prompt, :self_ask_prompt, [question, pairs, opts])
+  end
+
+  defp parse_self_ask(response), do: apply(Prompt, :parse_self_ask_response, [response])
+
+  property "self_ask_prompt/3 is [system, user] with the question verbatim and both markers" do
+    check all(q <- question(), pairs <- answer_pairs(), budget <- integer(0..200)) do
+      assert [%{role: "system", content: system}, %{role: "user", content: ^q}] =
+               self_ask_prompt(q, pairs, max_context_tokens: budget)
+
+      assert String.contains?(system, "Follow up:")
+      assert String.contains?(system, "So the final answer is:")
+    end
+  end
+
+  property "parse_self_ask_response/1 totally classifies responses into final or follow_up" do
+    marker_free = string(:alphanumeric, min_length: 1, max_length: 40)
+
+    response =
+      one_of([
+        marker_free,
+        map({marker_free, marker_free}, fn {a, b} -> "#{a}\nFollow up: #{b}" end),
+        map({marker_free, marker_free}, fn {a, b} -> "#{a}\nSo the final answer is: #{b}" end)
+      ])
+
+    check all(text <- response) do
+      assert {tag, payload} = parse_self_ask(text)
+      assert tag in [:final, :follow_up]
+      assert is_binary(payload)
+    end
+  end
+
+  property "a trailing follow-up line parses to that follow-up question" do
+    check all(
+            prefix <- string(:alphanumeric, min_length: 1, max_length: 40),
+            follow_up <- string(:alphanumeric, min_length: 1, max_length: 40)
+          ) do
+      assert parse_self_ask("#{prefix}\nFollow up: #{follow_up}") == {:follow_up, follow_up}
+    end
+  end
+
+  property "a final-answer marker parses to the text after it, whatever precedes it" do
+    check all(
+            prefix <- string(:alphanumeric, min_length: 1, max_length: 40),
+            answer <- string(:alphanumeric, min_length: 1, max_length: 40)
+          ) do
+      assert parse_self_ask("#{prefix}\nSo the final answer is: #{answer}") == {:final, answer}
+    end
+  end
 end

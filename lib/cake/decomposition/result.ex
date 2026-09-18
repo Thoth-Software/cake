@@ -15,6 +15,11 @@ defmodule Cake.Decomposition.Result do
     - `:sequential` — at least one sub-question depends on another's
       answer; resolution must follow a topological order (the tier-3
       least-to-most loop, #230).
+    - `:self_ask` — the model discovers its own follow-up questions at
+      resolution time (the tier-4 self-ask interleaving loop, #231), so
+      `sub_questions` and `question_index` are empty. `new/2` never
+      derives this strategy — it only appears on a `Result` a strategy
+      module constructs with it explicitly.
 
   `question_index` maps each sub-question's positional index to its entry,
   so a downstream `Cake.Search.Provenance` can reference a sub-question by
@@ -28,7 +33,7 @@ defmodule Cake.Decomposition.Result do
   limp past.
   """
 
-  @type strategy :: :none | :flat | :sequential
+  @type strategy :: :none | :flat | :sequential | :self_ask
 
   @typedoc """
   One node of the sub-question DAG: the sub-question's text and the

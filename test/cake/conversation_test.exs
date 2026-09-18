@@ -933,6 +933,15 @@ defmodule Cake.ConversationTest do
     end
   end
 
+  # State's budget fields are enforced keys with no struct defaults, so a
+  # test building a State directly must supply what build_state/1 normally
+  # does.
+  defp state_attrs(overrides) do
+    mocked_opts()
+    |> Map.merge(%{max_context_tokens: 4096, max_self_ask_iterations: 5})
+    |> Map.merge(overrides)
+  end
+
   describe "pipeline stages" do
     test "resolve_search_results/2 returns cached results when search_results is non-empty" do
       cached = [
@@ -946,7 +955,7 @@ defmodule Cake.ConversationTest do
       state =
         struct!(
           Cake.Conversation.State,
-          Map.merge(mocked_opts(), %{search_results: cached})
+          state_attrs(%{search_results: cached})
         )
 
       assert {:ok, ^cached} = Conversation.resolve_search_results("ignored", state)
@@ -1098,7 +1107,7 @@ defmodule Cake.ConversationTest do
       state =
         struct!(
           Cake.Conversation.State,
-          Map.put(mocked_opts(), :responses, Cake.Responses.Mock)
+          state_attrs(%{responses: Cake.Responses.Mock})
         )
 
       assert {:ok, %Cake.Responses.Result{final_text: "processed"}} =
@@ -2237,6 +2246,354 @@ defmodule Cake.ConversationTest do
 
       stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
         {:error, :llm_down}
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:error, :llm_down}
+      assert_receive {:state_change, :idle}
+    end
+  end
+
+  describe ":max_self_ask_iterations option" do
+    test "defaults from :max_self_ask_iterations config, opt wins" do
+      {:ok, default_pid} = Conversation.start_link(valid_opts())
+      on_exit(fn -> if Process.alive?(default_pid), do: GenServer.stop(default_pid) end)
+
+      assert %{max_self_ask_iterations: 5} = :sys.get_state(default_pid)
+
+      put_temporary_env(:max_self_ask_iterations, 7)
+
+      {:ok, config_pid} = Conversation.start_link(valid_opts())
+      on_exit(fn -> if Process.alive?(config_pid), do: GenServer.stop(config_pid) end)
+
+      assert %{max_self_ask_iterations: 7} = :sys.get_state(config_pid)
+
+      {:ok, opt_pid} = Conversation.start_link(valid_opts(%{max_self_ask_iterations: 2}))
+      on_exit(fn -> if Process.alive?(opt_pid), do: GenServer.stop(opt_pid) end)
+
+      assert %{max_self_ask_iterations: 2} = :sys.get_state(opt_pid)
+    end
+  end
+
+  # A :self_ask decomposition carries no upfront sub-questions — the
+  # model discovers follow-ups at resolution time — so tests build the
+  # Result struct directly rather than through new/2 (which derives the
+  # strategy from dependency edges).
+  defp self_ask_result(question) do
+    %Cake.Decomposition.Result{original_question: question, strategy: :self_ask}
+  end
+
+  # The self-ask driver prompt is the only prompt whose system message
+  # teaches the final-answer marker; intermediate and synthesis prompts
+  # come from build_with_prior_answers/5 and never mention it.
+  defp driver_prompt?(messages) do
+    [%{role: "system", content: system} | _] = messages
+    String.contains?(system, "So the final answer is:")
+  end
+
+  describe "self-ask interleaving" do
+    test "resolves a follow-up, then terminates on the final-answer marker" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      follow_up = "Which pump does the RO-400 use?"
+      intermediate_answer = "The RO-400 uses the P-100 pump."
+      final_answer = "The warranty is 5 years."
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, self_ask_result(question)}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, %{input: input}, _model ->
+        send(test_pid, {:embedded, input})
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-pump", body: "pump spec chunk")]}
+      end)
+
+      expect(Cake.Generation.Mock, :complete, 3, fn messages, _model, _opts ->
+        send(test_pid, {:generated, messages})
+        [%{content: system} | _] = messages
+
+        text =
+          cond do
+            List.last(messages).content == follow_up ->
+              intermediate_answer
+
+            String.contains?(system, intermediate_answer) ->
+              "So the final answer is: #{final_answer}"
+
+            true ->
+              "I need more information.\nFollow up: #{follow_up}"
+          end
+
+        {:ok, %{text: text, usage: %{}}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn raw, indexed, _opts ->
+        send(test_pid, {:processed, raw, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: raw,
+          final_text: raw,
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      # Driver prompt 1: the original question, no accumulated pairs yet.
+      assert_receive {:generated, driver_one}
+      assert driver_prompt?(driver_one)
+      assert %{role: "user", content: ^question} = List.last(driver_one)
+      refute driver_one |> Enum.map_join("\n", & &1.content) |> String.contains?(follow_up)
+
+      # The follow-up is what gets embedded and searched.
+      assert_receive {:embedded, ^follow_up}
+
+      # Intermediate prompt: the follow-up over its retrieved context.
+      assert_receive {:generated, intermediate}
+      refute driver_prompt?(intermediate)
+      assert %{role: "user", content: ^follow_up} = List.last(intermediate)
+
+      # Driver prompt 2: carries the resolved follow-up/answer pair.
+      assert_receive {:generated, driver_two}
+      assert driver_prompt?(driver_two)
+      assert %{role: "user", content: ^question} = List.last(driver_two)
+      driver_two_text = Enum.map_join(driver_two, "\n", & &1.content)
+      assert String.contains?(driver_two_text, follow_up)
+      assert String.contains?(driver_two_text, intermediate_answer)
+
+      # The extracted final answer is processed over the merged context,
+      # whose provenance names the follow-up round that surfaced it.
+      assert_receive {:processed, ^final_answer, indexed}
+
+      Enum.each(indexed, fn {_idx, result} ->
+        assert result.provenance.decomposed == true
+        assert result.provenance.original_query == question
+        assert result.provenance.sub_question_index == 0
+      end)
+
+      assert_receive {:response_ready, %{response: ^final_answer}}
+    end
+
+    test "terminates at the iteration cap and synthesizes over accumulated context" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      follow_up = "Which pump does the RO-400 use?"
+      intermediate_answer = "The pump is the P-100."
+      synthesis_answer = "final synthesis [1]"
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, self_ask_result(question)}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, _params, _model ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      # Fresh unit id per search so both follow-up rounds contribute a
+      # distinct unit to the merged context.
+      expect(Cake.Search.Backend.Mock, :search, 2, fn _query ->
+        {:ok, [build_search_hit()]}
+      end)
+
+      # The driver never emits the final-answer marker, so the loop must
+      # stop itself: driver, intermediate, driver, intermediate, synthesis.
+      expect(Cake.Generation.Mock, :complete, 5, fn messages, _model, _opts ->
+        send(test_pid, {:generated, messages})
+
+        text =
+          cond do
+            driver_prompt?(messages) -> "Follow up: #{follow_up}"
+            List.last(messages).content == follow_up -> intermediate_answer
+            true -> synthesis_answer
+          end
+
+        {:ok, %{text: text, usage: %{}}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn raw, indexed, _opts ->
+        send(test_pid, {:processed, raw, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: raw,
+          final_text: raw,
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid =
+        start_subscribed(%{decomposition: Cake.Decomposition.Mock, max_self_ask_iterations: 2})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:generated, round_one_driver}
+      assert driver_prompt?(round_one_driver)
+      assert_receive {:generated, _round_one_intermediate}
+      assert_receive {:generated, round_two_driver}
+      assert driver_prompt?(round_two_driver)
+      assert_receive {:generated, _round_two_intermediate}
+
+      # The synthesis prompt is not a driver prompt: it asks the original
+      # question over the merged context plus both accumulated answers.
+      assert_receive {:generated, synthesis}
+      refute driver_prompt?(synthesis)
+      assert %{role: "user", content: ^question} = List.last(synthesis)
+
+      assert synthesis
+             |> Enum.map_join("\n", & &1.content)
+             |> String.contains?(intermediate_answer)
+
+      # Both follow-up rounds contributed context, indexed per round.
+      assert_receive {:processed, ^synthesis_answer, indexed}
+
+      indexes =
+        indexed
+        |> Enum.map(fn {_idx, result} -> result.provenance.sub_question_index end)
+        |> Enum.sort()
+
+      assert indexes == [0, 1]
+
+      Enum.each(indexed, fn {_idx, result} ->
+        assert result.provenance.decomposed == true
+        assert result.provenance.original_query == question
+      end)
+
+      assert_receive {:response_ready, %{response: ^synthesis_answer}}
+    end
+
+    test "strips stale citation markers from the extracted final answer" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, self_ask_result(question)}
+      end)
+
+      # An immediate final answer: no follow-up, so no embed and no search.
+      expect(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "So the final answer is: The warranty is 5 years [1][2].", usage: %{}}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn raw, indexed, _opts ->
+        send(test_pid, {:processed, raw, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: raw,
+          final_text: raw,
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      # The [N] markers referred to intermediate steps' local numbering
+      # (here, to nothing at all) — they must not survive into citation
+      # resolution against the merged numbering.
+      assert_receive {:processed, "The warranty is 5 years.", indexed}
+      assert indexed == []
+
+      assert_receive {:response_ready, %{response: "The warranty is 5 years."}}
+    end
+
+    test "a response without markers is the final answer" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, self_ask_result(question)}
+      end)
+
+      expect(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "A direct answer.", usage: %{}}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn raw, indexed, _opts ->
+        send(test_pid, {:processed, raw, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: raw,
+          final_text: raw,
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:processed, "A direct answer.", []}
+      assert_receive {:response_ready, %{response: "A direct answer."}}
+    end
+
+    test "an intermediate generation error fails the turn with that error" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      follow_up = "Which pump does the RO-400 use?"
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, self_ask_result(question)}
+      end)
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _params, _model ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      stub(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-a", body: "manual chunk")]}
+      end)
+
+      expect(Cake.Generation.Mock, :complete, 2, fn messages, _model, _opts ->
+        if driver_prompt?(messages) do
+          {:ok, %{text: "Follow up: #{follow_up}", usage: %{}}}
+        else
+          {:error, :llm_down}
+        end
       end)
 
       pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
