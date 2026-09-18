@@ -14,37 +14,30 @@
 
 ### H1 — Regulated manufacturing
 - **Guess:** manufacturers under regulatory documentation burden (FDA, EPA, ISO audits) will pay for retrieval with citations over their own document corpus.
-- **Seed:** AmeriWater (Jennifer Woodworth contact).
 - **Kill criterion:** 5 discovery conversations where no one names document retrieval/audit prep as a felt pain they'd budget for.
 
 ### H2 — Healthcare admin
 - **Guess:** healthcare administrative orgs (billing, credentialing, compliance) need answers grounded in policy documents and will value self-hosting for PHI reasons.
-- **Seed:** PR360 vocabulary inheritance — I already speak this domain's language from 30 days inside it.
 - **Kill criterion:** conversations reveal buying is locked to incumbent EHR/compliance vendors with no seam for a standalone retrieval layer.
 
 ### H3 — Insurance
 - **Guess:** insurers (underwriting guidelines, policy documents, claims manuals) need cited answers from sprawling internal doc sets.
-- **Seed:** Columbus is an insurance town — autochthonous network advantage.
 - **Kill criterion:** discovery shows procurement cycles/vendor-risk requirements that a one-man LLC cannot clear regardless of product fit.
 
 ### H4 — Logistics / freight
 - **Guess:** logistics operators (tariffs, routing guides, carrier contracts, compliance docs) lose money to slow document lookup.
-- **Seed:** none yet — pure guess, needs first conversations.
 - **Kill criterion:** pain exists but is solved by tribal knowledge / phone calls; documents aren't actually the bottleneck.
 
 ### H5 — Legal-adjacent
 - **Guess:** legal-adjacent shops (title, compliance consultancies, contract review) want cited retrieval but aren't served by big-law tooling.
-- **Seed:** none. **Built to be killed fast** — crowded space, well-funded incumbents.
 - **Kill criterion:** any 2 conversations naming an incumbent tool they already pay for (Harvey, Casetext, etc.).
 
 ### H6 — Municipal / public sector
 - **Guess:** municipal governments and public agencies (codes, ordinances, grant compliance) have grant money, mandatory documentation, and no modern tooling.
-- **Seed:** grant funding exists for exactly this class of purchase. Dark horse.
 - **Kill criterion:** sales cycle >12 months confirmed in discovery — too slow for current runway math.
 
 ### H7 — Anti-vertical control
 - **Guess (control):** the buyer is defined by *role*, not industry — ops buys, never IT. If H7 outperforms H1–H6, verticalization by industry is the wrong axis.
-- **Seed:** every prior conversion (PR360, SwayCash, Comoto) came through an operator/owner, never a technical evaluator.
 - **Kill criterion:** discovery shows IT/engineering gatekeeping purchase decisions in a majority of conversations.
 
 ### Meta-hypothesis — "Anyone whose documents face a regulator"
