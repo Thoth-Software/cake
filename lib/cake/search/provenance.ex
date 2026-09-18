@@ -11,7 +11,9 @@ defmodule Cake.Search.Provenance do
   For a decomposed search, `sub_question_index` is the sub-question's
   positional key in `Cake.Decomposition.Result`'s `question_index`, so
   citations trace back to a specific sub-question by index rather than by
-  string matching.
+  string matching. For a `:self_ask` resolution the model discovers its
+  follow-up questions at run time — `question_index` is empty — so the
+  index instead counts follow-up rounds in discovery order, zero-based.
   """
 
   @type t :: %__MODULE__{
