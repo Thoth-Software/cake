@@ -6,6 +6,13 @@ defmodule Cake.PromptTest do
 
   defp test_provenance, do: %Provenance{search_type: :hybrid, query_text: "test"}
 
+  # Red phase: routed through apply/3 so the suite compiles before
+  # estimate_tokens/1 exists.
+  defp pair_cost({question, answer}) do
+    apply(Cake.Prompt, :estimate_tokens, [question]) +
+      apply(Cake.Prompt, :estimate_tokens, [answer])
+  end
+
   defp scored_result(score, opts \\ []) do
     chunk = %Cake.Books.Chunk{
       text: Keyword.get(opts, :text, "Chunk text at score #{score}"),
@@ -273,6 +280,110 @@ defmodule Cake.PromptTest do
       [%{role: "system", content: system} | _] = Cake.Prompt.decomposition_prompt("q")
 
       assert String.contains?(system, ~s("sub_questions"))
+    end
+  end
+
+  describe "estimate_tokens/1" do
+    # Red phase: apply/3 keeps the suite compiling before the functions
+    # exist — literal calls would trip --warnings-as-errors.
+    test "approximates four characters per token, rounding up" do
+      assert apply(Cake.Prompt, :estimate_tokens, [""]) == 0
+      assert apply(Cake.Prompt, :estimate_tokens, ["abcd"]) == 1
+      assert apply(Cake.Prompt, :estimate_tokens, ["abcde"]) == 2
+      assert apply(Cake.Prompt, :estimate_tokens, ["abcdefgh"]) == 2
+    end
+  end
+
+  describe "fit_answer_pairs/2" do
+    test "a generous ceiling keeps every pair" do
+      pairs = [{"q-old", "a-old"}, {"q-new", "a-new"}]
+
+      assert apply(Cake.Prompt, :fit_answer_pairs, [pairs, 1_000_000]) == pairs
+    end
+
+    test "a zero ceiling keeps nothing" do
+      pairs = [{"q-old", "a-old"}, {"q-new", "a-new"}]
+
+      assert apply(Cake.Prompt, :fit_answer_pairs, [pairs, 0]) == []
+    end
+
+    test "drops the oldest pairs first when the ceiling is hit" do
+      oldest = {"first sub-question asked", "the very first intermediate answer"}
+      newest = {"last sub-question", "newest answer"}
+      budget = pair_cost(newest)
+
+      assert apply(Cake.Prompt, :fit_answer_pairs, [[oldest, newest], budget]) == [newest]
+    end
+  end
+
+  describe "build_with_prior_answers/5" do
+    test "folds kept prior answers into the system message ahead of the current question" do
+      indexed = [{1, scored_result(0.9)}]
+      pairs = [{"Which pump does the RO-400 use?", "The RO-400 uses the P-100 pump."}]
+      question = "What is the warranty on that pump?"
+
+      messages =
+        apply(Cake.Prompt, :build_with_prior_answers, [
+          indexed,
+          question,
+          pairs,
+          [],
+          [max_context_tokens: 1_000_000]
+        ])
+
+      [%{role: "system", content: system} | _rest] = messages
+
+      assert String.contains?(system, "Which pump does the RO-400 use?")
+      assert String.contains?(system, "The RO-400 uses the P-100 pump.")
+      # The retrieved-context block is still present alongside the answers.
+      assert String.contains?(system, "[1]")
+
+      assert %{role: "user", content: ^question} = List.last(messages)
+    end
+
+    test "with no prior answers it matches build/4 exactly" do
+      indexed = [{1, scored_result(0.9)}]
+      question = "What is the flow rate?"
+      history = ["q1", "a1"]
+
+      assert apply(Cake.Prompt, :build_with_prior_answers, [
+               indexed,
+               question,
+               [],
+               history,
+               [max_context_tokens: 1_000_000]
+             ]) == Cake.Prompt.build(indexed, question, history)
+    end
+
+    test "evicts the oldest pair when the ceiling only fits the newest" do
+      oldest = {"first sub-question asked", "the very first intermediate answer"}
+      newest = {"last sub-question", "newest answer"}
+      budget = pair_cost(newest)
+
+      [%{role: "system", content: system} | _] =
+        apply(Cake.Prompt, :build_with_prior_answers, [
+          [{1, scored_result(0.9)}],
+          "final?",
+          [oldest, newest],
+          [],
+          [max_context_tokens: budget]
+        ])
+
+      refute String.contains?(system, "the very first intermediate answer")
+      assert String.contains?(system, "newest answer")
+    end
+
+    test "a zero ceiling produces the plain build/4 prompt" do
+      indexed = [{1, scored_result(0.9)}]
+      pairs = [{"q-old", "a-old"}, {"q-new", "a-new"}]
+
+      assert apply(Cake.Prompt, :build_with_prior_answers, [
+               indexed,
+               "final?",
+               pairs,
+               [],
+               [max_context_tokens: 0]
+             ]) == Cake.Prompt.build(indexed, "final?", [])
     end
   end
 end

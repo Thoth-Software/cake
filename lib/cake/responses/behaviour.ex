@@ -17,6 +17,12 @@ defmodule Cake.Responses.Behaviour do
 
   @type indexed_chunks :: [{pos_integer(), Cake.Search.Result.t()}]
 
+  @doc """
+  Runs post-generation processing over the raw LLM text and the indexed
+  chunks — resolve and renumber citations, rewrite markers, select media,
+  extract actions, format — returning the structured
+  `Cake.Responses.Result`.
+  """
   @callback process(
               raw_text :: String.t(),
               indexed_chunks :: indexed_chunks(),

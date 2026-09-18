@@ -17,7 +17,10 @@ defmodule Cake.Conversation.State do
       :idle --{:manualask, q}-->     :awaiting_selection
       :awaiting_selection --{:select, ids}--> :generating --> :idle
 
-  Invalid transitions crash the GenServer (no defensive clauses).
+  An `:autoask` during `:generating` is queued in `queued_question` (a
+  later one overwrites an earlier one) and replayed when the turn
+  completes; every other invalid transition crashes the GenServer (no
+  defensive clauses).
   """
 
   @type state_name :: :idle | :awaiting_selection | :generating
@@ -35,6 +38,7 @@ defmodule Cake.Conversation.State do
           responses: module(),
           generation: module(),
           decomposition: module() | nil,
+          max_context_tokens: non_neg_integer(),
           gds: module(),
           search_results: list(),
           message_history: list(),
@@ -58,6 +62,7 @@ defmodule Cake.Conversation.State do
     responses: Cake.Responses,
     generation: Cake.Generation.OpenAI,
     decomposition: nil,
+    max_context_tokens: 4096,
     search_results: [],
     message_history: [],
     chunk_map: %{},

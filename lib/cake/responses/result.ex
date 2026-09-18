@@ -5,15 +5,16 @@ defmodule Cake.Responses.Result do
   Each field has a clear owner in the pipeline:
 
     * `raw_text` — populated on construction; never modified.
-    * `final_text` — the display text after renumbering and formatting.
-      In Step 2, this mirrors `raw_text`. Step 3 populates it properly.
+    * `final_text` — the display text after citation renumbering, marker
+      rewriting, and whitespace cleanup.
     * `chunk_map` — integer index → `Cake.Citable.metadata()`. Built from
       `indexed_chunks` at the top of the pipeline.
     * `citations` — ordered, deduplicated citation records with both
       old_index (what the LLM wrote) and new_index (what the user sees).
-      In Step 2, new_index == old_index (no renumbering yet).
-    * `media` — image items selected for display. Empty in Step 2.
-    * `actions` — download buttons, external links, etc. Empty in Step 2.
+    * `media` — image items selected for display. `select_media` is
+      currently a stub, so this is always empty today.
+    * `actions` — download buttons, external links, etc. Currently one
+      `:download` action per unique citation `source_ref`.
     * `assigns` — passthrough map for tenant-specific or view-specific
       data that doesn't fit the typed fields.
     * `warnings` — non-fatal issues, structured as `{atom, term}` tuples

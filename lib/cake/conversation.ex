@@ -7,14 +7,23 @@ defmodule Cake.Conversation do
       :idle --{:autoask, q}-->       :generating        --> :idle
       :idle --{:manualask, q}-->     :awaiting_selection
       :awaiting_selection --{:select, ids}--> :generating --> :idle
+      :generating --{:autoask, q}--> :generating (question queued)
 
-  Invalid transitions crash the GenServer (no defensive clauses; the UI
-  is expected to prevent invalid messages).
+  An `:autoask` that arrives while `:generating` does not crash: the
+  question is stored in `queued_question` (a later one overwrites an
+  earlier one) and replayed as a fresh turn when the current turn
+  completes. Every other invalid transition crashes the GenServer (no
+  defensive clauses; the UI is expected to prevent invalid messages).
 
   ## Pipelines
 
   - `run_turn/2` — full auto-mode pipeline (decompose → search → select →
-    prompt → generate → cite).
+    prompt → generate → cite), dispatching to the sequential pipeline when
+    the decomposition strategy is `:sequential`.
+  - `run_sequential_turn/3` — least-to-most back-half: resolve each
+    sub-question in topological order (search → prompt with accumulated
+    prior answers → intermediate answer), then synthesize the final answer
+    over the merged context plus the accumulated answers.
   - `run_manual_turn/4` — manual-mode back-half (apply_selection → prompt →
     generate → cite) after user picks documents.
 
@@ -23,15 +32,26 @@ defmodule Cake.Conversation do
   ## Query decomposition
 
   Opt-in via the `:decomposition` opt (a module implementing
-  `Cake.Decomposition`; default `nil` — no decomposition). When set, the
-  first turn's question is decomposed before searching: an atomic result
+  `Cake.Decomposition`; default `nil` — no decomposition). When set, an
+  autoask turn that begins with no cached search results has its question
+  decomposed before searching — in the intended flow, the first auto-mode
+  turn; the guard shares #255's empty-list ambiguity. An atomic result
   searches the original question exactly as before, while a decomposed one
   runs one embed+search per sub-question and merges the deduplicated
   results into a single context. Each merged result's
   `Cake.Search.Provenance` is stamped with `decomposed: true`, the
   `original_query`, and its `sub_question_index`.
 
-  Sub-question searches fan out concurrently under `Cake.TaskSupervisor`,
+  A `:sequential` decomposition (entries with `depends_on` edges) instead
+  resolves least-to-most: sub-questions run one at a time in topological
+  order, each prompt carrying the accumulated prior question/answer pairs,
+  budgeted by the `:max_context_tokens` opt (default from
+  `config :cake, :decomposition_max_context_tokens, 4096`) with the oldest
+  pairs evicted first. The final answer is generated over the merged,
+  deduplicated context plus the surviving accumulated answers. Any
+  intermediate search or generation error fails the whole turn.
+
+  For `:flat` decompositions, sub-question searches fan out concurrently under `Cake.TaskSupervisor`,
   capped by `config :cake, :max_sub_search_concurrency` (default 4; set to
   1 to force sequential fan-out in constrained environments). Each
   sub-search must finish within `config :cake, :sub_search_timeout`
@@ -42,9 +62,11 @@ defmodule Cake.Conversation do
 
   ## Dependencies
 
-  Search, embeddings, generation, responses, and (optionally) decomposition
-  modules are passed as opts at `start_link/1` time to support Mox-based
-  testing.
+  Embeddings, generation, responses, and (optionally) decomposition modules
+  are passed as opts at `start_link/1`/`start/1` time to support Mox-based
+  testing. Search is not injected: `Cake.Search` is called directly, and
+  test substitution happens one layer down, via the `:search_backend`
+  config.
 
   ## Broadcasts
 
@@ -75,6 +97,7 @@ defmodule Cake.Conversation do
 
   @default_max_sub_search_concurrency 4
   @default_sub_search_timeout :timer.seconds(30)
+  @default_max_context_tokens 4096
 
   @spec child_spec(map()) :: Supervisor.child_spec()
   def child_spec(opts) do
@@ -85,6 +108,15 @@ defmodule Cake.Conversation do
     }
   end
 
+  @doc """
+  Starts a linked Conversation GenServer.
+
+  `opts` is a map. `:id` and `:gds` are required and validated before the
+  process spawns; `:embedder`, `:response_model`, and `:provider` are
+  required by state construction in `init/1`. Collaborator modules
+  (`:embeddings`, `:generation`, `:responses`, `:decomposition`) and
+  `:max_context_tokens` are optional and default in `init/1`.
+  """
   @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
     with {:ok, _id} <- fetch_required(opts, :id),
@@ -93,6 +125,11 @@ defmodule Cake.Conversation do
     end
   end
 
+  @doc """
+  Starts a Conversation under the `Cake.ConversationSupervisor`
+  DynamicSupervisor. Takes the same opts as `start_link/1`, with the same
+  pre-spawn validation of `:id` and `:gds`.
+  """
   @spec start(map()) :: DynamicSupervisor.on_start_child()
   def start(opts) when is_map(opts) do
     with {:ok, _id} <- fetch_required(opts, :id),
@@ -125,10 +162,28 @@ defmodule Cake.Conversation do
       responses: Map.get(opts, :responses, Cake.Responses),
       generation: Map.get(opts, :generation, Cake.Generation.OpenAI),
       decomposition: Map.get(opts, :decomposition),
+      max_context_tokens:
+        Map.get(
+          opts,
+          :max_context_tokens,
+          Application.get_env(
+            :cake,
+            :decomposition_max_context_tokens,
+            @default_max_context_tokens
+          )
+        ),
       gds: opts.gds
     }
   end
 
+  @doc """
+  Runs a full auto-mode turn for `question`. Asynchronous cast — the
+  response, citations, and errors arrive via PubSub (see
+  `Cake.Conversation.Events`). While `:generating`, the question is queued
+  (a later one overwrites an earlier one) and replayed when the turn
+  completes; an autoask during `:awaiting_selection` is an invalid
+  transition and crashes the server.
+  """
   @spec autoask(pid(), String.t()) :: :ok
   def autoask(pid, question), do: GenServer.cast(pid, {:autoask, question})
 
@@ -171,12 +226,29 @@ defmodule Cake.Conversation do
 
   # --- Manual mode ---
 
+  @doc """
+  Manual-mode turn, first half: retrieves and returns candidate results
+  for the user to pick from. Generation proceeds once `select_docs/2`
+  supplies the ids of the chosen candidates.
+  """
   @spec manualask(pid(), String.t()) ::
           {:ok, [Result.t()]} | {:error, String.t() | Cake.Search.Backend.search_error()}
   def manualask(pid, question) do
     GenServer.call(pid, {:manualask, question})
   end
 
+  @doc """
+  Manual-mode turn, second half: supplies the chosen candidate ids for a
+  pending `manualask/2` and kicks off generation over those chunks.
+
+  The ids are the `Cake.Citable` `metadata/1` `:id`s of the offered
+  candidates (chunk ids, for books) — not the document ids the web layer
+  displays. `CakeWeb.ChatLive` groups candidates by document and expands a
+  document selection back into candidate ids via
+  `Cake.Candidates.expand_to_chunk_ids/2` before calling this. Ids not
+  among the offered candidates are rejected (the `:unknown_doc_ids` error
+  atom is historical — it reports unknown candidate ids).
+  """
   @spec select_docs(pid(), [String.t()]) ::
           :ok | {:error, {:unknown_doc_ids, [String.t()]} | Cake.Generation.error_reason()}
   def select_docs(pid, doc_ids) do
@@ -186,13 +258,51 @@ defmodule Cake.Conversation do
   # --- Auto-mode turn pipeline ---
 
   defp run_turn(question, %State{} = s) do
-    with {:ok, scored_results} <- resolve_search_results(question, s),
+    with {:ok, decomposition} <- maybe_decompose(question, s) do
+      run_turn_for(decomposition, question, s)
+    end
+  end
+
+  # Decomposition drives the first turn only: cached search results mean
+  # the question flows through the standard chain (and its reuse clause).
+  #
+  # Known defect (#255): [] is both the fresh-state default and a completed
+  # retrieval that found nothing, so a first turn with empty retrieval
+  # re-decomposes (an extra LLM call — for :sequential, a whole re-resolution)
+  # on every later turn. The fix is a distinct uninitialized sentinel (or a
+  # retrieved? flag) on State; this guard, resolve_search_results/2's reuse
+  # clause, and update_state/5's first-turn history branch must migrate
+  # together.
+  defp maybe_decompose(_question, %State{search_results: results}) when results != [] do
+    {:ok, nil}
+  end
+
+  defp maybe_decompose(_question, %State{decomposition: nil}), do: {:ok, nil}
+
+  defp maybe_decompose(question, %State{} = s), do: s.decomposition.decompose(question, [])
+
+  defp run_turn_for(
+         %Cake.Decomposition.Result{strategy: :sequential} = decomposition,
+         question,
+         s
+       ) do
+    run_sequential_turn(question, decomposition, s)
+  end
+
+  defp run_turn_for(decomposition, question, %State{} = s) do
+    with {:ok, scored_results} <- resolve_context(decomposition, question, s),
          {:ok, indexed_chunks} <- select(scored_results),
          {:ok, messages} <- build_prompt(indexed_chunks, question, s.message_history),
          {:ok, response} <- generate(messages, s),
          {:ok, result} <- process_response(response, indexed_chunks, s) do
       finalize_turn(s, scored_results, question, response, result)
     end
+  end
+
+  defp resolve_context(nil, question, %State{} = s), do: resolve_search_results(question, s)
+
+  defp resolve_context(%Cake.Decomposition.Result{} = decomposition, _question, %State{} = s) do
+    search_decomposed(decomposition, s)
   end
 
   # --- Manual-mode turn pipeline ---
@@ -213,25 +323,23 @@ defmodule Cake.Conversation do
 
   # --- Stage 0: resolve search results (search on first turn, reuse on subsequent) ---
 
+  # The reuse guard shares #255's empty-list ambiguity (see
+  # maybe_decompose/2): a retrieval that found nothing is indistinguishable
+  # from no retrieval, so it re-searches on later turns.
+  #
+  # Decomposition dispatch lives upstream in maybe_decompose/2 and
+  # resolve_context/3; this stage only reuses cached results or runs the
+  # plain single search.
   @doc false
   @spec resolve_search_results(String.t(), State.t()) ::
           {:ok, [Result.t()]}
-          | {:error,
-             String.t()
-             | Cake.Search.Backend.search_error()
-             | Cake.Decomposition.error_reason()}
+          | {:error, String.t() | Cake.Search.Backend.search_error()}
   def resolve_search_results(_question, %State{search_results: results}) when results != [] do
     {:ok, results}
   end
 
-  def resolve_search_results(question, %State{decomposition: nil} = s) do
-    embed_and_search(question, s)
-  end
-
   def resolve_search_results(question, %State{} = s) do
-    with {:ok, decomposition} <- s.decomposition.decompose(question, []) do
-      search_decomposed(decomposition, s)
-    end
+    embed_and_search(question, s)
   end
 
   # An atomic decomposition takes the same single-search path as no
@@ -322,6 +430,78 @@ defmodule Cake.Conversation do
     |> Enum.group_by(fn %Result{retrieval_unit: unit} -> Cake.Citable.metadata(unit).id end)
     |> Enum.map(fn {_id, duplicates} -> Enum.max_by(duplicates, & &1.relevance_score) end)
     |> Cake.Search.sort_by_relevance()
+  end
+
+  # --- Sequential (least-to-most) turn pipeline ---
+
+  # Resolve sub-questions in topological order, each step conditioning on
+  # the accumulated prior answers, then synthesize the final answer over
+  # the merged, deduplicated context plus those answers. Inherently serial
+  # — the concurrent fan-out applies only to the flat strategy.
+  defp run_sequential_turn(question, %Cake.Decomposition.Result{} = decomposition, %State{} = s) do
+    with {:ok, {answer_pairs, groups}} <- resolve_sub_questions(decomposition, s),
+         merged = merge_decomposed_results(groups),
+         {:ok, indexed_chunks} <- select(merged),
+         messages = final_sequential_prompt(indexed_chunks, question, answer_pairs, s),
+         {:ok, response} <- generate(messages, s),
+         {:ok, result} <- process_response(response, indexed_chunks, s) do
+      finalize_turn(s, merged, question, response, result)
+    end
+  end
+
+  # Accumulators build newest-first; normalize_sub_question_groups flips
+  # both back to resolution order (prompts want prior answers oldest-first).
+  defp resolve_sub_questions(decomposition, %State{} = s) do
+    decomposition
+    |> Cake.Decomposition.Result.topological_order()
+    |> Enum.reduce_while({:ok, {[], []}}, fn {index, entry}, {:ok, {answers_rev, groups}} ->
+      prior_answers = Enum.reverse(answers_rev)
+
+      case resolve_sub_question(entry, index, decomposition, prior_answers, s) do
+        {:ok, {answer, stamped}} ->
+          {:cont, {:ok, {[{entry.question, answer} | answers_rev], [stamped | groups]}}}
+
+        {:error, _} = error ->
+          {:halt, error}
+      end
+    end)
+    |> normalize_sub_question_groups()
+  end
+
+  defp normalize_sub_question_groups({:ok, {answers_rev, groups}}) do
+    {:ok, {Enum.reverse(answers_rev), Enum.reverse(groups)}}
+  end
+
+  defp normalize_sub_question_groups({:error, _} = error), do: error
+
+  defp resolve_sub_question(entry, index, decomposition, prior_answers, %State{} = s) do
+    with {:ok, results} <- embed_and_search(entry.question, s),
+         stamped = stamp_decomposition(results, decomposition, index),
+         {:ok, indexed_chunks} <- select(stamped),
+         messages =
+           Cake.Prompt.build_with_prior_answers(indexed_chunks, entry.question, prior_answers, [],
+             max_context_tokens: s.max_context_tokens
+           ),
+         {:ok, answer} <- generate(messages, s) do
+      {:ok, {strip_citation_markers(answer), stamped}}
+    end
+  end
+
+  # An intermediate answer's [N] markers cite that step's local chunk
+  # numbering; threaded forward verbatim they would collide with later
+  # prompts' numbering and could leak into final citation resolution.
+  defp strip_citation_markers(answer) do
+    String.replace(answer, ~r/\s*\[\d+\]/, "")
+  end
+
+  defp final_sequential_prompt(indexed_chunks, question, answer_pairs, %State{} = s) do
+    Cake.Prompt.build_with_prior_answers(
+      indexed_chunks,
+      question,
+      answer_pairs,
+      Enum.reverse(s.message_history),
+      max_context_tokens: s.max_context_tokens
+    )
   end
 
   # --- Stage 1a: apply_selection (manual mode) ---

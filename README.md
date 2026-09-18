@@ -1,7 +1,7 @@
 ---
 title: "Cake — RAG Framework for Enterprise Document Q&A"
 tags: [cake, rag, elixir, phoenix, opensearch, architecture, domain-model]
-date: 2026-06-19
+date: 2026-09-15
 domain: architecture, reference
 source: project-maintainer
 ---
@@ -73,9 +73,9 @@ The system is organized into four layers. Each layer has a clear responsibility 
 
 The ingestion layer has two pipeline behaviours because the two GDSes have fundamentally different parsing requirements, metadata schemas, and chunking strategies. Each GDS owns its own ingestion contract.
 
-**`Cake.Documents.Pipeline`** is the behaviour for ingesting programming documentation. Its GDS is `ParsedDocument`. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`, and optionally `retry_from_raw/2`. The module also contains the `ingest/4` orchestrator that sequences callbacks into a stream pipeline: download → persist raw → parse → embed → index. Current implementation: `Cake.Documents.Hexdocs.Pipeline`.
+**`Cake.Documents.Pipeline`** is the behaviour for ingesting programming documentation. Its GDS is `ParsedDocument`. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`, and optionally `retry_from_raw/2`. The module also contains the `ingest/4` orchestrator that sequences callbacks into a stream pipeline — download → persist raw → parse → persist parsed → embed → index — plus an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Documents.Hexdocs.Pipeline`.
 
-**`Cake.Books.Pipeline`** is the behaviour for ingesting books and book-like documents. Its GDS is `ParsedBook` + `Chunk`. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. Current implementation: `Cake.Books.Pdf.Pipeline`, which uses a Rustler NIF (`parsebooks` Rust crate wrapping `pdf-extract`).
+**`Cake.Books.Pipeline`** is the behaviour for ingesting books and book-like documents. Its GDS is `ParsedBook` + `Chunk`. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. Like `Documents.Pipeline`, the module also contains its own `ingest/4` orchestrator and an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Books.Pdf.Pipeline`, which uses a Rustler NIF (`parsebooks` Rust crate wrapping `pdf-extract`).
 
 **`Cake.Pipelines`** provides shared infrastructure used by both pipeline types: `detuple_with_logging/3` filters `{:ok, _}/{:error, _}` streams and persists errors to `FailedIngest`, `add_to_search_backend/3` handles index upserts, and `sweep/5` implements a retry loop for item-level failures. A `Context` struct carries pipeline identity (behaviour, implementation, version) through a run for error provenance.
 
@@ -83,7 +83,7 @@ There is deliberately no `Cake.Ingestion` behaviour unifying the two pipeline be
 
 ### Layer 2: Search and Retrieval
 
-**`Cake.Search`** is a vanilla module owning Cake-internal search orchestration. It exposes three search entry points (`search_chunks/4`, `search_chunks_with_context/5`, `search_docs/4`), each supporting three modes (`:keyword`, `:vector`, `:hybrid`). Hybrid is the default. The module reads the target index, search fields, hit hydration, and neighbor expansion from the GDS module passed via the `:gds` opt. It also owns the pure scoring utilities (`cosine_similarity/2`, `score_results/2`, `normalize_and_combine/1`, `sort_by_relevance/1`) that rank retrieved results.
+**`Cake.Search`** is a vanilla module owning Cake-internal search orchestration. It exposes three search entry points (`search_chunks/4`, `search_chunks_with_context/5`, and `search_docs/4` — the latter an alias of `search_chunks/4` retained for call-site clarity), each supporting three modes (`:keyword`, `:vector`, `:hybrid`). Hybrid is the default. The module reads the target index, search fields, hit hydration, and neighbor expansion from the GDS module passed via the `:gds` opt. It also owns the pure scoring utilities (`cosine_similarity/2`, `score_results/2`, `normalize_and_combine/1`, `sort_by_relevance/1`) that rank retrieved results.
 
 **`Cake.Search.Backend`** is the behaviour for search backends. Each backend translates `%Cake.Search.Query{}` into its native query format, executes it, and maps results back into `[%Cake.Search.Hit{}]`. Injected via config (`Application.get_env(:cake, :search_backend)`), mockable with Mox. Current implementation: `Cake.Search.Backend.OpenSearch`.
 
@@ -99,44 +99,60 @@ Indices are one-per-GDS on a shared OpenSearch cluster: `collection_name/0` retu
 
 ### Layer 3: Conversation — Stateful Multi-Turn RAG
 
-This layer is organized around a single principle: **`Cake.Conversation` is the sole orchestrator, and every other module in the layer is a peer service that it calls.** The dependency graph is a DAG. Service modules don't know about each other. (One peer-to-peer call is planned but not yet implemented: `Prompt` will call `Generation` for query decomposition — see Roadmap.)
+This layer is organized around a single principle: **`Cake.Conversation` is the sole orchestrator, and every other module in the layer is a peer service that it calls.** The dependency graph is a DAG. Peer-to-peer knowledge is minimal and deliberate: `Prompt` and `Responses` consume `Cake.Search` result types, and `Cake.Decomposition.LLM` calls `Prompt.decomposition_prompt/1` and `Generation.complete_json/3`. (`Responses` also declares a Boundary dep on `Cake.Generation` that its code does not currently use — see #259.)
 
 ```
 Conversation → Prompt
+Conversation → Decomposition (opt-in; Decomposition.LLM → Prompt, Generation)
 Conversation → Search (Cake.Search → Cake.Search.Backend → OpenSearch)
 Conversation → Embeddings
 Conversation → Generation
 Conversation → Responses
 ```
 
-**`Cake.Conversation`** is a GenServer managing single-conversation state: message history, retrieved chunks, chunk map, citations, accumulated errors. A turn starts one of two ways: `autoask/2` runs the full retrieve-and-generate loop automatically, while `manualask/2` retrieves and returns candidate documents (`[Search.Result.t()]`) for the user to pick from — `select_docs/2` then supplies the chosen document ids and generation proceeds. Follow-up turns reuse cached search results rather than re-retrieving.
+**`Cake.Conversation`** is a GenServer managing single-conversation state: message history, retrieved chunks, chunk map, citations, accumulated errors. `start/1` spawns it under the `Cake.ConversationSupervisor` DynamicSupervisor. A turn starts one of two ways: `autoask/2` runs the full retrieve-and-generate loop automatically, while `manualask/2` retrieves and returns candidate results (`[Search.Result.t()]`) for the user to pick from — `select_docs/2` then supplies the Citable ids of the chosen candidates (chunk ids, for books; the web layer groups candidates by document and expands a document selection back into candidate ids via `Cake.Candidates`) and generation proceeds. When the `:decomposition` opt is set (a `Cake.Decomposition` implementation; default `nil`), an `autoask/2` turn that begins with no cached search results decomposes the question before searching — in the intended flow, the first auto-mode turn. Manual mode never decomposes, and a manual turn's cached candidates suppress decomposition on later auto turns (see "Query Decomposition" below). Follow-up turns reuse cached search results rather than re-retrieving (known defect #255: the reuse guard cannot distinguish a fresh state from a completed retrieval that found nothing — flagged at both call sites).
 
-**`Cake.Prompt`** owns prompt engineering. Builds the messages list for the LLM (system prompt, conversation history, retrieved context as a numbered block, user question). Filters chunks by relevance floor and chunk ceiling, assigns dense 1..N indices. Query decomposition is planned (it would call `Generation`) but not yet implemented — see Roadmap.
+**`Cake.Prompt`** owns prompt engineering. Builds the messages list for the LLM (system prompt, conversation history, retrieved context as a numbered block, user question). Filters chunks by relevance floor and chunk ceiling, assigns dense 1..N indices. Also owns the decomposition-side prompts and budgeting: `decomposition_prompt/1` (the JSON-answering prompt `Decomposition.LLM` sends), `build_with_prior_answers/5` (folds accumulated sub-question/answer pairs into the system message for sequential resolution), `fit_answer_pairs/2` (evicts oldest pairs to fit the token budget), and `estimate_tokens/1` (~4 chars/token estimate).
 
 **`Cake.Retrieval`** (planned) will own retrieval strategy: search, scoring, autorating. Currently these responsibilities are split between `Conversation` and `Cake.Search`.
 
-**`Cake.Generation`** owns LLM completions. Accepts a messages list, calls the LLM API, returns response content. Currently only `Conversation` (main answer) calls it; the planned `Prompt` query-decomposition caller is not yet implemented. Defines `Cake.Generation` as a behaviour; `Cake.Generation.OpenAI` is the real implementation. `Cake.Generation.Anthropic` is a placeholder stub.
+**`Cake.Generation`** owns LLM completions. Two callbacks: `complete/3` (plain completion for the main answer) and `complete_json/3` (schema-constrained JSON completion, used by `Decomposition.LLM`). Callers: `Conversation` and `Cake.Decomposition.LLM`. Defines `Cake.Generation` as a behaviour; `Cake.Generation.OpenAI` is the real implementation. `Cake.Generation.Anthropic` is a placeholder stub.
 
 **`Cake.Responses`** handles post-generation processing. Builds the chunk map (integer index → chunk metadata), parses citation markers, deduplicates, and assembles the final structured response. Uses `Cake.Citations` for citation parsing. `Cake.Responses.Behaviour` defines the contract; `Cake.Responses.Result` is the output struct.
 
 **`Cake.Citations`** is a pure function module. Parses `[N]` markers from response text, resolves against the chunk map, filters hallucinated citations, deduplicates, sorts.
+
+#### Query Decomposition
+
+**`Cake.Decomposition`** is the behaviour for query-decomposition strategies. Its single callback `decompose/2` is retrieval-free — question in, `{:ok, Decomposition.Result.t()}` or `{:error, reason}` out. Strategies never touch `Search` or `Embeddings`; `Conversation` performs all retrieval and feeds results back in as data.
+
+**The Result.** `Decomposition.Result` carries the outcome: `strategy` is `:none` (atomic), `:flat` (independent sub-questions), or `:sequential` (at least one `%{question, depends_on}` entry carries a dependency; `new/2` validates the DAG acyclic, and `topological_order/1` yields the resolution order).
+
+**Strategies and tiers.** `Cake.Decomposition.LLM` is the shipped strategy: prompt from `Prompt.decomposition_prompt/1`, schema-constrained output via `Generation.complete_json/3`; a Mox mock stands in for tests. Its JSON schema emits atomic-or-flat only — a `:sequential` result currently requires a strategy that emits dependency edges. The `Conversation`-side machinery for all three tiers (atomic, flat, sequential) is in place.
+
+**Integration.** Opt-in via `Conversation`'s `:decomposition` opt. The implemented trigger is cache state, not turn count: decomposition runs when an `autoask/2` turn begins with `search_results == []` — in the intended flow, the first auto-mode turn. Manual mode never decomposes, a prior manual turn's cached candidates suppress it, and — per known defect #255 — an empty completed retrieval re-triggers it. An atomic result searches the original question once. A `:flat` decomposition fans one embed+search per sub-question out concurrently under `Cake.TaskSupervisor` (capped by `config :cake, :max_sub_search_concurrency`, default 4; per-search timeout from `config :cake, :sub_search_timeout`, default 30s; failure is all-or-nothing) and merges the deduplicated results into a single context. A `:sequential` decomposition resolves least-to-most in topological order, each prompt carrying the accumulated prior question/answer pairs within the `:max_context_tokens` budget (default from `config :cake, :decomposition_max_context_tokens`, 4096; oldest pairs evicted first); the final answer is generated over the merged context plus the surviving answers.
+
+**Traceability.** Each merged result's `Search.Provenance` is stamped `decomposed: true` with the `original_query` and a `sub_question_index` into `Decomposition.Result`'s `question_index`, so citations trace back to the specific sub-question that surfaced them.
 
 #### The Per-Turn Pipeline
 
 Every arrow originates from `Conversation`:
 
 1. User message arrives at `Conversation`.
-2. `Conversation` → `Prompt.prepare_context` (filter/rank/index chunks).
-3. `Conversation` → `Prompt.build` (assemble messages list).
-4. `Conversation` → `Generation.complete` (LLM call).
-5. `Conversation` → `Responses.process` (chunk map, citations, structuring).
-6. `Conversation` updates state and notifies the frontend.
+2. `Conversation` resolves search results: cached results are reused; otherwise it embeds the question and searches via `Cake.Search.search_chunks_with_context/5`. With `:decomposition` set on such a no-cache `autoask` turn, `Decomposition.decompose` runs first — an atomic result searches the original question once; otherwise one embed+search per sub-question (concurrent for `:flat`, topologically ordered with accumulated prior answers for `:sequential`), merged into one context. Manual mode retrieves through `manualask/2` and never decomposes.
+3. `Conversation` → `Prompt.prepare_context` (filter/rank/index chunks).
+4. `Conversation` → `Prompt.build` (assemble messages list).
+5. `Conversation` → `Generation.complete` (LLM call).
+6. `Conversation` → `Responses.process` (chunk map, citations, structuring).
+7. `Conversation` updates state and notifies the frontend.
 
 On follow-up turns, retrieval is skipped — cached chunks are reused with the new question appended to message history.
 
 ### Layer 4: Web — Phoenix LiveView Chat Interface
 
 **`CakeWeb.ChatLive`** is the user-facing chat UI. It starts a `Conversation` GenServer and subscribes to its PubSub topic for state-change, candidates-ready, response-ready, and error broadcasts. Domain-level candidate grouping and chunk-ID extraction are delegated to **Cake.Candidates** (an internal helper). Two embedded-schema form modules live under `chat_live/`: **`QuestionForm`** (question + mode validation) and **`SelectionForm`** (document-selection validation with subset checking against available IDs).
+
+**`CakeWeb.UploadLive`** is the book-upload UI: accepts PDF and ZIP uploads (ZIP archives are unpacked to PDFs via `Cake.Books.ZipExtractor`), writes the files through the configured `Cake.Books.Adapters` storage adapter, then runs `Cake.Books.Pipeline.ingest/4` with `Cake.Books.Pdf.Pipeline` as an async task.
 
 **`CakeWeb.UserAuth`** provides authentication plugs.
 
@@ -151,7 +167,9 @@ The application starts children in this order under Cake.Application:
 5. `Phoenix.PubSub` — pub/sub for LiveView
 6. `Finch` — HTTP client pool
 7. `Cake.Search.Deployment` — OpenSearch connection + index creation
-8. `CakeWeb.Endpoint` — Phoenix HTTP server (last, so all dependencies are ready)
+8. `Task.Supervisor` (`Cake.TaskSupervisor`) — shared task supervisor: conversation turn tasks and flat-decomposition sub-search fan-out
+9. `DynamicSupervisor` (`Cake.ConversationSupervisor`) — supervises the per-session `Conversation` GenServers started via `Conversation.start/1`
+10. `CakeWeb.Endpoint` — Phoenix HTTP server (last, so all dependencies are ready)
 
 ### Module Boundaries (enforced by `boundary`)
 
@@ -160,7 +178,7 @@ The layer responsibilities above are enforced at compile time by the [`boundary`
 - **`Cake`** — the shared kernel: `Repo`, `Schema`, `Mailer`, the `GDS` behaviour, the `Citable`/`Promptable` protocols, `Citations`, `FailedIngests`, `ParseBooks`. Depends on nothing internal; every context may depend on it.
 - **Ingestion** — `Cake.Books` and `Cake.Documents` depend on `Cake.Search`, `Cake.Embeddings`, and `Cake.Pipelines` (`Cake.Pipelines` in turn depends on `Cake.Search`).
 - **Retrieval** — `Cake.Search` depends only on the kernel. It no longer names the GDS modules: the collections created at boot come from `:search_collections` config, which is what keeps the search layer from depending back on the ingestion contexts (an otherwise-cyclic dependency).
-- **Conversation** — `Cake.Conversation` is the orchestrator; it depends on `Cake.Prompt`, `Cake.Search`, `Cake.Embeddings`, `Cake.Generation`, and `Cake.Responses`. Those service modules do not depend on each other except `Cake.Responses → Cake.Search`/`Cake.Generation`. Nothing depends back on `Cake.Conversation` except the web layer.
+- **Conversation** — `Cake.Conversation` is the orchestrator; it depends on `Cake.Prompt`, `Cake.Search`, `Cake.Embeddings`, `Cake.Generation`, `Cake.Responses`, and `Cake.Decomposition`. Peer-to-peer deps among the service modules are minimal: `Cake.Responses → Cake.Search`/`Cake.Generation`, `Cake.Prompt → Cake.Search` (for the `Result` type), and `Cake.Decomposition → Cake.Prompt`/`Cake.Generation` (the `Decomposition` boundary exports `Result` and `LLM`). Nothing depends back on `Cake.Conversation` except the web layer.
 - **Web / jobs / app** — `CakeWeb` depends on the domain contexts it drives; `Cake.Jobs` on `Cake.Documents`; Cake.Application (top-level) on what it supervises.
 
 The compiler runs in `:dev`/`:prod` only — test files and support modules deliberately cross boundaries, so `:test` is excluded — and CI enforces it with a dev-env compile. When you add a cross-context call, declare the `dep` (and `export` the target module) rather than working around the boundary.
@@ -206,11 +224,11 @@ Every custom struct in Cake, its module, its purpose, and whether it defines a `
 | `Search.Result` | `Cake.Search.Result` | Normalized search result. Carries retrieval unit, backend score, CAKE-computed scores (cosine, relevance), hit provenance (search vs. expansion), search conditions, and prompt index. Single carrier of all retrieval metadata through the pipeline. |
 | `Search.Provenance` | `Cake.Search.Provenance` | Search conditions attached to each `Search.Result`: search type, query text, decomposition traceability (`decomposed`, `original_query`, `sub_question_index`), and embedding model. |
 | `Responses.Result` | `Cake.Responses.Result` | Output struct from post-generation processing. Contains the formatted response, citations, and chunk map. |
-| `Conversation.State` | `Cake.Conversation.State` | Internal state for the `Conversation` GenServer: id, collaborator modules (embeddings, generation, responses, decomposition, gds), message history, retrieved results, chunk map, citations, and the turn FSM state. |
+| `Conversation.State` | `Cake.Conversation.State` | Internal state for the `Conversation` GenServer. Enforced keys: `id`, `embedder`, `response_model`, `provider`, `gds`. Also carries the collaborator modules (`embeddings`, `generation`, `responses`, `decomposition`), the turn FSM fields (`state`, `pending`, `turn_ref`, `queued_question`), `max_context_tokens` (sequential-resolution answer budget), search results, message history, chunk map, citations, and accumulated errors. |
 | `Books.PageContent` | `Cake.Books.PageContent` | Elixir-side struct the Rust PDF NIF decodes into (via NifStruct): one page's extracted text and page number. |
 | `Books.PdfExtraction` | `Cake.Books.PdfExtraction` | Elixir-side struct the Rust PDF NIF decodes into: the full extraction result (pages, skipped pages, title). |
 | `Books.SkippedPage` | `Cake.Books.SkippedPage` | Elixir-side struct the Rust PDF NIF decodes into: a page that could not be extracted, with its page number. |
-| `Decomposition.Result` | `Cake.Decomposition.Result` | Outcome of decomposing a question: `original_question`, `strategy` (`:none` \| `:flat`), `sub_questions`, and `question_index` mapping positional index → sub-question text so `Search.Provenance` can reference sub-questions by index. |
+| `Decomposition.Result` | `Cake.Decomposition.Result` | Outcome of decomposing a question: `original_question`, `strategy` (`:none` \| `:flat` \| `:sequential`), `sub_questions` (a dependency DAG of `%{question, depends_on}` entries — `new/2` validates indices and acyclicity), and `question_index` mapping positional index → entry so `Search.Provenance` can reference sub-questions by index. `topological_order/1` yields the sequential resolution order. |
 
 ### Embedded Schemas (LiveView forms)
 
@@ -231,7 +249,8 @@ Behaviours in Cake define module-level contracts. The question they answer is "w
 | `Cake.Books.Pipeline` | `lib/cake/books/pipeline.ex` | Ingestion behaviour for book-like documents. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. | `Cake.Books.Pdf.Pipeline` |
 | `Cake.Documents.Pipeline` | `lib/cake/documents/pipeline.ex` | Ingestion behaviour for programming documentation. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`. | `Cake.Documents.Hexdocs.Pipeline` |
 | `Cake.Embeddings.Behaviour` | `lib/cake/embeddings/behaviour.ex` | Contract for embedding services. | `Cake.Embeddings` (OpenAI impl, in `lib/cake/embeddings.ex`) |
-| `Cake.Generation` | `lib/cake/generation.ex` | Contract for LLM completion services. | `Cake.Generation.OpenAI`, `Cake.Generation.Anthropic` (stub) |
+| `Cake.Generation` | `lib/cake/generation.ex` | Contract for LLM completion services: `complete/3` and `complete_json/3` (schema-constrained JSON). | `Cake.Generation.OpenAI`, `Cake.Generation.Anthropic` (stub) |
+| `Cake.Decomposition` | `lib/cake/decomposition.ex` | Contract for query-decomposition strategies: retrieval-free `decompose/2`, returning `{:ok, Decomposition.Result.t()}` or `{:error, reason}`. | `Cake.Decomposition.LLM` |
 | `Cake.Search.Backend` | `lib/cake/search/backend.ex` | Contract for search backends. Translates `Query` to native format, executes, returns `[Hit.t()]`. | `Cake.Search.Backend.OpenSearch` |
 | `Cake.Responses.Behaviour` | `lib/cake/responses/behaviour.ex` | Contract for post-generation response processing. | `Cake.Responses` |
 | `Cake.Books.Adapters` | `lib/cake/books/adapters.ex` | Contract for raw binary storage of book files. | `Cake.Books.Adapters.Disk`, `Cake.Books.Adapters.S3` |
@@ -294,7 +313,7 @@ Implement the behaviour for the target GDS. Consult `Cake.Books.Pdf.Pipeline` or
 1. Create a raw document schema for intermediate storage.
 2. Implement callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`.
 3. Register with Oban via `DocumentIngestionJob.enqueue_for_version/4`.
-4. Ensure all callbacks return `{:ok, _}` / `{:error, _}`.
+4. Follow the result-tuple contract: `download/1` returns `{:ok, paths}` or the tagged `{:error, :download, reason}`; stream callbacks (`persist_raw_docs/2`, `parse/2`) detuple their per-item result tuples via `Pipelines.detuple_with_logging/3` before returning, so the streams they return carry bare successful values; `source/0` and `success_message/1` return bare values.
 5. Optionally implement `retry_from_raw/2`.
 
 ### Adding a New Book Format (Cake.Books.Pipeline)
@@ -305,7 +324,7 @@ Implement the behaviour for the target GDS. Consult `Cake.Books.Pdf.Pipeline` or
 
 ### Requirements for All Pipeline Implementations
 
-Every stream step must use `Pipelines.detuple_with_logging/3` with a descriptive step name. Callbacks return `{:ok, _}` / `{:error, _}`. Pipeline-fatal errors go in the `else` branch. Persist raw data first.
+Every stream step must use `Pipelines.detuple_with_logging/3` with a descriptive step name: fallible per-item work produces result tuples that the callback detuples (persisting failures) before returning, so the stream a callback returns carries bare successful values. Direct fallible callbacks return `{:ok, _}` / `{:error, _}` (plus `download/1`'s tagged `{:error, :download, reason}`); declarative callbacks return bare values; and `Books.Pipeline.parse/1` returns a bare pair on success and raises on failure — the orchestrator rescues the exception into the per-item error tuple, and any returned value (an `{:error, _}` included) is wrapped as success, so never signal failure from it by return value. Pipeline-fatal errors go in the `else` branch (`Documents.Pipeline` today; Books tracked in #258). Persist raw data first.
 
 ---
 
@@ -331,21 +350,23 @@ The pattern is: define the union in the behaviour (or module that owns the contr
 
 ## Search Design
 
-OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi_match), `:vector` (k-NN with cosine similarity over an HNSW/FAISS index; the knn clause sets `k=30` at query time), and `:hybrid` (vector in `must`, keyword in `should` with configurable boost). Hybrid is the default because pure vector search struggles with exact identifiers and rare terms, while pure keyword search misses semantic similarity.
+OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi_match), `:vector` (k-NN with cosine similarity over an HNSW/FAISS index; the knn clause defaults to `k=30` at query time, overridable via `opts[:k]` — `Cake.Search` likewise defaults the query `size` to 30, overriding the `Query` struct's own default of 10), and `:hybrid` (vector in `must`, keyword in `should` with configurable boost). Hybrid is the default because pure vector search struggles with exact identifiers and rare terms, while pure keyword search misses semantic similarity.
 
 `Cake.Search` builds queries via `Cake.Search.Query`, delegates execution to the configured `Cake.Search.Backend` (default: `Backend.OpenSearch`), and hydrates hits into `Cake.Search.Result` structs via the GDS's `load_from_hits/1`. The backend is injected via `Application.get_env(:cake, :search_backend)` and mocked with Mox in tests.
 
 `Backend` defines `@type search_error` as the explicit union of all error types that any backend implementation can return. When a new backend is added, its error types must be added to this union — dialyzer enforces this by checking each implementation's return types against the callback specs. This makes the set of possible search errors a conscious, enumerated registry rather than an opaque `term()`. The one exception is `index_document/3`, whose error type remains `term()` because the OpenSearch implementation has a catch-all clause that can wrap arbitrary response maps.
 
-`search_chunks_with_context/5` returns a list of `Cake.Search.Result.t()` structs. Direct hits carry `hit_source: :search` and the backend `_score`; expanded neighbors carry `hit_source: :expansion` and `backend_score: nil`. The Result struct is the single carrier of retrieval metadata through the rest of the pipeline (scoring, prompt assembly, response post-processing) — everything above the Search.Result boundary speaks CAKE; everything below speaks vendor. CAKE-computed scores (`cosine_score`, `relevance_score`) are populated by `Search.score_results/2` and `Search.normalize_and_combine/1`; `prompt_index` is populated by `Prompt.prepare_context/2`. Each Result also carries a `Search.Provenance` describing the search conditions (type, query text) under which it was discovered.
+`search_chunks_with_context/5` returns `{:ok, [Cake.Search.Result.t()]}` (or the backend's error tuple). Direct hits carry `hit_source: :search` and the backend `_score`; expanded neighbors carry `hit_source: :expansion` and `backend_score: nil`. The Result struct is the single carrier of retrieval metadata through the rest of the pipeline (scoring, prompt assembly, response post-processing) — everything above the Search.Result boundary speaks CAKE; everything below speaks vendor. CAKE-computed scores (`cosine_score`, `relevance_score`) are populated by `Search.score_results/2` and `Search.normalize_and_combine/1`; `prompt_index` is populated by `Prompt.prepare_context/2`. Each Result also carries a `Search.Provenance` describing the search conditions (type, query text) under which it was discovered.
 
 ---
 
 ## Roadmap: Planned and Deferred
 
+**Shipped since first draft:** query decomposition in its own `Cake.Decomposition` boundary (not inside `Prompt` as originally sketched): flat concurrent fan-out end-to-end, plus the `Conversation`-side sequential least-to-most machinery — the shipped LLM strategy emits flat decompositions only, so `:sequential` awaits a strategy that emits dependency edges. See "Query Decomposition" under Layer 3.
+
 **Post-demo planned:** conversation layer decomposition (extract `Prompt` and `Generation` fully; collapse `Responses` to post-processing only), test coverage expansion, Word/Excel/CSV/JPG pipelines.
 
-**Longer-term:** query decomposition (`Prompt`), autorating (`Search` or dedicated module), cross-encoder reranking (`Search`), HyDE-style query expansion (`Prompt` + `Retrieval`), multi-index search and result merging (`Retrieval`).
+**Longer-term:** autorating (`Search` or dedicated module), cross-encoder reranking (`Search`), HyDE-style query expansion (`Prompt` + `Retrieval`), multi-index search and result merging (`Retrieval`).
 
 ---
 
@@ -353,9 +374,9 @@ OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi
 
 ```
 lib/
-  schema.ex                  # Base Ecto schema macro — `use Cake.Schema` (lib/schema.ex, not under cake/)
   cake/
     application.ex           # OTP application + supervision tree
+    schema.ex                # Base Ecto schema macro — `use Cake.Schema`
     mailer.ex                # Swoosh mailer (Phoenix scaffolding)
     accounts/                # Phoenix auth (User, UserToken, UserNotifier)
     books.ex                 # Books context (CRUD over ParsedBook + Chunk)
@@ -369,6 +390,7 @@ lib/
       page_content.ex        #   NIF-decoded struct: one page's text
       pdf_extraction.ex      #   NIF-decoded struct: full PDF extraction result
       skipped_page.ex        #   NIF-decoded struct: a page that failed extraction
+      zip_extractor.ex       #   Extracts PDFs from uploaded ZIP archives (in-memory :zip)
       adapters.ex            #   Cake.Books.Adapters behaviour (raw file storage)
       adapters/
         disk.ex              #     Disk adapter — local filesystem storage
@@ -400,6 +422,10 @@ lib/
     conversation/
       state.ex               #   Conversation state struct
       events.ex              #   PubSub topic + event helpers
+    decomposition.ex         # Cake.Decomposition behaviour (query-decomposition strategies)
+    decomposition/
+      llm.ex                 #   Cake.Decomposition.LLM — LLM-backed implementation
+      result.ex              #   Decomposition.Result struct (sub-question dependency DAG)
     gds.ex                   # Cake.GDS behaviour
     promptable.ex            # Cake.Promptable protocol
     citable.ex               # Cake.Citable protocol
@@ -425,21 +451,24 @@ lib/
         question_form.ex     #   Embedded schema for question + mode validation
         selection_form.ex    #   Embedded schema for document-selection validation
       search_live.ex         # LiveView search UI
+      upload_live.ex         # LiveView book-upload UI (PDF/ZIP → adapter storage → Books ingestion)
     router.ex                # Routes + auth pipelines
     user_auth.ex             # Auth plugs + LiveView on_mount hooks
   mix/tasks/
     hooks.install.ex         # `mix hooks.install` — installs the git hooks from priv/hooks/
 
 test/                        # (abbreviated — test/cake/ and test/cake_web/ mirror lib/)
-  test_helper.exs            # Sets skip_opensearch; starts ExUnit
+  test_helper.exs            # Sets :skip_search_backend; starts ExUnit
   support/
     data_case.ex             #   Ecto sandbox setup
     conn_case.ex             #   Phoenix conn setup
     oban_case.ex             #   Oban testing helpers
     factory.ex               #   Cake.Factory (ExMachina) — non-Ecto structs via build/1 (e.g. ConvoChunk)
     fixtures/                #   Phoenix-style *_fixture/1 helpers for Ecto schemas
-    test_pipeline.ex         #   Mock pipeline implementations
+    test_pipeline.ex         #   Mock pipeline implementations (Documents)
+    test_books_pipeline.ex   #   Mock Books.Pipeline implementation
     mocks.ex                 #   Mox mock definitions
+    decomposition_generators.ex # StreamData generators for decomposition property tests
     fixture_gds.ex           #   Test GDS used by search/conversation tests
     convo_chunk.ex           #   Cake.Test.ConvoChunk struct (built by the factory)
     stub_chunk.ex            #   Minimal chunk stub

@@ -1,16 +1,17 @@
 defmodule Cake.Candidates do
-  @moduledoc false
+  @moduledoc """
+  Domain-level grouping for the manual-selection UI.
+
+  Consumes the `Cake.Search.Result` structs that `Cake.Conversation`
+  broadcasts as candidates (everything above the search boundary speaks
+  `Result`), groups them by document, and expands a document selection back
+  into chunk ids for `Cake.Conversation.select_docs/2`.
+
+  Document ids are stringified so they round-trip cleanly through the HTML
+  selection form, which always hands ids back as strings.
+  """
 
   use Boundary, top_level?: true, deps: [Cake, Cake.Search], exports: []
-
-  # Domain-level grouping for the manual-selection UI. Consumes the
-  # `Cake.Search.Result` structs that `Cake.Conversation` broadcasts as
-  # candidates (everything above the search boundary speaks `Result`), groups
-  # them by document, and expands a document selection back into chunk ids for
-  # `Conversation.select_docs/2`.
-  #
-  # Document ids are stringified so they round-trip cleanly through the HTML
-  # selection form, which always hands ids back as strings.
 
   alias Cake.Citable
   alias Cake.Search.Result
@@ -18,6 +19,11 @@ defmodule Cake.Candidates do
   @type doc_id :: String.t()
   @type grouped :: [{doc_id(), [Result.t()]}]
 
+  @doc """
+  Groups results by document — the Citable `source_ref`, falling back to
+  `id` — preserving first-seen document order and within-document result
+  order.
+  """
   @spec group_by_document([Result.t()]) :: grouped()
   def group_by_document(results) when is_list(results) do
     results
@@ -39,6 +45,11 @@ defmodule Cake.Candidates do
     to_string(meta.source_ref || meta.id)
   end
 
+  @doc """
+  Display metadata for one document's result group: a title, a preview
+  (first 100 characters), and a page label derived from the group's chunk
+  page numbers.
+  """
   @spec document_metadata([Result.t()]) :: %{
           title: String.t() | nil,
           preview: String.t(),
@@ -70,6 +81,7 @@ defmodule Cake.Candidates do
     }
   end
 
+  @doc "Expands selected document ids into the chunk ids of every result in those groups."
   @spec expand_to_chunk_ids([doc_id()], grouped()) :: [String.t()]
   def expand_to_chunk_ids(selected_doc_ids, grouped) do
     lookup = Map.new(grouped)
@@ -81,6 +93,7 @@ defmodule Cake.Candidates do
     end)
   end
 
+  @doc "All chunk ids across every group."
   @spec all_chunk_ids(grouped()) :: [String.t()]
   def all_chunk_ids(grouped) do
     Enum.flat_map(grouped, fn {_doc_id, results} ->

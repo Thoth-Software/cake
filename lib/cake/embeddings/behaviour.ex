@@ -3,7 +3,8 @@ defmodule Cake.Embeddings.Behaviour do
   Behaviour for embedding services.
 
   This behaviour defines the contract for services that generate
-  embeddings from parsed documents.
+  embeddings — for records at ingestion time and for user questions at
+  query time alike.
   """
 
   @typedoc """
@@ -19,6 +20,11 @@ defmodule Cake.Embeddings.Behaviour do
           attrs: %{embedding: [float()]}
         }
 
+  @doc """
+  Embeds `params.input` with the given provider atom and model, returning
+  the embedding result (token usage, optional struct passthrough, and the
+  embedding vector in `attrs`).
+  """
   @callback embed(atom(), map(), String.t()) ::
               {:ok, embedding_result()} | {:error, String.t()}
 end

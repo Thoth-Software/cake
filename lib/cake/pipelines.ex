@@ -1,6 +1,20 @@
 defmodule Cake.Pipelines do
   @moduledoc """
-  Various assorted motley helpers, doohickeys, and dongles for data ingestion pipelines. Some of this may very well be cruft.
+  Shared infrastructure for the ingestion pipeline behaviours
+  (`Cake.Books.Pipeline` and `Cake.Documents.Pipeline`).
+
+  Owns the pieces both pipelines need but neither should re-implement:
+
+    * `detuple_with_logging/3` — filters `{:ok, _}`/`{:error, _}` streams,
+      persisting failures to `FailedIngest` instead of silently dropping
+      them.
+    * `add_to_search_backend/3` — indexes embedded records into a search
+      collection.
+    * `sweep/5` — retry loop over persisted item-level failures.
+    * `build_context/3` and `Context` — pipeline identity threaded through
+      a run for error provenance.
+    * `count_failures/1`, `summarize_ingest/3`, `finalize_ingest/4`, and
+      `handle_ingest_error/2` — honest run accounting.
   """
 
   use Boundary, top_level?: true, deps: [Cake, Cake.Search], exports: [Context]
@@ -40,6 +54,14 @@ defmodule Cake.Pipelines do
           failed: non_neg_integer()
         }
 
+  @doc """
+  Indexes a stream of embedded records into `collection` on the configured
+  search backend, fanning out up to five concurrent `index_document` calls.
+  Per-item failures (including timeouts) are logged and persisted via
+  `detuple_with_logging/3` under the `"search_backend.index"` step name.
+  Skipped entirely when `config :cake, :skip_search_backend` is true
+  (the test helper sets it).
+  """
   @spec add_to_search_backend(Enumerable.t(), String.t(), context()) :: Enumerable.t()
   def add_to_search_backend(docs_with_embeddings_stream, collection, %Context{} = ctx) do
     if skip_search_backend?() do

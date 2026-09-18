@@ -1,12 +1,15 @@
 <!--
 CLAUDE.md — Operational Contract for Cake
 Maintainer metadata (block HTML comments are stripped before injection; cost zero context):
-  created 2026-04-15 · last reviewed 2026-04-23 [jasper] · last verified 2026-06-19
-  Certified accurate by Claude 2026-06-19.
+  created 2026-04-15 · last reviewed 2026-04-23 [jasper] · last verified 2026-09-15
+  Certified accurate by Claude 2026-06-19; re-audited against code 2026-09-15 (#256).
 Refactored 2026-07-12: task-specific policy moved out of this file to
   priv/reference/creating-things.md (trigger-loaded) and
   .claude/rules/test-conventions.md (path-scoped, auto-loads under test/).
   This file now holds only universal, always-on rules.
+2026-09-15 (#256): creating-things.md had gone missing from priv/reference/;
+  restored same day (content re-reviewed against code — result-tuple bullet
+  aligned with the corrected rule below) and the trigger row points at it again.
 -->
 
 # CLAUDE.md — Operational Contract for Cake
@@ -37,6 +40,7 @@ Load the full file when the task matches the trigger. Reference files live in `p
 | Write/modify public API for external use, design behaviours for third-party use | `library-guidelines.md` |
 | Create a new GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct | `priv/reference/creating-things.md` |
 | Add/modify a GDS, or implement `Cake.GDS`/`Cake.Promptable`/`Cake.Citable` | README "Cardinality" + "Adding a New GDS"; `lib/cake/gds.ex` + `promptable.ex` + `citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md` |
+| Add/modify a decomposition strategy, or touch `Cake.Decomposition` | README "Query Decomposition"; `lib/cake/decomposition.ex` + `decomposition/result.ex`; `decomposition/llm.ex` as reference implementation |
 
 Work under `test/` auto-loads `.claude/rules/test-conventions.md` (path-scoped) — no manual trigger needed.
 
@@ -51,19 +55,20 @@ mix compile --warnings-as-errors --force  # Zero warnings. Hard gate.
 mix credo --strict                         # Zero issues. No inline disables without approval.
 mix test                                   # Zero failures, zero warnings.
 mix coveralls.json                         # Must not reduce coverage below minimum (coveralls.json is the SSOT for the threshold).
+mix docs --warnings-as-errors              # Zero broken @moduledoc/@doc references. Hard gate in CI (runs in the dev env).
 ```
 
 `mix quality.fast` (compile + credo + `deps.unlock --check-unused`) is the minimum local check; `mix precommit` is the fuller pre-push check (adds format + tests — see Pre-push below). `mix quality` adds dialyzer. Tests run with `MIX_ENV=test`; the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first.
 
-Dialyzer is not a push gate. In CI it runs only on PRs — the `dialyzer` job in `.github/workflows/quality.yml` is guarded by `if: github.event_name == 'pull_request'` — making it a hard *merge* gate, not a push gate.
+Dialyzer runs in CI on every push to master and every PR targeting master — the `dialyzer` job in `.github/workflows/quality.yml` carries no event guard (PLT caching makes repeat runs cheap). It has no local pre-push alias, so run `mix quality` before pushing spec-heavy changes rather than waiting for CI.
 
 The `security` job in `.github/workflows/quality.yml` runs the dependency-audit gates: `mix deps.unlock --check-unused` (blocking — no unused lockfile entries) plus `mix hex.audit` and `mix deps.audit` (currently **report-only** while the advisory backlog in #206 is outstanding; they flip to blocking once it's cleared). It also runs `mix sobelow --config --exit` (blocking) — static security analysis of the Phoenix app. Its baseline is clean: triaged false-positives are suppressed in `.sobelow-conf` (`:ignore` for deployment-level Config findings, `:ignore_files` for internal file-I/O modules) and via inline `# sobelow_skip` annotations at request-facing call sites, so the gate fails only on **new** findings. When Sobelow flags new code, fix it or — if it's a verified false-positive — add a justified `# sobelow_skip` (never a blanket ignore).
 
-### Pre-push (matches the on-push CI gate)
+### Pre-push
 ```bash
-mix compile --force --warnings-as-errors && mix test --exclude integration && mix credo --strict && mix format --check-formatted
+mix precommit  # compile --force --warnings-as-errors → format --check-formatted → credo --strict → test --exclude integration
 ```
-`mix precommit` bundles this exact chain into one command (compile → format check → credo → tests, integration excluded) — run it before pushing. Tests tagged `:integration` (OpenSearch, external HTTP, or the Rustler NIF) are excluded on-push and run separately as a merge gate via `mix test --only integration`.
+`mix precommit` runs that chain in that order — run it before pushing. On-push CI (`quality.yml`) runs the same checks **plus** gates with no local alias: a dev-env compile with `--warnings-as-errors` (enforces `boundary`), the compile-coupling ratchet `mix xref graph --label compile-connected --fail-above 3` (baseline 3; see #208), `mix docs --warnings-as-errors` (the documentation gate, #204), dialyzer, and coverage via `mix coveralls.json --exclude integration` against the `coveralls.json` minimum. Tests tagged `:integration` (OpenSearch, external HTTP, or the Rustler NIF) are excluded on-push and run separately as a merge gate via `mix test --only integration`.
 
 ---
 
@@ -112,7 +117,7 @@ If you're loosening an assertion to make a test pass, you're almost certainly in
 - Retrieval callbacks return `[struct()]`, not a specific struct type — deliberate (see GDS behaviour docs in README).
 - **List-of-struct args use `when is_list(arg)` guards**, not head-matching on list elements. The `@spec` controls what the list contains; the guard validates the container type at runtime.
 - **DI is for Mox, not runtime polymorphism:** modules depending on external services accept collaborator modules as args (or read them from config); define a behaviour, implement it, provide a mock in test. `Cake.Conversation` requires a `:gds` opt validated in `start_link/1`/`start/1` before the GenServer spawns (`init/1` only builds state). Follow the same required-opt pattern for future orchestration-layer modules.
-- **Result tuples:** all pipeline callbacks return `{:ok, _}`/`{:error, _}`. Stream steps use `Pipelines.detuple_with_logging/3` — never a silent filter that discards errors without persisting them. Step names follow `"pipeline.step"`. Pipeline-fatal errors go in the `else` of the `with` chain.
+- **Result tuples:** every fallible pipeline operation reports through `{:ok, _}`/`{:error, _}`. Direct callbacks return them as-is (`retry_from_raw/2`, `Books.Pipeline.load_binary/1`), with one tagged exception: `Documents.Pipeline.download/1` returns `{:error, :download, reason}` (three elements) so the orchestrator can attribute the failure to the download step. Inside a stream callback (`persist_raw_docs/2`, `parse/2`), fallible per-item work produces result tuples that the callback itself must pass through `Pipelines.detuple_with_logging/3` — persisting failures to `FailedIngest`, never a silent filter — *before* returning: the `Enumerable.t()` a stream callback returns carries bare successful values, ready for the next stage. `Books.Pipeline.parse/1` is a second exception: it returns a bare `{ParsedBook.t(), [Chunk.t()]}` on success and **raises** on failure — `parse_all_binaries/3` rescues the exception into the per-item error tuple, and every returned value (an `{:error, _}` included) is wrapped `{:ok, _}` as success, so never signal failure by return value there. Declarative callbacks return bare values by design (`format/0`, `source/0`, `success_message/*`). Step names follow `"pipeline.step"`. Pipeline-fatal errors go in the `else` of the `with` chain — `Documents.Pipeline.ingest/4` does this today; `Books.Pipeline.ingest/4` has no `else` and returns fatal errors directly (#258).
 
 ---
 
@@ -144,3 +149,8 @@ Dev runs three containers via `docker-compose.yml`: `cake_app`, `cake_db` (Postg
 
 If your task touches these, flag rather than silently resolving or ignoring.
 - **Post-demo formats:** Word, Excel, CSV, JPG pipelines are explicitly deferred.
+- **First-turn reuse ambiguity (#255):** in `Cake.Conversation`, `[]` is both the fresh-state default for `search_results` and a completed retrieval that found nothing, so the cached-results reuse guard cannot tell "never searched" from "searched, found nothing". The decomposition guard, `resolve_search_results/2`'s reuse clause, `update_state/5`'s first-turn history branch, and the `handle_call(:search_results, ...)` accessor clauses (which pattern-match `[]`) must migrate together (sentinel or `retrieved?` flag). Documented at both call sites.
+- **Books fatal-error handling (#258):** `Books.Pipeline.ingest/4` has no `else` branch, so pipeline-fatal errors bypass `Pipelines.handle_ingest_error/2` (returned to the caller unlogged and unpersisted), unlike `Documents.Pipeline.ingest/4`.
+- **Vestigial contracts (#259):** `Documents.Pipeline.source/0` has no call sites; `Cake.Responses` declares an unused Boundary dep on `Cake.Generation`.
+- **Advisory backlog (#206):** `mix hex.audit` / `mix deps.audit` are report-only in CI until the backlog clears, then flip to blocking.
+- **xref coupling ratchet (#208):** `--fail-above 3` baseline comes from `Conversation.State`'s defstruct DI defaults; ratchets to 0 once those are decoupled.

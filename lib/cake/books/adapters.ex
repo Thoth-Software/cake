@@ -31,9 +31,16 @@ defmodule Cake.Books.Adapters do
   """
   @type adapter_error :: File.posix() | term()
 
+  @doc "Reads the binary stored under `key`."
   @callback read(key()) :: {:ok, binary()} | {:error, adapter_error()}
+
+  @doc "Writes `binary` under `key`, overwriting any existing object."
   @callback write(key(), binary()) :: :ok | {:error, adapter_error()}
+
+  @doc "Whether an object exists under `key`."
   @callback exists?(key()) :: boolean()
+
+  @doc "Deletes the object stored under `key`."
   @callback delete(key()) :: :ok | {:error, adapter_error()}
 
   @spec adapter() :: module()

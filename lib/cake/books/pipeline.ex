@@ -6,15 +6,22 @@ defmodule Cake.Books.Pipeline do
 
   Bear in mind, however, that the ParsedBook schema contains everything but the actual content, so each ParsedBook is *also* persisted as a record in postgres.
 
-  assets_path = "assets/static/ameriwater"
-  filenames = File.ls!(assets_path)
-  paths = Enum.map("HASHTAG{assets_path}/HASHTAG{&1}")
-  Cake.Books.Pipeline.ingest(:openai, Cake.Books.Pdf.Pipeline,  "text-embedding-ada-002", paths)
-  Cake.Books.Pipeline.ingest_with_sweep(:openai, Cake.Books.Pdf.Pipeline,  "text-embedding-ada-002", paths)
-  opts = Map.put(Map.new(Application.fetch_env!(:cake, Cake.Conversation)), :id, Ecto.UUID.generate())
-  {:ok, pid} = Cake.Conversation.start_link(opts)
-  Cake.Conversation.autoask(pid, "How do I install the P/N:  98-0110 Rev. A dealkalizer? What's the max flow rate on the SCALA2?")
-  GenServer.cast(pid, :inspect)
+  ## Usage
+
+  `ingest/4` takes the embedding service, the format pipeline implementing
+  this behaviour, the embedding model, and the storage keys of the files to
+  ingest (each key is resolved by the format pipeline's `load_binary/1`,
+  which reads through the configured `Cake.Books.Adapters` adapter):
+
+      Cake.Books.Pipeline.ingest(
+        :openai,
+        Cake.Books.Pdf.Pipeline,
+        "text-embedding-ada-002",
+        ["books/getting-started.pdf"]
+      )
+
+  `ingest_with_sweep/5` runs the same pipeline, then retries item-level
+  failures via `Cake.Pipelines.sweep/5`.
   """
 
   alias Cake.Books
@@ -26,9 +33,23 @@ defmodule Cake.Books.Pipeline do
   alias Cake.Search.Backend
   require Logger
 
+  @doc "Loads the file binary for a storage key, returning the key paired with the binary."
   @callback load_binary(String.t()) :: {:ok, {String.t(), binary()}} | {:error, any()}
+
+  @doc """
+  Parses a loaded `{key, binary}` into a bare `{ParsedBook, [Chunk]}` pair.
+
+  Failure contract: raise. The orchestrator's `parse_all_binaries/3`
+  rescues the exception into a per-item error tuple. Do NOT return
+  `{:error, reason}` — every return value is wrapped `{:ok, _}` and
+  treated as a successfully parsed book.
+  """
   @callback parse({String.t(), binary()}) :: {ParsedBook.t(), [Chunk.t()]}
+
+  @doc "The source format this pipeline handles (e.g. `:pdf`)."
   @callback format() :: atom()
+
+  @doc "Human-readable message logged when a run completes."
   @callback success_message() :: String.t()
 
   @typedoc "Errors from `load_binary/1` implementations. New format pipelines add their shapes here."
@@ -58,6 +79,17 @@ defmodule Cake.Books.Pipeline do
           | Persistence.persist_error()
           | embed_index_error()
 
+  @doc """
+  Runs the full ingestion pipeline over the given storage keys: load each
+  binary, parse it into a ParsedBook plus Chunks, persist them, embed each
+  chunk (its section title prepended to the text), update embedding
+  statuses, and index into the search backend.
+
+  Item-level failures are persisted to `FailedIngest` via
+  `Pipelines.detuple_with_logging/3`; the return is the honest summary from
+  `Pipelines.finalize_ingest/4` — `{:ok, summary}`, or
+  `{:error, {:no_items_ingested, summary}}` when nothing made it through.
+  """
   @spec ingest(atom(), atom(), String.t(), [String.t()]) ::
           {:ok, Pipelines.ingest_summary()}
           | {:error, {:no_items_ingested, Pipelines.ingest_summary()}}
