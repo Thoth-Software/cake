@@ -938,7 +938,7 @@ defmodule Cake.ConversationTest do
   # does.
   defp state_attrs(overrides) do
     mocked_opts()
-    |> Map.merge(%{max_context_tokens: 4096, max_self_ask_iterations: 5})
+    |> Map.merge(%{max_context_tokens: 4096, max_self_ask_iterations: 5, max_ircot_iterations: 5})
     |> Map.merge(overrides)
   end
 

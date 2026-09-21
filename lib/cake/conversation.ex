@@ -28,6 +28,10 @@ defmodule Cake.Conversation do
     original question, resolving each follow-up it asks (search → prompt
     with accumulated prior answers → intermediate answer) until it emits
     the final-answer marker or the iteration cap is exhausted.
+  - `run_ircot_turn/3` — IRCoT back-half: drive the model to reason step
+    by step as schema-constrained JSON, resolving each retrieval query it
+    emits (embed+search, results injected into the next step's prompt)
+    until it signals completion or the iteration cap is exhausted.
   - `run_manual_turn/4` — manual-mode back-half (apply_selection → prompt →
     generate → cite) after user picks documents.
 
@@ -68,6 +72,26 @@ defmodule Cake.Conversation do
   answer over the merged context plus the accumulated pairs, exactly like
   the sequential ending. The same `:max_context_tokens` budget applies.
   Any intermediate search or generation error fails the whole turn.
+
+  An `:ircot` decomposition (also marked explicitly by a strategy module;
+  it carries no upfront sub-questions) interleaves retrieval with
+  chain-of-thought reasoning: each round, `Cake.Prompt.ircot_prompt/3`
+  drives the model to produce one reasoning step as schema-constrained
+  JSON (`c:Cake.Generation.complete_json/3` with
+  `Cake.Prompt.ircot_schema/0`, separating `reasoning` from
+  `retrieval_query`). A round's retrieval query is embedded and searched,
+  its results are injected as context for the next step (`Provenance`
+  stamped with the zero-based reasoning-step index), and the loop ends
+  when the model sets `"retrieval_query"` to null — the terminating
+  step's reasoning is then the final answer — or after
+  `:max_ircot_iterations` rounds (default from
+  `config :cake, :max_ircot_iterations, 5`), when the final answer is
+  synthesized over the merged, deduplicated context (the reasoning chain
+  steered retrieval; the retrieved context is what the answer must cite,
+  so the synthesis prompt is the standard context prompt). The
+  `:max_context_tokens` budget applies to the accumulated steps in each
+  driver prompt. Any intermediate search or generation error fails the
+  whole turn.
 
   For `:flat` decompositions, sub-question searches fan out concurrently under `Cake.TaskSupervisor`,
   capped by `config :cake, :max_sub_search_concurrency` (default 4; set to
@@ -117,6 +141,7 @@ defmodule Cake.Conversation do
   @default_sub_search_timeout :timer.seconds(30)
   @default_max_context_tokens 4096
   @default_max_self_ask_iterations 5
+  @default_max_ircot_iterations 5
 
   @spec child_spec(map()) :: Supervisor.child_spec()
   def child_spec(opts) do
@@ -134,8 +159,8 @@ defmodule Cake.Conversation do
   process spawns; `:embedder`, `:response_model`, and `:provider` are
   required by state construction in `init/1`. Collaborator modules
   (`:embeddings`, `:generation`, `:responses`, `:decomposition`),
-  `:max_context_tokens`, and `:max_self_ask_iterations` are optional and
-  default in `init/1`.
+  `:max_context_tokens`, `:max_self_ask_iterations`, and
+  `:max_ircot_iterations` are optional and default in `init/1`.
   """
   @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
@@ -200,6 +225,16 @@ defmodule Cake.Conversation do
             :cake,
             :max_self_ask_iterations,
             @default_max_self_ask_iterations
+          )
+        ),
+      max_ircot_iterations:
+        Map.get(
+          opts,
+          :max_ircot_iterations,
+          Application.get_env(
+            :cake,
+            :max_ircot_iterations,
+            @default_max_ircot_iterations
           )
         ),
       gds: opts.gds
@@ -321,6 +356,10 @@ defmodule Cake.Conversation do
 
   defp run_turn_for(%Cake.Decomposition.Result{strategy: :self_ask} = decomposition, question, s) do
     run_self_ask_turn(question, decomposition, s)
+  end
+
+  defp run_turn_for(%Cake.Decomposition.Result{strategy: :ircot} = decomposition, question, s) do
+    run_ircot_turn(question, decomposition, s)
   end
 
   defp run_turn_for(decomposition, question, %State{} = s) do
@@ -651,6 +690,109 @@ defmodule Cake.Conversation do
     indexed_chunks
     |> final_synthesis_prompt(question, answer_pairs, s)
     |> generate(s)
+  end
+
+  # --- IRCoT (interleaved retrieval chain-of-thought) turn pipeline ---
+
+  # Drive the model to reason step by step until it signals completion
+  # ("retrieval_query": null) or the iteration cap is exhausted. Each
+  # round is one schema-constrained JSON generation; a round's retrieval
+  # query is embedded and searched, and the results are injected as
+  # context for the next step's driver prompt. On the completion path the
+  # terminating step's reasoning is the final text; on cap exhaustion the
+  # final answer is synthesized over the merged context. Any intermediate
+  # search or generation error fails the whole turn.
+  defp run_ircot_turn(question, %Cake.Decomposition.Result{} = decomposition, %State{} = s) do
+    with {:ok, {conclusion, groups}} <- ircot_loop(question, decomposition, s),
+         merged = merge_decomposed_results(groups),
+         {:ok, indexed_chunks} <- select(merged),
+         {:ok, response} <- conclude_ircot(conclusion, indexed_chunks, question, s),
+         {:ok, result} <- process_response(response, indexed_chunks, s) do
+      finalize_turn(s, merged, question, response, result)
+    end
+  end
+
+  defp ircot_loop(question, decomposition, %State{} = s) do
+    ircot_round(question, decomposition, s, {[], []}, 0)
+  end
+
+  # Accumulators build newest-first and flip back to resolution order on
+  # termination (the driver prompt wants prior steps oldest-first).
+  # `round` is both the completed-retrieval count so far and the next
+  # retrieval's provenance index.
+  defp ircot_round(
+         _question,
+         _decomposition,
+         %State{max_ircot_iterations: cap},
+         {_steps_rev, groups_rev},
+         round
+       )
+       when round >= cap do
+    {:ok, {:cap_exhausted, Enum.reverse(groups_rev)}}
+  end
+
+  defp ircot_round(question, decomposition, %State{} = s, {steps_rev, groups_rev} = acc, round) do
+    case ircot_reason(question, Enum.reverse(steps_rev), s) do
+      {:ok, {:done, reasoning}} ->
+        {:ok, {{:final, strip_citation_markers(reasoning)}, Enum.reverse(groups_rev)}}
+
+      {:ok, {:continue, reasoning, query}} ->
+        retrieve_for_step(question, decomposition, s, acc, round, {reasoning, query})
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  # One reasoning step: the driver prompt over the accumulated steps,
+  # generated as JSON against the reasoning/retrieval_query schema and
+  # classified by Prompt.
+  defp ircot_reason(question, steps, %State{} = s) do
+    messages =
+      Cake.Prompt.ircot_prompt(question, steps, max_context_tokens: s.max_context_tokens)
+
+    case s.generation.complete_json(messages, s.response_model,
+           schema: Cake.Prompt.ircot_schema()
+         ) do
+      {:ok, %{parsed: parsed}} -> {:ok, Cake.Prompt.parse_ircot_response(parsed)}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp retrieve_for_step(
+         question,
+         decomposition,
+         s,
+         {steps_rev, groups_rev},
+         round,
+         {reasoning, query}
+       ) do
+    with {:ok, results} <- embed_and_search(query, s),
+         stamped = stamp_decomposition(results, decomposition, round),
+         {:ok, indexed} <- select(stamped) do
+      ircot_round(
+        question,
+        decomposition,
+        s,
+        {[{reasoning, indexed} | steps_rev], [stamped | groups_rev]},
+        round + 1
+      )
+    end
+  end
+
+  # Completion path: the terminating step's reasoning (stale [N] markers
+  # already stripped in ircot_round/5 — driver context is unnumbered, so
+  # any marker is hallucinated) is the final text. Cap path: one plain
+  # synthesis generation over the merged context, whose markers do cite
+  # the merged numbering.
+  defp conclude_ircot({:final, answer}, _indexed_chunks, _question, %State{}) do
+    {:ok, answer}
+  end
+
+  defp conclude_ircot(:cap_exhausted, indexed_chunks, question, %State{} = s) do
+    with {:ok, messages} <- build_prompt(indexed_chunks, question, s.message_history) do
+      generate(messages, s)
+    end
   end
 
   # --- Stage 1a: apply_selection (manual mode) ---

@@ -40,6 +40,7 @@ defmodule Cake.Conversation.State do
           decomposition: module() | nil,
           max_context_tokens: non_neg_integer(),
           max_self_ask_iterations: non_neg_integer(),
+          max_ircot_iterations: non_neg_integer(),
           gds: module(),
           search_results: list(),
           message_history: list(),
@@ -59,7 +60,8 @@ defmodule Cake.Conversation.State do
     :provider,
     :gds,
     :max_context_tokens,
-    :max_self_ask_iterations
+    :max_self_ask_iterations,
+    :max_ircot_iterations
   ]
   defstruct [
     :id,
@@ -69,6 +71,7 @@ defmodule Cake.Conversation.State do
     :gds,
     :max_context_tokens,
     :max_self_ask_iterations,
+    :max_ircot_iterations,
     state: :idle,
     pending: nil,
     turn_ref: nil,
