@@ -13,6 +13,19 @@ defmodule Cake.PromptTest do
       apply(Cake.Prompt, :estimate_tokens, [answer])
   end
 
+  # Mirrors ircot_prompt/3's step-cost model: a step's reasoning and its
+  # retrieved context are budgeted (and evicted) together.
+  defp ircot_step_cost({reasoning, context}) do
+    context_cost =
+      context
+      |> Enum.map(fn {_idx, %Result{retrieval_unit: unit}} ->
+        apply(Cake.Prompt, :estimate_tokens, [Cake.Promptable.prompt_context(unit)])
+      end)
+      |> Enum.sum()
+
+    apply(Cake.Prompt, :estimate_tokens, [reasoning]) + context_cost
+  end
+
   defp scored_result(score, opts \\ []) do
     chunk = %Cake.Books.Chunk{
       text: Keyword.get(opts, :text, "Chunk text at score #{score}"),
@@ -495,6 +508,125 @@ defmodule Cake.PromptTest do
 
       assert Cake.Prompt.parse_self_ask_response(response) ==
                {:final, "The answer is 5 years.\nSo the final answer is:"}
+    end
+  end
+
+  # Red phase (#232): routed through apply/3 so the suite compiles under
+  # --warnings-as-errors before the functions exist.
+  describe "ircot_prompt/3" do
+    test "returns a system message followed by the question as the user message" do
+      question = "What is the warranty on the pump used in the RO-400?"
+
+      assert [%{role: "system", content: _system}, %{role: "user", content: ^question}] =
+               apply(Cake.Prompt, :ircot_prompt, [question, [], []])
+    end
+
+    test "system message documents the reasoning/retrieval_query JSON shape" do
+      [%{role: "system", content: system} | _] =
+        apply(Cake.Prompt, :ircot_prompt, ["q", [], []])
+
+      assert String.contains?(system, "JSON")
+      assert String.contains?(system, ~s("reasoning"))
+      assert String.contains?(system, ~s("retrieval_query"))
+      assert String.contains?(system, "null")
+    end
+
+    test "folds each kept step's reasoning and retrieved context into the system message" do
+      chunk = scored_result(0.9, text: "The RO-400 uses the P-100 pump.")
+      steps = [{"I need to identify the pump first.", [{1, chunk}]}]
+
+      [%{role: "system", content: system} | _] =
+        apply(Cake.Prompt, :ircot_prompt, [
+          "What is the warranty?",
+          steps,
+          [max_context_tokens: 1_000_000]
+        ])
+
+      assert String.contains?(system, "I need to identify the pump first.")
+      assert String.contains?(system, Cake.Promptable.prompt_context(chunk.retrieval_unit))
+    end
+
+    test "evicts the oldest step — reasoning and context together — when the ceiling only fits the newest" do
+      oldest =
+        {"the very first reasoning step", [{1, scored_result(0.9, text: "old chunk text")}]}
+
+      newest = {"the newest reasoning step", [{1, scored_result(0.9, text: "new chunk text")}]}
+      budget = ircot_step_cost(newest)
+
+      [%{role: "system", content: system} | _] =
+        apply(Cake.Prompt, :ircot_prompt, [
+          "final?",
+          [oldest, newest],
+          [max_context_tokens: budget]
+        ])
+
+      refute String.contains?(system, "the very first reasoning step")
+      refute String.contains?(system, "old chunk text")
+      assert String.contains?(system, "the newest reasoning step")
+      assert String.contains?(system, "new chunk text")
+    end
+
+    test "a zero ceiling matches the no-steps prompt exactly" do
+      steps = [{"some reasoning", [{1, scored_result(0.9)}]}]
+
+      assert apply(Cake.Prompt, :ircot_prompt, ["final?", steps, [max_context_tokens: 0]]) ==
+               apply(Cake.Prompt, :ircot_prompt, ["final?", [], []])
+    end
+  end
+
+  describe "ircot_schema/0" do
+    test "constrains the response to exactly the reasoning and retrieval_query fields" do
+      schema = apply(Cake.Prompt, :ircot_schema, [])
+
+      assert schema["type"] == "object"
+
+      assert schema["properties"] |> Map.keys() |> Enum.sort() ==
+               ["reasoning", "retrieval_query"]
+
+      assert Enum.sort(schema["required"]) == ["reasoning", "retrieval_query"]
+      assert schema["additionalProperties"] == false
+    end
+
+    test "retrieval_query is nullable, reasoning is not" do
+      schema = apply(Cake.Prompt, :ircot_schema, [])
+
+      assert schema["properties"]["reasoning"]["type"] == "string"
+      assert "string" in List.wrap(schema["properties"]["retrieval_query"]["type"])
+      assert "null" in List.wrap(schema["properties"]["retrieval_query"]["type"])
+    end
+  end
+
+  describe "parse_ircot_response/1" do
+    test "a string retrieval query yields {:continue, reasoning, query}" do
+      parsed = %{
+        "reasoning" => "I need to identify the pump first.",
+        "retrieval_query" => "Which pump does the RO-400 use?"
+      }
+
+      assert apply(Cake.Prompt, :parse_ircot_response, [parsed]) ==
+               {:continue, "I need to identify the pump first.",
+                "Which pump does the RO-400 use?"}
+    end
+
+    test "a null retrieval query yields {:done, reasoning}" do
+      parsed = %{"reasoning" => "The warranty is 5 years.", "retrieval_query" => nil}
+
+      assert apply(Cake.Prompt, :parse_ircot_response, [parsed]) ==
+               {:done, "The warranty is 5 years."}
+    end
+
+    test "a blank retrieval query is completion, not a search for whitespace" do
+      parsed = %{"reasoning" => "The warranty is 5 years.", "retrieval_query" => "   "}
+
+      assert apply(Cake.Prompt, :parse_ircot_response, [parsed]) ==
+               {:done, "The warranty is 5 years."}
+    end
+
+    test "reasoning and query are trimmed" do
+      parsed = %{"reasoning" => "  step one  ", "retrieval_query" => "  a query  "}
+
+      assert apply(Cake.Prompt, :parse_ircot_response, [parsed]) ==
+               {:continue, "step one", "a query"}
     end
   end
 end

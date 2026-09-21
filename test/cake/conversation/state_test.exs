@@ -42,4 +42,10 @@ defmodule Cake.Conversation.StateTest do
       struct!(State, Map.delete(enforced_attrs(), :max_self_ask_iterations))
     end
   end
+
+  test "raises without :max_ircot_iterations" do
+    assert_raise ArgumentError, ~r/max_ircot_iterations/, fn ->
+      struct!(State, Map.delete(enforced_attrs(), :max_ircot_iterations))
+    end
+  end
 end

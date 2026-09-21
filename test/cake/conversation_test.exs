@@ -2609,4 +2609,398 @@ defmodule Cake.ConversationTest do
       assert_receive {:state_change, :idle}
     end
   end
+
+  describe ":max_ircot_iterations option" do
+    test "defaults from :max_ircot_iterations config, opt wins" do
+      {:ok, default_pid} = Conversation.start_link(valid_opts())
+      on_exit(fn -> if Process.alive?(default_pid), do: GenServer.stop(default_pid) end)
+
+      assert %{max_ircot_iterations: 5} = :sys.get_state(default_pid)
+
+      put_temporary_env(:max_ircot_iterations, 7)
+
+      {:ok, config_pid} = Conversation.start_link(valid_opts())
+      on_exit(fn -> if Process.alive?(config_pid), do: GenServer.stop(config_pid) end)
+
+      assert %{max_ircot_iterations: 7} = :sys.get_state(config_pid)
+
+      {:ok, opt_pid} = Conversation.start_link(valid_opts(%{max_ircot_iterations: 2}))
+      on_exit(fn -> if Process.alive?(opt_pid), do: GenServer.stop(opt_pid) end)
+
+      assert %{max_ircot_iterations: 2} = :sys.get_state(opt_pid)
+    end
+  end
+
+  # An :ircot decomposition carries no upfront sub-questions — the model
+  # emits a retrieval query per reasoning step at resolution time — so
+  # tests build the Result struct directly rather than through new/2
+  # (which derives the strategy from dependency edges).
+  defp ircot_result(question) do
+    %Cake.Decomposition.Result{original_question: question, strategy: :ircot}
+  end
+
+  describe "IRCoT interleaving" do
+    test "resolves a retrieval round, then terminates on a null retrieval query" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      reasoning_one = "I need to identify which pump the RO-400 uses."
+      retrieval_query = "Which pump does the RO-400 use?"
+      final_reasoning = "The P-100 pump carries a 5-year warranty."
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, ircot_result(question)}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, %{input: input}, _model ->
+        send(test_pid, {:embedded, input})
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-pump", body: "pump spec chunk")]}
+      end)
+
+      # Each CoT step is one schema-constrained JSON completion. The second
+      # step sees the first step's reasoning folded into its system message.
+      expect(Cake.Generation.Mock, :complete_json, 2, fn messages, _model, opts ->
+        send(test_pid, {:reasoned, messages, opts})
+        [%{content: system} | _] = messages
+
+        parsed =
+          if String.contains?(system, reasoning_one) do
+            %{"reasoning" => final_reasoning, "retrieval_query" => nil}
+          else
+            %{"reasoning" => reasoning_one, "retrieval_query" => retrieval_query}
+          end
+
+        {:ok, %{parsed: parsed}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn raw, indexed, _opts ->
+        send(test_pid, {:processed, raw, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: raw,
+          final_text: raw,
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      # Driver step 1: the original question, no accumulated steps yet,
+      # and the reasoning/retrieval_query schema on the call.
+      assert_receive {:reasoned, step_one, step_one_opts}
+      assert %{role: "user", content: ^question} = List.last(step_one)
+      assert Keyword.fetch!(step_one_opts, :schema) == apply(Cake.Prompt, :ircot_schema, [])
+      step_one_text = Enum.map_join(step_one, "\n", & &1.content)
+      refute String.contains?(step_one_text, "pump spec chunk")
+
+      # The extracted retrieval query — not the original question — is
+      # what gets embedded and searched.
+      assert_receive {:embedded, ^retrieval_query}
+
+      # Driver step 2: accumulated reasoning plus the injected context
+      # retrieved for step 1's query.
+      assert_receive {:reasoned, step_two, _opts}
+      assert %{role: "user", content: ^question} = List.last(step_two)
+      step_two_text = Enum.map_join(step_two, "\n", & &1.content)
+      assert String.contains?(step_two_text, reasoning_one)
+      assert String.contains?(step_two_text, "pump spec chunk")
+
+      # The terminating step's reasoning is the final answer, processed
+      # over the merged context; provenance names reasoning step 0.
+      assert_receive {:processed, ^final_reasoning, indexed}
+      assert indexed != []
+
+      Enum.each(indexed, fn {_idx, result} ->
+        assert result.provenance.decomposed == true
+        assert result.provenance.original_query == question
+        assert result.provenance.sub_question_index == 0
+        assert result.provenance.query_text == retrieval_query
+      end)
+
+      assert_receive {:response_ready, %{response: ^final_reasoning}}
+    end
+
+    test "terminates at the iteration cap and synthesizes over the accumulated context" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, ircot_result(question)}
+      end)
+
+      # The driver always wants more information, so with the cap at 2 the
+      # loop must stop itself after two reasoning/retrieval rounds.
+      expect(Cake.Generation.Mock, :complete_json, 2, fn messages, _model, _opts ->
+        [%{content: system} | _] = messages
+
+        parsed =
+          if String.contains?(system, "step one reasoning") do
+            %{"reasoning" => "step two reasoning", "retrieval_query" => "query two"}
+          else
+            %{"reasoning" => "step one reasoning", "retrieval_query" => "query one"}
+          end
+
+        {:ok, %{parsed: parsed}}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, _model ->
+        send(test_pid, {:embedded, input})
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      # Fresh unit id per search so both rounds contribute a distinct unit
+      # to the merged context.
+      expect(Cake.Search.Backend.Mock, :search, 2, fn _query ->
+        {:ok, [build_search_hit()]}
+      end)
+
+      # Cap exhaustion synthesizes with a plain completion — not another
+      # JSON reasoning step — over the merged context.
+      expect(Cake.Generation.Mock, :complete, fn messages, _model, _opts ->
+        send(test_pid, {:synthesized, messages})
+        {:ok, %{text: "final synthesis [1]", usage: %{}}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn raw, indexed, _opts ->
+        send(test_pid, {:processed, raw, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: raw,
+          final_text: raw,
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid =
+        start_subscribed(%{decomposition: Cake.Decomposition.Mock, max_ircot_iterations: 2})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:embedded, "query one"}
+      assert_receive {:embedded, "query two"}
+
+      # The synthesis prompt asks the original question over the merged,
+      # citable context.
+      assert_receive {:synthesized, synthesis}
+      assert %{role: "user", content: ^question} = List.last(synthesis)
+      [%{role: "system", content: synthesis_system} | _] = synthesis
+      assert String.contains?(synthesis_system, "fixture body")
+      refute String.contains?(synthesis_system, ~s("retrieval_query"))
+
+      # Both rounds contributed context, indexed per reasoning step.
+      assert_receive {:processed, "final synthesis [1]", indexed}
+
+      indexes =
+        indexed
+        |> Enum.map(fn {_idx, result} -> result.provenance.sub_question_index end)
+        |> Enum.sort()
+
+      assert indexes == [0, 1]
+
+      Enum.each(indexed, fn {_idx, result} ->
+        assert result.provenance.decomposed == true
+        assert result.provenance.original_query == question
+      end)
+
+      assert_receive {:response_ready, %{response: "final synthesis [1]"}}
+    end
+
+    test "strips stale citation markers from the terminating reasoning step" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, ircot_result(question)}
+      end)
+
+      # An immediate completion: no retrieval query, so no embed and no
+      # search.
+      expect(Cake.Generation.Mock, :complete_json, fn _messages, _model, _opts ->
+        {:ok,
+         %{
+           parsed: %{
+             "reasoning" => "The warranty is 5 years [1][2].",
+             "retrieval_query" => nil
+           }
+         }}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn raw, indexed, _opts ->
+        send(test_pid, {:processed, raw, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: raw,
+          final_text: raw,
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      # The [N] markers referred to intermediate steps' local numbering
+      # (here, to nothing at all) — they must not survive into citation
+      # resolution against the merged numbering.
+      assert_receive {:processed, "The warranty is 5 years.", indexed}
+      assert indexed == []
+
+      assert_receive {:response_ready, %{response: "The warranty is 5 years."}}
+    end
+
+    test "a blank retrieval query terminates the loop without searching" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, ircot_result(question)}
+      end)
+
+      expect(Cake.Generation.Mock, :complete_json, fn _messages, _model, _opts ->
+        {:ok, %{parsed: %{"reasoning" => "A direct answer.", "retrieval_query" => "   "}}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn raw, indexed, _opts ->
+        send(test_pid, {:processed, raw, indexed})
+
+        %Cake.Responses.Result{
+          raw_text: raw,
+          final_text: raw,
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:processed, "A direct answer.", []}
+      assert_receive {:response_ready, %{response: "A direct answer."}}
+    end
+
+    test "a zero :max_context_tokens ceiling strips accumulated steps from the driver prompt" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      reasoning_one = "I need to identify which pump the RO-400 uses."
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, ircot_result(question)}
+      end)
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _params, _model ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      stub(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-pump", body: "pump spec chunk")]}
+      end)
+
+      # With no step budget the second driver prompt matches the first, so
+      # the rounds are told apart by a counter rather than by content.
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      expect(Cake.Generation.Mock, :complete_json, 2, fn messages, _model, _opts ->
+        send(test_pid, {:reasoned, messages})
+
+        parsed =
+          case Agent.get_and_update(counter, fn n -> {n, n + 1} end) do
+            0 -> %{"reasoning" => reasoning_one, "retrieval_query" => "query one"}
+            1 -> %{"reasoning" => "Done.", "retrieval_query" => nil}
+          end
+
+        {:ok, %{parsed: parsed}}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn raw, _indexed, _opts ->
+        %Cake.Responses.Result{
+          raw_text: raw,
+          final_text: raw,
+          chunk_map: %{},
+          citations: [],
+          warnings: []
+        }
+      end)
+
+      pid =
+        start_subscribed(%{decomposition: Cake.Decomposition.Mock, max_context_tokens: 0})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:reasoned, _step_one}
+      assert_receive {:reasoned, step_two}
+
+      # A step's reasoning and its retrieved context are budgeted
+      # together, so a zero ceiling strips both.
+      step_two_text = Enum.map_join(step_two, "\n", & &1.content)
+      refute String.contains?(step_two_text, reasoning_one)
+      refute String.contains?(step_two_text, "pump spec chunk")
+
+      assert_receive {:response_ready, %{response: "Done."}}
+    end
+
+    test "an intermediate reasoning-step error fails the turn with that error" do
+      question = "What is the warranty on the pump used in the RO-400?"
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, ircot_result(question)}
+      end)
+
+      expect(Cake.Generation.Mock, :complete_json, fn _messages, _model, _opts ->
+        {:error, :llm_down}
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:error, :llm_down}
+      assert_receive {:state_change, :idle}
+    end
+  end
 end
