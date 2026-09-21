@@ -20,6 +20,12 @@ defmodule Cake.Decomposition.Result do
       `sub_questions` and `question_index` are empty. `new/2` never
       derives this strategy — it only appears on a `Result` a strategy
       module constructs with it explicitly.
+    - `:ircot` — the model interleaves retrieval with chain-of-thought
+      reasoning, emitting a retrieval query per reasoning step at
+      resolution time (the tier-5 IRCoT loop, #232), so `sub_questions`
+      and `question_index` are empty. Like `:self_ask`, `new/2` never
+      derives it — it only appears on a `Result` a strategy module
+      constructs with it explicitly.
 
   `question_index` maps each sub-question's positional index to its entry,
   so a downstream `Cake.Search.Provenance` can reference a sub-question by
@@ -33,7 +39,7 @@ defmodule Cake.Decomposition.Result do
   limp past.
   """
 
-  @type strategy :: :none | :flat | :sequential | :self_ask
+  @type strategy :: :none | :flat | :sequential | :self_ask | :ircot
 
   @typedoc """
   One node of the sub-question DAG: the sub-question's text and the

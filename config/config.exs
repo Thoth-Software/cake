@@ -64,6 +64,12 @@ config :cake, :decomposition_max_context_tokens, 4096
 # stops asking and synthesizes a final answer from what it has.
 config :cake, :max_self_ask_iterations, 5
 
+# Iteration cap for an IRCoT decomposition turn: the maximum number of
+# reasoning/retrieval rounds (one JSON reasoning step plus one
+# embed+search each) before the turn stops retrieving and synthesizes a
+# final answer over the accumulated context.
+config :cake, :max_ircot_iterations, 5
+
 # Concurrency cap for decomposed sub-question searches within one turn.
 # Each sub-search is an embedding call plus a search-backend query, so the
 # provider rate limit is the real ceiling. Set to 1 to force sequential

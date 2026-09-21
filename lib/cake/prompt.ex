@@ -10,9 +10,13 @@ defmodule Cake.Prompt do
   Also owns the decomposition-side prompts and budgeting: the decomposition
   prompt itself (`decomposition_prompt/1`), the prior-answer folding for
   sequential resolution (`build_with_prior_answers/5`, `fit_answer_pairs/2`,
-  `estimate_tokens/1`), and the self-ask driver protocol — the prompt
+  `estimate_tokens/1`), the self-ask driver protocol — the prompt
   template (`self_ask_prompt/3`) and the follow-up-vs-final classification
-  of the model's reply (`parse_self_ask_response/1`).
+  of the model's reply (`parse_self_ask_response/1`) — and the IRCoT driver
+  protocol: the CoT prompt template (`ircot_prompt/3`), the JSON schema its
+  structured replies must satisfy (`ircot_schema/0`), and the
+  continue-vs-done classification of a validated reply
+  (`parse_ircot_response/1`).
   """
 
   use Boundary, top_level?: true, deps: [Cake, Cake.Search], exports: []
@@ -26,6 +30,12 @@ defmodule Cake.Prompt do
   @typedoc "A resolved sub-question and its intermediate answer, oldest first."
   @type answer_pair :: {String.t(), String.t()}
 
+  @typedoc """
+  One completed IRCoT round, oldest first: the reasoning step and the
+  indexed chunks retrieved for the query that step emitted.
+  """
+  @type ircot_step :: {String.t(), [indexed_chunk()]}
+
   @default_max_chunks 10
   @default_min_relevance 0.3
   @max_history_exchanges 5
@@ -33,6 +43,18 @@ defmodule Cake.Prompt do
   @chars_per_token 4
   @self_ask_follow_up_marker "Follow up:"
   @self_ask_final_marker "So the final answer is:"
+
+  # Mirrors the response shape ircot_system_message/0 instructs the model
+  # to produce: one reasoning step, plus the next retrieval query or null.
+  @ircot_schema %{
+    "type" => "object",
+    "properties" => %{
+      "reasoning" => %{"type" => "string"},
+      "retrieval_query" => %{"type" => ["string", "null"]}
+    },
+    "required" => ["reasoning", "retrieval_query"],
+    "additionalProperties" => false
+  }
 
   @doc """
   Filters scored results by the relevance floor (`:min_relevance`, default
@@ -150,21 +172,34 @@ defmodule Cake.Prompt do
   @doc """
   Keep the newest suffix of `answer_pairs` whose summed token cost (per
   `estimate_tokens/1`, question plus answer) fits within `budget` tokens,
-  evicting the oldest pairs first.
+  evicting the oldest pairs first. A zero budget keeps nothing, even
+  pairs that estimate to zero tokens.
   """
   @spec fit_answer_pairs([answer_pair()], non_neg_integer()) :: [answer_pair()]
   def fit_answer_pairs(answer_pairs, budget) when is_list(answer_pairs) do
-    total = answer_pairs |> Enum.map(&pair_cost/1) |> Enum.sum()
-    drop_oldest_until_fit(answer_pairs, total, budget)
+    evict_oldest_until_fit(answer_pairs, budget, &pair_cost/1)
   end
 
-  defp drop_oldest_until_fit(pairs, total, budget) when total <= budget, do: pairs
+  # Shared eviction policy for every accumulated-context budget (answer
+  # pairs, IRCoT steps): drop the oldest items until the summed cost of
+  # what remains fits the budget. A zero budget keeps nothing — a
+  # zero-cost item (empty strings, no context) would arithmetically fit,
+  # but its rendered scaffolding is not free, and a zero ceiling means
+  # the accumulated context is switched off.
+  defp evict_oldest_until_fit(_items, 0, _cost), do: []
 
-  defp drop_oldest_until_fit([oldest | rest], total, budget) do
-    drop_oldest_until_fit(rest, total - pair_cost(oldest), budget)
+  defp evict_oldest_until_fit(items, budget, cost) do
+    total = items |> Enum.map(cost) |> Enum.sum()
+    drop_oldest_until_fit(items, total, budget, cost)
   end
 
-  defp drop_oldest_until_fit([], _total, _budget), do: []
+  defp drop_oldest_until_fit(items, total, budget, _cost) when total <= budget, do: items
+
+  defp drop_oldest_until_fit([oldest | rest], total, budget, cost) do
+    drop_oldest_until_fit(rest, total - cost.(oldest), budget, cost)
+  end
+
+  defp drop_oldest_until_fit([], _total, _budget, _cost), do: []
 
   defp pair_cost({question, answer}), do: estimate_tokens(question) + estimate_tokens(answer)
 
@@ -260,6 +295,114 @@ defmodule Cake.Prompt do
 
   defp first_line(text) do
     text |> String.split("\n", parts: 2) |> hd() |> String.trim()
+  end
+
+  @doc """
+  Build the IRCoT driver prompt (#232).
+
+  The system message teaches the interleaved retrieval chain-of-thought
+  protocol: produce exactly one reasoning step per response, as JSON with a
+  `"reasoning"` field and a `"retrieval_query"` field — a search query for
+  the information needed next, or `null` once the reasoning is complete
+  (`ircot_schema/0` is the matching JSON schema). Completed steps fold into
+  the system message oldest-first, each step's reasoning together with the
+  context its retrieval query surfaced, budgeted by `fit`-style eviction
+  against the `:max_context_tokens` opt (default
+  #{@default_max_context_tokens}): the oldest steps are evicted first, a
+  step's reasoning and its retrieved context kept or evicted together,
+  and a zero budget keeps nothing — even a step that estimates to zero
+  tokens folds no scaffolding in.
+  """
+  @spec ircot_prompt(String.t(), [ircot_step()], keyword()) :: [message()]
+  def ircot_prompt(question, steps, opts \\ [])
+      when is_binary(question) and is_list(steps) do
+    budget = Keyword.get(opts, :max_context_tokens, @default_max_context_tokens)
+
+    system =
+      case evict_oldest_until_fit(steps, budget, &ircot_step_cost/1) do
+        [] -> ircot_system_message()
+        kept -> ircot_system_message() <> "\n" <> ircot_steps_block(kept)
+      end
+
+    [%{role: "system", content: system}, %{role: "user", content: question}]
+  end
+
+  @spec ircot_system_message() :: String.t()
+  def ircot_system_message do
+    """
+    You are answering a question by reasoning step by step, retrieving reference material between steps.
+    Respond with JSON only — no prose, no code fences — in exactly this shape:
+    {"reasoning": "<your next reasoning step>", "retrieval_query": "<a search query for the information you need next>"}
+    Produce exactly one reasoning step per response. When your reasoning is complete, state the final answer in "reasoning" and set "retrieval_query" to null:
+    {"reasoning": "<the final answer>", "retrieval_query": null}
+    """
+  end
+
+  @doc """
+  The JSON schema for an IRCoT reasoning step (#232): pair it with
+  `ircot_prompt/3` on a `c:Cake.Generation.complete_json/3` call. Separates
+  the `reasoning` field from the nullable `retrieval_query` field so the
+  loop can extract the next search query — or recognize completion —
+  without parsing prose.
+  """
+  @spec ircot_schema() :: map()
+  def ircot_schema, do: @ircot_schema
+
+  @doc """
+  Classify a validated IRCoT reasoning step (#232).
+
+  Takes the `:parsed` payload of a `c:Cake.Generation.complete_json/3`
+  completion that satisfied `ircot_schema/0`. A string `retrieval_query`
+  yields `{:continue, reasoning, query}`; a `null` — or blank, since
+  searching for whitespace serves nobody — query yields
+  `{:done, reasoning}`, whose reasoning is the model's final answer.
+  Both fields are trimmed.
+  """
+  @spec parse_ircot_response(map()) ::
+          {:continue, String.t(), String.t()} | {:done, String.t()}
+  def parse_ircot_response(%{"reasoning" => reasoning} = parsed) when is_binary(reasoning) do
+    case Map.get(parsed, "retrieval_query") do
+      query when is_binary(query) ->
+        classify_ircot_query(String.trim(reasoning), String.trim(query))
+
+      nil ->
+        {:done, String.trim(reasoning)}
+    end
+  end
+
+  defp classify_ircot_query(reasoning, ""), do: {:done, reasoning}
+  defp classify_ircot_query(reasoning, query), do: {:continue, reasoning, query}
+
+  defp ircot_steps_block(steps) do
+    rendered =
+      steps
+      |> Enum.with_index(1)
+      |> Enum.map_join("\n", fn {{reasoning, context}, index} ->
+        "Step #{index}: #{reasoning}\nRetrieved for step #{index}:\n#{step_context_block(context)}"
+      end)
+
+    "Reasoning so far, each step followed by the context its retrieval query surfaced:\n" <>
+      rendered
+  end
+
+  # Unnumbered on purpose: per-round prompt indices collide across steps
+  # and never match the merged numbering the final answer cites, so the
+  # driver context carries no [N] markers to mislead the model.
+  defp step_context_block([]), do: "(nothing relevant retrieved)"
+
+  defp step_context_block(context) do
+    Enum.map_join(context, "\n---\n", fn {_index, %Result{retrieval_unit: unit}} ->
+      Cake.Promptable.prompt_context(unit)
+    end)
+  end
+
+  defp ircot_step_cost({reasoning, context}) do
+    context
+    |> Enum.map(fn {_index, %Result{retrieval_unit: unit}} ->
+      estimate_tokens(Cake.Promptable.prompt_context(unit))
+    end)
+    |> Enum.sum()
+    |> Kernel.+(estimate_tokens(reasoning))
   end
 
   @doc """
