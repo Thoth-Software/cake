@@ -320,6 +320,10 @@ defmodule Cake.PromptTest do
       assert apply(Cake.Prompt, :fit_answer_pairs, [pairs, 0]) == []
     end
 
+    test "a zero ceiling keeps nothing even when every pair is zero-cost" do
+      assert apply(Cake.Prompt, :fit_answer_pairs, [[{"", ""}], 0]) == []
+    end
+
     test "drops the oldest pairs first when the ceiling is hit" do
       oldest = {"first sub-question asked", "the very first intermediate answer"}
       newest = {"last sub-question", "newest answer"}
@@ -570,6 +574,20 @@ defmodule Cake.PromptTest do
       steps = [{"some reasoning", [{1, scored_result(0.9)}]}]
 
       assert apply(Cake.Prompt, :ircot_prompt, ["final?", steps, [max_context_tokens: 0]]) ==
+               apply(Cake.Prompt, :ircot_prompt, ["final?", [], []])
+    end
+
+    test "a zero ceiling strips even zero-cost steps (no scaffolding survives)" do
+      # An empty reasoning step with no retrieved context estimates to zero
+      # tokens, but its rendered scaffolding is not free — a zero budget
+      # must keep nothing at all.
+      zero_cost_steps = [{"", []}]
+
+      assert apply(Cake.Prompt, :ircot_prompt, [
+               "final?",
+               zero_cost_steps,
+               [max_context_tokens: 0]
+             ]) ==
                apply(Cake.Prompt, :ircot_prompt, ["final?", [], []])
     end
   end

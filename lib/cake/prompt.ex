@@ -172,7 +172,8 @@ defmodule Cake.Prompt do
   @doc """
   Keep the newest suffix of `answer_pairs` whose summed token cost (per
   `estimate_tokens/1`, question plus answer) fits within `budget` tokens,
-  evicting the oldest pairs first.
+  evicting the oldest pairs first. A zero budget keeps nothing, even
+  pairs that estimate to zero tokens.
   """
   @spec fit_answer_pairs([answer_pair()], non_neg_integer()) :: [answer_pair()]
   def fit_answer_pairs(answer_pairs, budget) when is_list(answer_pairs) do
@@ -181,7 +182,12 @@ defmodule Cake.Prompt do
 
   # Shared eviction policy for every accumulated-context budget (answer
   # pairs, IRCoT steps): drop the oldest items until the summed cost of
-  # what remains fits the budget.
+  # what remains fits the budget. A zero budget keeps nothing — a
+  # zero-cost item (empty strings, no context) would arithmetically fit,
+  # but its rendered scaffolding is not free, and a zero ceiling means
+  # the accumulated context is switched off.
+  defp evict_oldest_until_fit(_items, 0, _cost), do: []
+
   defp evict_oldest_until_fit(items, budget, cost) do
     total = items |> Enum.map(cost) |> Enum.sum()
     drop_oldest_until_fit(items, total, budget, cost)
@@ -303,7 +309,9 @@ defmodule Cake.Prompt do
   context its retrieval query surfaced, budgeted by `fit`-style eviction
   against the `:max_context_tokens` opt (default
   #{@default_max_context_tokens}): the oldest steps are evicted first, a
-  step's reasoning and its retrieved context kept or evicted together.
+  step's reasoning and its retrieved context kept or evicted together,
+  and a zero budget keeps nothing — even a step that estimates to zero
+  tokens folds no scaffolding in.
   """
   @spec ircot_prompt(String.t(), [ircot_step()], keyword()) :: [message()]
   def ircot_prompt(question, steps, opts \\ [])
