@@ -149,7 +149,6 @@ Dev runs three containers via `docker-compose.yml`: `cake_app`, `cake_db` (Postg
 
 If your task touches these, flag rather than silently resolving or ignoring.
 - **Post-demo formats:** Word, Excel, CSV, JPG pipelines are explicitly deferred.
-- **First-turn reuse ambiguity (#255):** in `Cake.Conversation`, `[]` is both the fresh-state default for `search_results` and a completed retrieval that found nothing, so the cached-results reuse guard cannot tell "never searched" from "searched, found nothing". The decomposition guard, `resolve_search_results/2`'s reuse clause, `update_state/5`'s first-turn history branch, and the `handle_call(:search_results, ...)` accessor clauses (which pattern-match `[]`) must migrate together (sentinel or `retrieved?` flag). Documented at both call sites.
 - **Books fatal-error handling (#258):** `Books.Pipeline.ingest/4` has no `else` branch, so pipeline-fatal errors bypass `Pipelines.handle_ingest_error/2` (returned to the caller unlogged and unpersisted), unlike `Documents.Pipeline.ingest/4`.
 - **Vestigial contracts (#259):** `Documents.Pipeline.source/0` has no call sites; `Cake.Responses` declares an unused Boundary dep on `Cake.Generation`.
 - **Advisory backlog (#206):** `mix hex.audit` / `mix deps.audit` are report-only in CI until the backlog clears, then flip to blocking.
