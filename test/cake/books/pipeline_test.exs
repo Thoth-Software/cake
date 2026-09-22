@@ -263,11 +263,17 @@ defmodule Cake.Books.PipelineTest do
       path = book.source_file_path
       register_test_books([{path, {book, [make_chunk("Valid chunk")]}}])
 
-      # Without the short-circuit, the valid key's book would be persisted
-      # before its chunks reach the (unstubbed) embed step.
+      test_pid = self()
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _input, "test-model" ->
+        send(test_pid, :embed_called)
+        successful_embed_response()
+      end)
+
       capture_log(fn -> run_ingest([path, nil]) end)
 
       assert persisted_books() == []
+      refute_received :embed_called
     end
 
     test "ingest_with_sweep/5 returns the fatal error unchanged" do
@@ -275,6 +281,51 @@ defmodule Cake.Books.PipelineTest do
         assert {:error, {:validate_paths, :no_paths}} =
                  Pipeline.ingest_with_sweep(:openai, Cake.TestBooksPipeline, "test-model", [])
       end)
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Item-level FailedIngest provenance — keyed by embedding model
+  # -------------------------------------------------------------------
+
+  describe "ingest/4 item-level failure persistence" do
+    test "persists an item-level failure keyed by the embedding model" do
+      path = "/test/unregistered.pdf"
+
+      capture_log(fn -> run_ingest([path]) end)
+
+      assert [failure] = Repo.all(FailedIngest)
+      assert failure.pipeline_behaviour == "Cake.Books.Pipeline"
+      assert failure.pipeline_implementation == "Cake.TestBooksPipeline"
+      assert failure.step == "books.parse"
+      assert failure.version == "test-model"
+      assert failure.input_identifier == path
+      assert failure.pipeline_fatal == false
+    end
+
+    test "reports a run in which every item failed as :no_items_ingested" do
+      capture_log(fn ->
+        assert {:error, {:no_items_ingested, %{indexed: 0, failed: 1}}} =
+                 run_ingest(["/test/unregistered.pdf"])
+      end)
+    end
+
+    test "ingest_with_sweep/5 finds and resolves a failure recorded during the run" do
+      book = make_book("Sweep Book", "sweep")
+      path = book.source_file_path
+      register_test_books([{path, {book, [make_chunk("Sweep chunk")]}}])
+
+      Cake.Embeddings.Mock
+      |> expect(:embed, fn :openai, _input, "test-model" -> {:error, "transient"} end)
+      |> expect(:embed, fn :openai, _input, "test-model" -> successful_embed_response() end)
+
+      capture_log(fn ->
+        Pipeline.ingest_with_sweep(:openai, Cake.TestBooksPipeline, "test-model", [path])
+      end)
+
+      assert Repo.all(FailedIngest) == []
+      assert [chunk] = Repo.all(Chunk)
+      assert chunk.embedding == @fake_embedding
     end
   end
 end
