@@ -7,7 +7,9 @@ defmodule Cake.FailedIngests.FailedIngest do
   `run_id` is the `Cake.Pipelines.Context.run_id` of the ingest run that
   recorded the failure. Concurrent runs of the same pipeline, implementation,
   and version share those three identity fields, so run-scoped counting and
-  sweeping key on `run_id` instead.
+  sweeping key on `run_id` instead. It is required on every new row; rows
+  recorded before the column existed load with `run_id: nil` and are
+  historical records outside the run-scoped sweep.
   """
 
   use Cake.Schema
@@ -31,7 +33,7 @@ defmodule Cake.FailedIngests.FailedIngest do
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,
-          run_id: Ecto.UUID.t(),
+          run_id: Ecto.UUID.t() | nil,
           pipeline_behaviour: String.t(),
           pipeline_implementation: String.t(),
           step: String.t(),

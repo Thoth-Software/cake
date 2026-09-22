@@ -284,7 +284,7 @@ Protocols in Cake define value-level contracts. The question they answer is "wha
 
 ### FailedIngest Fields
 
-`run_id` (UUID of the `Pipelines.Context` run that recorded it; required on new rows, nullable in the table for rows predating it), `pipeline_behaviour`, `pipeline_implementation`, `step`, `version`, `error_text`, `input_identifier`, `pipeline_fatal` (boolean), `retry_count`, `last_retried_at`.
+`run_id` (UUID of the `Pipelines.Context` run that recorded it; required on new rows, nullable in the table for rows predating it, which stay listable as historical records but sit outside the run-scoped `count_failures/1` and `sweep/3`), `pipeline_behaviour`, `pipeline_implementation`, `step`, `version`, `error_text`, `input_identifier`, `pipeline_fatal` (boolean), `retry_count`, `last_retried_at`.
 
 ---
 
