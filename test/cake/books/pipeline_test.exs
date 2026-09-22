@@ -217,6 +217,15 @@ defmodule Cake.Books.PipelineTest do
       assert {:error, :validate_paths, {:invalid_paths, ["", "   ", nil, :atom_key]}} =
                Pipeline.validate_paths(paths)
     end
+
+    test "rejects non-UTF-8 keys byte-for-byte, in input order" do
+      invalid_byte = <<"books/", 255, ".pdf">>
+      truncated_sequence = <<0xC3>>
+      paths = ["books/a.pdf", invalid_byte, "books/b.pdf", truncated_sequence]
+
+      assert {:error, :validate_paths, {:invalid_paths, [^invalid_byte, ^truncated_sequence]}} =
+               Pipeline.validate_paths(paths)
+    end
   end
 
   # -------------------------------------------------------------------
@@ -235,6 +244,20 @@ defmodule Cake.Books.PipelineTest do
         assert {:error, {:validate_paths, {:invalid_paths, [""]}}} =
                  run_ingest(["books/a.pdf", ""])
       end)
+    end
+
+    test "rejects a non-UTF-8 key and persists the fatal row" do
+      invalid_key = <<"books/", 255, ".pdf">>
+
+      capture_log(fn ->
+        assert {:error, {:validate_paths, {:invalid_paths, [^invalid_key]}}} =
+                 run_ingest(["books/a.pdf", invalid_key])
+      end)
+
+      assert [failure] = Repo.all(FailedIngest)
+      assert failure.step == "validate_paths"
+      assert failure.pipeline_fatal == true
+      assert failure.error_text == inspect({:invalid_paths, [invalid_key]})
     end
 
     test "logs the fatal error with the pipeline behaviour and step" do

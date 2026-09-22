@@ -54,7 +54,8 @@ defmodule Cake.Books.Pipeline do
 
   @typedoc """
   Reasons `validate_paths/1` rejects a run: no keys at all, or keys that are
-  not non-blank strings (every invalid key is listed, in input order).
+  not non-blank, valid UTF-8 strings (every invalid key is listed unchanged,
+  in input order).
   """
   @type path_error :: :no_paths | {:invalid_paths, [term()]}
 
@@ -191,8 +192,8 @@ defmodule Cake.Books.Pipeline do
 
   @doc """
   Checks the storage keys for a run before anything is loaded. This is the
-  pipeline's eager, run-level fallible step: an empty list or any blank or
-  non-string key fails the whole run, since it signals a caller bug rather
+  pipeline's eager, run-level fallible step: an empty list or any blank,
+  non-string, or non-UTF-8 key fails the whole run, since it signals a caller bug rather
   than a bad book.
   """
   @spec validate_paths([term()]) :: {:ok, [String.t()]} | {:error, :validate_paths, path_error()}
@@ -205,7 +206,11 @@ defmodule Cake.Books.Pipeline do
     end
   end
 
-  defp valid_path?(path), do: is_binary(path) and String.trim(path) != ""
+  # A storage key is an identifier, so a non-UTF-8 key is rejected rather
+  # than sanitized: any rewrite would point at a different object. It could
+  # not be persisted either (Postgres rejects invalid UTF-8 in text columns).
+  defp valid_path?(path),
+    do: is_binary(path) and String.valid?(path) and String.trim(path) != ""
 
   @spec load_all_binaries([String.t()], atom(), Pipelines.Context.t()) :: {:ok, Enumerable.t()}
   def load_all_binaries(paths, format_pipeline, ctx) do
