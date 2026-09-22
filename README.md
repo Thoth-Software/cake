@@ -324,13 +324,26 @@ Implement the behaviour for the target GDS. Consult `Cake.Books.Pdf.Pipeline` or
 
 ### Requirements for All Pipeline Implementations
 
-Every stream step must use `Pipelines.detuple_with_logging/3` with a descriptive step name: fallible per-item work produces result tuples that the callback detuples (persisting failures) before returning, so the stream a callback returns carries bare successful values. Direct fallible callbacks return `{:ok, _}` / `{:error, _}` (plus `download/1`'s tagged `{:error, :download, reason}`); declarative callbacks return bare values; and `Books.Pipeline.parse/1` returns a bare pair on success and raises on failure — the orchestrator rescues the exception into the per-item error tuple, and any returned value (an `{:error, _}` included) is wrapped as success, so never signal failure from it by return value. Pipeline-fatal errors go in the `else` branch (`Documents.Pipeline` today; Books tracked in #258). Persist raw data first.
+Every stream step must use `Pipelines.detuple_with_logging/3` with a descriptive step name: fallible per-item work produces result tuples that the callback detuples (persisting failures) before returning, so the stream a callback returns carries bare successful values. Direct fallible callbacks return `{:ok, _}` / `{:error, _}` (plus `download/1`'s tagged `{:error, :download, reason}`); declarative callbacks return bare values; and `Books.Pipeline.parse/1` returns a bare pair on success and raises on failure — the orchestrator rescues the exception into the per-item error tuple, and any returned value (an `{:error, _}` included) is wrapped as success, so never signal failure from it by return value. Pipeline-fatal errors go in the `else` branch of the behaviour's `ingest` `with` chain, which must open with at least one eager, run-level fallible step (see "Pipeline-Fatal Steps and the `with` Chain" below). Persist raw data first.
 
 ---
 
 ## Error Handling in Pipelines
 
 Cake distinguishes between item-level failures (one document fails to parse) and pipeline-fatal failures (the download step itself fails). Item-level failures are persisted to `FailedIngest` via `detuple_with_logging/3` and can be retried via `sweep/5`. Pipeline-fatal failures short-circuit the `with` chain and are logged in the `else` branch.
+
+### Pipeline-Fatal Steps and the `with` Chain
+
+A `with` clause short-circuits to `else` only when its result fails to match its pattern. Every stream stage in a pipeline returns `{:ok, stream}` unconditionally, since its per-item failures are lazy and are persisted by `detuple_with_logging/3` as the stream is consumed. So a `with` chain made only of stream stages can never reach its `else` branch. Its `else` would be dead code, and pipeline-fatal errors would have nowhere to go.
+
+**Rule:** every pipeline behaviour's `ingest` `with` chain must include at least one **eager, run-level fallible step**. This is a clause that runs before any stream is built, decides whether the run as a whole can proceed, and returns either `{:ok, value}` or the tagged `{:error, step, reason}` (`step` an atom naming the step). The chain's `else` routes every such error through `Pipelines.handle_ingest_error/2`. That call logs it with the run's `Context`, persists a `FailedIngest` row with `pipeline_fatal: true` and `step: Atom.to_string(step)`, and returns `{:error, {step, reason}}` to the caller. Don't add an `else` to a chain with no fallible step. Add the step first, and test that its failure reaches `handle_ingest_error/2`.
+
+| Pipeline | Run-level fallible step | Fatal errors |
+|---|---|---|
+| `Cake.Documents.Pipeline.ingest/4` | `source_pipeline.download/1` | `{:error, {:download, reason}}` |
+| `Cake.Books.Pipeline.ingest/4` | `Cake.Books.Pipeline.validate_paths/1` | `{:error, {:validate_paths, :no_paths}}` for an empty key list; `{:error, {:validate_paths, {:invalid_paths, keys}}}` when any key is not a non-blank string (`keys` lists every invalid one) |
+
+Pipeline-fatal and item-level failures are separate. A fatal error means nothing was attempted, and the caller gets `{:error, {step, reason}}`. A run where every item failed still completes, and the caller gets `{:error, {:no_items_ingested, summary}}` from `finalize_ingest/4` in the `do` body, never from `else`.
 
 Step names follow `"pipeline.step"` convention (e.g., `"books.parse"`, `"docs.embed"`). The `Context` struct carries pipeline identity so error records are traceable to their source.
 

@@ -1,12 +1,14 @@
 defmodule Cake.Books.PipelineTest do
   use Cake.DataCase, async: true
 
+  import ExUnit.CaptureLog
   import Mox
 
   alias Cake.Books
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
   alias Cake.Books.Pipeline
+  alias Cake.FailedIngests.FailedIngest
 
   setup :verify_on_exit!
 
@@ -191,6 +193,88 @@ defmodule Cake.Books.PipelineTest do
       assert [persisted_a, persisted_b] = all_books
       assert reload_book(persisted_a.id).embedding_status == :completed
       assert reload_book(persisted_b.id).embedding_status == :failed
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # validate_paths/1 — the eager, run-level fallible step
+  # -------------------------------------------------------------------
+
+  describe "validate_paths/1" do
+    test "returns {:ok, paths} for a non-empty list of non-blank string keys" do
+      paths = ["books/a.pdf", "books/b.pdf"]
+
+      assert {:ok, ^paths} = Pipeline.validate_paths(paths)
+    end
+
+    test "rejects an empty list as :no_paths" do
+      assert {:error, :validate_paths, :no_paths} = Pipeline.validate_paths([])
+    end
+
+    test "rejects blank and non-string keys, reporting every invalid key" do
+      paths = ["books/a.pdf", "", "   ", nil, :atom_key]
+
+      assert {:error, :validate_paths, {:invalid_paths, ["", "   ", nil, :atom_key]}} =
+               Pipeline.validate_paths(paths)
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # ingest/4 — pipeline-fatal errors route through handle_ingest_error/2
+  # -------------------------------------------------------------------
+
+  describe "ingest/4 pipeline-fatal errors" do
+    test "returns {:error, {:validate_paths, reason}} for an empty path list" do
+      capture_log(fn ->
+        assert {:error, {:validate_paths, :no_paths}} = run_ingest([])
+      end)
+    end
+
+    test "returns {:error, {:validate_paths, reason}} when any key is invalid" do
+      capture_log(fn ->
+        assert {:error, {:validate_paths, {:invalid_paths, [""]}}} =
+                 run_ingest(["books/a.pdf", ""])
+      end)
+    end
+
+    test "logs the fatal error with the pipeline behaviour and step" do
+      log = capture_log(fn -> run_ingest([]) end)
+
+      assert log =~ "[Cake.Books.Pipeline] Pipeline-fatal error at validate_paths"
+      assert log =~ ":no_paths"
+    end
+
+    test "persists a pipeline-fatal FailedIngest row tagged with the Context fields" do
+      capture_log(fn -> run_ingest([]) end)
+
+      assert [failure] = Repo.all(FailedIngest)
+      assert failure.pipeline_behaviour == "Cake.Books.Pipeline"
+      assert failure.pipeline_implementation == "Cake.TestBooksPipeline"
+      assert failure.pipeline_fatal == true
+      assert failure.step == "validate_paths"
+      # Books failures are keyed by embedding model — the same version
+      # ingest_with_sweep/5 hands to Pipelines.sweep/5 when it looks them up.
+      assert failure.version == "test-model"
+      assert failure.error_text == inspect(:no_paths)
+    end
+
+    test "short-circuits before any valid key is loaded or persisted" do
+      book = make_book("Valid Book", "valid")
+      path = book.source_file_path
+      register_test_books([{path, {book, [make_chunk("Valid chunk")]}}])
+
+      # Without the short-circuit, the valid key's book would be persisted
+      # before its chunks reach the (unstubbed) embed step.
+      capture_log(fn -> run_ingest([path, nil]) end)
+
+      assert persisted_books() == []
+    end
+
+    test "ingest_with_sweep/5 returns the fatal error unchanged" do
+      capture_log(fn ->
+        assert {:error, {:validate_paths, :no_paths}} =
+                 Pipeline.ingest_with_sweep(:openai, Cake.TestBooksPipeline, "test-model", [])
+      end)
     end
   end
 end
