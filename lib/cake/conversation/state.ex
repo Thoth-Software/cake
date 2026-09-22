@@ -42,7 +42,7 @@ defmodule Cake.Conversation.State do
           max_self_ask_iterations: non_neg_integer(),
           max_ircot_iterations: non_neg_integer(),
           gds: module(),
-          search_results: list(),
+          search_results: list() | nil,
           message_history: list(),
           chunk_map: map(),
           citations: list(),
@@ -80,7 +80,10 @@ defmodule Cake.Conversation.State do
     responses: Cake.Responses,
     generation: Cake.Generation.OpenAI,
     decomposition: nil,
-    search_results: [],
+    # nil is the uninitialized sentinel: no retrieval has completed yet.
+    # Any list — [] included — is a completed retrieval to be reused, so
+    # "searched, found nothing" is distinguishable from "never searched".
+    search_results: nil,
     message_history: [],
     chunk_map: %{},
     citations: [],

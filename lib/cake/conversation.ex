@@ -41,9 +41,11 @@ defmodule Cake.Conversation do
 
   Opt-in via the `:decomposition` opt (a module implementing
   `Cake.Decomposition`; default `nil` — no decomposition). When set, an
-  autoask turn that begins with no cached search results has its question
-  decomposed before searching — in the intended flow, the first auto-mode
-  turn; the guard shares #255's empty-list ambiguity. An atomic result
+  autoask turn that begins before any retrieval has completed
+  (`search_results` still `nil`) has its question decomposed before
+  searching — the first auto-mode turn; a completed retrieval that found
+  nothing (`[]`) is cached and suppresses decomposition like any other
+  cached result. An atomic result
   searches the original question exactly as before, while a decomposed one
   runs one embed+search per sub-question and merges the deduplicated
   results into a single context. Each merged result's
@@ -328,17 +330,12 @@ defmodule Cake.Conversation do
     end
   end
 
-  # Decomposition drives the first turn only: cached search results mean
-  # the question flows through the standard chain (and its reuse clause).
-  #
-  # Known defect (#255): [] is both the fresh-state default and a completed
-  # retrieval that found nothing, so a first turn with empty retrieval
-  # re-decomposes (an extra LLM call — for :sequential, a whole re-resolution)
-  # on every later turn. The fix is a distinct uninitialized sentinel (or a
-  # retrieved? flag) on State; this guard, resolve_search_results/2's reuse
-  # clause, and update_state/5's first-turn history branch must migrate
-  # together.
-  defp maybe_decompose(_question, %State{search_results: results}) when results != [] do
+  # Decomposition drives the first turn only: a completed retrieval —
+  # even one that found nothing ([]) — means the question flows through
+  # the standard chain (and its reuse clause). Only the nil sentinel
+  # (never retrieved) decomposes, so decomposition fires once per
+  # conversation (#255).
+  defp maybe_decompose(_question, %State{search_results: results}) when is_list(results) do
     {:ok, nil}
   end
 
@@ -396,9 +393,9 @@ defmodule Cake.Conversation do
 
   # --- Stage 0: resolve search results (search on first turn, reuse on subsequent) ---
 
-  # The reuse guard shares #255's empty-list ambiguity (see
-  # maybe_decompose/2): a retrieval that found nothing is indistinguishable
-  # from no retrieval, so it re-searches on later turns.
+  # Any completed retrieval is reused — [] included, so a first turn that
+  # found nothing is not retried on later turns (#255). Only the nil
+  # sentinel (never retrieved) searches.
   #
   # Decomposition dispatch lives upstream in maybe_decompose/2 and
   # resolve_context/3; this stage only reuses cached results or runs the
@@ -407,11 +404,11 @@ defmodule Cake.Conversation do
   @spec resolve_search_results(String.t(), State.t()) ::
           {:ok, [Result.t()]}
           | {:error, String.t() | Cake.Search.Backend.search_error()}
-  def resolve_search_results(_question, %State{search_results: results}) when results != [] do
+  def resolve_search_results(_question, %State{search_results: results}) when is_list(results) do
     {:ok, results}
   end
 
-  def resolve_search_results(question, %State{} = s) do
+  def resolve_search_results(question, %State{search_results: nil} = s) do
     embed_and_search(question, s)
   end
 
@@ -867,11 +864,10 @@ defmodule Cake.Conversation do
   # --- State update ---
 
   defp update_state(%State{} = s, scored_results, question, response, result) do
-    history =
-      case s.search_results do
-        [] -> [response, question]
-        _ -> [response, question | s.message_history]
-      end
+    # On a first turn message_history is [], so the prepend is uniform:
+    # no first-turn branch, and an empty first retrieval cannot make a
+    # later turn rebuild history as if it were the first (#255).
+    history = [response, question | s.message_history]
 
     %{
       s
@@ -956,7 +952,7 @@ defmodule Cake.Conversation do
 
   @impl GenServer
   def handle_call(:search_results, {from, _}, %State{search_results: chunks} = s)
-      when is_list(chunks) and chunks != [] do
+      when is_list(chunks) do
     Logger.debug(
       "search_results requested by #{inspect(from)}, returning #{length(chunks)} chunks"
     )
@@ -964,9 +960,12 @@ defmodule Cake.Conversation do
     {:reply, chunks, s}
   end
 
+  # The nil sentinel is internal state; the read API always replies with a
+  # list, so never-retrieved reads as [] just like a retrieval that found
+  # nothing.
   @impl GenServer
-  def handle_call(:search_results, {_from, _}, %State{search_results: []} = s) do
-    Logger.debug("search_results requested but none available yet")
+  def handle_call(:search_results, {_from, _}, %State{search_results: nil} = s) do
+    Logger.debug("search_results requested but no retrieval has completed yet")
     {:reply, [], s}
   end
 
