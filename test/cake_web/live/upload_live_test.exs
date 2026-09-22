@@ -115,7 +115,7 @@ defmodule CakeWeb.UploadLiveTest do
     test "sets an error status naming the reason instead of crashing" do
       reason = {:validate_paths, :no_paths}
 
-      {log, {:noreply, socket}} =
+      {{:noreply, socket}, log} =
         with_log(fn ->
           UploadLive.handle_async(:ingest, {:ok, {:error, reason}}, %Phoenix.LiveView.Socket{})
         end)
