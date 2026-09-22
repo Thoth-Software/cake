@@ -580,6 +580,184 @@ defmodule Cake.ConversationTest do
     end
   end
 
+  describe "empty first-turn retrieval" do
+    # The completed-retrieval cache must distinguish "never retrieved"
+    # (fresh state) from "retrieved, found nothing" ([]): an empty first
+    # retrieval is a completed retrieval, so later turns reuse it instead
+    # of re-embedding, re-searching, or re-decomposing (#255).
+
+    test "a first turn that retrieves nothing neither re-embeds nor re-searches on the next turn" do
+      # `expect/3` with no count means exactly once across BOTH turns: if
+      # turn 2 re-ran embed or search after turn 1's empty retrieval, Mox
+      # would fail the test.
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, []}
+      end)
+
+      expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      pid = start_subscribed()
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      Conversation.autoask(pid, "q1")
+      assert_receive {:response_ready, _}
+
+      Conversation.autoask(pid, "q2")
+      assert_receive {:response_ready, _}
+
+      state = :sys.get_state(pid)
+      assert state.search_results == []
+    end
+
+    test "a first turn that retrieves nothing does not re-decompose on the next turn" do
+      question = "compare A and B"
+
+      # Exactly one decompose across both turns pins the documented
+      # decomposition-fires-once-per-conversation contract even when the
+      # first retrieval comes back empty.
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question)}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, []}
+      end)
+
+      expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock})
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      Conversation.autoask(pid, question)
+      assert_receive {:response_ready, _}
+
+      Conversation.autoask(pid, "follow-up question")
+      assert_receive {:response_ready, _}
+    end
+
+    test "second-turn history accumulates after an empty first retrieval" do
+      turn_one_q = "Q1_#{:erlang.unique_integer([:positive])}"
+      turn_one_a = "A1_#{:erlang.unique_integer([:positive])}"
+      turn_two_q = "Q2_#{:erlang.unique_integer([:positive])}"
+      turn_two_a = "A2_#{:erlang.unique_integer([:positive])}"
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, []}
+      end)
+
+      expect(Cake.Responses.Mock, :process, 2, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      pid = start_subscribed()
+
+      test_pid = self()
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      stub(Cake.Generation.Mock, :complete, fn messages, _model, _opts ->
+        send(test_pid, {:prompt_captured, messages})
+
+        case Agent.get_and_update(counter, fn n -> {n, n + 1} end) do
+          0 -> {:ok, %{text: turn_one_a, usage: %{}}}
+          1 -> {:ok, %{text: turn_two_a, usage: %{}}}
+        end
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      Conversation.autoask(pid, turn_one_q)
+      assert_receive {:prompt_captured, _turn_one_messages}
+      assert_receive {:response_ready, _}
+
+      Conversation.autoask(pid, turn_two_q)
+      assert_receive {:prompt_captured, turn_two_messages}
+      assert_receive {:response_ready, _}
+
+      turn_two_serialized = Enum.map_join(turn_two_messages, "\n", & &1.content)
+
+      assert turn_two_serialized =~ turn_one_q
+      assert turn_two_serialized =~ turn_one_a
+      assert turn_two_serialized =~ turn_two_q
+
+      state = :sys.get_state(pid)
+      assert state.message_history == [turn_two_a, turn_two_q, turn_one_a, turn_one_q]
+    end
+
+    test "fresh state marks retrieval as never-run; the accessor still replies with a list" do
+      pid = start_subscribed()
+
+      assert :sys.get_state(pid).search_results == nil
+      assert GenServer.call(pid, :search_results) == []
+    end
+
+    test "after an empty retrieval the state caches [] and the accessor replies []" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, []}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      pid = start_subscribed()
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      Conversation.autoask(pid, "q")
+      assert_receive {:response_ready, _}
+
+      assert :sys.get_state(pid).search_results == []
+      assert GenServer.call(pid, :search_results) == []
+    end
+  end
+
   describe "public API contract" do
     test "child_spec/1 returns a supervisor child spec with restart: :temporary" do
       opts = valid_opts()
@@ -961,7 +1139,17 @@ defmodule Cake.ConversationTest do
       assert {:ok, ^cached} = Conversation.resolve_search_results("ignored", state)
     end
 
-    test "resolve_search_results/2 calls embed_and_search when search_results is empty" do
+    test "resolve_search_results/2 reuses a cached empty retrieval" do
+      state =
+        struct!(
+          Cake.Conversation.State,
+          state_attrs(%{search_results: []})
+        )
+
+      assert {:ok, []} = Conversation.resolve_search_results("ignored", state)
+    end
+
+    test "resolve_search_results/2 calls embed_and_search when no retrieval has completed" do
       hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
@@ -979,7 +1167,7 @@ defmodule Cake.ConversationTest do
 
       # Call from within the GenServer process via a handler
       state = :sys.get_state(pid)
-      assert state.search_results == []
+      assert state.search_results == nil
 
       # Verify indirectly: a full turn exercises resolve_search_results
       # and the embed/search mocks being called exactly once confirms it.
