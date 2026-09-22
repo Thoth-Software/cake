@@ -54,8 +54,8 @@ defmodule Cake.Books.Pipeline do
 
   @typedoc """
   Reasons `validate_paths/1` rejects a run: no keys at all, or keys that are
-  not non-blank, valid UTF-8 strings (every invalid key is listed unchanged,
-  in input order).
+  not non-blank, NUL-free, valid UTF-8 strings (every invalid key is listed
+  unchanged, in input order).
   """
   @type path_error :: :no_paths | {:invalid_paths, [term()]}
 
@@ -193,7 +193,7 @@ defmodule Cake.Books.Pipeline do
   @doc """
   Checks the storage keys for a run before anything is loaded. This is the
   pipeline's eager, run-level fallible step: an empty list or any blank,
-  non-string, or non-UTF-8 key fails the whole run, since it signals a caller bug rather
+  non-string, non-UTF-8, or NUL-containing key fails the whole run, since it signals a caller bug rather
   than a bad book.
   """
   @spec validate_paths([term()]) :: {:ok, [String.t()]} | {:error, :validate_paths, path_error()}
@@ -206,11 +206,16 @@ defmodule Cake.Books.Pipeline do
     end
   end
 
-  # A storage key is an identifier, so a non-UTF-8 key is rejected rather
-  # than sanitized: any rewrite would point at a different object. It could
-  # not be persisted either (Postgres rejects invalid UTF-8 in text columns).
-  defp valid_path?(path),
-    do: is_binary(path) and String.valid?(path) and String.trim(path) != ""
+  # A storage key is an identifier, so an unstorable key is rejected rather
+  # than sanitized: any rewrite would point at a different object. Postgres
+  # text columns reject invalid UTF-8 outright and cannot hold NUL; NUL is
+  # valid UTF-8, but `Cake.Schema.sanitize_text_fields/1` would strip it from
+  # `ParsedBook.source_file_path` and `FailedIngest.input_identifier`, so a
+  # retry would load a different key than the one that failed.
+  defp valid_path?(path) do
+    is_binary(path) and String.valid?(path) and not String.contains?(path, <<0>>) and
+      String.trim(path) != ""
+  end
 
   @spec load_all_binaries([String.t()], atom(), Pipelines.Context.t()) :: {:ok, Enumerable.t()}
   def load_all_binaries(paths, format_pipeline, ctx) do

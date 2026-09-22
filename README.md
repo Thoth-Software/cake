@@ -341,7 +341,9 @@ A `with` clause short-circuits to `else` only when its result fails to match its
 | Pipeline | Run-level fallible step | Fatal errors |
 |---|---|---|
 | `Cake.Documents.Pipeline.ingest/4` | `source_pipeline.download/1` | `{:error, {:download, reason}}` |
-| `Cake.Books.Pipeline.ingest/4` | `Cake.Books.Pipeline.validate_paths/1` | `{:error, {:validate_paths, :no_paths}}` for an empty key list; `{:error, {:validate_paths, {:invalid_paths, keys}}}` when any key is not a non-blank, valid UTF-8 string (`keys` lists every invalid one unchanged; keys are identifiers, so they are never sanitized) |
+| `Cake.Books.Pipeline.ingest/4` | `Cake.Books.Pipeline.validate_paths/1` | `{:error, {:validate_paths, :no_paths}}` for an empty key list; `{:error, {:validate_paths, {:invalid_paths, keys}}}` when any key is not a non-blank, NUL-free, valid UTF-8 string (`keys` lists every invalid one unchanged; keys are identifiers, so they are never sanitized) |
+
+`Cake.Schema.sanitize_text_fields/2` (the `sanitize_text_fields/1` helper `use Cake.Schema` injects into each schema) strips NUL bytes from `:string` fields because Postgres cannot store them. That is right for free text and wrong for identifiers: an identifier field such as `ParsedBook.source_file_path` or `FailedIngest.input_identifier` must never rely on it, because a stripped key no longer names the object it was loaded from. Reject unstorable identifiers at the pipeline's run-level fallible step instead, as `validate_paths/1` does.
 
 Pipeline-fatal and item-level failures are separate. A fatal error means nothing was attempted, and the caller gets `{:error, {step, reason}}`. A run where every item failed still completes, and the caller gets `{:error, {:no_items_ingested, summary}}` from `finalize_ingest/4` in the `do` body, never from `else`.
 

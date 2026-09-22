@@ -226,6 +226,13 @@ defmodule Cake.Books.PipelineTest do
       assert {:error, :validate_paths, {:invalid_paths, [^invalid_byte, ^truncated_sequence]}} =
                Pipeline.validate_paths(paths)
     end
+
+    test "rejects keys containing a NUL byte, unchanged" do
+      nul_key = <<"books/a", 0, ".pdf">>
+
+      assert {:error, :validate_paths, {:invalid_paths, [^nul_key]}} =
+               Pipeline.validate_paths(["books/a.pdf", nul_key])
+    end
   end
 
   # -------------------------------------------------------------------
@@ -258,6 +265,22 @@ defmodule Cake.Books.PipelineTest do
       assert failure.step == "validate_paths"
       assert failure.pipeline_fatal == true
       assert failure.error_text == inspect({:invalid_paths, [invalid_key]})
+    end
+
+    test "rejects a NUL-containing key and persists the fatal row unaltered" do
+      nul_key = <<"books/a", 0, ".pdf">>
+
+      capture_log(fn ->
+        assert {:error, {:validate_paths, {:invalid_paths, [^nul_key]}}} =
+                 run_ingest(["books/a.pdf", nul_key])
+      end)
+
+      assert [failure] = Repo.all(FailedIngest)
+      assert failure.step == "validate_paths"
+      assert failure.pipeline_fatal == true
+      # inspect/1 escapes the NUL as `\0`, so sanitize_text_fields/1 has
+      # nothing to strip and the persisted error names the key exactly.
+      assert failure.error_text == inspect({:invalid_paths, [nul_key]})
     end
 
     test "logs the fatal error with the pipeline behaviour and step" do
