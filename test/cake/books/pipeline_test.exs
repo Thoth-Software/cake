@@ -94,6 +94,24 @@ defmodule Cake.Books.PipelineTest do
     Pipeline.ingest(:openai, Cake.TestBooksPipeline, "test-model", paths)
   end
 
+  # A non-fatal failure recorded by a concurrent Books run with the same
+  # format pipeline and embedding model, i.e. the same identity as run_ingest/1.
+  defp insert_sibling_run_failure(path) do
+    {:ok, failure} =
+      Cake.FailedIngests.create_failed_ingest(%{
+        run_id: Ecto.UUID.generate(),
+        pipeline_behaviour: "Cake.Books.Pipeline",
+        pipeline_implementation: "Cake.TestBooksPipeline",
+        step: "books.parse",
+        version: "test-model",
+        error_text: "boom",
+        input_identifier: path,
+        pipeline_fatal: false
+      })
+
+    failure
+  end
+
   defp reload_book(book_id) do
     Books.get_parsed_book!(book_id)
   end
@@ -347,6 +365,53 @@ defmodule Cake.Books.PipelineTest do
       assert failure.version == "test-model"
       assert failure.input_identifier == path
       assert failure.pipeline_fatal == false
+      assert {:ok, _} = Ecto.UUID.cast(failure.run_id)
+    end
+
+    test "does not count a concurrent run's failures in its own summary" do
+      # A sibling run with the same identity records a failure while this run
+      # is in flight (from inside the embed step, so it lands between the
+      # run's start and its finalize). This run's summary must not include it.
+      book = make_book("Concurrent Book", "concurrent")
+      path = book.source_file_path
+      register_test_books([{path, {book, [make_chunk("Concurrent chunk")]}}])
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _input, "test-model" ->
+        insert_sibling_run_failure("/test/other.pdf")
+        {:error, "boom"}
+      end)
+
+      capture_log(fn ->
+        assert {:error, {:no_items_ingested, %{indexed: 0, failed: 1}}} = run_ingest([path])
+      end)
+    end
+
+    test "ingest_with_sweep/5 leaves another run's failures alone" do
+      # The sibling's failure is retryable (its book is registered), so a
+      # sweep that reached it would resolve and delete it.
+      other_book = make_book("Other Run Book", "other")
+      other_path = other_book.source_file_path
+      book = make_book("This Run Book", "this")
+      path = book.source_file_path
+
+      register_test_books([
+        {other_path, {other_book, [make_chunk("Other chunk")]}},
+        {path, {book, [make_chunk("This chunk")]}}
+      ])
+
+      sibling_failure = insert_sibling_run_failure(other_path)
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _input, "test-model" ->
+        successful_embed_response()
+      end)
+
+      capture_log(fn ->
+        Pipeline.ingest_with_sweep(:openai, Cake.TestBooksPipeline, "test-model", [path])
+      end)
+
+      assert [%FailedIngest{id: id}] = Repo.all(FailedIngest)
+      assert id == sibling_failure.id
+      assert [%ParsedBook{title: "This Run Book"}] = persisted_books()
     end
 
     test "reports a run in which every item failed as :no_items_ingested" do

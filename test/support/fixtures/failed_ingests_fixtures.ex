@@ -19,6 +19,7 @@ defmodule Cake.FailedIngestsFixtures do
         pipeline_fatal: true,
         pipeline_implementation: "some  pipeline_implementation",
         retry_count: 42,
+        run_id: Ecto.UUID.generate(),
         step: "some  step",
         version: "some  version"
       })
