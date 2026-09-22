@@ -121,7 +121,7 @@ Constant measurement of retrieval quality, generation faithfulness, and drift. F
 
 References: [ARES](https://aclanthology.org/2024.naacl-long.20/) (synthetic queries + LLM judges), [FRAMES](https://arxiv.org/abs/2409.12941) (factuality/retrieval/reasoning benchmark), [Rahmani et al. 2024](https://arxiv.org/abs/2405.07767) (synthetic test collections).
 
-- [x] Item-level ingestion failures persisted with pipeline provenance and retried via sweep (`FailedIngest`, `Pipelines.detuple_with_logging/3`, `sweep/5`; #72, #76, #77)
+- [x] Item-level ingestion failures persisted with pipeline provenance and retried via sweep (`FailedIngest`, `Pipelines.detuple_with_logging/3`, `sweep/3`; #72, #76, #77). Failures are tagged with a per-run `run_id` so concurrent runs of the same source never count or retry each other's rows (#258/#265).
 - [x] Per-result retrieval provenance: search conditions, backend and CAKE scores, decomposition traceability (`Search.Result`, `Search.Provenance`; #154, #238)
 - [ ] **(priority)** Synthetic evaluation kit: generate queries + answers from a corpus, run them through pipelines, report recall/precision/faithfulness
 - [ ] Human-validated subset mixed into synthetic eval sets

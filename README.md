@@ -218,7 +218,7 @@ Every custom struct in Cake, its module, its purpose, and whether it defines a `
 
 | Struct | Module | Purpose |
 |---|---|---|
-| `Pipelines.Context` | `Cake.Pipelines.Context` | Carries pipeline identity (behaviour, implementation, version) through an ingestion run for error provenance. |
+| `Pipelines.Context` | `Cake.Pipelines.Context` | Carries pipeline identity (behaviour, implementation, version) plus a per-run `run_id` through an ingestion run: identity for error provenance, `run_id` to scope `count_failures/1`, `finalize_ingest/3`, and `sweep/3` to that run. |
 | `Search.Query` | `Cake.Search.Query` | Composable query builder. Fields: `index`, `size`, `must`, `should`, `filter`, `min_score`. |
 | `Search.Hit` | `Cake.Search.Hit` | Backend-agnostic search hit. Every backend maps its native hit type into this struct at the boundary. Fields: `id`, `score`, `source`. |
 | `Search.Result` | `Cake.Search.Result` | Normalized search result. Carries retrieval unit, backend score, CAKE-computed scores (cosine, relevance), hit provenance (search vs. expansion), search conditions, and prompt index. Single carrier of all retrieval metadata through the pipeline. |
