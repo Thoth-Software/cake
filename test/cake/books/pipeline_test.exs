@@ -316,8 +316,8 @@ defmodule Cake.Books.PipelineTest do
       assert failure.pipeline_implementation == "Cake.TestBooksPipeline"
       assert failure.pipeline_fatal == true
       assert failure.step == "validate_paths"
-      # Books failures are keyed by embedding model — the same version
-      # ingest_with_sweep/5 hands to Pipelines.sweep/5 when it looks them up.
+      # Books has no source version, so its failures record the embedding
+      # model as their version for provenance.
       assert failure.version == "test-model"
       assert failure.error_text == inspect(:no_paths)
     end

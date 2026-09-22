@@ -101,14 +101,16 @@ defmodule Cake.Documents.Pipeline do
   Item-level failures are persisted to `FailedIngest` via
   `Pipelines.detuple_with_logging/3`; pipeline-fatal errors short-circuit
   to `Pipelines.handle_ingest_error/2`. Returns the honest run summary
-  from `Pipelines.finalize_ingest/4`.
+  from `Pipelines.finalize_ingest/3`.
   """
   @spec ingest(atom(), atom(), version(), String.t()) ::
           {:ok, Pipelines.ingest_summary()} | {:error, any()}
   def ingest(embedding_service, source_pipeline, version_tuple, embedding_model) do
     ctx = Pipelines.build_context(__MODULE__, source_pipeline, version_tuple)
-    failures_before = Pipelines.count_failures(ctx)
+    do_ingest(ctx, embedding_service, source_pipeline, embedding_model)
+  end
 
+  defp do_ingest(ctx, embedding_service, source_pipeline, embedding_model) do
     with {:ok, file_paths} <- source_pipeline.download(ctx),
          raw_docs_stream <- source_pipeline.persist_raw_docs(file_paths, ctx),
          parsed_docs_attrs_stream <- source_pipeline.parse(raw_docs_stream, ctx),
@@ -127,20 +129,16 @@ defmodule Cake.Documents.Pipeline do
              ParsedDocument.collection_name(),
              ctx
            ) do
-      Pipelines.finalize_ingest(
-        indexed_docs_stream,
-        ctx,
-        failures_before,
-        source_pipeline.success_message(ctx)
-      )
+      Pipelines.finalize_ingest(indexed_docs_stream, ctx, source_pipeline.success_message(ctx))
     else
       error -> Pipelines.handle_ingest_error(error, ctx)
     end
   end
 
   @doc """
-  Runs the ingestion pipeline, then sweeps up item-level failures.
-  Returns the original ingest result. Sweep results are logged.
+  Runs the ingestion pipeline, then sweeps up the item-level failures that
+  run recorded (never another run's). Returns the original ingest result.
+  Sweep results are logged.
 
   Options:
     - :max_sweeps — maximum number of retry passes (default: 2)
@@ -155,23 +153,14 @@ defmodule Cake.Documents.Pipeline do
         embedding_model,
         opts \\ []
       ) do
-    result = ingest(embedding_service, source_pipeline, version_tuple, embedding_model)
-
-    {major, minor, patch} = version_tuple
-    version = Enum.join([major, minor, patch], ".")
+    ctx = Pipelines.build_context(__MODULE__, source_pipeline, version_tuple)
+    result = do_ingest(ctx, embedding_service, source_pipeline, embedding_model)
 
     retry_fn = fn failure ->
       retry(failure, source_pipeline, embedding_service, embedding_model)
     end
 
-    {resolved, remaining} =
-      Pipelines.sweep(
-        "Cake.Documents.Pipeline",
-        inspect(source_pipeline),
-        version,
-        retry_fn,
-        opts
-      )
+    {resolved, remaining} = Pipelines.sweep(ctx, retry_fn, opts)
 
     if resolved > 0 or remaining > 0 do
       Logger.info("[docs.sweep] Resolved #{resolved}, remaining #{remaining}")

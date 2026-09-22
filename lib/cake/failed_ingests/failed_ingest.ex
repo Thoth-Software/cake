@@ -3,12 +3,18 @@ defmodule Cake.FailedIngests.FailedIngest do
   Ecto schema for an item-level ingest failure. Records which pipeline and step
   failed, the offending input, and retry bookkeeping so the sweep machinery can
   later re-attempt the item.
+
+  `run_id` is the `Cake.Pipelines.Context.run_id` of the ingest run that
+  recorded the failure. Concurrent runs of the same pipeline, implementation,
+  and version share those three identity fields, so run-scoped counting and
+  sweeping key on `run_id` instead.
   """
 
   use Cake.Schema
   import Ecto.Changeset
 
   schema "failed_ingests" do
+    field :run_id, :binary_id
     field :pipeline_behaviour, :string
     field :pipeline_implementation, :string
     field :step, :string
@@ -25,6 +31,7 @@ defmodule Cake.FailedIngests.FailedIngest do
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,
+          run_id: Ecto.UUID.t(),
           pipeline_behaviour: String.t(),
           pipeline_implementation: String.t(),
           step: String.t(),
@@ -43,6 +50,7 @@ defmodule Cake.FailedIngests.FailedIngest do
   def changeset(failed_ingest, attrs) do
     failed_ingest
     |> cast(attrs, [
+      :run_id,
       :pipeline_behaviour,
       :pipeline_implementation,
       :step,
@@ -54,6 +62,7 @@ defmodule Cake.FailedIngests.FailedIngest do
       :last_retried_at
     ])
     |> validate_required([
+      :run_id,
       :pipeline_behaviour,
       :pipeline_implementation,
       :step,

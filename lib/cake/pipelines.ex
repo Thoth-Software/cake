@@ -10,10 +10,10 @@ defmodule Cake.Pipelines do
       them.
     * `add_to_search_backend/3` — indexes embedded records into a search
       collection.
-    * `sweep/5` — retry loop over persisted item-level failures.
+    * `sweep/3` — retry loop over the item-level failures one run persisted.
     * `build_context/3` and `Context` — pipeline identity threaded through
       a run for error provenance.
-    * `count_failures/1`, `summarize_ingest/3`, `finalize_ingest/4`, and
+    * `count_failures/1`, `summarize_ingest/3`, `finalize_ingest/3`, and
       `handle_ingest_error/2` — honest run accounting.
   """
 
@@ -30,14 +30,20 @@ defmodule Cake.Pipelines do
     Built once at the top of each behaviour's `ingest` function
     and passed to `detuple_with_logging` so it can persist errors
     with full provenance. Also carries a keyword list of opts.
+
+    `run_id` is a fresh UUID per `build_context/4` call. Behaviour,
+    implementation, and version say *what* a run ingested; `run_id` says
+    *which* run, so concurrent runs of the same source never count or
+    sweep each other's failures.
     """
     @type t :: %__MODULE__{
+            run_id: Ecto.UUID.t(),
             behaviour: String.t(),
             implementation: String.t(),
             version: String.t(),
             opts: keyword()
           }
-    defstruct [:behaviour, :implementation, :version, :opts]
+    defstruct [:run_id, :behaviour, :implementation, :version, :opts]
   end
 
   @type context :: Context.t()
@@ -143,6 +149,7 @@ defmodule Cake.Pipelines do
     {input_id, error_text} = extract_error_info(reason)
 
     Cake.FailedIngests.create_failed_ingest(%{
+      run_id: ctx.run_id,
       pipeline_behaviour: ctx.behaviour,
       pipeline_implementation: ctx.implementation,
       step: step_name,
@@ -167,32 +174,31 @@ defmodule Cake.Pipelines do
   end
 
   @doc """
-  Retries item-level failures for a given pipeline run. Queries FailedIngests
-  for non-fatal failures matching the given behaviour/implementation/version,
+  Retries item-level failures for one pipeline run. Queries FailedIngests
+  for the non-fatal failures recorded under the run's `Context.run_id`,
   calls the provided retry function on each, and loops until clean or max
-  sweeps reached.
+  sweeps reached. Failures recorded by other runs of the same source are
+  never touched, so concurrent sweeps cannot retry the same row.
 
   The `retry_fn` argument is a 1-arity function that accepts a %FailedIngest{}
   and returns {:ok, :retried} | {:error, any()}.
 
   Returns {resolved_count, remaining_count}.
   """
-  @spec sweep(String.t(), String.t(), String.t(), fun(), [{:max_sweeps, integer()}]) ::
-          {integer(), integer()}
-  def sweep(behaviour, implementation, version, retry_fn, opts \\ []) do
+  @spec sweep(context(), fun(), [{:max_sweeps, integer()}]) :: {integer(), integer()}
+  def sweep(%Context{} = ctx, retry_fn, opts \\ []) do
     max_sweeps = Keyword.get(opts, :max_sweeps, 2)
-    do_sweep(behaviour, implementation, version, retry_fn, max_sweeps, 0)
+    do_sweep(ctx, retry_fn, max_sweeps, 0)
   end
 
-  defp do_sweep(behaviour, implementation, version, _retry_fn, 0, total_resolved) do
-    remaining =
-      length(Cake.FailedIngests.list_failed_ingests_for(behaviour, implementation, version))
+  defp do_sweep(%Context{run_id: run_id}, _retry_fn, 0, total_resolved) do
+    remaining = length(Cake.FailedIngests.list_failed_ingests_for_run(run_id))
 
     {total_resolved, remaining}
   end
 
-  defp do_sweep(behaviour, implementation, version, retry_fn, sweeps_left, total_resolved) do
-    failures = Cake.FailedIngests.list_failed_ingests_for(behaviour, implementation, version)
+  defp do_sweep(%Context{run_id: run_id} = ctx, retry_fn, sweeps_left, total_resolved) do
+    failures = Cake.FailedIngests.list_failed_ingests_for_run(run_id)
 
     if failures == [] do
       {total_resolved, 0}
@@ -212,30 +218,23 @@ defmodule Cake.Pipelines do
       if resolved_this_sweep == 0 do
         {total_resolved, length(failures)}
       else
-        do_sweep(
-          behaviour,
-          implementation,
-          version,
-          retry_fn,
-          sweeps_left - 1,
-          total_resolved + resolved_this_sweep
-        )
+        do_sweep(ctx, retry_fn, sweeps_left - 1, total_resolved + resolved_this_sweep)
       end
     end
   end
 
   @doc """
-  Counts the `FailedIngest` rows recorded for a pipeline run's identity.
-
-  Used by `ingest` implementations to measure item-level failures: snapshot
-  before the run, snapshot after, and the delta is how many items this run
-  dropped. (Only non-fatal item failures are created inside a successful
-  `with` chain; fatal failures short-circuit to `handle_ingest_error/2`.)
+  Counts the non-fatal `FailedIngest` rows recorded by one pipeline run,
+  keyed on the run's `Context.run_id`. Rows from other runs of the same
+  behaviour, implementation, and version are excluded, so the count is
+  exact even when runs overlap. (Only non-fatal item failures are created
+  inside a successful `with` chain; fatal failures short-circuit to
+  `handle_ingest_error/2`.)
   """
   @spec count_failures(context()) :: non_neg_integer()
-  def count_failures(%Context{} = ctx) do
-    ctx.behaviour
-    |> Cake.FailedIngests.list_failed_ingests_for(ctx.implementation, ctx.version)
+  def count_failures(%Context{run_id: run_id}) do
+    run_id
+    |> Cake.FailedIngests.list_failed_ingests_for_run()
     |> length()
   end
 
@@ -262,15 +261,14 @@ defmodule Cake.Pipelines do
 
   @doc """
   Closes out an ingest run: forces the final stream to count how many items
-  made it through, measures item failures as the `count_failures/1` delta since
-  `failures_before`, and builds the honest result via `summarize_ingest/3`.
+  made it through, counts this run's item failures via `count_failures/1`,
+  and builds the honest result via `summarize_ingest/3`.
   """
-  @spec finalize_ingest(Enumerable.t(), context(), non_neg_integer(), String.t()) ::
+  @spec finalize_ingest(Enumerable.t(), context(), String.t()) ::
           {:ok, ingest_summary()} | {:error, {:no_items_ingested, ingest_summary()}}
-  def finalize_ingest(indexed_stream, %Context{} = ctx, failures_before, message) do
+  def finalize_ingest(indexed_stream, %Context{} = ctx, message) do
     indexed = Enum.count(indexed_stream)
-    failed = count_failures(ctx) - failures_before
-    summarize_ingest(message, indexed, failed)
+    summarize_ingest(message, indexed, count_failures(ctx))
   end
 
   @spec build_context(atom(), atom(), String.t() | {integer(), integer(), integer()}, keyword()) ::
@@ -282,6 +280,7 @@ defmodule Cake.Pipelines do
     version = Enum.join([major, minor, patch], ".")
 
     %Pipelines.Context{
+      run_id: Ecto.UUID.generate(),
       behaviour: inspect(behaviour_module),
       implementation: inspect(source_pipeline),
       version: version,
@@ -292,6 +291,7 @@ defmodule Cake.Pipelines do
   @spec build_context(atom(), atom(), String.t()) :: context()
   def build_context(behaviour_module, source_pipeline, version, opts) do
     %Pipelines.Context{
+      run_id: Ecto.UUID.generate(),
       behaviour: inspect(behaviour_module),
       implementation: inspect(source_pipeline),
       version: version,
@@ -306,6 +306,7 @@ defmodule Cake.Pipelines do
 
     _ =
       Cake.FailedIngests.create_failed_ingest(%{
+        run_id: ctx.run_id,
         pipeline_behaviour: ctx.behaviour,
         pipeline_implementation: ctx.implementation,
         step: Atom.to_string(step),
@@ -323,6 +324,7 @@ defmodule Cake.Pipelines do
 
     _ =
       Cake.FailedIngests.create_failed_ingest(%{
+        run_id: ctx.run_id,
         pipeline_behaviour: ctx.behaviour,
         pipeline_implementation: ctx.implementation,
         step: "ingest",
