@@ -27,7 +27,10 @@ defmodule Cake.FailedIngestsTest do
     end
 
     test "create_failed_ingest/1 with valid data creates a failed_ingest" do
+      run_id = Ecto.UUID.generate()
+
       valid_attrs = %{
+        run_id: run_id,
         pipeline_behaviour: "some pipeline_behaviour",
         pipeline_implementation: "some pipeline_implementation",
         step: "some step",
@@ -51,6 +54,21 @@ defmodule Cake.FailedIngestsTest do
       assert failed_ingest.pipeline_fatal == true
       assert failed_ingest.retry_count == 42
       assert failed_ingest.last_retried_at == ~U[2026-04-10 01:14:00Z]
+      assert failed_ingest.run_id == run_id
+    end
+
+    test "create_failed_ingest/1 without a run_id returns error changeset" do
+      attrs = %{
+        pipeline_behaviour: "some pipeline_behaviour",
+        pipeline_implementation: "some pipeline_implementation",
+        step: "some step",
+        version: "some version",
+        error_text: "some error_text",
+        pipeline_fatal: false
+      }
+
+      assert {:error, %Ecto.Changeset{} = changeset} = FailedIngests.create_failed_ingest(attrs)
+      assert %{run_id: ["can't be blank"]} = errors_on(changeset)
     end
 
     test "create_failed_ingest/1 with invalid data returns error changeset" do

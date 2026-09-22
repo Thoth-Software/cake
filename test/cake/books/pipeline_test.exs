@@ -1,12 +1,14 @@
 defmodule Cake.Books.PipelineTest do
   use Cake.DataCase, async: true
 
+  import ExUnit.CaptureLog
   import Mox
 
   alias Cake.Books
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
   alias Cake.Books.Pipeline
+  alias Cake.FailedIngests.FailedIngest
 
   setup :verify_on_exit!
 
@@ -90,6 +92,24 @@ defmodule Cake.Books.PipelineTest do
 
   defp run_ingest(paths) do
     Pipeline.ingest(:openai, Cake.TestBooksPipeline, "test-model", paths)
+  end
+
+  # A non-fatal failure recorded by a concurrent Books run with the same
+  # format pipeline and embedding model, i.e. the same identity as run_ingest/1.
+  defp insert_sibling_run_failure(path) do
+    {:ok, failure} =
+      Cake.FailedIngests.create_failed_ingest(%{
+        run_id: Ecto.UUID.generate(),
+        pipeline_behaviour: "Cake.Books.Pipeline",
+        pipeline_implementation: "Cake.TestBooksPipeline",
+        step: "books.parse",
+        version: "test-model",
+        error_text: "boom",
+        input_identifier: path,
+        pipeline_fatal: false
+      })
+
+    failure
   end
 
   defp reload_book(book_id) do
@@ -191,6 +211,232 @@ defmodule Cake.Books.PipelineTest do
       assert [persisted_a, persisted_b] = all_books
       assert reload_book(persisted_a.id).embedding_status == :completed
       assert reload_book(persisted_b.id).embedding_status == :failed
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # validate_paths/1 — the eager, run-level fallible step
+  # -------------------------------------------------------------------
+
+  describe "validate_paths/1" do
+    test "returns {:ok, paths} for a non-empty list of non-blank string keys" do
+      paths = ["books/a.pdf", "books/b.pdf"]
+
+      assert {:ok, ^paths} = Pipeline.validate_paths(paths)
+    end
+
+    test "rejects an empty list as :no_paths" do
+      assert {:error, :validate_paths, :no_paths} = Pipeline.validate_paths([])
+    end
+
+    test "rejects blank and non-string keys, reporting every invalid key" do
+      paths = ["books/a.pdf", "", "   ", nil, :atom_key]
+
+      assert {:error, :validate_paths, {:invalid_paths, ["", "   ", nil, :atom_key]}} =
+               Pipeline.validate_paths(paths)
+    end
+
+    test "rejects non-UTF-8 keys byte-for-byte, in input order" do
+      invalid_byte = <<"books/", 255, ".pdf">>
+      truncated_sequence = <<0xC3>>
+      paths = ["books/a.pdf", invalid_byte, "books/b.pdf", truncated_sequence]
+
+      assert {:error, :validate_paths, {:invalid_paths, [^invalid_byte, ^truncated_sequence]}} =
+               Pipeline.validate_paths(paths)
+    end
+
+    test "rejects keys containing a NUL byte, unchanged" do
+      nul_key = <<"books/a", 0, ".pdf">>
+
+      assert {:error, :validate_paths, {:invalid_paths, [^nul_key]}} =
+               Pipeline.validate_paths(["books/a.pdf", nul_key])
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # ingest/4 — pipeline-fatal errors route through handle_ingest_error/2
+  # -------------------------------------------------------------------
+
+  describe "ingest/4 pipeline-fatal errors" do
+    test "returns {:error, {:validate_paths, reason}} for an empty path list" do
+      capture_log(fn ->
+        assert {:error, {:validate_paths, :no_paths}} = run_ingest([])
+      end)
+    end
+
+    test "returns {:error, {:validate_paths, reason}} when any key is invalid" do
+      capture_log(fn ->
+        assert {:error, {:validate_paths, {:invalid_paths, [""]}}} =
+                 run_ingest(["books/a.pdf", ""])
+      end)
+    end
+
+    test "rejects a non-UTF-8 key and persists the fatal row" do
+      invalid_key = <<"books/", 255, ".pdf">>
+
+      capture_log(fn ->
+        assert {:error, {:validate_paths, {:invalid_paths, [^invalid_key]}}} =
+                 run_ingest(["books/a.pdf", invalid_key])
+      end)
+
+      assert [failure] = Repo.all(FailedIngest)
+      assert failure.step == "validate_paths"
+      assert failure.pipeline_fatal == true
+      assert failure.error_text == inspect({:invalid_paths, [invalid_key]})
+    end
+
+    test "rejects a NUL-containing key and persists the fatal row unaltered" do
+      nul_key = <<"books/a", 0, ".pdf">>
+
+      capture_log(fn ->
+        assert {:error, {:validate_paths, {:invalid_paths, [^nul_key]}}} =
+                 run_ingest(["books/a.pdf", nul_key])
+      end)
+
+      assert [failure] = Repo.all(FailedIngest)
+      assert failure.step == "validate_paths"
+      assert failure.pipeline_fatal == true
+      # inspect/1 escapes the NUL as `\0`, so sanitize_text_fields/1 has
+      # nothing to strip and the persisted error names the key exactly.
+      assert failure.error_text == inspect({:invalid_paths, [nul_key]})
+    end
+
+    test "logs the fatal error with the pipeline behaviour and step" do
+      log = capture_log(fn -> run_ingest([]) end)
+
+      assert log =~ "[Cake.Books.Pipeline] Pipeline-fatal error at validate_paths"
+      assert log =~ ":no_paths"
+    end
+
+    test "persists a pipeline-fatal FailedIngest row tagged with the Context fields" do
+      capture_log(fn -> run_ingest([]) end)
+
+      assert [failure] = Repo.all(FailedIngest)
+      assert failure.pipeline_behaviour == "Cake.Books.Pipeline"
+      assert failure.pipeline_implementation == "Cake.TestBooksPipeline"
+      assert failure.pipeline_fatal == true
+      assert failure.step == "validate_paths"
+      # Books has no source version, so its failures record the embedding
+      # model as their version for provenance.
+      assert failure.version == "test-model"
+      assert failure.error_text == inspect(:no_paths)
+    end
+
+    test "short-circuits before any valid key is loaded or persisted" do
+      book = make_book("Valid Book", "valid")
+      path = book.source_file_path
+      register_test_books([{path, {book, [make_chunk("Valid chunk")]}}])
+
+      test_pid = self()
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _input, "test-model" ->
+        send(test_pid, :embed_called)
+        successful_embed_response()
+      end)
+
+      capture_log(fn -> run_ingest([path, nil]) end)
+
+      assert persisted_books() == []
+      refute_received :embed_called
+    end
+
+    test "ingest_with_sweep/5 returns the fatal error unchanged" do
+      capture_log(fn ->
+        assert {:error, {:validate_paths, :no_paths}} =
+                 Pipeline.ingest_with_sweep(:openai, Cake.TestBooksPipeline, "test-model", [])
+      end)
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Item-level FailedIngest provenance — keyed by embedding model
+  # -------------------------------------------------------------------
+
+  describe "ingest/4 item-level failure persistence" do
+    test "persists an item-level failure keyed by the embedding model" do
+      path = "/test/unregistered.pdf"
+
+      capture_log(fn -> run_ingest([path]) end)
+
+      assert [failure] = Repo.all(FailedIngest)
+      assert failure.pipeline_behaviour == "Cake.Books.Pipeline"
+      assert failure.pipeline_implementation == "Cake.TestBooksPipeline"
+      assert failure.step == "books.parse"
+      assert failure.version == "test-model"
+      assert failure.input_identifier == path
+      assert failure.pipeline_fatal == false
+      assert {:ok, _} = Ecto.UUID.cast(failure.run_id)
+    end
+
+    test "does not count a concurrent run's failures in its own summary" do
+      # A sibling run with the same identity records a failure while this run
+      # is in flight (from inside the embed step, so it lands between the
+      # run's start and its finalize). This run's summary must not include it.
+      book = make_book("Concurrent Book", "concurrent")
+      path = book.source_file_path
+      register_test_books([{path, {book, [make_chunk("Concurrent chunk")]}}])
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _input, "test-model" ->
+        insert_sibling_run_failure("/test/other.pdf")
+        {:error, "boom"}
+      end)
+
+      capture_log(fn ->
+        assert {:error, {:no_items_ingested, %{indexed: 0, failed: 1}}} = run_ingest([path])
+      end)
+    end
+
+    test "ingest_with_sweep/5 leaves another run's failures alone" do
+      # The sibling's failure is retryable (its book is registered), so a
+      # sweep that reached it would resolve and delete it.
+      other_book = make_book("Other Run Book", "other")
+      other_path = other_book.source_file_path
+      book = make_book("This Run Book", "this")
+      path = book.source_file_path
+
+      register_test_books([
+        {other_path, {other_book, [make_chunk("Other chunk")]}},
+        {path, {book, [make_chunk("This chunk")]}}
+      ])
+
+      sibling_failure = insert_sibling_run_failure(other_path)
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, _input, "test-model" ->
+        successful_embed_response()
+      end)
+
+      capture_log(fn ->
+        Pipeline.ingest_with_sweep(:openai, Cake.TestBooksPipeline, "test-model", [path])
+      end)
+
+      assert [%FailedIngest{id: id}] = Repo.all(FailedIngest)
+      assert id == sibling_failure.id
+      assert [%ParsedBook{title: "This Run Book"}] = persisted_books()
+    end
+
+    test "reports a run in which every item failed as :no_items_ingested" do
+      capture_log(fn ->
+        assert {:error, {:no_items_ingested, %{indexed: 0, failed: 1}}} =
+                 run_ingest(["/test/unregistered.pdf"])
+      end)
+    end
+
+    test "ingest_with_sweep/5 finds and resolves a failure recorded during the run" do
+      book = make_book("Sweep Book", "sweep")
+      path = book.source_file_path
+      register_test_books([{path, {book, [make_chunk("Sweep chunk")]}}])
+
+      Cake.Embeddings.Mock
+      |> expect(:embed, fn :openai, _input, "test-model" -> {:error, "transient"} end)
+      |> expect(:embed, fn :openai, _input, "test-model" -> successful_embed_response() end)
+
+      capture_log(fn ->
+        Pipeline.ingest_with_sweep(:openai, Cake.TestBooksPipeline, "test-model", [path])
+      end)
+
+      assert Repo.all(FailedIngest) == []
+      assert [chunk] = Repo.all(Chunk)
+      assert chunk.embedding == @fake_embedding
     end
   end
 end

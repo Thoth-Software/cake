@@ -90,6 +90,7 @@ defmodule Cake.PipelinesPropertyTest do
               reason <- reason_term()
             ) do
         filters = [
+          run_id: ctx.run_id,
           pipeline_implementation: ctx.implementation,
           version: ctx.version,
           step: Atom.to_string(step),
@@ -118,6 +119,7 @@ defmodule Cake.PipelinesPropertyTest do
               reason <- reason_term()
             ) do
         filters = [
+          run_id: ctx.run_id,
           pipeline_implementation: ctx.implementation,
           version: ctx.version,
           step: "ingest",
@@ -173,6 +175,7 @@ defmodule Cake.PipelinesPropertyTest do
         errs = Enum.filter(entries, &match?({:error, _}, &1))
 
         filters = [
+          run_id: ctx.run_id,
           pipeline_implementation: ctx.implementation,
           version: ctx.version,
           step: step_name,

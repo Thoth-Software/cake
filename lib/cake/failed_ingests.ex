@@ -23,16 +23,13 @@ defmodule Cake.FailedIngests do
   end
 
   @doc """
-  Returns all non-fatal FailedIngest records matching the given
-  behaviour, implementation, and version.
+  Returns all non-fatal FailedIngest records recorded by one ingest run.
   """
-  @spec list_failed_ingests_for(String.t(), String.t(), String.t()) :: [FailedIngest.t()]
-  def list_failed_ingests_for(behaviour, implementation, version) do
+  @spec list_failed_ingests_for_run(Ecto.UUID.t()) :: [FailedIngest.t()]
+  def list_failed_ingests_for_run(run_id) do
     Repo.all(
       from f in FailedIngest,
-        where: f.pipeline_behaviour == ^behaviour,
-        where: f.pipeline_implementation == ^implementation,
-        where: f.version == ^version,
+        where: f.run_id == ^run_id,
         where: f.pipeline_fatal == false
     )
   end

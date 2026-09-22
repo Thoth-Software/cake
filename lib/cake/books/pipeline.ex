@@ -20,8 +20,8 @@ defmodule Cake.Books.Pipeline do
         ["books/getting-started.pdf"]
       )
 
-  `ingest_with_sweep/5` runs the same pipeline, then retries item-level
-  failures via `Cake.Pipelines.sweep/5`.
+  `ingest_with_sweep/5` runs the same pipeline, then retries the item-level
+  failures that run recorded via `Cake.Pipelines.sweep/3`.
   """
 
   alias Cake.Books
@@ -51,6 +51,13 @@ defmodule Cake.Books.Pipeline do
 
   @doc "Human-readable message logged when a run completes."
   @callback success_message() :: String.t()
+
+  @typedoc """
+  Reasons `validate_paths/1` rejects a run: no keys at all, or keys that are
+  not non-blank, NUL-free, valid UTF-8 strings (every invalid key is listed
+  unchanged, in input order).
+  """
+  @type path_error :: :no_paths | {:invalid_paths, [term()]}
 
   @typedoc "Errors from `load_binary/1` implementations. New format pipelines add their shapes here."
   @type load_error :: {String.t(), String.t()}
@@ -85,44 +92,50 @@ defmodule Cake.Books.Pipeline do
   chunk (its section title prepended to the text), update embedding
   statuses, and index into the search backend.
 
+  The run's `Pipelines.Context` uses the embedding model as its version
+  (Books has no source version), so `FailedIngest` rows record which model
+  a failure belongs to; counting and sweeping are scoped by the context's
+  `run_id`.
+
+  `validate_paths/1` runs first, eagerly: an invalid key list is
+  pipeline-fatal and short-circuits to `Pipelines.handle_ingest_error/2`,
+  returning `{:error, {:validate_paths, reason}}` before anything is loaded.
   Item-level failures are persisted to `FailedIngest` via
   `Pipelines.detuple_with_logging/3`; the return is the honest summary from
-  `Pipelines.finalize_ingest/4` — `{:ok, summary}`, or
+  `Pipelines.finalize_ingest/3` — `{:ok, summary}`, or
   `{:error, {:no_items_ingested, summary}}` when nothing made it through.
   """
   @spec ingest(atom(), atom(), String.t(), [String.t()]) ::
           {:ok, Pipelines.ingest_summary()}
           | {:error, {:no_items_ingested, Pipelines.ingest_summary()}}
+          | {:error, {:validate_paths, path_error()}}
   def ingest(embedding_service, format_pipeline, embedding_model, paths) do
-    ctx = Pipelines.build_context(__MODULE__, format_pipeline, "")
-    failures_before = Pipelines.count_failures(ctx)
+    ctx = Pipelines.build_context(__MODULE__, format_pipeline, embedding_model)
+    do_ingest(ctx, embedding_service, format_pipeline, embedding_model, paths)
+  end
 
-    with {:ok, binary_stream} <- load_all_binaries(paths, format_pipeline, ctx),
+  defp do_ingest(ctx, embedding_service, format_pipeline, embedding_model, paths) do
+    with {:ok, valid_paths} <- validate_paths(paths),
+         {:ok, binary_stream} <- load_all_binaries(valid_paths, format_pipeline, ctx),
          {:ok, books_and_chunks_stream} <-
            parse_all_binaries(format_pipeline, binary_stream, ctx),
          {:ok, persisted_books_and_chunks} <-
            persist_books_and_chunks(books_and_chunks_stream, ctx),
          {:ok, embedded_books} <-
-           embed_all_chunks(persisted_books_and_chunks, embedding_service, embedding_model, ctx),
-         status_updated_chunks <- update_book_embedding_statuses(embedded_books),
-         indexed_chunks <-
-           Pipelines.add_to_search_backend(
-             status_updated_chunks,
-             ParsedBook.collection_name(),
-             ctx
-           ) do
-      Pipelines.finalize_ingest(
-        indexed_chunks,
-        ctx,
-        failures_before,
-        format_pipeline.success_message()
-      )
+           embed_all_chunks(persisted_books_and_chunks, embedding_service, embedding_model, ctx) do
+      embedded_books
+      |> update_book_embedding_statuses()
+      |> Pipelines.add_to_search_backend(ParsedBook.collection_name(), ctx)
+      |> Pipelines.finalize_ingest(ctx, format_pipeline.success_message())
+    else
+      error -> Pipelines.handle_ingest_error(error, ctx)
     end
   end
 
   @doc """
-  Runs the ingestion pipeline, then sweeps up item-level failures.
-  Returns the original ingest result. Sweep results are logged.
+  Runs the ingestion pipeline, then sweeps up the item-level failures that
+  run recorded (never another run's). Returns the original ingest result.
+  Sweep results are logged.
 
   Options:
     - :max_sweeps — maximum number of retry passes (default: 2)
@@ -130,21 +143,16 @@ defmodule Cake.Books.Pipeline do
   @spec ingest_with_sweep(atom(), atom(), String.t(), [String.t()], [{:max_sweeps, integer()}]) ::
           {:ok, Pipelines.ingest_summary()}
           | {:error, {:no_items_ingested, Pipelines.ingest_summary()}}
+          | {:error, {:validate_paths, path_error()}}
   def ingest_with_sweep(embedding_service, format_pipeline, embedding_model, paths, opts \\ []) do
-    result = ingest(embedding_service, format_pipeline, embedding_model, paths)
+    ctx = Pipelines.build_context(__MODULE__, format_pipeline, embedding_model)
+    result = do_ingest(ctx, embedding_service, format_pipeline, embedding_model, paths)
 
     retry_fn = fn failure ->
       retry(failure, format_pipeline, embedding_service, embedding_model)
     end
 
-    {resolved, remaining} =
-      Pipelines.sweep(
-        "Cake.Books.Pipeline",
-        inspect(format_pipeline),
-        embedding_model,
-        retry_fn,
-        opts
-      )
+    {resolved, remaining} = Pipelines.sweep(ctx, retry_fn, opts)
 
     if resolved > 0 or remaining > 0 do
       Logger.info("[books.sweep] Resolved #{resolved}, remaining #{remaining}")
@@ -178,6 +186,33 @@ defmodule Cake.Books.Pipeline do
       )
       when step in ["books.embed", "search_backend.index"] do
     retry_from_chunk(failure, embedding_service, embedding_model)
+  end
+
+  @doc """
+  Checks the storage keys for a run before anything is loaded. This is the
+  pipeline's eager, run-level fallible step: an empty list or any blank,
+  non-string, non-UTF-8, or NUL-containing key fails the whole run, since it signals a caller bug rather
+  than a bad book.
+  """
+  @spec validate_paths([term()]) :: {:ok, [String.t()]} | {:error, :validate_paths, path_error()}
+  def validate_paths([]), do: {:error, :validate_paths, :no_paths}
+
+  def validate_paths(paths) when is_list(paths) do
+    case Enum.reject(paths, &valid_path?/1) do
+      [] -> {:ok, paths}
+      invalid_paths -> {:error, :validate_paths, {:invalid_paths, invalid_paths}}
+    end
+  end
+
+  # A storage key is an identifier, so an unstorable key is rejected rather
+  # than sanitized: any rewrite would point at a different object. Postgres
+  # text columns reject invalid UTF-8 outright and cannot hold NUL; NUL is
+  # valid UTF-8, but `Cake.Schema.sanitize_text_fields/1` would strip it from
+  # `ParsedBook.source_file_path` and `FailedIngest.input_identifier`, so a
+  # retry would load a different key than the one that failed.
+  defp valid_path?(path) do
+    is_binary(path) and String.valid?(path) and not String.contains?(path, <<0>>) and
+      String.trim(path) != ""
   end
 
   @spec load_all_binaries([String.t()], atom(), Pipelines.Context.t()) :: {:ok, Enumerable.t()}

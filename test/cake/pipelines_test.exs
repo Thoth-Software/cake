@@ -37,6 +37,7 @@ defmodule Cake.PipelinesTest do
   defp insert_failure(%Context{} = ctx, opts) do
     {:ok, failure} =
       Cake.FailedIngests.create_failed_ingest(%{
+        run_id: ctx.run_id,
         pipeline_behaviour: ctx.behaviour,
         pipeline_implementation: ctx.implementation,
         step: "docs.embed",
@@ -71,6 +72,15 @@ defmodule Cake.PipelinesTest do
                version: "1.18.3",
                opts: []
              } = ctx
+    end
+
+    test "build_context/4 assigns a fresh UUID run_id to every call" do
+      ctx_a = Pipelines.build_context(Cake.Documents.Pipeline, TestPipeline, {1, 18, 3})
+      ctx_b = Pipelines.build_context(Cake.Documents.Pipeline, TestPipeline, {1, 18, 3})
+
+      assert {:ok, _} = Ecto.UUID.cast(ctx_a.run_id)
+      assert {:ok, _} = Ecto.UUID.cast(ctx_b.run_id)
+      assert ctx_a.run_id != ctx_b.run_id
     end
 
     test "build_context/4 accepts an already-stringified version" do
@@ -181,8 +191,45 @@ defmodule Cake.PipelinesTest do
       # A non-fatal failure for a different version must be excluded.
       other = build_ctx(version: {9, 9, 9})
       insert_failure(other, pipeline_fatal: false)
+      # A non-fatal failure for the same identity but another run (a
+      # concurrent ingest of the same source and version) must be excluded.
+      sibling = build_ctx(version: {1, 18, 3})
+      insert_failure(sibling, pipeline_fatal: false)
 
       assert Pipelines.count_failures(ctx) == 2
+    end
+  end
+
+  describe "Cake.Pipelines.finalize_ingest/3" do
+    test "counts only this run's failures, not a concurrent run's" do
+      ctx = build_ctx(version: {1, 18, 3})
+      sibling = build_ctx(version: {1, 18, 3})
+      insert_failure(ctx, pipeline_fatal: false)
+      insert_failure(sibling, pipeline_fatal: false)
+
+      assert {:ok, %{message: "done", indexed: 2, failed: 1}} =
+               Pipelines.finalize_ingest([:a, :b], ctx, "done")
+    end
+  end
+
+  describe "run_id provenance" do
+    test "detuple_with_logging/3 tags persisted item failures with the run_id" do
+      ctx = build_ctx([])
+
+      _ =
+        Enum.to_list(Pipelines.detuple_with_logging([{:error, {"x", "boom"}}], "docs.embed", ctx))
+
+      assert [%FailedIngest{} = failure] = Repo.all(FailedIngest)
+      assert failure.run_id == ctx.run_id
+    end
+
+    test "handle_ingest_error/2 tags the persisted fatal row with the run_id" do
+      ctx = build_ctx([])
+
+      _ = Pipelines.handle_ingest_error({:error, :download, "boom"}, ctx)
+
+      assert [%FailedIngest{pipeline_fatal: true} = failure] = Repo.all(FailedIngest)
+      assert failure.run_id == ctx.run_id
     end
   end
 
@@ -191,6 +238,27 @@ defmodule Cake.PipelinesTest do
     # `summarize_ingest/3` unit tests above. Here we exercise the full stream
     # wiring on the deterministic extreme: every item fails, so embed errors
     # must be dropped + counted (not leaked through as phantom successes).
+    test "does not count a concurrent run's failures in its own summary" do
+      # A sibling run of the same source and version records a failure
+      # while this run is in flight (from inside the embed step, so it lands
+      # between the run's start and its finalize). This run's summary must
+      # not include it.
+      sibling = build_ctx(version: {4, 4, 4})
+
+      stub(Mock, :embed, fn _service, _doc, _model ->
+        insert_failure(sibling, pipeline_fatal: false)
+        {:error, :embed_unavailable}
+      end)
+
+      assert {:error, {:no_items_ingested, %{indexed: 0, failed: 2}}} =
+               Cake.Documents.Pipeline.ingest(
+                 :openai,
+                 TestPipeline,
+                 {4, 4, 4},
+                 "text-embedding-ada-002"
+               )
+    end
+
     test "total failure: every embedding fails, so nothing is ingested -> {:error, _}" do
       stub(Mock, :embed, fn _service, _doc, _model -> {:error, :embed_unavailable} end)
 
@@ -312,15 +380,19 @@ defmodule Cake.PipelinesTest do
     end
   end
 
-  describe "sweep/5" do
+  describe "sweep/3" do
     test "returns {0, 0} when no failures exist" do
-      assert {0, 0} =
-               Pipelines.sweep(
-                 "Cake.Test.Pipeline",
-                 "Cake.TestImpl",
-                 "1.0.0",
-                 fn _ -> {:ok, :retried} end
-               )
+      assert {0, 0} = Pipelines.sweep(build_ctx(version: {5, 5, 5}), fn _ -> {:ok, :retried} end)
+    end
+
+    test "leaves another run's failures alone" do
+      ctx = build_ctx(version: {6, 6, 6})
+      sibling = build_ctx(version: {6, 6, 6})
+      insert_failure(sibling, pipeline_fatal: false)
+
+      assert {0, 0} = Pipelines.sweep(ctx, fn _ -> flunk("retried another run's failure") end)
+      assert [%FailedIngest{} = failure] = Repo.all(FailedIngest)
+      assert failure.run_id == sibling.run_id
     end
 
     test "retries failures and counts resolved" do
@@ -329,9 +401,7 @@ defmodule Cake.PipelinesTest do
 
       {resolved, remaining} =
         Pipelines.sweep(
-          ctx.behaviour,
-          ctx.implementation,
-          ctx.version,
+          ctx,
           fn failure ->
             Cake.FailedIngests.delete_failed_ingest(failure)
             {:ok, :retried}
@@ -348,9 +418,7 @@ defmodule Cake.PipelinesTest do
 
       {resolved, remaining} =
         Pipelines.sweep(
-          ctx.behaviour,
-          ctx.implementation,
-          ctx.version,
+          ctx,
           fn _failure -> {:error, :permanent} end
         )
 
@@ -364,9 +432,7 @@ defmodule Cake.PipelinesTest do
 
       {resolved, remaining} =
         Pipelines.sweep(
-          ctx.behaviour,
-          ctx.implementation,
-          ctx.version,
+          ctx,
           fn _failure -> {:error, :permanent} end,
           max_sweeps: 1
         )

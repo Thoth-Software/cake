@@ -1,7 +1,10 @@
 defmodule CakeWeb.UploadLiveTest do
   use CakeWeb.ConnCase, async: true
 
+  import ExUnit.CaptureLog
   import Phoenix.LiveViewTest
+
+  alias CakeWeb.UploadLive
 
   setup :register_and_log_in_user
 
@@ -102,6 +105,24 @@ defmodule CakeWeb.UploadLiveTest do
         ])
 
       assert {:error, [[_ref, :not_accepted]]} = preflight_upload(non_pdf_upload)
+    end
+  end
+
+  # A pipeline-fatal ingest error can't be produced through the UI:
+  # dispatch_ingestion/2 never calls ingest with an empty key list, and it
+  # builds every key itself. So the callback is exercised directly.
+  describe "handle_async/3 with a pipeline-fatal ingest error" do
+    test "sets an error status naming the reason instead of crashing" do
+      reason = {:validate_paths, :no_paths}
+
+      {{:noreply, socket}, log} =
+        with_log(fn ->
+          UploadLive.handle_async(:ingest, {:ok, {:error, reason}}, %Phoenix.LiveView.Socket{})
+        end)
+
+      assert socket.assigns.status == :error
+      assert socket.assigns.error == "Ingestion failed: #{inspect(reason)}"
+      assert log =~ inspect(reason)
     end
   end
 end

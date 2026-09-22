@@ -74,6 +74,12 @@ defmodule CakeWeb.UploadLive do
      )}
   end
 
+  def handle_async(:ingest, {:ok, {:error, reason}}, socket) do
+    Logger.warning("UploadLive ingestion failed: #{inspect(reason)}")
+
+    {:noreply, assign(socket, status: :error, error: "Ingestion failed: #{inspect(reason)}")}
+  end
+
   def handle_async(:ingest, {:exit, reason}, socket) do
     Logger.error("UploadLive ingestion task crashed: #{inspect(reason)}")
 
