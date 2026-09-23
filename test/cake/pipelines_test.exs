@@ -351,6 +351,23 @@ defmodule Cake.PipelinesTest do
       assert failure.input_identifier == "doc-42"
       assert failure.error_text == "timeout"
     end
+
+    test "logs an error naming the changeset problems when the failure row is rejected" do
+      # A context whose version is nil fails FailedIngest's validate_required.
+      # Before #267 the rejected insert was discarded silently, so a run whose
+      # every item failed could still summarize as a clean success.
+      ctx = %{build_ctx([]) | version: nil}
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:error, %Ecto.Changeset{}} =
+                   Pipelines.log_and_persist_failure(ctx, "manual.step", {"doc-42", "timeout"})
+        end)
+
+      assert log =~ "[manual.step] Could not persist FailedIngest for \"doc-42\""
+      assert log =~ "version"
+      assert log =~ "can't be blank"
+    end
   end
 
   describe "handle_ingest_error/2" do
