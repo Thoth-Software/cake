@@ -149,7 +149,7 @@ defmodule Cake.ConversationPropertyTest do
   # Properties
   # ---------------------------------------------------------------------------
 
-  property "apply_selection/2 returns {:ok, _} for valid doc_ids" do
+  property "apply_selection/2 returns {:ok, _} for valid candidate ids" do
     check all({candidates, selected} <- valid_selection()) do
       assert {:ok, _indexed} = Conversation.apply_selection(candidates, selected)
     end
@@ -178,9 +178,9 @@ defmodule Cake.ConversationPropertyTest do
     end
   end
 
-  property "apply_selection/2 returns error for unknown doc_ids" do
+  property "apply_selection/2 returns error for unknown candidate ids" do
     check all({candidates, bogus_ids} <- invalid_selection()) do
-      assert {:error, {:unknown_doc_ids, unknown}} =
+      assert {:error, {:unknown_candidate_ids, unknown}} =
                Conversation.apply_selection(candidates, bogus_ids)
 
       assert unknown != []
