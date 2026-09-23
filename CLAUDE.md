@@ -70,6 +70,16 @@ mix precommit  # MIX_ENV=dev: compile --force --warnings-as-errors → format --
 ```
 `mix precommit` is a Mix task (`lib/mix/tasks/precommit.ex`, not an alias) that runs that chain in that order, one child `mix` process per step with `MIX_ENV` set explicitly: the compile, format, and credo steps run in the dev env (so `--warnings-as-errors` enforces `boundary`) and the test step runs in the test env. It stops at the first failing step and exits non-zero. Run it before pushing; it works the same whatever `MIX_ENV` you invoke it under. On-push CI (`quality.yml`) runs the same checks **plus** gates with no local alias: a dev-env compile with `--warnings-as-errors` (enforces `boundary`), the compile-coupling ratchet `mix xref graph --label compile-connected --fail-above 3` (baseline 3; see #208), `mix docs --warnings-as-errors` (the documentation gate, #204), dialyzer, and coverage via `mix coveralls.json --exclude integration` against the `coveralls.json` minimum. Tests tagged `:integration` (OpenSearch, external HTTP, or the Rustler NIF) are excluded on-push and run separately as a merge gate via `mix test --only integration`.
 
+### Integration tests (merge gate)
+The `integration` job in `quality.yml` runs `mix test --only integration` against a real single-node OpenSearch service container (`opensearchproject/opensearch`, security plugin disabled, mirroring the `opensearch` service in `docker-compose.yml`) plus Postgres. Locally, start the same node and run the same command:
+
+```bash
+docker compose up -d opensearch   # publishes http://localhost:9200 (see docker-compose.yml)
+mix test --only integration        # MIX_ENV=test; OPENSEARCH_URL overrides http://localhost:9200
+```
+
+`OPENSEARCH_URL` is read by the integration test setup; leave it unset on the host, or set it to `http://opensearch:9200` when running inside the `cake_app` container.
+
 ---
 
 ## When to Stop and Ask
