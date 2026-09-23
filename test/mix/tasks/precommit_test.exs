@@ -34,7 +34,10 @@ defmodule Mix.Tasks.PrecommitTest do
     end
 
     test "announces each step as the exact command line it runs" do
-      steps = [{:dev, ["format", "--check-formatted"]}, {:test, ["test", "--exclude", "integration"]}]
+      steps = [
+        {:dev, ["format", "--check-formatted"]},
+        {:test, ["test", "--exclude", "integration"]}
+      ]
 
       assert Precommit.run_steps(steps, fn _env, _argv -> 0 end) == :ok
       assert_received {:mix_shell, :info, ["==> MIX_ENV=dev mix format --check-formatted"]}
@@ -57,11 +60,12 @@ defmodule Mix.Tasks.PrecommitTest do
     end
 
     test "an empty step list is a no-op" do
-      assert Precommit.run_steps([], fn _env, _argv -> flunk("runner must not be called") end) == :ok
+      assert Precommit.run_steps([], fn _env, _argv -> flunk("runner must not be called") end) ==
+               :ok
     end
   end
 
-  describe "run/1" do
+  describe "run_steps!/2" do
     test "raises a Mix.Error naming the failing step" do
       assert_raise Mix.Error, ~r/MIX_ENV=dev mix credo --strict.*exited with status 3/, fn ->
         Precommit.run_steps!([{:dev, ["credo", "--strict"]}], fn _env, _argv -> 3 end)
