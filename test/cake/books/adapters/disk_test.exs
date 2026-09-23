@@ -35,7 +35,7 @@ defmodule Cake.Books.Adapters.DiskTest do
   end
 
   test "refuses to read, write, probe, or delete a key with a .. segment", %{root: root} do
-    outside = Path.join(root, "..") |> Path.join("cake-disk-adapter-outside")
+    outside = Path.join([root, "..", "cake-disk-adapter-outside"])
     File.write!(outside, "secret")
     on_exit(fn -> File.rm(outside) end)
 
