@@ -15,7 +15,7 @@ Test data follows two tracks; pick by whether the thing is Ecto-backed:
 - These are **not** auto-imported by `DataCase`/`ConnCase`/`ObanCase` — `import` the fixture module or `Cake.Factory` in each test that needs them.
 - Property tests (StreamData) go in `*_property_test.exs`. When fixing a bug found by a property test, add a corresponding example test in the standard file.
 - Mox expectations go in individual tests, not setup blocks.
-- `test_helper.exs` sets `Application.put_env(:cake, :skip_opensearch, true)`. Tests that need search behavior mock the cluster via Mox or a test module.
+- `test_helper.exs` sets `Application.put_env(:cake, :skip_search_backend, true)` — unless the run includes `:integration` tests (`mix test --only integration`), in which case it repoints `Cake.Search.Deployment` at a real cluster instead. Unit tests that need search behavior mock the backend via Mox (`Cake.Search.Backend.Mock`) or the `Cake.Search.HTTPClientStub` adapter; real-cluster tests `use Cake.SearchIntegrationCase`.
 
 ## Never use `Process.sleep` to wait for async results
 
