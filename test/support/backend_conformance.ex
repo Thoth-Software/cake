@@ -21,10 +21,6 @@ defmodule Cake.Search.BackendConformance do
   them unchanged. Each group is a macro that registers the tests; each test
   body is a plain function here, so a backend author can also call one
   directly while debugging.
-
-  Stub: the lifecycle group is written; `backend/0` and
-  `collection_mapping/0` are not wired to the `use` options yet, so the
-  group fails on that missing wiring.
   """
 
   import ExUnit.Assertions
@@ -38,6 +34,8 @@ defmodule Cake.Search.BackendConformance do
 
   @doc false
   defmacro __using__(opts) do
+    backend = Keyword.fetch!(opts, :backend)
+    mapping = Keyword.fetch!(opts, :mapping)
     async = Keyword.get(opts, :async, true)
 
     quote do
@@ -47,12 +45,14 @@ defmodule Cake.Search.BackendConformance do
 
       @doc false
       @spec backend() :: module()
-      def backend, do: raise("Cake.Search.BackendConformance: :backend is not wired yet (#245)")
+      def backend, do: unquote(backend)
 
+      # Evaluated per call, not at compile time: a mapping expression may
+      # read application config (`build_mapping/1` reads the embedding
+      # dimension).
       @doc false
       @spec collection_mapping() :: map()
-      def collection_mapping,
-        do: raise("Cake.Search.BackendConformance: :mapping is not wired yet (#245)")
+      def collection_mapping, do: unquote(mapping)
 
       @doc false
       @spec wiring() :: Cake.Search.BackendConformance.wiring()
