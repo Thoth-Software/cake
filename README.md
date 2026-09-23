@@ -471,6 +471,7 @@ lib/
     user_auth.ex             # Auth plugs + LiveView on_mount hooks
   mix/tasks/
     hooks.install.ex         # `mix hooks.install` — installs the git hooks from priv/hooks/
+    precommit.ex             # `mix precommit` — pre-push gate chain, each step in its own MIX_ENV (see CLAUDE.md "Pre-push")
 
 test/                        # (abbreviated — test/cake/ and test/cake_web/ mirror lib/)
   test_helper.exs            # Sets :skip_search_backend; starts ExUnit

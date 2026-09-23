@@ -163,17 +163,13 @@ defmodule Cake.MixProject do
         "compile --warnings-as-errors",
         "credo --strict",
         "deps.unlock --check-unused"
-      ],
-      # One command matching the on-push CI gate (see CLAUDE.md "Pre-push").
-      precommit: [
-        "compile --force --warnings-as-errors",
-        "format --check-formatted",
-        "credo --strict",
-        "test --exclude integration"
       ]
-      # `mix hooks.install` is the Mix.Tasks.Hooks.Install task
-      # (lib/mix/tasks/hooks.install.ex), which installs every hook in priv/hooks/.
-      # No alias here — an alias of the same name would shadow that task.
+      # `mix precommit` and `mix hooks.install` are Mix tasks
+      # (lib/mix/tasks/precommit.ex, lib/mix/tasks/hooks.install.ex). No aliases
+      # here — an alias of the same name would shadow the task. `precommit` in
+      # particular cannot be an alias: it runs the test step in the test env
+      # and the compile/format/credo steps in the dev env, one child `mix`
+      # process each (see CLAUDE.md "Pre-push").
     ]
   end
 

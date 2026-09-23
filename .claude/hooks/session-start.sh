@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # SessionStart hook for Cake — installs Erlang/Elixir, Rust, Postgres,
 # fetches/compiles deps, and prepares the test database so that Claude
-# Code on the web sessions can run `mix compile`, `mix credo`, and
-# `mix test` immediately.
+# Code on the web sessions can run `mix compile`, `mix credo`, `mix test`,
+# and the full `mix precommit` chain immediately.
+#
+# Web sessions run as root, so `$SUDO` is empty there. It is safe only as a
+# command *prefix* (`$SUDO apt-get ...`); never write `$SUDO -u user cmd`,
+# which degrades to `-u user cmd` and is not a command. Steps that must run
+# as another OS user branch on `id -u` instead (see the Postgres section).
 set -euo pipefail
 
 # Only run in remote (Claude Code on the web) environments. Local
@@ -156,9 +161,35 @@ if ! pg_isready -h localhost -p 5432 >/dev/null 2>&1; then
   done
 fi
 
-# Set the password the app expects.
-$SUDO -u postgres psql -v ON_ERROR_STOP=1 \
-  -c "ALTER USER postgres WITH PASSWORD 'postgres';" >/dev/null 2>&1 || true
+# Set the password config/{dev,test}.exs expect. psql must run as the
+# `postgres` OS user (peer auth over the local socket): `runuser` when we are
+# already root, `sudo -u` otherwise. Don't discard a failure here — without
+# the password the first `mix test` dies with FATAL 28P01 (invalid_password),
+# far from the cause — but don't abort the hook on it either: the rest of the
+# setup (deps, compile) is still worth having.
+psql_as_postgres() {
+  if [ "$(id -u)" -eq 0 ]; then
+    runuser -u postgres -- psql "$@"
+  else
+    sudo -u postgres psql "$@"
+  fi
+}
+
+if psql_as_postgres -v ON_ERROR_STOP=1 -q \
+     -c "ALTER USER postgres WITH PASSWORD 'postgres';" \
+   && PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres \
+        -qAtc "SELECT 1" >/dev/null; then
+  echo "==> postgres: password set; postgres/postgres@localhost:5432 login verified"
+else
+  cat <<'WARN'
+!! postgres: could not set or verify the password for role "postgres".
+   config/dev.exs and config/test.exs expect postgres/postgres@localhost:5432,
+   so `mix test`, `mix precommit`, and `mix ecto.create` will fail with
+   FATAL 28P01 (invalid_password) until it is set. Set it by hand with:
+     runuser -u postgres -- psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+   (as root) or the same command via `sudo -u postgres`.
+WARN
+fi
 
 echo "==> postgres: $(pg_isready -h localhost -p 5432 || true)"
 
