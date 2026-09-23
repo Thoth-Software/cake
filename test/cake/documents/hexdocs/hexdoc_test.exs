@@ -179,7 +179,48 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       docs = Hexdoc.to_parsed_docs(hexdoc)
 
       assert [doc] = docs
-      assert doc.title =~ "greeting/"
+      assert doc.title == "greeting/0"
+    end
+
+    test "derives arity from the head's argument list, not the body" do
+      content = """
+      defmodule Example do
+        def zero, do: :ok
+        def two(a, b), do: {a, b}
+
+        def three(a, b, c) do
+          {a, b, c}
+        end
+
+        def guarded(a) when is_atom(a), do: a
+
+        def multi_line(a, b) when is_atom(a) and is_atom(b) do
+          {a, b}
+        end
+
+        def bodyless(a, b \\\\ nil)
+        def bodyless(a, b), do: {a, b}
+      end
+      """
+
+      hexdoc = %Hexdoc{
+        content: content,
+        url: "https://hexdocs.pm/elixir/Example.html",
+        module: "Example",
+        version: "1.0.0"
+      }
+
+      titles = hexdoc |> Hexdoc.to_parsed_docs() |> Enum.map(& &1.title)
+
+      assert titles == [
+               "zero/0",
+               "two/2",
+               "three/3",
+               "guarded/1",
+               "multi_line/2",
+               "bodyless/2",
+               "bodyless/2"
+             ]
     end
 
     test "ignores private functions" do

@@ -137,10 +137,20 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
     end
   end
 
-  defp extract_name({_, _, [{{:unquote, _, [name]}, _, _} | _]}), do: name
-  defp extract_name({_, _, [{name, _, _} | _]}), do: name
-  defp extract_arity({_, _, [_head, body]}), do: length(body)
-  defp extract_arity({_, _, [_]}), do: 0
+  # A def node is `{:def | :defp, meta, [head | maybe_body]}`; the head may
+  # be wrapped in a `when` guard. Name and arity both come from the bare head:
+  # `{name, meta, args}`, where `args` is nil for a zero-arity call.
+  defp extract_name(fun), do: fun |> bare_head() |> head_name()
+  defp extract_arity(fun), do: fun |> bare_head() |> head_arity()
+
+  defp bare_head({_, _, [{:when, _, [head | _guards]} | _]}), do: head
+  defp bare_head({_, _, [head | _]}), do: head
+
+  defp head_name({{:unquote, _, [name]}, _, _}), do: name
+  defp head_name({name, _, _}), do: name
+
+  defp head_arity({_name, _, args}) when is_list(args), do: length(args)
+  defp head_arity({_name, _, _}), do: 0
 
   defp extract_doc(doc) when is_binary(doc), do: doc
   defp extract_doc([doc]), do: extract_doc(doc)

@@ -57,4 +57,22 @@ defmodule Cake.Books.Adapters do
   def build_key(tenant \\ tenant(), gds, unique_id) do
     "cake-documents/#{tenant}/#{gds}/#{unique_id}"
   end
+
+  @doc """
+  Whether `key` may be handed to an adapter.
+
+  Adapters resolve keys under a root (`Disk` joins them onto
+  `:book_storage_root`), so a key must never be able to climb out of it: any
+  `..` path segment is refused, as are empty, blank, NUL-bearing, and
+  non-binary keys. A leading `/` is allowed — `Path.join/2` keeps it under
+  the root, and legacy rows carry path-shaped keys. Request-facing code
+  checks this before touching storage; `Disk` checks it again itself.
+  """
+  @spec valid_key?(term()) :: boolean()
+  def valid_key?(key) when is_binary(key) do
+    String.trim(key) != "" and not String.contains?(key, <<0>>) and
+      ".." not in Path.split(key)
+  end
+
+  def valid_key?(_key), do: false
 end

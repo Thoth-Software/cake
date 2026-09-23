@@ -2,7 +2,49 @@ defmodule Cake.Search.Backend.OpenSearchTest do
   use ExUnit.Case, async: true
 
   alias Cake.Search.Backend.OpenSearch
+  alias Cake.Search.HTTPClientStub
   alias Cake.Search.Query
+
+  describe "index_document/3" do
+    test "returns :ok when OpenSearch acknowledges the upsert" do
+      # A real `_update` reply: Snap decodes the 2xx JSON body and hands the
+      # backend `{:ok, map}`, never a bare map.
+      HTTPClientStub.put_responder(fn :post, url, _headers, body ->
+        assert url =~ "/books/_update/chunk-1"
+        assert %{"doc" => %{"text" => "hello"}, "doc_as_upsert" => true} = Jason.decode!(body)
+
+        HTTPClientStub.json_response(200, %{
+          "_index" => "books",
+          "_id" => "chunk-1",
+          "_version" => 1,
+          "result" => "created",
+          "_shards" => %{"total" => 2, "successful" => 1, "failed" => 0}
+        })
+      end)
+
+      assert :ok = OpenSearch.index_document("books", %{text: "hello"}, "chunk-1")
+    end
+
+    test "returns the Snap error when OpenSearch rejects the upsert" do
+      HTTPClientStub.put_responder(fn :post, _url, _headers, _body ->
+        HTTPClientStub.json_response(400, %{
+          "error" => %{
+            "type" => "mapper_parsing_exception",
+            "reason" => "failed to parse field [embedding]"
+          },
+          "status" => 400
+        })
+      end)
+
+      assert {:error, %Snap.ResponseError{status: 400, type: "mapper_parsing_exception"}} =
+               OpenSearch.index_document("books", %{embedding: "bad"}, "chunk-2")
+    end
+
+    test "returns the transport error when the cluster is unreachable" do
+      assert {:error, %Snap.HTTPClient.Error{reason: :no_responder}} =
+               OpenSearch.index_document("books", %{text: "hello"}, "chunk-3")
+    end
+  end
 
   describe "to_query_map/1" do
     test "produces the expected nested structure for a known input" do

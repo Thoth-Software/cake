@@ -31,6 +31,19 @@ defmodule CakeWeb.ChatLiveTest do
       assert html =~ "Manual selection"
     end
 
+    test "stops its Conversation when the LiveView process exits", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      convo_pid = :sys.get_state(view.pid).socket.assigns.convo_pid
+      ref = Process.monitor(convo_pid)
+
+      # A normal stop mirrors the LiveView shutting down on disconnect
+      # without taking the test's client proxy (linked to the view) with it.
+      GenServer.stop(view.pid, :normal)
+
+      assert_receive {:DOWN, ^ref, :process, ^convo_pid, :normal}
+    end
+
     test "spawns exactly one Conversation process per live mount", %{conn: conn} do
       children_before = DynamicSupervisor.which_children(Cake.ConversationSupervisor)
 
@@ -74,6 +87,17 @@ defmodule CakeWeb.ChatLiveTest do
       broadcast_to_view(view, {:state_change, :generating})
 
       assert render(view) =~ "Thinking..."
+    end
+
+    test ":state_change to :retrieving shows the thinking indicator and hides the form",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(view, {:state_change, :retrieving})
+
+      html = render(view)
+      assert html =~ "Thinking..."
+      refute html =~ "Ask a question..."
     end
 
     test ":candidates_ready shows selection panel", %{conn: conn} do

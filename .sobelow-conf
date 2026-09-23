@@ -12,10 +12,11 @@
 #     attacker-controlled request input, so the directory-traversal sink
 #     warnings do not apply.
 #
-# The two request-facing traversal findings (BooksController.send_book,
-# UploadLive.consume_all_uploads) are suppressed precisely at the call site with
-# `# sobelow_skip` so every other rule still covers those files. `skip: true`
-# honours those annotations.
+# The request-facing traversal finding (UploadLive.consume_all_uploads) is
+# suppressed precisely at the call site with `# sobelow_skip` so every other
+# rule still covers that file. `skip: true` honours those annotations.
+# (BooksController no longer touches the filesystem: it reads the ParsedBook's
+# storage key through the Books adapter and sends the binary.)
 [
   exit: false,
   format: "txt",

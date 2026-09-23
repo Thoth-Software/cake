@@ -1,22 +1,31 @@
 defmodule CakeWeb.BooksControllerTest do
   @moduledoc """
-  Characterization tests for `CakeWeb.BooksController.download/2`.
+  `CakeWeb.BooksController.download/2` serves a stored book by reading its
+  `ParsedBook.source_file_path` — a `Cake.Books.Adapters` storage key, as
+  written by `CakeWeb.UploadLive` — through the configured adapter.
 
   Three branches:
 
-    * The `file_path` segment doesn't match any `ParsedBook` row → 404 with
-      "Book not found".
-    * A row exists but the on-disk file is gone → 404 with
-      "File not found on disk".
-    * Row exists and file is present → 200 with the file body and a
-      Content-Disposition attachment header.
+    * The `file_path` segment is no `ParsedBook`'s key → 404 "Book not found".
+    * A row exists but the adapter cannot read the key → 404
+      "File not found in storage".
+    * A row exists and the adapter returns the binary → 200 with that body,
+      a Content-Type derived from the book's `source_format`, and a
+      Content-Disposition attachment header naming the key's basename plus
+      that format's extension.
   """
 
   use CakeWeb.ConnCase
 
+  import Mox
   import Cake.BooksFixtures
 
+  setup :verify_on_exit!
   setup :register_and_log_in_user
+
+  defp storage_key(name) do
+    Cake.Books.Adapters.build_key("books", "#{name}_#{System.unique_integer([:positive])}")
+  end
 
   describe "authentication" do
     test "redirects to the login page when the user is not authenticated" do
@@ -27,58 +36,96 @@ defmodule CakeWeb.BooksControllerTest do
   end
 
   describe "GET /books/download/*file_path" do
-    test "returns 404 when no ParsedBook matches the requested path", %{conn: conn} do
-      conn = get(conn, ~p"/books/download/no/such/book.pdf")
-
-      assert response(conn, 404) =~ "Book not found"
-    end
-
-    test "returns 404 when the stored path resolves outside the allowed root", %{conn: conn} do
-      # /etc/passwd exists on the host but is outside the books root, so even a
-      # (poisoned) ParsedBook row pointing at it must never be served.
-      outside_path = "/etc/passwd"
-      _book = parsed_book_fixture(%{source_file_path: outside_path})
-
-      conn = get(conn, ~p"/books/download/#{outside_path}")
-
-      assert response(conn, 404) =~ "Book not found"
-    end
-
-    test "returns 404 when the ParsedBook row exists but the file is missing", %{conn: conn} do
-      missing_path =
-        Path.join(
-          System.tmp_dir!(),
-          "nonexistent-cake-book-#{System.unique_integer([:positive])}.pdf"
-        )
-
-      _book = parsed_book_fixture(%{source_file_path: missing_path})
-
-      conn = get(conn, ~p"/books/download/#{missing_path}")
-
-      assert response(conn, 404) =~ "File not found on disk"
-    end
-
-    test "streams the file with an attachment Content-Disposition header when both exist",
+    test "returns 404 without touching storage when no ParsedBook matches the key",
          %{conn: conn} do
-      tmp_dir = System.tmp_dir!()
-      tmp_path = Path.join(tmp_dir, "cake-book-#{System.unique_integer([:positive])}.pdf")
+      conn = get(conn, ~p"/books/download/#{storage_key("no_such_book")}")
+
+      assert response(conn, 404) =~ "Book not found"
+    end
+
+    test "returns 404 without touching storage when the stored key could traverse the root",
+         %{conn: conn} do
+      # A poisoned or legacy row must never reach the adapter: the disk adapter
+      # joins the key under its root, and a `..` segment would escape it.
+      poisoned = "../../etc/passwd"
+      _book = parsed_book_fixture(%{source_file_path: poisoned, source_format: "pdf"})
+
+      conn = get(conn, ~p"/books/download/#{poisoned}")
+
+      assert response(conn, 404) =~ "Book not found"
+    end
+
+    test "returns 404 when the ParsedBook row exists but the adapter cannot read the key",
+         %{conn: conn} do
+      key = storage_key("vanished")
+      _book = parsed_book_fixture(%{source_file_path: key, source_format: "pdf"})
+
+      expect(Cake.Books.Adapters.Mock, :read, fn ^key -> {:error, :enoent} end)
+
+      conn = get(conn, ~p"/books/download/#{key}")
+
+      assert response(conn, 404) =~ "File not found in storage"
+    end
+
+    test "sends the adapter's binary as a typed attachment named after the key",
+         %{conn: conn} do
+      key = storage_key("getting_started")
+      _book = parsed_book_fixture(%{source_file_path: key, source_format: "pdf"})
       contents = "%PDF-1.7 fake test content"
-      File.write!(tmp_path, contents)
 
-      _book = parsed_book_fixture(%{source_file_path: tmp_path})
+      expect(Cake.Books.Adapters.Mock, :read, fn ^key -> {:ok, contents} end)
 
-      conn = get(conn, ~p"/books/download/#{tmp_path}")
+      conn = get(conn, ~p"/books/download/#{key}")
 
-      assert conn.status == 200
       assert response(conn, 200) == contents
+      assert response_content_type(conn, :pdf)
 
-      assert {"content-disposition", disposition} =
-               Enum.find(conn.resp_headers, fn {k, _} -> k == "content-disposition" end)
+      assert get_resp_header(conn, "content-disposition") ==
+               [~s(attachment; filename="#{Path.basename(key)}.pdf")]
+    end
 
-      assert disposition =~ ~s(filename="#{Path.basename(tmp_path)}")
-    after
-      tmp_files = Path.wildcard(Path.join(System.tmp_dir!(), "cake-book-*.pdf"))
-      Enum.each(tmp_files, &File.rm/1)
+    test "appends the format when the key's basename has a dot that is not that extension",
+         %{conn: conn} do
+      # UploadLive keeps dots from the original name, so `guide.v2.pdf` is
+      # stored under `guide.v2_<hash>`; `.v2_<hash>` is not a file extension.
+      key = storage_key("guide.v2")
+      _book = parsed_book_fixture(%{source_file_path: key, source_format: "pdf"})
+
+      expect(Cake.Books.Adapters.Mock, :read, fn ^key -> {:ok, "%PDF-1.7"} end)
+
+      conn = get(conn, ~p"/books/download/#{key}")
+
+      assert response(conn, 200) == "%PDF-1.7"
+      assert response_content_type(conn, :pdf)
+
+      assert get_resp_header(conn, "content-disposition") ==
+               [~s(attachment; filename="#{Path.basename(key)}.pdf")]
+    end
+
+    test "matches an existing extension to the format case-insensitively", %{conn: conn} do
+      key = "legacy/books/HANDBOOK.PDF"
+      _book = parsed_book_fixture(%{source_file_path: key, source_format: "pdf"})
+
+      expect(Cake.Books.Adapters.Mock, :read, fn ^key -> {:ok, "%PDF-1.7"} end)
+
+      conn = get(conn, ~p"/books/download/#{key}")
+
+      assert get_resp_header(conn, "content-disposition") ==
+               [~s(attachment; filename="HANDBOOK.PDF")]
+    end
+
+    test "keeps a key that already carries an extension as the filename", %{conn: conn} do
+      key = "legacy/books/handbook.pdf"
+      _book = parsed_book_fixture(%{source_file_path: key, source_format: "pdf"})
+
+      expect(Cake.Books.Adapters.Mock, :read, fn ^key -> {:ok, "%PDF-1.7"} end)
+
+      conn = get(conn, ~p"/books/download/#{key}")
+
+      assert response(conn, 200) == "%PDF-1.7"
+
+      assert get_resp_header(conn, "content-disposition") ==
+               [~s(attachment; filename="handbook.pdf")]
     end
   end
 end
