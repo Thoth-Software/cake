@@ -73,7 +73,7 @@ The system is organized into four layers. Each layer has a clear responsibility 
 
 The ingestion layer has two pipeline behaviours because the two GDSes have fundamentally different parsing requirements, metadata schemas, and chunking strategies. Each GDS owns its own ingestion contract.
 
-**`Cake.Documents.Pipeline`** is the behaviour for ingesting programming documentation. Its GDS is `ParsedDocument`. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`, and optionally `retry_from_raw/2`. The module also contains the `ingest/4` orchestrator that sequences callbacks into a stream pipeline — download → persist raw → parse → persist parsed → embed → index — plus an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Documents.Hexdocs.Pipeline`.
+**`Cake.Documents.Pipeline`** is the behaviour for ingesting programming documentation. Its GDS is `ParsedDocument`. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `success_message/1`, and optionally `retry_from_raw/2`. The module also contains the `ingest/4` orchestrator that sequences callbacks into a stream pipeline — download → persist raw → parse → persist parsed → embed → index — plus an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Documents.Hexdocs.Pipeline`.
 
 **`Cake.Books.Pipeline`** is the behaviour for ingesting books and book-like documents. Its GDS is `ParsedBook` + `Chunk`. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. Like `Documents.Pipeline`, the module also contains its own `ingest/4` orchestrator and an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Books.Pdf.Pipeline`, which uses a Rustler NIF (`parsebooks` Rust crate wrapping `pdf-extract`).
 
@@ -99,7 +99,7 @@ Indices are one-per-GDS on a shared OpenSearch cluster: `collection_name/0` retu
 
 ### Layer 3: Conversation — Stateful Multi-Turn RAG
 
-This layer is organized around a single principle: **`Cake.Conversation` is the sole orchestrator, and every other module in the layer is a peer service that it calls.** The dependency graph is a DAG. Peer-to-peer knowledge is minimal and deliberate: `Prompt` and `Responses` consume `Cake.Search` result types, and `Cake.Decomposition.LLM` calls `Prompt.decomposition_prompt/1` and `Generation.complete_json/3`. (`Responses` also declares a Boundary dep on `Cake.Generation` that its code does not currently use — see #259.)
+This layer is organized around a single principle: **`Cake.Conversation` is the sole orchestrator, and every other module in the layer is a peer service that it calls.** The dependency graph is a DAG. Peer-to-peer knowledge is minimal and deliberate: `Prompt` and `Responses` consume `Cake.Search` result types, and `Cake.Decomposition.LLM` calls `Prompt.decomposition_prompt/1` and `Generation.complete_json/3`.
 
 ```
 Conversation → Prompt
@@ -178,7 +178,7 @@ The layer responsibilities above are enforced at compile time by the [`boundary`
 - **`Cake`** — the shared kernel: `Repo`, `Schema`, `Mailer`, the `GDS` behaviour, the `Citable`/`Promptable` protocols, `Citations`, `FailedIngests`, `ParseBooks`. Depends on nothing internal; every context may depend on it.
 - **Ingestion** — `Cake.Books` and `Cake.Documents` depend on `Cake.Search`, `Cake.Embeddings`, and `Cake.Pipelines` (`Cake.Pipelines` in turn depends on `Cake.Search`).
 - **Retrieval** — `Cake.Search` depends only on the kernel. It no longer names the GDS modules: the collections created at boot come from `:search_collections` config, which is what keeps the search layer from depending back on the ingestion contexts (an otherwise-cyclic dependency).
-- **Conversation** — `Cake.Conversation` is the orchestrator; it depends on `Cake.Prompt`, `Cake.Search`, `Cake.Embeddings`, `Cake.Generation`, `Cake.Responses`, and `Cake.Decomposition`. Peer-to-peer deps among the service modules are minimal: `Cake.Responses → Cake.Search`/`Cake.Generation`, `Cake.Prompt → Cake.Search` (for the `Result` type), and `Cake.Decomposition → Cake.Prompt`/`Cake.Generation` (the `Decomposition` boundary exports `Result` and `LLM`). Nothing depends back on `Cake.Conversation` except the web layer.
+- **Conversation** — `Cake.Conversation` is the orchestrator; it depends on `Cake.Prompt`, `Cake.Search`, `Cake.Embeddings`, `Cake.Generation`, `Cake.Responses`, and `Cake.Decomposition`. Peer-to-peer deps among the service modules are minimal: `Cake.Responses → Cake.Search`, `Cake.Prompt → Cake.Search` (for the `Result` type), and `Cake.Decomposition → Cake.Prompt`/`Cake.Generation` (the `Decomposition` boundary exports `Result` and `LLM`). Nothing depends back on `Cake.Conversation` except the web layer.
 - **Web / jobs / app** — `CakeWeb` depends on the domain contexts it drives; `Cake.Jobs` on `Cake.Documents`; Cake.Application (top-level) on what it supervises.
 
 The compiler runs in `:dev`/`:prod` only — test files and support modules deliberately cross boundaries, so `:test` is excluded — and CI enforces it with a dev-env compile. When you add a cross-context call, declare the `dep` (and `export` the target module) rather than working around the boundary.
@@ -247,7 +247,7 @@ Behaviours in Cake define module-level contracts. The question they answer is "w
 |---|---|---|---|
 | `Cake.GDS` | `lib/cake/gds.ex` | Module-level contract for a Generic Data Structure. Declares index name, search fields, hit hydration, neighbor expansion. | `Cake.Books.ParsedBook`, `Cake.Documents.ParsedDocument` |
 | `Cake.Books.Pipeline` | `lib/cake/books/pipeline.ex` | Ingestion behaviour for book-like documents. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. | `Cake.Books.Pdf.Pipeline` |
-| `Cake.Documents.Pipeline` | `lib/cake/documents/pipeline.ex` | Ingestion behaviour for programming documentation. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`. | `Cake.Documents.Hexdocs.Pipeline` |
+| `Cake.Documents.Pipeline` | `lib/cake/documents/pipeline.ex` | Ingestion behaviour for programming documentation. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `success_message/1`. | `Cake.Documents.Hexdocs.Pipeline` |
 | `Cake.Embeddings.Behaviour` | `lib/cake/embeddings/behaviour.ex` | Contract for embedding services. | `Cake.Embeddings` (OpenAI impl, in `lib/cake/embeddings.ex`) |
 | `Cake.Generation` | `lib/cake/generation.ex` | Contract for LLM completion services: `complete/3` and `complete_json/3` (schema-constrained JSON). | `Cake.Generation.OpenAI`, `Cake.Generation.Anthropic` (stub) |
 | `Cake.Decomposition` | `lib/cake/decomposition.ex` | Contract for query-decomposition strategies: retrieval-free `decompose/2`, returning `{:ok, Decomposition.Result.t()}` or `{:error, reason}`. | `Cake.Decomposition.LLM` |
@@ -311,9 +311,9 @@ Implement the behaviour for the target GDS. Consult `Cake.Books.Pdf.Pipeline` or
 ### Adding a New Documentation Source (Cake.Documents.Pipeline)
 
 1. Create a raw document schema for intermediate storage.
-2. Implement callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `source/0`, `success_message/1`.
+2. Implement callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `success_message/1`. The source identifier (e.g. `"hexdocs"`) is a property of the data, not of the module: `parse/2` emits it as the `:source` attr of every `ParsedDocument` (for hexdocs, `Hexdoc.doc_attrs/0` is the single source of truth: `Hexdoc.to_parsed_docs/1` merges it into every attrs map it emits).
 3. Register with Oban via `DocumentIngestionJob.enqueue_for_version/4`.
-4. Follow the result-tuple contract: `download/1` returns `{:ok, paths}` or the tagged `{:error, :download, reason}`; stream callbacks (`persist_raw_docs/2`, `parse/2`) detuple their per-item result tuples via `Pipelines.detuple_with_logging/3` before returning, so the streams they return carry bare successful values; `source/0` and `success_message/1` return bare values.
+4. Follow the result-tuple contract: `download/1` returns `{:ok, paths}` or the tagged `{:error, :download, reason}`; stream callbacks (`persist_raw_docs/2`, `parse/2`) detuple their per-item result tuples via `Pipelines.detuple_with_logging/3` before returning, so the streams they return carry bare successful values; `success_message/1` returns a bare value.
 5. Optionally implement `retry_from_raw/2`.
 
 ### Adding a New Book Format (Cake.Books.Pipeline)

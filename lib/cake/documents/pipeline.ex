@@ -53,9 +53,6 @@ defmodule Cake.Documents.Pipeline do
   """
   @callback parse(Enumerable.t(), Context.t()) :: Enumerable.t()
 
-  @doc ~S(Identifies this pipeline's documentation source, e.g. "hexdocs". Currently uncalled by the orchestrator — see #259.)
-  @callback source() :: String.t()
-
   @doc "Human-readable message logged when a run completes."
   @callback success_message(Context.t()) :: String.t()
 

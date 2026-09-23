@@ -29,7 +29,7 @@ defmodule Cake.TestPipeline do
           title: "Test Doc #{idx}",
           text: "Test content #{idx}",
           url: "https://example.com/doc/#{idx}",
-          source: source(),
+          source: "TestPipeline",
           version: "1.0.0",
           package: "TestPackage",
           language: "Elixir",
@@ -37,11 +37,6 @@ defmodule Cake.TestPipeline do
         }
       ]
     end)
-  end
-
-  @impl Cake.Documents.Pipeline
-  def source do
-    "TestPipeline"
   end
 
   @impl Cake.Documents.Pipeline
@@ -70,11 +65,6 @@ defmodule Cake.FailingTestPipeline do
   @impl Cake.Documents.Pipeline
   def parse(raw_docs_stream, _ctx) do
     raw_docs_stream
-  end
-
-  @impl Cake.Documents.Pipeline
-  def source do
-    "FailingTestPipeline"
   end
 
   @impl Cake.Documents.Pipeline
