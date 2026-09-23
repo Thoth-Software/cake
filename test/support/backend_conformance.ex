@@ -59,6 +59,7 @@ defmodule Cake.Search.BackendConformance do
       def wiring, do: %{backend: backend(), mapping: collection_mapping()}
 
       Cake.Search.BackendConformance.lifecycle_group()
+      Cake.Search.BackendConformance.search_modes_group()
     end
   end
 
@@ -81,6 +82,31 @@ defmodule Cake.Search.BackendConformance do
   """
   defmacro lifecycle_group do
     register_group("conformance — collection lifecycle", @lifecycle_tests)
+  end
+
+  @search_modes_tests [
+    {":keyword — match/4 returns exactly the documents containing the term, best first",
+     :keyword_search},
+    {":vector — knn/5 with k=30 ranks the identical vector first and returns every neighbor",
+     :vector_search},
+    {":hybrid — a keyword match in should raises a document above its vector-only score",
+     :hybrid_search},
+    {":hybrid — a document outside the keyword match keeps its vector-only score",
+     :hybrid_keeps_vector_score},
+    {"min_score drops every hit scoring below it", :min_score},
+    {"size caps the number of hits", :size},
+    {"search/1 accepts the vector query Cake.Search builds (its k and ef_search defaults)",
+     :accepts_cake_search_vector_query}
+  ]
+
+  @doc """
+  Search modes over a seeded corpus: `:keyword` (BM25 `multi_match`),
+  `:vector` (kNN over `embedding`, cosine, `k` 30), `:hybrid` (vector in
+  `must`, boosted keyword in `should`), `min_score` and `size`, plus the
+  exact vector query `Cake.Search` builds.
+  """
+  defmacro search_modes_group do
+    register_group("conformance — search modes", @search_modes_tests)
   end
 
   # Registers one `describe` block whose tests each call the named body in
@@ -175,5 +201,151 @@ defmodule Cake.Search.BackendConformance do
 
     query = Query.match(Query.new(collection), "shared", ["text"])
     assert {:ok, [%Hit{id: "d2"}]} = backend.search(query)
+  end
+
+  # -- search-modes group: corpus ----------------------------------------------
+
+  @doc """
+  Creates `collection` with the wiring's mapping, indexes the fixed corpus
+  into it and refreshes. Returns the corpus: maps with `:id`, `:text` and
+  `:embedding`, each embedding a unit vector on its own axis so cosine
+  scores are exact (1.0 for the same document, 0.5 for any other).
+  """
+  @spec seed_corpus!(wiring(), String.t()) :: [map()]
+  def seed_corpus!(_wiring, _collection) do
+    raise "Cake.Search.BackendConformance.seed_corpus!/2 is not implemented yet (#245)"
+  end
+
+  @doc "The unit vector on `axis`, in the configured embedding dimension."
+  @spec unit_vector(non_neg_integer()) :: [float()]
+  def unit_vector(_axis) do
+    raise "Cake.Search.BackendConformance.unit_vector/1 is not implemented yet (#245)"
+  end
+
+  # -- search-modes group bodies ----------------------------------------------
+
+  # Corpus: "alpha" (axis 0) and "gamma" (axis 2) mention GenServer, "beta"
+  # (axis 1) does not; all three mention Elixir.
+
+  @doc false
+  @spec keyword_search(wiring(), map()) :: true
+  def keyword_search(%{backend: backend} = wiring, %{collection: collection}) do
+    seed_corpus!(wiring, collection)
+
+    query = Query.match(Query.new(collection), "GenServer", ["text"])
+    assert {:ok, hits} = backend.search(query)
+
+    assert ids(hits) == ["alpha", "gamma"]
+    assert sorted_by_score?(hits)
+    assert Enum.all?(hits, &scored_text_hit?(&1, "GenServer"))
+  end
+
+  @doc false
+  @spec vector_search(wiring(), map()) :: true
+  def vector_search(%{backend: backend} = wiring, %{collection: collection}) do
+    corpus = seed_corpus!(wiring, collection)
+
+    query = Query.knn(Query.new(collection, size: 30), "embedding", unit_vector(1), 30)
+    assert {:ok, [%Hit{id: "beta", score: top} | rest] = hits} = backend.search(query)
+
+    assert ids(hits) == ids(corpus)
+    assert Enum.all?(rest, &(&1.score < top))
+    assert sorted_by_score?(hits)
+  end
+
+  @doc false
+  @spec hybrid_search(wiring(), map()) :: true
+  def hybrid_search(wiring, %{collection: collection}) do
+    seed_corpus!(wiring, collection)
+    {vector_hits, hybrid_hits} = vector_and_hybrid_hits(wiring, collection)
+
+    # Same candidates (the vector clause is the must), re-scored: the
+    # documents matching the keyword clause gain, the rest do not.
+    assert ids(hybrid_hits) == ids(vector_hits)
+    assert score_of(hybrid_hits, "alpha") > score_of(vector_hits, "alpha")
+    assert score_of(hybrid_hits, "gamma") > score_of(vector_hits, "gamma")
+  end
+
+  @doc false
+  @spec hybrid_keeps_vector_score(wiring(), map()) :: true
+  def hybrid_keeps_vector_score(wiring, %{collection: collection}) do
+    seed_corpus!(wiring, collection)
+    {vector_hits, hybrid_hits} = vector_and_hybrid_hits(wiring, collection)
+
+    assert_in_delta score_of(hybrid_hits, "beta"), score_of(vector_hits, "beta"), 1.0e-6
+  end
+
+  @doc false
+  @spec min_score(wiring(), map()) :: true
+  def min_score(%{backend: backend} = wiring, %{collection: collection}) do
+    seed_corpus!(wiring, collection)
+
+    base = Query.knn(Query.new(collection, size: 30), "embedding", unit_vector(1), 30)
+    assert {:ok, all_hits} = backend.search(base)
+    assert length(all_hits) == 3
+
+    assert {:ok, [%Hit{id: "beta"}]} = backend.search(Query.min_score(base, 0.9))
+  end
+
+  @doc false
+  @spec size(wiring(), map()) :: true
+  def size(%{backend: backend} = wiring, %{collection: collection}) do
+    seed_corpus!(wiring, collection)
+
+    all = Query.match(Query.new(collection, size: 30), "Elixir", ["text"])
+    assert {:ok, hits} = backend.search(all)
+    assert length(hits) == 3
+
+    assert {:ok, two} = backend.search(Query.size(all, 2))
+    assert length(two) == 2
+
+    assert {:ok, [_one]} = backend.search(Query.size(all, 1))
+  end
+
+  @doc false
+  @spec accepts_cake_search_vector_query(wiring(), map()) :: true
+  def accepts_cake_search_vector_query(%{backend: backend} = wiring, %{collection: collection}) do
+    seed_corpus!(wiring, collection)
+
+    # The clause Cake.Search.build_query/6 emits for :vector and :hybrid.
+    query =
+      Query.knn(
+        Query.new(collection, size: Cake.Search.default_size()),
+        "embedding",
+        unit_vector(1),
+        Cake.Search.default_k(),
+        ef_search: Cake.Search.default_ef_search()
+      )
+
+    assert {:ok, [%Hit{id: "beta"} | _rest]} = backend.search(query)
+  end
+
+  # Vector-only hits and the hits of the same query with a boosted keyword
+  # clause in should — Cake.Search's :hybrid shape with its default weight.
+  defp vector_and_hybrid_hits(%{backend: backend}, collection) do
+    vector_only = Query.knn(Query.new(collection, size: 30), "embedding", unit_vector(1), 30)
+    hybrid = Query.match(vector_only, "GenServer", ["text"], boost: 0.8)
+
+    {:ok, vector_hits} = backend.search(vector_only)
+    {:ok, hybrid_hits} = backend.search(hybrid)
+    {vector_hits, hybrid_hits}
+  end
+
+  defp ids(hits_or_docs) do
+    hits_or_docs |> Enum.map(& &1.id) |> Enum.sort()
+  end
+
+  defp scored_text_hit?(%Hit{score: score, source: source}, term) do
+    is_float(score) and score > 0 and source["text"] =~ term
+  end
+
+  defp sorted_by_score?(hits) do
+    scores = Enum.map(hits, & &1.score)
+    scores == Enum.sort(scores, :desc)
+  end
+
+  defp score_of(hits, id) do
+    %Hit{score: score} = Enum.find(hits, &(&1.id == id))
+    score
   end
 end
