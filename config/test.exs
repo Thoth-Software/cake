@@ -47,9 +47,6 @@ config :cake, Cake.Generation.OpenAI,
   response_url: "http://localhost/v1/responses",
   plug: {Req.Test, Cake.Generation.OpenAI}
 
-# The books-controller tests stage fixture files under the system temp dir.
-config :cake, :books_download_root, System.tmp_dir!()
-
 config :cake, book_storage_adapter: Cake.Books.Adapters.Mock
 
 # Route the OpenSearch backend's Snap requests to the in-process stub so
