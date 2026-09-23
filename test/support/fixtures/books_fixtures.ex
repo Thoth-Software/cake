@@ -70,6 +70,32 @@ defmodule Cake.BooksFixtures do
   """
   @spec book_with_chunks_fixture([map()]) :: {Cake.Books.ParsedBook.t(), [Cake.Books.Chunk.t()]}
   def book_with_chunks_fixture(chunk_attrs) when is_list(chunk_attrs) do
-    raise "Cake.BooksFixtures.book_with_chunks_fixture/1 is not implemented yet (#245)"
+    parsed_book = parsed_book_fixture()
+
+    chunks =
+      chunk_attrs
+      |> Enum.with_index()
+      |> Enum.map(fn {attrs, index} -> ordered_chunk_fixture(parsed_book, attrs, index) end)
+
+    {parsed_book, chunks}
+  end
+
+  defp ordered_chunk_fixture(parsed_book, attrs, index) do
+    text = Map.get(attrs, :text, "chunk #{index} text")
+
+    {:ok, chunk} =
+      attrs
+      |> Enum.into(%{
+        parsed_book_id: parsed_book.id,
+        chunk_index: index,
+        page_number: index + 1,
+        section_title: "section #{index}",
+        text: text,
+        word_count: length(String.split(text)),
+        char_count: String.length(text)
+      })
+      |> Cake.Books.create_chunk()
+
+    chunk
   end
 end
