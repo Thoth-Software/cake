@@ -145,11 +145,20 @@ defmodule Cake.SearchIntegrationCase do
   a mapping Cake built.
   """
   @spec server_mapping!(String.t()) :: map()
-  def server_mapping!(_collection), do: not_implemented!(:server_mapping!)
+  def server_mapping!(collection) when is_binary(collection) do
+    # Keyed by the raw (namespaced) index name; the collection is the only key.
+    {:ok, response} = Snap.Indexes.get_mapping(Deployment, collection)
+    [%{"mappings" => %{"properties" => properties}}] = Map.values(response)
+    properties
+  end
 
   @doc "The server-side `index` settings of `collection` (string keys and values)."
   @spec server_settings!(String.t()) :: map()
-  def server_settings!(_collection), do: not_implemented!(:server_settings!)
+  def server_settings!(collection) when is_binary(collection) do
+    {:ok, response} = Snap.Indexes.get_settings(Deployment, collection)
+    [%{"settings" => %{"index" => settings}}] = Map.values(response)
+    settings
+  end
 
   @doc """
   Runs `fun` with `:search_collections` set to `collections`, restoring
@@ -157,11 +166,23 @@ defmodule Cake.SearchIntegrationCase do
   tests only: the config is global.
   """
   @spec with_search_collections([{module(), module()}], (-> result)) :: result when result: term()
-  def with_search_collections(_collections, _fun), do: not_implemented!(:with_search_collections)
+  def with_search_collections(collections, fun)
+      when is_list(collections) and is_function(fun, 0) do
+    original = Application.fetch_env(:cake, :search_collections)
+    Application.put_env(:cake, :search_collections, collections)
 
-  defp not_implemented!(fun) do
-    raise "Cake.SearchIntegrationCase.#{fun} is not implemented yet (#245)"
+    try do
+      fun.()
+    after
+      restore_search_collections(original)
+    end
   end
+
+  defp restore_search_collections({:ok, original}),
+    do: Application.put_env(:cake, :search_collections, original)
+
+  defp restore_search_collections(:error),
+    do: Application.delete_env(:cake, :search_collections)
 
   defp new_collection_prefix do
     "it_" <> Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
