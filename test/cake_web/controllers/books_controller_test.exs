@@ -84,6 +84,36 @@ defmodule CakeWeb.BooksControllerTest do
                [~s(attachment; filename="#{Path.basename(key)}.pdf")]
     end
 
+    test "appends the format when the key's basename has a dot that is not that extension",
+         %{conn: conn} do
+      # UploadLive keeps dots from the original name, so `guide.v2.pdf` is
+      # stored under `guide.v2_<hash>`; `.v2_<hash>` is not a file extension.
+      key = storage_key("guide.v2")
+      _book = parsed_book_fixture(%{source_file_path: key, source_format: "pdf"})
+
+      expect(Cake.Books.Adapters.Mock, :read, fn ^key -> {:ok, "%PDF-1.7"} end)
+
+      conn = get(conn, ~p"/books/download/#{key}")
+
+      assert response(conn, 200) == "%PDF-1.7"
+      assert response_content_type(conn, :pdf)
+
+      assert get_resp_header(conn, "content-disposition") ==
+               [~s(attachment; filename="#{Path.basename(key)}.pdf")]
+    end
+
+    test "matches an existing extension to the format case-insensitively", %{conn: conn} do
+      key = "legacy/books/HANDBOOK.PDF"
+      _book = parsed_book_fixture(%{source_file_path: key, source_format: "pdf"})
+
+      expect(Cake.Books.Adapters.Mock, :read, fn ^key -> {:ok, "%PDF-1.7"} end)
+
+      conn = get(conn, ~p"/books/download/#{key}")
+
+      assert get_resp_header(conn, "content-disposition") ==
+               [~s(attachment; filename="HANDBOOK.PDF")]
+    end
+
     test "keeps a key that already carries an extension as the filename", %{conn: conn} do
       key = "legacy/books/handbook.pdf"
       _book = parsed_book_fixture(%{source_file_path: key, source_format: "pdf"})
