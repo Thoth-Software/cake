@@ -131,76 +131,88 @@ defmodule Cake.Search.BackendConformance do
   # -- lifecycle group bodies -----------------------------------------------
 
   @doc false
-  @spec creates_collection(wiring(), map()) :: true
+  @spec creates_collection(wiring(), map()) :: :ok
   def creates_collection(%{backend: backend, mapping: mapping}, %{collection: collection}) do
-    assert :ok = backend.create_collection(collection, mapping)
+    :ok = backend.create_collection(collection, mapping)
 
-    assert {:ok, listed} = backend.list_collections()
+    {:ok, listed} = backend.list_collections()
     assert collection in listed
+
+    :ok
   end
 
   @doc false
-  @spec rejects_duplicate_collection(wiring(), map()) :: true
+  @spec rejects_duplicate_collection(wiring(), map()) :: :ok
   def rejects_duplicate_collection(%{backend: backend, mapping: mapping}, %{
         collection: collection
       }) do
-    assert :ok = backend.create_collection(collection, mapping)
+    :ok = backend.create_collection(collection, mapping)
 
-    assert {:error, _reason} = backend.create_collection(collection, mapping)
+    {:error, _reason} = backend.create_collection(collection, mapping)
 
-    assert {:ok, listed} = backend.list_collections()
+    {:ok, listed} = backend.list_collections()
     assert Enum.count(listed, &(&1 == collection)) == 1
+
+    :ok
   end
 
   @doc false
-  @spec omits_unknown_collection(wiring(), map()) :: false
+  @spec omits_unknown_collection(wiring(), map()) :: :ok
   def omits_unknown_collection(%{backend: backend}, ctx) do
     never_created = SearchIntegrationCase.unique_collection_name(ctx)
 
-    assert {:ok, listed} = backend.list_collections()
-    refute never_created in listed
+    {:ok, listed} = backend.list_collections()
+    refute Enum.member?(listed, never_created)
+
+    :ok
   end
 
   @doc false
-  @spec inserts_document(wiring(), map()) :: true
+  @spec inserts_document(wiring(), map()) :: :ok
   def inserts_document(%{backend: backend, mapping: mapping}, %{collection: collection}) do
-    assert :ok = backend.create_collection(collection, mapping)
+    :ok = backend.create_collection(collection, mapping)
 
-    assert :ok = backend.index_document(collection, %{id: "d1", text: "first draft"}, "d1")
+    :ok = backend.index_document(collection, %{id: "d1", text: "first draft"}, "d1")
     SearchIntegrationCase.refresh!(collection)
 
     query = Query.match(Query.new(collection), "first", ["text"])
-    assert {:ok, [%Hit{id: "d1", source: %{"text" => "first draft"}}]} = backend.search(query)
+    {:ok, [%Hit{id: "d1", source: %{"text" => "first draft"}}]} = backend.search(query)
+
+    :ok
   end
 
   @doc false
-  @spec upserts_document(wiring(), map()) :: true
+  @spec upserts_document(wiring(), map()) :: :ok
   def upserts_document(%{backend: backend, mapping: mapping}, %{collection: collection}) do
-    assert :ok = backend.create_collection(collection, mapping)
-    assert :ok = backend.index_document(collection, %{id: "d1", text: "first draft"}, "d1")
-    assert :ok = backend.index_document(collection, %{id: "d1", text: "second draft"}, "d1")
+    :ok = backend.create_collection(collection, mapping)
+    :ok = backend.index_document(collection, %{id: "d1", text: "first draft"}, "d1")
+    :ok = backend.index_document(collection, %{id: "d1", text: "second draft"}, "d1")
     SearchIntegrationCase.refresh!(collection)
 
     updated = Query.match(Query.new(collection), "second", ["text"])
-    assert {:ok, [%Hit{id: "d1", source: %{"text" => "second draft"}}]} = backend.search(updated)
+    {:ok, [%Hit{id: "d1", source: %{"text" => "second draft"}}]} = backend.search(updated)
 
     stale = Query.match(Query.new(collection), "first", ["text"])
-    assert {:ok, []} = backend.search(stale)
+    {:ok, []} = backend.search(stale)
+
+    :ok
   end
 
   @doc false
-  @spec deletes_document(wiring(), map()) :: true
+  @spec deletes_document(wiring(), map()) :: :ok
   def deletes_document(%{backend: backend, mapping: mapping}, %{collection: collection}) do
-    assert :ok = backend.create_collection(collection, mapping)
-    assert :ok = backend.index_document(collection, %{id: "d1", text: "shared token"}, "d1")
-    assert :ok = backend.index_document(collection, %{id: "d2", text: "shared token"}, "d2")
+    :ok = backend.create_collection(collection, mapping)
+    :ok = backend.index_document(collection, %{id: "d1", text: "shared token"}, "d1")
+    :ok = backend.index_document(collection, %{id: "d2", text: "shared token"}, "d2")
     SearchIntegrationCase.refresh!(collection)
 
-    assert :ok = backend.delete_document(collection, "d1")
+    :ok = backend.delete_document(collection, "d1")
     SearchIntegrationCase.refresh!(collection)
 
     query = Query.match(Query.new(collection), "shared", ["text"])
-    assert {:ok, [%Hit{id: "d2"}]} = backend.search(query)
+    {:ok, [%Hit{id: "d2"}]} = backend.search(query)
+
+    :ok
   end
 
   # -- search-modes group: corpus ----------------------------------------------
@@ -238,20 +250,22 @@ defmodule Cake.Search.BackendConformance do
   # -- search-modes group bodies ----------------------------------------------
 
   @doc false
-  @spec keyword_search(wiring(), map()) :: true
+  @spec keyword_search(wiring(), map()) :: :ok
   def keyword_search(%{backend: backend} = wiring, %{collection: collection}) do
-    seed_corpus!(wiring, collection)
+    _corpus = seed_corpus!(wiring, collection)
 
     query = Query.match(Query.new(collection), "GenServer", ["text"])
-    assert {:ok, hits} = backend.search(query)
+    {:ok, hits} = backend.search(query)
 
     assert ids(hits) == ["alpha", "gamma"]
     assert sorted_by_score?(hits)
     assert Enum.all?(hits, &scored_text_hit?(&1, "GenServer"))
+
+    :ok
   end
 
   @doc false
-  @spec vector_search(wiring(), map()) :: true
+  @spec vector_search(wiring(), map()) :: :ok
   def vector_search(%{backend: backend} = wiring, %{collection: collection}) do
     corpus = seed_corpus!(wiring, collection)
 
@@ -263,17 +277,19 @@ defmodule Cake.Search.BackendConformance do
         30
       )
 
-    assert {:ok, [%Hit{id: "beta", score: top} | rest] = hits} = backend.search(query)
+    {:ok, [%Hit{id: "beta", score: top} | rest] = hits} = backend.search(query)
 
     assert ids(hits) == ids(corpus)
     assert Enum.all?(rest, &(&1.score < top))
     assert sorted_by_score?(hits)
+
+    :ok
   end
 
   @doc false
-  @spec hybrid_search(wiring(), map()) :: true
+  @spec hybrid_search(wiring(), map()) :: :ok
   def hybrid_search(wiring, %{collection: collection}) do
-    seed_corpus!(wiring, collection)
+    _corpus = seed_corpus!(wiring, collection)
     {vector_hits, hybrid_hits} = vector_and_hybrid_hits(wiring, collection)
 
     # Same candidates (the vector clause is the must), re-scored: the
@@ -281,21 +297,25 @@ defmodule Cake.Search.BackendConformance do
     assert ids(hybrid_hits) == ids(vector_hits)
     assert score_of(hybrid_hits, "alpha") > score_of(vector_hits, "alpha")
     assert score_of(hybrid_hits, "gamma") > score_of(vector_hits, "gamma")
+
+    :ok
   end
 
   @doc false
-  @spec hybrid_keeps_vector_score(wiring(), map()) :: true
+  @spec hybrid_keeps_vector_score(wiring(), map()) :: :ok
   def hybrid_keeps_vector_score(wiring, %{collection: collection}) do
-    seed_corpus!(wiring, collection)
+    _corpus = seed_corpus!(wiring, collection)
     {vector_hits, hybrid_hits} = vector_and_hybrid_hits(wiring, collection)
 
     assert_in_delta score_of(hybrid_hits, "beta"), score_of(vector_hits, "beta"), 1.0e-6
+
+    :ok
   end
 
   @doc false
-  @spec min_score(wiring(), map()) :: true
+  @spec min_score(wiring(), map()) :: :ok
   def min_score(%{backend: backend} = wiring, %{collection: collection}) do
-    seed_corpus!(wiring, collection)
+    _corpus = seed_corpus!(wiring, collection)
 
     base =
       Query.knn(
@@ -305,31 +325,35 @@ defmodule Cake.Search.BackendConformance do
         30
       )
 
-    assert {:ok, all_hits} = backend.search(base)
+    {:ok, all_hits} = backend.search(base)
     assert length(all_hits) == 3
 
-    assert {:ok, [%Hit{id: "beta"}]} = backend.search(Query.min_score(base, 0.9))
+    {:ok, [%Hit{id: "beta"}]} = backend.search(Query.min_score(base, 0.9))
+
+    :ok
   end
 
   @doc false
-  @spec size(wiring(), map()) :: true
+  @spec size(wiring(), map()) :: :ok
   def size(%{backend: backend} = wiring, %{collection: collection}) do
-    seed_corpus!(wiring, collection)
+    _corpus = seed_corpus!(wiring, collection)
 
     all = Query.match(Query.new(collection, size: 30), "Elixir", ["text"])
-    assert {:ok, hits} = backend.search(all)
+    {:ok, hits} = backend.search(all)
     assert length(hits) == 3
 
-    assert {:ok, two} = backend.search(Query.size(all, 2))
+    {:ok, two} = backend.search(Query.size(all, 2))
     assert length(two) == 2
 
-    assert {:ok, [_one]} = backend.search(Query.size(all, 1))
+    {:ok, [_one]} = backend.search(Query.size(all, 1))
+
+    :ok
   end
 
   @doc false
-  @spec accepts_cake_search_vector_query(wiring(), map()) :: true
+  @spec accepts_cake_search_vector_query(wiring(), map()) :: :ok
   def accepts_cake_search_vector_query(%{backend: backend} = wiring, %{collection: collection}) do
-    seed_corpus!(wiring, collection)
+    _corpus = seed_corpus!(wiring, collection)
 
     # The clause Cake.Search.build_query/6 emits for :vector and :hybrid.
     query =
@@ -341,7 +365,9 @@ defmodule Cake.Search.BackendConformance do
         ef_search: Cake.Search.default_ef_search()
       )
 
-    assert {:ok, [%Hit{id: "beta"} | _rest]} = backend.search(query)
+    {:ok, [%Hit{id: "beta"} | _rest]} = backend.search(query)
+
+    :ok
   end
 
   # Vector-only hits and the hits of the same query with a boosted keyword
