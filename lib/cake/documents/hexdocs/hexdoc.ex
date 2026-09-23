@@ -37,6 +37,11 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
           updated_at: DateTime.t() | nil
         }
 
+  @doc """
+  The source and language identifiers every parsed hexdoc carries. This is
+  the single source of truth for those two attrs: `to_parsed_docs/1` merges
+  it into each `ParsedDocument` attrs map it emits.
+  """
   @spec doc_attrs() :: %{source: String.t(), language: String.t()}
   def doc_attrs(), do: %{source: @source, language: @language}
 
@@ -75,15 +80,13 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
         partial_docs = extract_from_module_ast(ast)
 
         Enum.map(partial_docs, fn %{text: text, title: title} ->
-          %{
+          Map.merge(doc_attrs(), %{
             text: text,
             url: url,
             package: module,
-            language: @language,
             title: title,
-            version: version,
-            source: @source
-          }
+            version: version
+          })
         end)
 
       {:ok, _other} ->

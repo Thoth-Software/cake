@@ -1399,23 +1399,23 @@ defmodule Cake.ConversationTest do
                Conversation.apply_selection(candidates, ["id-1"])
     end
 
-    test "errors on unknown doc IDs" do
+    test "errors on unknown candidate ids" do
       c1 = build(:convo_chunk, prompt_text: "a", metadata: chunk_metadata(id: "id-1"))
 
       candidates = [wrap_result(c1)]
 
-      assert {:error, {:unknown_doc_ids, unknown}} =
+      assert {:error, {:unknown_candidate_ids, unknown}} =
                Conversation.apply_selection(candidates, ["id-1", "id-999"])
 
       assert "id-999" in unknown
     end
 
-    test "empty doc_ids returns empty indexed list" do
+    test "errors when no requested id is among the candidates" do
       c1 = build(:convo_chunk, prompt_text: "a", metadata: chunk_metadata(id: "id-1"))
 
       candidates = [wrap_result(c1)]
 
-      assert {:error, {:unknown_doc_ids, _}} =
+      assert {:error, {:unknown_candidate_ids, _}} =
                Conversation.apply_selection(candidates, ["nonexistent"])
     end
   end
@@ -1496,7 +1496,7 @@ defmodule Cake.ConversationTest do
       assert state.state == :idle
     end
 
-    test "select with unknown doc IDs returns error and resets to idle" do
+    test "select with unknown candidate ids returns error and resets to idle" do
       hit = build_search_hit()
 
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
@@ -1513,7 +1513,9 @@ defmodule Cake.ConversationTest do
       allow(Cake.Search.Backend.Mock, self(), pid)
 
       {:ok, _candidates} = Conversation.manualask(pid, "q")
-      assert {:error, {:unknown_doc_ids, _}} = Conversation.select_docs(pid, ["nonexistent"])
+
+      assert {:error, {:unknown_candidate_ids, _}} =
+               Conversation.select_docs(pid, ["nonexistent"])
 
       state = :sys.get_state(pid)
       assert state.state == :idle
