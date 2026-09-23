@@ -62,4 +62,14 @@ defmodule Cake.BooksFixtures do
 
     chunk
   end
+
+  @doc """
+  Generate a parsed_book with one chunk per element of `chunk_attrs`, in
+  that order: chunk `i` gets `chunk_index: i` unless its attrs say
+  otherwise. Returns `{parsed_book, chunks}` with the chunks in index order.
+  """
+  @spec book_with_chunks_fixture([map()]) :: {Cake.Books.ParsedBook.t(), [Cake.Books.Chunk.t()]}
+  def book_with_chunks_fixture(chunk_attrs) when is_list(chunk_attrs) do
+    raise "Cake.BooksFixtures.book_with_chunks_fixture/1 is not implemented yet (#245)"
+  end
 end
