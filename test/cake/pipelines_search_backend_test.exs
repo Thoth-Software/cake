@@ -79,9 +79,16 @@ defmodule Cake.PipelinesSearchBackendTest do
           search_backend_timeout: 50
         )
 
+      test_pid = self()
+
+      # The worker blocks until the stream's timeout kills it; nothing ever
+      # sends :release, so the outcome does not depend on scheduling.
       expect(Cake.Search.Backend.Mock, :index_document, fn "books", _doc, ^slow_id ->
-        Process.sleep(500)
-        :ok
+        send(test_pid, :index_started)
+
+        receive do
+          :release -> :ok
+        end
       end)
 
       indexed =
@@ -90,6 +97,7 @@ defmodule Cake.PipelinesSearchBackendTest do
         |> Enum.to_list()
 
       assert indexed == []
+      assert_received :index_started
 
       assert [%FailedIngest{} = failure] = Repo.all(FailedIngest)
       assert failure.step == "search_backend.index"

@@ -43,6 +43,18 @@ defmodule CakeWeb.BooksControllerTest do
       assert response(conn, 404) =~ "Book not found"
     end
 
+    test "returns 404 without touching storage when the stored key could traverse the root",
+         %{conn: conn} do
+      # A poisoned or legacy row must never reach the adapter: the disk adapter
+      # joins the key under its root, and a `..` segment would escape it.
+      poisoned = "../../etc/passwd"
+      _book = parsed_book_fixture(%{source_file_path: poisoned, source_format: "pdf"})
+
+      conn = get(conn, ~p"/books/download/#{poisoned}")
+
+      assert response(conn, 404) =~ "Book not found"
+    end
+
     test "returns 404 when the ParsedBook row exists but the adapter cannot read the key",
          %{conn: conn} do
       key = storage_key("vanished")

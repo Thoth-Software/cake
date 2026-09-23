@@ -850,6 +850,33 @@ defmodule Cake.ConversationTest do
       refute pid in Enum.map(children, fn {_, child_pid, _, _} -> child_pid end)
     end
 
+    test "owner exit also terminates an in-flight retrieval task" do
+      test_pid = self()
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        send(test_pid, {:embed_started, self()})
+
+        receive do
+          :release -> {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+        end
+      end)
+
+      owner = spawn(fn -> receive(do: (:stop -> :ok)) end)
+      {:ok, pid} = Conversation.start(mocked_opts(%{owner: owner}))
+      allow(Cake.Embeddings.Mock, self(), pid)
+      convo_ref = Process.monitor(pid)
+
+      assert :ok = Conversation.manualask(pid, "q")
+      assert_receive {:embed_started, task_pid}
+      task_ref = Process.monitor(task_pid)
+
+      send(owner, :stop)
+
+      assert_receive {:DOWN, ^convo_ref, :process, ^pid, :normal}
+      assert_receive {:DOWN, ^task_ref, :process, ^task_pid, _reason}
+      refute Process.alive?(task_pid)
+    end
+
     test "stays alive when no owner is given" do
       {:ok, pid} = Conversation.start(valid_opts())
       on_exit(fn -> if Process.alive?(pid), do: GenServer.stop(pid) end)
