@@ -48,6 +48,8 @@ defmodule Cake.Pipelines do
 
   @type context :: Context.t()
 
+  @default_search_backend_timeout 5_000
+
   @typedoc """
   Outcome of an ingest run. `indexed` is how many atomic units made it all the
   way through; `failed` is how many item-level failures were recorded during
@@ -64,9 +66,11 @@ defmodule Cake.Pipelines do
   Indexes a stream of embedded records into `collection` on the configured
   search backend, fanning out up to five concurrent `index_document` calls.
   Per-item failures (including timeouts) are logged and persisted via
-  `detuple_with_logging/3` under the `"search_backend.index"` step name.
-  Skipped entirely when `config :cake, :skip_search_backend` is true
-  (the test helper sets it).
+  `detuple_with_logging/3` under the `"search_backend.index"` step name,
+  keyed on the failing record's `id` so `sweep/3` can retry it. Each call
+  must finish within the context's `:search_backend_timeout` opt (default
+  5000 ms). Skipped entirely when `config :cake, :skip_search_backend` is
+  true (the test helper sets it).
   """
   @spec add_to_search_backend(Enumerable.t(), String.t(), context()) :: Enumerable.t()
   def add_to_search_backend(docs_with_embeddings_stream, collection, %Context{} = ctx) do
@@ -80,10 +84,11 @@ defmodule Cake.Pipelines do
 
       docs_with_embeddings_stream
       |> Task.async_stream(
-        &backend.index_document(collection, &1, &1.id),
+        &{&1.id, backend.index_document(collection, &1, &1.id)},
         max_concurrency: 5,
-        timeout: 5_000,
-        on_timeout: :kill_task
+        timeout: search_backend_timeout(ctx),
+        on_timeout: :kill_task,
+        zip_input_on_exit: true
       )
       |> Stream.map(&handle_backend_response/1)
       |> detuple_with_logging("search_backend.index", ctx)
@@ -94,17 +99,20 @@ defmodule Cake.Pipelines do
     Application.get_env(:cake, :skip_search_backend, false)
   end
 
-  defp handle_backend_response({:exit, element}),
-    do: {:error, {:search_backend_exit, element}}
+  defp search_backend_timeout(%Context{opts: opts}) do
+    Keyword.get(opts, :search_backend_timeout, @default_search_backend_timeout)
+  end
 
-  defp handle_backend_response({:ok, :ok}),
+  # Every shape carries the document id first so extract_error_info/1 records
+  # it as the failure's input_identifier.
+  defp handle_backend_response({:ok, {_id, :ok}}),
     do: {:ok, :indexed}
 
-  defp handle_backend_response({:ok, {:error, error}}),
-    do: {:error, {:search_backend_api_error, error}}
+  defp handle_backend_response({:ok, {id, {:error, error}}}),
+    do: {:error, {id, {:search_backend_api_error, error}}}
 
-  defp handle_backend_response({:error, changeset}),
-    do: {:error, {:search_backend_changeset, changeset}}
+  defp handle_backend_response({:exit, {%{id: id}, reason}}),
+    do: {:error, {id, {:search_backend_exit, reason}}}
 
   @doc """
   Filters a stream of {:ok, value} | {:error, reason} tuples,
