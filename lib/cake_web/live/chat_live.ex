@@ -146,7 +146,7 @@ defmodule CakeWeb.ChatLive do
       <.message_list messages={@messages} />
 
       <%= case @conversation_state do %>
-        <% :generating -> %>
+        <% busy when busy in [:retrieving, :generating] -> %>
           <.thinking_indicator />
         <% :awaiting_selection -> %>
           <.selection_panel

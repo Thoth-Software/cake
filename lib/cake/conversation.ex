@@ -5,15 +5,21 @@ defmodule Cake.Conversation do
   ## State machine
 
       :idle --{:autoask, q}-->       :generating        --> :idle
-      :idle --{:manualask, q}-->     :awaiting_selection
+      :idle --{:manualask, q}-->     :retrieving        --> :awaiting_selection
       :awaiting_selection --{:select, ids}--> :generating --> :idle
       :generating --{:autoask, q}--> :generating (question queued)
 
-  An `:autoask` that arrives while `:generating` does not crash: the
-  question is stored in `queued_question` (a later one overwrites an
-  earlier one) and replayed as a fresh turn when the current turn
-  completes. Every other invalid transition crashes the GenServer (no
-  defensive clauses; the UI is expected to prevent invalid messages).
+  Every slow stage — retrieval for a manual turn, and generation for any
+  turn — runs in a task under `Cake.TaskSupervisor`, never inside a
+  GenServer callback: `autoask/2` is a cast and `manualask/2` and
+  `select_docs/2` reply `:ok` as soon as the task is started, so a slow
+  embedder or model can never time out the caller. Results reach the
+  caller by broadcast. An `:autoask` that arrives while `:generating`
+  does not crash: the question is stored in `queued_question` (a later
+  one overwrites an earlier one) and replayed as a fresh turn when the
+  current turn completes. Every other invalid transition crashes the
+  GenServer (no defensive clauses; the UI is expected to prevent invalid
+  messages).
 
   ## Pipelines
 
@@ -32,8 +38,10 @@ defmodule Cake.Conversation do
     by step as schema-constrained JSON, resolving each retrieval query it
     emits (embed+search, results injected into the next step's prompt)
     until it signals completion or the iteration cap is exhausted.
-  - `run_manual_turn/4` — manual-mode back-half (apply_selection → prompt →
-    generate → cite) after user picks documents.
+  - `run_manual_turn/4` — manual-mode back-half (prompt → generate →
+    cite) over the chunks `apply_selection/2` indexed from the user's
+    picks; `select_docs/2` applies the selection synchronously so unknown
+    ids are rejected before any task starts.
 
   Stages are `@doc false` public functions for direct testability.
 
@@ -265,8 +273,18 @@ defmodule Cake.Conversation do
     {:noreply, %{s | queued_question: question}}
   end
 
+  # The task result is dispatched on the state that started the task: a
+  # `:retrieving` task returns candidates, a `:generating` one a completed
+  # turn.
   @impl GenServer
   @spec handle_info(term(), State.t()) :: {:noreply, State.t()}
+  def handle_info({ref, result}, %State{turn_ref: ref, state: :retrieving} = s)
+      when is_reference(ref) do
+    Process.demonitor(ref, [:flush])
+    {:noreply, complete_retrieval(result, %{s | turn_ref: nil})}
+  end
+
+  @impl GenServer
   def handle_info({ref, result}, %State{turn_ref: ref} = s) when is_reference(ref) do
     Process.demonitor(ref, [:flush])
 
@@ -274,11 +292,11 @@ defmodule Cake.Conversation do
       case result do
         {:ok, {response, citations, returned_state}} ->
           _ = emit_response(s, response, citations)
-          apply_turn_result(%{s | state: :idle, turn_ref: nil}, returned_state)
+          apply_turn_result(%{s | state: :idle, turn_ref: nil, pending: nil}, returned_state)
 
         {:error, error} ->
           _ = emit_error(s, error)
-          %{s | state: :idle, turn_ref: nil, errors: [error | s.errors]}
+          %{s | state: :idle, turn_ref: nil, pending: nil, errors: [error | s.errors]}
       end
 
     maybe_replay_queue(new_state)
@@ -287,19 +305,34 @@ defmodule Cake.Conversation do
   @impl GenServer
   def handle_info({:DOWN, ref, :process, _pid, reason}, %State{turn_ref: ref} = s) do
     _ = emit_error(s, reason)
-    new_state = %{s | state: :idle, turn_ref: nil, errors: [reason | s.errors]}
+    new_state = %{s | state: :idle, turn_ref: nil, pending: nil, errors: [reason | s.errors]}
     maybe_replay_queue(new_state)
+  end
+
+  defp complete_retrieval({:ok, candidates}, %State{pending: pending} = s) do
+    _ = broadcast(s, {:candidates_ready, candidates})
+    _ = broadcast(s, {:state_change, :awaiting_selection})
+    %{s | state: :awaiting_selection, pending: %{pending | candidates: candidates}}
+  end
+
+  defp complete_retrieval({:error, error}, %State{} = s) do
+    _ = emit_error(s, error)
+    %{s | state: :idle, pending: nil, errors: [error | s.errors]}
   end
 
   # --- Manual mode ---
 
   @doc """
-  Manual-mode turn, first half: retrieves and returns candidate results
-  for the user to pick from. Generation proceeds once `select_docs/2`
-  supplies the ids of the chosen candidates.
+  Manual-mode turn, first half: starts retrieving candidate results for
+  the user to pick from and replies `:ok` at once. Retrieval runs in a
+  task while the conversation is `:retrieving`; the candidates arrive as a
+  `{:candidates_ready, candidates}` broadcast followed by
+  `{:state_change, :awaiting_selection}`, and a retrieval failure as
+  `{:error, reason}` followed by `{:state_change, :idle}` (see
+  `Cake.Conversation.Events`). Generation proceeds once `select_docs/2`
+  supplies the ids of the chosen candidates. Only valid while `:idle`.
   """
-  @spec manualask(pid(), String.t()) ::
-          {:ok, [Result.t()]} | {:error, String.t() | Cake.Search.Backend.search_error()}
+  @spec manualask(pid(), String.t()) :: :ok
   def manualask(pid, question) do
     GenServer.call(pid, {:manualask, question})
   end
@@ -313,12 +346,15 @@ defmodule Cake.Conversation do
   displays. `CakeWeb.ChatLive` groups candidates by document and expands a
   document selection back into candidate ids via
   `Cake.Candidates.expand_to_chunk_ids/2` before calling this. Ids not
-  among the offered candidates are rejected with
-  `{:error, {:unknown_candidate_ids, ids}}`.
+  among the offered candidates are rejected synchronously with
+  `{:error, {:unknown_candidate_ids, ids}}` and the conversation returns
+  to `:idle`. A valid selection replies `:ok` at once and runs generation
+  in a task while the conversation is `:generating`; the answer arrives
+  as a `{:response_ready, _}` broadcast, a generation failure as
+  `{:error, reason}`, each followed by `{:state_change, :idle}`.
   """
   @spec select_docs(pid(), [String.t()]) ::
-          :ok
-          | {:error, {:unknown_candidate_ids, [String.t()]} | Cake.Generation.error_reason()}
+          :ok | {:error, {:unknown_candidate_ids, [String.t()]}}
   def select_docs(pid, candidate_ids) do
     GenServer.call(pid, {:select, candidate_ids})
   end
@@ -378,9 +414,8 @@ defmodule Cake.Conversation do
 
   # --- Manual-mode turn pipeline ---
 
-  defp run_manual_turn(question, candidates, candidate_ids, %State{} = s) do
-    with {:ok, indexed_chunks} <- apply_selection(candidates, candidate_ids),
-         {:ok, messages} <- build_prompt(indexed_chunks, question, s.message_history),
+  defp run_manual_turn(question, candidates, indexed_chunks, %State{} = s) do
+    with {:ok, messages} <- build_prompt(indexed_chunks, question, s.message_history),
          {:ok, response} <- generate(messages, s),
          {:ok, result} <- process_response(response, indexed_chunks, s) do
       finalize_turn(s, candidates, question, response, result)
@@ -918,35 +953,32 @@ defmodule Cake.Conversation do
   @impl GenServer
   @spec handle_call(term(), GenServer.from(), State.t()) :: {:reply, term(), State.t()}
   def handle_call({:manualask, question}, _from, %State{state: :idle} = s) do
-    case embed_and_search(question, s) do
-      {:ok, candidates} ->
-        pending = %{question: question, candidates: candidates}
-        new_state = %{s | state: :awaiting_selection, pending: pending}
-        _ = broadcast(s, {:candidates_ready, candidates})
-        _ = broadcast(s, {:state_change, :awaiting_selection})
-        {:reply, {:ok, candidates}, new_state}
+    _ = broadcast(s, {:state_change, :retrieving})
+    task = start_task(fn -> embed_and_search(question, s) end)
 
-      {:error, _} = error ->
-        _ = broadcast(s, {:error, elem(error, 1)})
-        {:reply, error, s}
-    end
+    new_state = %{
+      s
+      | state: :retrieving,
+        turn_ref: task.ref,
+        pending: %{question: question, candidates: nil}
+    }
+
+    {:reply, :ok, new_state}
   end
 
   @impl GenServer
   def handle_call({:select, candidate_ids}, _from, %State{state: :awaiting_selection} = s) do
     %{question: question, candidates: candidates} = s.pending
-    _ = broadcast(s, {:state_change, :generating})
 
-    case run_manual_turn(question, candidates, candidate_ids, s) do
-      {:ok, {response, citations, new_state}} ->
-        new_state = %{new_state | state: :idle, pending: nil}
-        _ = emit_response(s, response, citations)
-        {:reply, :ok, new_state}
+    case apply_selection(candidates, candidate_ids) do
+      {:ok, indexed_chunks} ->
+        _ = broadcast(s, {:state_change, :generating})
+        task = start_task(fn -> run_manual_turn(question, candidates, indexed_chunks, s) end)
+        {:reply, :ok, %{s | state: :generating, turn_ref: task.ref}}
 
       {:error, error} ->
-        new_state = %{s | state: :idle, pending: nil, errors: [error | s.errors]}
         _ = emit_error(s, error)
-        {:reply, {:error, error}, new_state}
+        {:reply, {:error, error}, %{s | state: :idle, pending: nil, errors: [error | s.errors]}}
     end
   end
 
@@ -988,8 +1020,15 @@ defmodule Cake.Conversation do
 
   defp spawn_turn(question, %State{} = s) do
     _ = broadcast(s, {:state_change, :generating})
-    task = Task.Supervisor.async_nolink(Cake.TaskSupervisor, fn -> run_turn(question, s) end)
+    task = start_task(fn -> run_turn(question, s) end)
     %{s | state: :generating, turn_ref: task.ref}
+  end
+
+  # Slow work never runs inside a callback. The task is unlinked so a
+  # crash reaches handle_info/2 as :DOWN and is reported as a turn error
+  # instead of taking the conversation down.
+  defp start_task(fun) when is_function(fun, 0) do
+    Task.Supervisor.async_nolink(Cake.TaskSupervisor, fun)
   end
 
   defp apply_turn_result(%State{} = current, %State{} = returned) do

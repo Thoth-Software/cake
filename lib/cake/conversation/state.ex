@@ -5,16 +5,20 @@ defmodule Cake.Conversation.State do
   ## States
 
   * `:idle` — ready to receive a new question.
-  * `:awaiting_selection` — manual-mode question received, candidates
-    retrieved, waiting for user to pick documents. `pending` holds
-    the question and candidate list.
-  * `:generating` — running the pipeline; transitions back to `:idle`
-    when the response is ready.
+  * `:retrieving` — manual-mode question received; a task is retrieving
+    candidates. `pending` holds the question with `candidates: nil`.
+  * `:awaiting_selection` — candidates retrieved, waiting for user to
+    pick documents. `pending` holds the question and candidate list.
+  * `:generating` — a task is running the pipeline; transitions back to
+    `:idle` when the response is ready.
+
+  `turn_ref` is the monitor reference of the task running the current
+  `:retrieving` or `:generating` stage, `nil` otherwise.
 
   ## Transitions
 
       :idle --{:autoask, q}-->       :generating        --> :idle
-      :idle --{:manualask, q}-->     :awaiting_selection
+      :idle --{:manualask, q}-->     :retrieving        --> :awaiting_selection
       :awaiting_selection --{:select, ids}--> :generating --> :idle
 
   An `:autoask` during `:generating` is queued in `queued_question` (a
@@ -23,12 +27,12 @@ defmodule Cake.Conversation.State do
   defensive clauses).
   """
 
-  @type state_name :: :idle | :awaiting_selection | :generating
+  @type state_name :: :idle | :retrieving | :awaiting_selection | :generating
 
   @type t :: %__MODULE__{
           id: String.t(),
           state: state_name(),
-          pending: %{question: String.t(), candidates: list()} | nil,
+          pending: %{question: String.t(), candidates: list() | nil} | nil,
           turn_ref: reference() | nil,
           queued_question: String.t() | nil,
           embedder: String.t(),
