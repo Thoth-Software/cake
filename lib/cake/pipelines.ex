@@ -156,7 +156,7 @@ defmodule Cake.Pipelines do
   defp persist_failure(%Context{} = ctx, step_name, reason) do
     {input_id, error_text} = extract_error_info(reason)
 
-    Cake.FailedIngests.create_failed_ingest(%{
+    %{
       run_id: ctx.run_id,
       pipeline_behaviour: ctx.behaviour,
       pipeline_implementation: ctx.implementation,
@@ -165,7 +165,23 @@ defmodule Cake.Pipelines do
       error_text: error_text,
       input_identifier: input_id,
       pipeline_fatal: false
-    })
+    }
+    |> Cake.FailedIngests.create_failed_ingest()
+    |> log_rejected_failure(step_name, input_id)
+  end
+
+  # A FailedIngest row is the only record an item failure leaves behind, and
+  # finalize_ingest/3 counts those rows, so a rejected insert must be loud:
+  # silently dropping it turns a failed run into a clean summary.
+  defp log_rejected_failure({:ok, _} = ok, _step_name, _input_id), do: ok
+
+  defp log_rejected_failure({:error, %Ecto.Changeset{} = changeset} = error, step_name, input_id) do
+    Logger.error(
+      "[#{step_name}] Could not persist FailedIngest for #{inspect(input_id)}: " <>
+        inspect(changeset.errors)
+    )
+
+    error
   end
 
   defp extract_error_info({identifier, message})
@@ -313,7 +329,7 @@ defmodule Cake.Pipelines do
     Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error at #{step}: #{inspect(error)}")
 
     _ =
-      Cake.FailedIngests.create_failed_ingest(%{
+      %{
         run_id: ctx.run_id,
         pipeline_behaviour: ctx.behaviour,
         pipeline_implementation: ctx.implementation,
@@ -322,7 +338,9 @@ defmodule Cake.Pipelines do
         error_text: inspect(error),
         input_identifier: "",
         pipeline_fatal: true
-      })
+      }
+      |> Cake.FailedIngests.create_failed_ingest()
+      |> log_rejected_failure(Atom.to_string(step), nil)
 
     {:error, {step, error}}
   end
@@ -331,7 +349,7 @@ defmodule Cake.Pipelines do
     Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error: #{inspect(error)}")
 
     _ =
-      Cake.FailedIngests.create_failed_ingest(%{
+      %{
         run_id: ctx.run_id,
         pipeline_behaviour: ctx.behaviour,
         pipeline_implementation: ctx.implementation,
@@ -340,7 +358,9 @@ defmodule Cake.Pipelines do
         error_text: inspect(error),
         input_identifier: "",
         pipeline_fatal: true
-      })
+      }
+      |> Cake.FailedIngests.create_failed_ingest()
+      |> log_rejected_failure("ingest", nil)
 
     {:error, error}
   end
