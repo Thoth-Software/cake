@@ -205,6 +205,14 @@ defmodule Cake.Search.BackendConformance do
 
   # -- search-modes group: corpus ----------------------------------------------
 
+  # "alpha" and "gamma" mention GenServer, "beta" does not; all three mention
+  # Elixir. Each document's embedding is the unit vector on its axis.
+  @corpus [
+    %{id: "alpha", text: "GenServer callbacks handle_call and handle_cast in Elixir", axis: 0},
+    %{id: "beta", text: "Supervisor restart strategies in Elixir", axis: 1},
+    %{id: "gamma", text: "A GenServer under a Supervisor in Elixir", axis: 2}
+  ]
+
   @doc """
   Creates `collection` with the wiring's mapping, indexes the fixed corpus
   into it and refreshes. Returns the corpus: maps with `:id`, `:text` and
@@ -212,20 +220,31 @@ defmodule Cake.Search.BackendConformance do
   scores are exact (1.0 for the same document, 0.5 for any other).
   """
   @spec seed_corpus!(wiring(), String.t()) :: [map()]
-  def seed_corpus!(_wiring, _collection) do
-    raise "Cake.Search.BackendConformance.seed_corpus!/2 is not implemented yet (#245)"
+  def seed_corpus!(%{backend: backend, mapping: mapping}, collection) do
+    :ok = backend.create_collection(collection, mapping)
+
+    corpus =
+      Enum.map(@corpus, fn %{id: id, text: text, axis: axis} ->
+        %{id: id, text: text, embedding: unit_vector(axis)}
+      end)
+
+    Enum.each(corpus, fn doc -> :ok = backend.index_document(collection, doc, doc.id) end)
+    SearchIntegrationCase.refresh!(collection)
+
+    corpus
   end
 
   @doc "The unit vector on `axis`, in the configured embedding dimension."
   @spec unit_vector(non_neg_integer()) :: [float()]
-  def unit_vector(_axis) do
-    raise "Cake.Search.BackendConformance.unit_vector/1 is not implemented yet (#245)"
+  def unit_vector(axis) when is_integer(axis) and axis >= 0 do
+    dimension = Application.get_env(:cake, :default_embedding_dimension, 1536)
+
+    0.0
+    |> List.duplicate(dimension)
+    |> List.replace_at(axis, 1.0)
   end
 
   # -- search-modes group bodies ----------------------------------------------
-
-  # Corpus: "alpha" (axis 0) and "gamma" (axis 2) mention GenServer, "beta"
-  # (axis 1) does not; all three mention Elixir.
 
   @doc false
   @spec keyword_search(wiring(), map()) :: true
