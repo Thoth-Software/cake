@@ -52,6 +52,10 @@ config :cake, :books_download_root, System.tmp_dir!()
 
 config :cake, book_storage_adapter: Cake.Books.Adapters.Mock
 
+# Route the OpenSearch backend's Snap requests to the in-process stub so
+# backend tests exercise Snap's real request/response path without a cluster.
+config :cake, Cake.Search.Deployment, http_client_adapter: Cake.Search.HTTPClientStub
+
 # Resolve the embeddings collaborator to the Mox mock for the whole test run.
 # The ingestion pipelines read `Application.get_env(:cake, :embeddings_module,
 # Cake.Embeddings)` at call time; setting it here once (immutably) — rather than
