@@ -140,6 +140,21 @@ defmodule Cake.SearchIntegrationCase do
   end
 
   @doc """
+  The unit vector on `axis` in the configured embedding dimension. Cosine
+  scores between unit vectors are exact — 1.0 for the same axis, 0.5 as
+  OpenSearch reports two different axes — so tests can pin ranking without
+  tolerances.
+  """
+  @spec unit_vector(non_neg_integer()) :: [float()]
+  def unit_vector(axis) when is_integer(axis) and axis >= 0 do
+    dimension = Application.get_env(:cake, :default_embedding_dimension, 1536)
+
+    0.0
+    |> List.duplicate(dimension)
+    |> List.replace_at(axis, 1.0)
+  end
+
+  @doc """
   The server-side `properties` of `collection`'s mapping, as OpenSearch
   reports them (string keys), so a test can check what the server made of
   a mapping Cake built.

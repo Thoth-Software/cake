@@ -369,7 +369,7 @@ OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi
 
 `Cake.Search` builds queries via `Cake.Search.Query`, delegates execution to the configured `Cake.Search.Backend` (default: `Backend.OpenSearch`), and hydrates hits into `Cake.Search.Result` structs via the GDS's `load_from_hits/1`. The backend is injected via `Application.get_env(:cake, :search_backend)` and mocked with Mox in tests.
 
-`Backend` defines `@type search_error` as the explicit union of all error types that any backend implementation can return. When a new backend is added, its error types must be added to this union — dialyzer enforces this by checking each implementation's return types against the callback specs. This makes the set of possible search errors a conscious, enumerated registry rather than an opaque `term()`; `index_document/3` returns the same union, passing Snap's `{:error, reason}` through unchanged. In the test env `Cake.Search.Deployment` is configured with `Cake.Search.HTTPClientStub` (a `Snap.HTTPClient` adapter under `test/support/`) so backend tests can drive Snap's real request/response path against canned replies.
+`Backend` defines `@type search_error` as the explicit union of all error types that any backend implementation can return. When a new backend is added, its error types must be added to this union — dialyzer enforces this by checking each implementation's return types against the callback specs. This makes the set of possible search errors a conscious, enumerated registry rather than an opaque `term()`; `index_document/3` returns the same union, passing Snap's `{:error, reason}` through unchanged. In the test env `Cake.Search.Deployment` is configured with `Cake.Search.HTTPClientStub` (a `Snap.HTTPClient` adapter under `test/support/`) so backend tests can drive Snap's real request/response path against canned replies. Against a real node, `Cake.Search.BackendConformance` (`test/support/`) is the backend-parameterized conformance suite — collection lifecycle and the `:keyword`/`:vector`/`:hybrid` search modes with `min_score` and `size` — that every backend implementation instantiates (`use Cake.Search.BackendConformance, backend: ..., mapping: ...`) and must pass unchanged; it runs in the `integration` CI job on `Cake.SearchIntegrationCase`, which repoints the Deployment at `OPENSEARCH_URL` inside the `cake_test` Snap index namespace and gives each test a collection of its own (CLAUDE.md "Integration tests").
 
 `search_chunks_with_context/5` returns `{:ok, [Cake.Search.Result.t()]}` (or the backend's error tuple). Direct hits carry `hit_source: :search` and the backend `_score`; expanded neighbors carry `hit_source: :expansion` and `backend_score: nil`. The Result struct is the single carrier of retrieval metadata through the rest of the pipeline (scoring, prompt assembly, response post-processing) — everything above the Search.Result boundary speaks CAKE; everything below speaks vendor. CAKE-computed scores (`cosine_score`, `relevance_score`) are populated by `Search.score_results/2` and `Search.normalize_and_combine/1`; `prompt_index` is populated by `Prompt.prepare_context/2`. Each Result also carries a `Search.Provenance` describing the search conditions (type, query text) under which it was discovered.
 
@@ -474,8 +474,11 @@ lib/
     precommit.ex             # `mix precommit` — pre-push gate chain, each step in its own MIX_ENV (see CLAUDE.md "Pre-push")
 
 test/                        # (abbreviated — test/cake/ and test/cake_web/ mirror lib/)
-  test_helper.exs            # Sets :skip_search_backend; starts ExUnit
+  test_helper.exs            # Starts ExUnit; sets :skip_search_backend (unit run) or repoints Deployment at a real cluster (--only integration)
   support/
+    search_integration_case.ex  # Cake.SearchIntegrationCase — real-cluster case template: per-test collections in the cake_test namespace, refresh!/1, teardown
+    backend_conformance.ex   #   Cake.Search.BackendConformance — backend-parameterized conformance suite (lifecycle, search modes)
+    search_http_client_stub.ex  # Cake.Search.HTTPClientStub — Snap.HTTPClient adapter serving canned replies to unit tests
     data_case.ex             #   Ecto sandbox setup
     conn_case.ex             #   Phoenix conn setup
     oban_case.ex             #   Oban testing helpers

@@ -7,15 +7,14 @@ defmodule Cake.Search.GDSRoundTripIntegrationTest do
   Postgres. Every step is called directly with the test's own collection,
   so the tests stay async and never touch the GDS's fixed collection name.
 
-  Embeddings are unit vectors from `Cake.Search.BackendConformance`, so
-  cosine ranking is exact. Runs with `mix test --only integration`.
+  Embeddings are `unit_vector/1`s from the case template, so cosine
+  ranking is exact. Runs with `mix test --only integration`.
   """
 
   use Cake.SearchIntegrationCase, async: true
 
   import Cake.BooksFixtures
   import Cake.ParsedDocumentFixtures
-  import Cake.Search.BackendConformance, only: [unit_vector: 1]
 
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
