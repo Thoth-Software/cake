@@ -58,7 +58,7 @@ mix coveralls.json                         # Must not reduce coverage below mini
 mix docs --warnings-as-errors              # Zero broken @moduledoc/@doc references. Hard gate in CI (runs in the dev env).
 ```
 
-`mix quality.fast` (compile + credo + `deps.unlock --check-unused`) is the minimum local check; `mix precommit` is the fuller pre-push check (adds format + tests — see Pre-push below). `mix quality` adds dialyzer. Tests run with `MIX_ENV=test`; the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first. All three expect the Postgres role `postgres` to have the password `postgres` (config/{dev,test}.exs); in Claude Code on the web the session-start hook sets it and prints `!! postgres:` if it could not.
+`mix quality.fast` (compile + credo + `deps.unlock --check-unused`) is the minimum local check; `mix precommit` is the fuller pre-push check (adds format + tests — see Pre-push below). `mix quality` adds dialyzer. Tests run with `MIX_ENV=test`; the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first. The test step (`mix test`, and so `mix precommit`) expects the Postgres role `postgres` to have the password `postgres` (config/{dev,test}.exs); `mix quality` and `mix quality.fast` never connect to the database. In Claude Code on the web the session-start hook sets that password and prints `!! postgres:` if it could not.
 
 Dialyzer runs in CI on every push to master and every PR targeting master — the `dialyzer` job in `.github/workflows/quality.yml` carries no event guard (PLT caching makes repeat runs cheap). It has no local pre-push alias, so run `mix quality` before pushing spec-heavy changes rather than waiting for CI.
 
