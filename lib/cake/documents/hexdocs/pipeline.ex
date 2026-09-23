@@ -128,10 +128,6 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   defp changeset_module(changeset),
     do: to_string(Ecto.Changeset.get_field(changeset, :module) || "unknown")
 
-  @impl Cake.Documents.Pipeline
-  @spec source() :: String.t()
-  def source(), do: Hexdoc.doc_attrs().source
-
   @spec to_hexdoc_attrs(String.t(), String.t()) :: map()
   def to_hexdoc_attrs(path, version) do
     url_suffix =
