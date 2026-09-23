@@ -27,7 +27,8 @@ defmodule Cake.Search.Backend.OpenSearch do
   end
 
   @impl Cake.Search.Backend
-  @spec index_document(String.t(), map(), String.t()) :: :ok | {:error, term()}
+  @spec index_document(String.t(), map(), String.t()) ::
+          :ok | {:error, Cake.Search.Backend.search_error()}
   def index_document(collection, document, id) do
     case Snap.Document.update(
            @deployment,
@@ -35,8 +36,8 @@ defmodule Cake.Search.Backend.OpenSearch do
            %{doc: document, doc_as_upsert: true},
            id
          ) do
-      %{"_id" => _} -> :ok
-      error -> {:error, error}
+      {:ok, %{"_id" => _}} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
