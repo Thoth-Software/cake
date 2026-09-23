@@ -53,18 +53,23 @@ defmodule CakeWeb.BooksController do
     send_download(conn, {:binary, binary}, filename: download_filename(book))
   end
 
-  # Storage keys carry no extension (see UploadLive.storage_key/2), so the
-  # download is named after the key's basename plus the book's source format;
-  # a legacy key that already has an extension keeps it. `send_download/3`
-  # derives the Content-Type from that filename.
+  # Storage keys carry no extension (see UploadLive.storage_key/2) but may
+  # keep dots from the original name (`guide.v2_<hash>`), so the download is
+  # named after the key's basename plus the book's source format unless the
+  # basename already ends in that format; a legacy `handbook.pdf` key keeps
+  # its name. `send_download/3` derives the Content-Type from the filename.
   defp download_filename(%Books.ParsedBook{source_file_path: key, source_format: format}) do
     basename = Path.basename(key)
 
-    if Path.extname(basename) == "" and is_binary(format) and format != "" do
+    if is_binary(format) and format != "" and not ends_with_format?(basename, format) do
       "#{basename}.#{format}"
     else
       basename
     end
+  end
+
+  defp ends_with_format?(basename, format) do
+    String.downcase(Path.extname(basename)) == "." <> String.downcase(format)
   end
 
   defp not_found(conn, message) do
