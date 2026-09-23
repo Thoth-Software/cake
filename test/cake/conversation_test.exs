@@ -1421,7 +1421,7 @@ defmodule Cake.ConversationTest do
   end
 
   describe "manual mode end-to-end" do
-    test "full flow: manualask returns candidates, select completes the turn" do
+    test "full flow: manualask broadcasts candidates, select completes the turn" do
       hit =
         build_search_hit(
           id: "c1",
@@ -1457,8 +1457,9 @@ defmodule Cake.ConversationTest do
       allow(Cake.Responses.Mock, self(), pid)
       allow(Cake.Generation.Mock, self(), pid)
 
-      # Step 1: manualask returns candidates
-      assert {:ok, candidates} = Conversation.manualask(pid, "manual question")
+      # Step 1: manualask acknowledges at once; candidates arrive by broadcast
+      assert :ok = Conversation.manualask(pid, "manual question")
+      assert_receive {:candidates_ready, candidates}
       assert candidates != []
 
       # State is now awaiting_selection
@@ -1481,7 +1482,7 @@ defmodule Cake.ConversationTest do
       assert post_select.pending == nil
     end
 
-    test "manualask search error returns error and stays idle" do
+    test "manualask search error is broadcast and the conversation returns to idle" do
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
         {:error, :embed_failed}
       end)
@@ -1490,10 +1491,123 @@ defmodule Cake.ConversationTest do
 
       allow(Cake.Embeddings.Mock, self(), pid)
 
-      assert {:error, :embed_failed} = Conversation.manualask(pid, "q")
+      assert :ok = Conversation.manualask(pid, "q")
+
+      assert_receive {:state_change, :retrieving}
+      assert_receive {:error, :embed_failed}
+      assert_receive {:state_change, :idle}
 
       state = :sys.get_state(pid)
       assert state.state == :idle
+      assert state.pending == nil
+      assert :embed_failed in state.errors
+    end
+
+    test "a retrieval task crash is broadcast as an error and the conversation returns to idle" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        raise "embedder exploded"
+      end)
+
+      pid = start_subscribed()
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert :ok = Conversation.manualask(pid, "q")
+
+        assert_receive {:error, {%RuntimeError{message: "embedder exploded"}, _stack}}
+        assert_receive {:state_change, :idle}
+      end)
+
+      assert Process.alive?(pid)
+      assert :sys.get_state(pid).state == :idle
+    end
+
+    test "manualask replies before retrieval completes and never blocks the caller" do
+      test_pid = self()
+      hit = build_search_hit(id: "slow-1")
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        send(test_pid, {:embed_started, self()})
+
+        receive do
+          :release -> {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+        after
+          1_000 -> raise "embed never released: the caller must not wait on retrieval"
+        end
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query -> {:ok, [hit]} end)
+
+      pid = start_subscribed()
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+
+      # The reply comes back while the embedder is still blocked...
+      assert :ok = Conversation.manualask(pid, "q")
+      assert_receive {:state_change, :retrieving}
+      assert_receive {:embed_started, task_pid}
+      assert :sys.get_state(pid).state == :retrieving
+
+      # ...and the GenServer keeps answering reads meanwhile.
+      assert GenServer.call(pid, :search_results) == []
+
+      send(task_pid, :release)
+
+      assert_receive {:candidates_ready, [%Result{}]}
+      assert_receive {:state_change, :awaiting_selection}
+      assert :sys.get_state(pid).state == :awaiting_selection
+    end
+
+    test "select_docs replies before generation completes and never blocks the caller" do
+      test_pid = self()
+      hit = build_search_hit(id: "slow-2")
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query -> {:ok, [hit]} end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
+        %Cake.Responses.Result{raw_text: "slow", final_text: "slow", citations: [], warnings: []}
+      end)
+
+      pid = start_subscribed()
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        send(test_pid, {:generation_started, self()})
+
+        receive do
+          :release -> {:ok, %{text: "slow", usage: %{}}}
+        after
+          1_000 -> raise "generation never released: the caller must not wait on it"
+        end
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.manualask(pid, "q")
+      assert_receive {:candidates_ready, candidates}
+
+      candidate_ids =
+        Enum.map(candidates, fn %Result{retrieval_unit: c} -> Cake.Citable.metadata(c).id end)
+
+      # The reply comes back while the model is still blocked...
+      assert :ok = Conversation.select_docs(pid, candidate_ids)
+      assert_receive {:state_change, :generating}
+      assert_receive {:generation_started, task_pid}
+      assert :sys.get_state(pid).state == :generating
+
+      send(task_pid, :release)
+
+      assert_receive {:response_ready, %{response: "slow"}}
+      assert_receive {:state_change, :idle}
+      assert :sys.get_state(pid).state == :idle
     end
 
     test "select with unknown candidate ids returns error and resets to idle" do
@@ -1512,9 +1626,11 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Backend.Mock, self(), pid)
 
-      {:ok, _candidates} = Conversation.manualask(pid, "q")
+      :ok = Conversation.manualask(pid, "q")
+      assert_receive {:candidates_ready, _candidates}
 
-      assert {:error, {:unknown_candidate_ids, _}} =
+      # Unknown ids are rejected synchronously: no generation task is started.
+      assert {:error, {:unknown_candidate_ids, ["nonexistent"]}} =
                Conversation.select_docs(pid, ["nonexistent"])
 
       state = :sys.get_state(pid)
@@ -1550,7 +1666,8 @@ defmodule Cake.ConversationTest do
       allow(Cake.Embeddings.Mock, self(), pid)
       allow(Cake.Search.Backend.Mock, self(), pid)
 
-      {:ok, _} = Conversation.manualask(pid, "q")
+      :ok = Conversation.manualask(pid, "q")
+      assert_receive {:candidates_ready, _}
 
       ref = Process.monitor(pid)
       catch_exit(Conversation.manualask(pid, "q2"))
@@ -1644,9 +1761,10 @@ defmodule Cake.ConversationTest do
 
       Phoenix.PubSub.subscribe(Cake.PubSub, Cake.Conversation.Events.topic(conv_id))
 
-      {:ok, candidates} = Conversation.manualask(pid, "q")
+      :ok = Conversation.manualask(pid, "q")
 
-      assert_receive {:candidates_ready, ^candidates}
+      assert_receive {:state_change, :retrieving}
+      assert_receive {:candidates_ready, candidates}
       assert_receive {:state_change, :awaiting_selection}
 
       doc_ids =

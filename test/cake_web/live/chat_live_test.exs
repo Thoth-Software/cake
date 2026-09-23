@@ -76,6 +76,17 @@ defmodule CakeWeb.ChatLiveTest do
       assert render(view) =~ "Thinking..."
     end
 
+    test ":state_change to :retrieving shows the thinking indicator and hides the form",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(view, {:state_change, :retrieving})
+
+      html = render(view)
+      assert html =~ "Thinking..."
+      refute html =~ "Ask a question..."
+    end
+
     test ":candidates_ready shows selection panel", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
