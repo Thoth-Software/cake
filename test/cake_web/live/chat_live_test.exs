@@ -31,6 +31,19 @@ defmodule CakeWeb.ChatLiveTest do
       assert html =~ "Manual selection"
     end
 
+    test "stops its Conversation when the LiveView process exits", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      convo_pid = :sys.get_state(view.pid).socket.assigns.convo_pid
+      ref = Process.monitor(convo_pid)
+
+      # A normal stop mirrors the LiveView shutting down on disconnect
+      # without taking the test's client proxy (linked to the view) with it.
+      GenServer.stop(view.pid, :normal)
+
+      assert_receive {:DOWN, ^ref, :process, ^convo_pid, :normal}
+    end
+
     test "spawns exactly one Conversation process per live mount", %{conn: conn} do
       children_before = DynamicSupervisor.which_children(Cake.ConversationSupervisor)
 

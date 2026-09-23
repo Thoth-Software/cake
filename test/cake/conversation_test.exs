@@ -836,6 +836,29 @@ defmodule Cake.ConversationTest do
     end
   end
 
+  describe ":owner option" do
+    test "stops with :normal when the owner process exits" do
+      owner = spawn(fn -> receive(do: (:stop -> :ok)) end)
+      {:ok, pid} = Conversation.start(valid_opts(%{owner: owner}))
+      ref = Process.monitor(pid)
+
+      send(owner, :stop)
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
+
+      children = DynamicSupervisor.which_children(Cake.ConversationSupervisor)
+      refute pid in Enum.map(children, fn {_, child_pid, _, _} -> child_pid end)
+    end
+
+    test "stays alive when no owner is given" do
+      {:ok, pid} = Conversation.start(valid_opts())
+      on_exit(fn -> if Process.alive?(pid), do: GenServer.stop(pid) end)
+
+      assert :sys.get_state(pid).state == :idle
+      assert Process.alive?(pid)
+    end
+  end
+
   describe "cluster error" do
     test "cluster {:error, _} broadcasts {:error, reason} without crashing the GenServer" do
       expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
