@@ -1,9 +1,10 @@
 defmodule CakeWeb.ChatLive do
   @moduledoc """
-  The chat UI. Starts a `Cake.Conversation` per LiveView session and
-  subscribes to its PubSub topic, rendering state changes, manual-mode
-  candidate selection, responses with citations, and errors as they are
-  broadcast (see `Cake.Conversation.Events`).
+  The chat UI. Starts a `Cake.Conversation` per LiveView session, owned by
+  the LiveView process so it stops when the LiveView does, and subscribes
+  to its PubSub topic, rendering state changes, manual-mode candidate
+  selection, responses with citations, and errors as they are broadcast
+  (see `Cake.Conversation.Events`).
   """
 
   use CakeWeb, :live_view
@@ -298,7 +299,8 @@ defmodule CakeWeb.ChatLive do
   defp start_conversation(socket) do
     # TODO: identity strategy is unresolved — every mount gets a fresh
     # conversation id, so conversations are not tied to a user or persisted
-    # across reconnects.
+    # across reconnects. The conversation's lifetime is this LiveView's: it
+    # is started with the LiveView as its owner and stops when it exits.
     conversation_id = Ecto.UUID.generate()
 
     opts =
@@ -306,6 +308,7 @@ defmodule CakeWeb.ChatLive do
       |> Application.fetch_env!(Cake.Conversation)
       |> Map.new()
       |> Map.put(:id, conversation_id)
+      |> Map.put(:owner, self())
 
     {:ok, pid} = Cake.Conversation.start(opts)
     Process.monitor(pid)

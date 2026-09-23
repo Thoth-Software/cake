@@ -171,6 +171,12 @@ defmodule Cake.Conversation do
   (`:embeddings`, `:generation`, `:responses`, `:decomposition`),
   `:max_context_tokens`, `:max_self_ask_iterations`, and
   `:max_ircot_iterations` are optional and default in `init/1`.
+
+  `:owner` (optional) is the pid whose lifetime bounds the conversation:
+  `init/1` monitors it and the GenServer stops with `:normal` when it
+  exits, so a conversation started for a LiveView goes away with that
+  LiveView instead of living for the node's lifetime. Without an owner
+  the conversation runs until stopped explicitly.
   """
   @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
@@ -196,7 +202,13 @@ defmodule Cake.Conversation do
   @impl GenServer
   @spec init(map()) :: {:ok, State.t()}
   def init(opts) do
-    {:ok, build_state(opts)}
+    {:ok, monitor_owner(build_state(opts), Map.get(opts, :owner))}
+  end
+
+  defp monitor_owner(%State{} = s, nil), do: s
+
+  defp monitor_owner(%State{} = s, owner) when is_pid(owner) do
+    %{s | owner_ref: Process.monitor(owner)}
   end
 
   defp fetch_required(opts, key) do
@@ -277,7 +289,7 @@ defmodule Cake.Conversation do
   # `:retrieving` task returns candidates, a `:generating` one a completed
   # turn.
   @impl GenServer
-  @spec handle_info(term(), State.t()) :: {:noreply, State.t()}
+  @spec handle_info(term(), State.t()) :: {:noreply, State.t()} | {:stop, :normal, State.t()}
   def handle_info({ref, result}, %State{turn_ref: ref, state: :retrieving} = s)
       when is_reference(ref) do
     Process.demonitor(ref, [:flush])
@@ -300,6 +312,13 @@ defmodule Cake.Conversation do
       end
 
     maybe_replay_queue(new_state)
+  end
+
+  # The owner's exit ends the conversation; a :temporary child, so the
+  # DynamicSupervisor does not restart it.
+  @impl GenServer
+  def handle_info({:DOWN, ref, :process, _owner, _reason}, %State{owner_ref: ref} = s) do
+    {:stop, :normal, s}
   end
 
   @impl GenServer
