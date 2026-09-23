@@ -311,7 +311,7 @@ Implement the behaviour for the target GDS. Consult `Cake.Books.Pdf.Pipeline` or
 ### Adding a New Documentation Source (Cake.Documents.Pipeline)
 
 1. Create a raw document schema for intermediate storage.
-2. Implement callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `success_message/1`. The source identifier (e.g. `"hexdocs"`) is a property of the data, not of the module: `parse/2` emits it as the `:source` attr of every `ParsedDocument` (for hexdocs, `Hexdoc.doc_attrs/0` is its single source of truth).
+2. Implement callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `success_message/1`. The source identifier (e.g. `"hexdocs"`) is a property of the data, not of the module: `parse/2` emits it as the `:source` attr of every `ParsedDocument` (for hexdocs, `Hexdoc.doc_attrs/0` is the single source of truth: `Hexdoc.to_parsed_docs/1` merges it into every attrs map it emits).
 3. Register with Oban via `DocumentIngestionJob.enqueue_for_version/4`.
 4. Follow the result-tuple contract: `download/1` returns `{:ok, paths}` or the tagged `{:error, :download, reason}`; stream callbacks (`persist_raw_docs/2`, `parse/2`) detuple their per-item result tuples via `Pipelines.detuple_with_logging/3` before returning, so the streams they return carry bare successful values; `success_message/1` returns a bare value.
 5. Optionally implement `retry_from_raw/2`.

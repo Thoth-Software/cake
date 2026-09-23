@@ -123,6 +123,25 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       assert add_doc.source == "hexdocs"
     end
 
+    test "takes source and language from doc_attrs/0" do
+      content = """
+      defmodule Example do
+        def helper(x), do: x
+      end
+      """
+
+      hexdoc = %Hexdoc{
+        content: content,
+        url: "https://hexdocs.pm/elixir/Example.html",
+        module: "Example",
+        version: "1.0.0"
+      }
+
+      %{source: source, language: language} = Hexdoc.doc_attrs()
+
+      assert [%{source: ^source, language: ^language}] = Hexdoc.to_parsed_docs(hexdoc)
+    end
+
     test "handles functions without @doc" do
       content = """
       defmodule Example do
