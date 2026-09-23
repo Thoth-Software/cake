@@ -139,6 +139,30 @@ defmodule Cake.SearchIntegrationCase do
     |> Enum.each(fn name -> {:ok, _} = Snap.Indexes.delete(Deployment, name) end)
   end
 
+  @doc """
+  The server-side `properties` of `collection`'s mapping, as OpenSearch
+  reports them (string keys), so a test can check what the server made of
+  a mapping Cake built.
+  """
+  @spec server_mapping!(String.t()) :: map()
+  def server_mapping!(_collection), do: not_implemented!(:server_mapping!)
+
+  @doc "The server-side `index` settings of `collection` (string keys and values)."
+  @spec server_settings!(String.t()) :: map()
+  def server_settings!(_collection), do: not_implemented!(:server_settings!)
+
+  @doc """
+  Runs `fun` with `:search_collections` set to `collections`, restoring
+  the previous config afterwards even if `fun` raises. For `async: false`
+  tests only: the config is global.
+  """
+  @spec with_search_collections([{module(), module()}], (-> result)) :: result when result: term()
+  def with_search_collections(_collections, _fun), do: not_implemented!(:with_search_collections)
+
+  defp not_implemented!(fun) do
+    raise "Cake.SearchIntegrationCase.#{fun} is not implemented yet (#245)"
+  end
+
   defp new_collection_prefix do
     "it_" <> Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
   end
