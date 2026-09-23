@@ -313,13 +313,14 @@ defmodule Cake.Conversation do
   displays. `CakeWeb.ChatLive` groups candidates by document and expands a
   document selection back into candidate ids via
   `Cake.Candidates.expand_to_chunk_ids/2` before calling this. Ids not
-  among the offered candidates are rejected (the `:unknown_doc_ids` error
-  atom is historical — it reports unknown candidate ids).
+  among the offered candidates are rejected with
+  `{:error, {:unknown_candidate_ids, ids}}`.
   """
   @spec select_docs(pid(), [String.t()]) ::
-          :ok | {:error, {:unknown_doc_ids, [String.t()]} | Cake.Generation.error_reason()}
-  def select_docs(pid, doc_ids) do
-    GenServer.call(pid, {:select, doc_ids})
+          :ok
+          | {:error, {:unknown_candidate_ids, [String.t()]} | Cake.Generation.error_reason()}
+  def select_docs(pid, candidate_ids) do
+    GenServer.call(pid, {:select, candidate_ids})
   end
 
   # --- Auto-mode turn pipeline ---
@@ -377,8 +378,8 @@ defmodule Cake.Conversation do
 
   # --- Manual-mode turn pipeline ---
 
-  defp run_manual_turn(question, candidates, doc_ids, %State{} = s) do
-    with {:ok, indexed_chunks} <- apply_selection(candidates, doc_ids),
+  defp run_manual_turn(question, candidates, candidate_ids, %State{} = s) do
+    with {:ok, indexed_chunks} <- apply_selection(candidates, candidate_ids),
          {:ok, messages} <- build_prompt(indexed_chunks, question, s.message_history),
          {:ok, response} <- generate(messages, s),
          {:ok, result} <- process_response(response, indexed_chunks, s) do
@@ -796,27 +797,28 @@ defmodule Cake.Conversation do
 
   @doc false
   @spec apply_selection([Result.t()], [String.t()]) ::
-          {:ok, [Cake.Prompt.indexed_chunk()]} | {:error, {:unknown_doc_ids, [String.t()]}}
-  def apply_selection(candidates, doc_ids) when is_list(candidates) do
+          {:ok, [Cake.Prompt.indexed_chunk()]}
+          | {:error, {:unknown_candidate_ids, [String.t()]}}
+  def apply_selection(candidates, candidate_ids) when is_list(candidates) do
     available_ids =
       MapSet.new(candidates, fn %Result{retrieval_unit: unit} ->
         Cake.Citable.metadata(unit).id
       end)
 
-    requested = MapSet.new(doc_ids)
+    requested = MapSet.new(candidate_ids)
     unknown = MapSet.difference(requested, available_ids)
 
     if MapSet.size(unknown) > 0 do
-      {:error, {:unknown_doc_ids, MapSet.to_list(unknown)}}
+      {:error, {:unknown_candidate_ids, MapSet.to_list(unknown)}}
     else
-      {:ok, index_selected(candidates, doc_ids)}
+      {:ok, index_selected(candidates, candidate_ids)}
     end
   end
 
-  defp index_selected(candidates, doc_ids) do
+  defp index_selected(candidates, candidate_ids) do
     candidates
     |> Enum.filter(fn %Result{retrieval_unit: unit} ->
-      Cake.Citable.metadata(unit).id in doc_ids
+      Cake.Citable.metadata(unit).id in candidate_ids
     end)
     |> Enum.with_index(1)
     |> Enum.map(fn {result, idx} -> {idx, result} end)
@@ -931,11 +933,11 @@ defmodule Cake.Conversation do
   end
 
   @impl GenServer
-  def handle_call({:select, doc_ids}, _from, %State{state: :awaiting_selection} = s) do
+  def handle_call({:select, candidate_ids}, _from, %State{state: :awaiting_selection} = s) do
     %{question: question, candidates: candidates} = s.pending
     _ = broadcast(s, {:state_change, :generating})
 
-    case run_manual_turn(question, candidates, doc_ids, s) do
+    case run_manual_turn(question, candidates, candidate_ids, s) do
       {:ok, {response, citations, new_state}} ->
         new_state = %{new_state | state: :idle, pending: nil}
         _ = emit_response(s, response, citations)

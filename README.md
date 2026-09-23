@@ -99,7 +99,7 @@ Indices are one-per-GDS on a shared OpenSearch cluster: `collection_name/0` retu
 
 ### Layer 3: Conversation — Stateful Multi-Turn RAG
 
-This layer is organized around a single principle: **`Cake.Conversation` is the sole orchestrator, and every other module in the layer is a peer service that it calls.** The dependency graph is a DAG. Peer-to-peer knowledge is minimal and deliberate: `Prompt` and `Responses` consume `Cake.Search` result types, and `Cake.Decomposition.LLM` calls `Prompt.decomposition_prompt/1` and `Generation.complete_json/3`. (`Responses` also declares a Boundary dep on `Cake.Generation` that its code does not currently use — see #259.)
+This layer is organized around a single principle: **`Cake.Conversation` is the sole orchestrator, and every other module in the layer is a peer service that it calls.** The dependency graph is a DAG. Peer-to-peer knowledge is minimal and deliberate: `Prompt` and `Responses` consume `Cake.Search` result types, and `Cake.Decomposition.LLM` calls `Prompt.decomposition_prompt/1` and `Generation.complete_json/3`.
 
 ```
 Conversation → Prompt
@@ -178,7 +178,7 @@ The layer responsibilities above are enforced at compile time by the [`boundary`
 - **`Cake`** — the shared kernel: `Repo`, `Schema`, `Mailer`, the `GDS` behaviour, the `Citable`/`Promptable` protocols, `Citations`, `FailedIngests`, `ParseBooks`. Depends on nothing internal; every context may depend on it.
 - **Ingestion** — `Cake.Books` and `Cake.Documents` depend on `Cake.Search`, `Cake.Embeddings`, and `Cake.Pipelines` (`Cake.Pipelines` in turn depends on `Cake.Search`).
 - **Retrieval** — `Cake.Search` depends only on the kernel. It no longer names the GDS modules: the collections created at boot come from `:search_collections` config, which is what keeps the search layer from depending back on the ingestion contexts (an otherwise-cyclic dependency).
-- **Conversation** — `Cake.Conversation` is the orchestrator; it depends on `Cake.Prompt`, `Cake.Search`, `Cake.Embeddings`, `Cake.Generation`, `Cake.Responses`, and `Cake.Decomposition`. Peer-to-peer deps among the service modules are minimal: `Cake.Responses → Cake.Search`/`Cake.Generation`, `Cake.Prompt → Cake.Search` (for the `Result` type), and `Cake.Decomposition → Cake.Prompt`/`Cake.Generation` (the `Decomposition` boundary exports `Result` and `LLM`). Nothing depends back on `Cake.Conversation` except the web layer.
+- **Conversation** — `Cake.Conversation` is the orchestrator; it depends on `Cake.Prompt`, `Cake.Search`, `Cake.Embeddings`, `Cake.Generation`, `Cake.Responses`, and `Cake.Decomposition`. Peer-to-peer deps among the service modules are minimal: `Cake.Responses → Cake.Search`, `Cake.Prompt → Cake.Search` (for the `Result` type), and `Cake.Decomposition → Cake.Prompt`/`Cake.Generation` (the `Decomposition` boundary exports `Result` and `LLM`). Nothing depends back on `Cake.Conversation` except the web layer.
 - **Web / jobs / app** — `CakeWeb` depends on the domain contexts it drives; `Cake.Jobs` on `Cake.Documents`; Cake.Application (top-level) on what it supervises.
 
 The compiler runs in `:dev`/`:prod` only — test files and support modules deliberately cross boundaries, so `:test` is excluded — and CI enforces it with a dev-env compile. When you add a cross-context call, declare the `dep` (and `export` the target module) rather than working around the boundary.

@@ -149,6 +149,6 @@ Dev runs three containers via `docker-compose.yml`: `cake_app`, `cake_db` (Postg
 
 If your task touches these, flag rather than silently resolving or ignoring.
 - **Post-demo formats:** Word, Excel, CSV, JPG pipelines are explicitly deferred.
-- **Vestigial contracts (#259):** `Documents.Pipeline.source/0` has no call sites; `Cake.Responses` declares an unused Boundary dep on `Cake.Generation`.
+- **Vestigial contract (#259):** `Documents.Pipeline.source/0` has no call sites; wire-in vs. removal is undecided.
 - **Advisory backlog (#206):** `mix hex.audit` / `mix deps.audit` are report-only in CI until the backlog clears, then flip to blocking.
 - **xref coupling ratchet (#208):** `--fail-above 3` baseline comes from `Conversation.State`'s defstruct DI defaults; ratchets to 0 once those are decoupled.
