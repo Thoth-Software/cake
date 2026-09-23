@@ -174,9 +174,10 @@ defmodule Cake.Conversation do
 
   `:owner` (optional) is the pid whose lifetime bounds the conversation:
   `init/1` monitors it and the GenServer stops with `:normal` when it
-  exits, so a conversation started for a LiveView goes away with that
-  LiveView instead of living for the node's lifetime. Without an owner
-  the conversation runs until stopped explicitly.
+  exits — terminating any retrieval or generation task still in flight —
+  so a conversation started for a LiveView goes away with that LiveView
+  instead of living for the node's lifetime. Without an owner the
+  conversation runs until stopped explicitly.
   """
   @spec start_link(map()) :: GenServer.on_start()
   def start_link(opts) when is_map(opts) do
@@ -293,7 +294,7 @@ defmodule Cake.Conversation do
   def handle_info({ref, result}, %State{turn_ref: ref, state: :retrieving} = s)
       when is_reference(ref) do
     Process.demonitor(ref, [:flush])
-    {:noreply, complete_retrieval(result, %{s | turn_ref: nil})}
+    {:noreply, complete_retrieval(result, %{s | turn_ref: nil, turn_pid: nil})}
   end
 
   @impl GenServer
@@ -304,11 +305,20 @@ defmodule Cake.Conversation do
       case result do
         {:ok, {response, citations, returned_state}} ->
           _ = emit_response(s, response, citations)
-          apply_turn_result(%{s | state: :idle, turn_ref: nil, pending: nil}, returned_state)
+          finished = %{s | state: :idle, turn_ref: nil, turn_pid: nil, pending: nil}
+          apply_turn_result(finished, returned_state)
 
         {:error, error} ->
           _ = emit_error(s, error)
-          %{s | state: :idle, turn_ref: nil, pending: nil, errors: [error | s.errors]}
+
+          %{
+            s
+            | state: :idle,
+              turn_ref: nil,
+              turn_pid: nil,
+              pending: nil,
+              errors: [error | s.errors]
+          }
       end
 
     maybe_replay_queue(new_state)
@@ -324,8 +334,29 @@ defmodule Cake.Conversation do
   @impl GenServer
   def handle_info({:DOWN, ref, :process, _pid, reason}, %State{turn_ref: ref} = s) do
     _ = emit_error(s, reason)
-    new_state = %{s | state: :idle, turn_ref: nil, pending: nil, errors: [reason | s.errors]}
+
+    new_state = %{
+      s
+      | state: :idle,
+        turn_ref: nil,
+        turn_pid: nil,
+        pending: nil,
+        errors: [reason | s.errors]
+    }
+
     maybe_replay_queue(new_state)
+  end
+
+  # Runs on every `{:stop, _, _}` return (the owner's exit included). The
+  # in-flight task is unlinked, so it would otherwise keep calling the
+  # embedder or model and broadcasting to a topic nobody listens to.
+  @impl GenServer
+  @spec terminate(term(), State.t()) :: :ok
+  def terminate(_reason, %State{turn_pid: nil}), do: :ok
+
+  def terminate(_reason, %State{turn_pid: pid}) when is_pid(pid) do
+    _ = Task.Supervisor.terminate_child(Cake.TaskSupervisor, pid)
+    :ok
   end
 
   defp complete_retrieval({:ok, candidates}, %State{pending: pending} = s) do
@@ -979,6 +1010,7 @@ defmodule Cake.Conversation do
       s
       | state: :retrieving,
         turn_ref: task.ref,
+        turn_pid: task.pid,
         pending: %{question: question, candidates: nil}
     }
 
@@ -993,7 +1025,7 @@ defmodule Cake.Conversation do
       {:ok, indexed_chunks} ->
         _ = broadcast(s, {:state_change, :generating})
         task = start_task(fn -> run_manual_turn(question, candidates, indexed_chunks, s) end)
-        {:reply, :ok, %{s | state: :generating, turn_ref: task.ref}}
+        {:reply, :ok, %{s | state: :generating, turn_ref: task.ref, turn_pid: task.pid}}
 
       {:error, error} ->
         _ = emit_error(s, error)
@@ -1040,7 +1072,7 @@ defmodule Cake.Conversation do
   defp spawn_turn(question, %State{} = s) do
     _ = broadcast(s, {:state_change, :generating})
     task = start_task(fn -> run_turn(question, s) end)
-    %{s | state: :generating, turn_ref: task.ref}
+    %{s | state: :generating, turn_ref: task.ref, turn_pid: task.pid}
   end
 
   # Slow work never runs inside a callback. The task is unlinked so a

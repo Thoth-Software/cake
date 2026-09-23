@@ -12,8 +12,9 @@ defmodule Cake.Conversation.State do
   * `:generating` — a task is running the pipeline; transitions back to
     `:idle` when the response is ready.
 
-  `turn_ref` is the monitor reference of the task running the current
-  `:retrieving` or `:generating` stage, `nil` otherwise. `owner_ref` is
+  `turn_ref` and `turn_pid` are the monitor reference and pid of the task
+  running the current `:retrieving` or `:generating` stage, `nil`
+  otherwise; the pid lets `terminate/2` stop the task. `owner_ref` is
   the monitor reference on the optional `:owner` process whose exit stops
   the conversation, `nil` when no owner was given.
 
@@ -36,6 +37,7 @@ defmodule Cake.Conversation.State do
           state: state_name(),
           pending: %{question: String.t(), candidates: list() | nil} | nil,
           turn_ref: reference() | nil,
+          turn_pid: pid() | nil,
           owner_ref: reference() | nil,
           queued_question: String.t() | nil,
           embedder: String.t(),
@@ -82,6 +84,7 @@ defmodule Cake.Conversation.State do
     state: :idle,
     pending: nil,
     turn_ref: nil,
+    turn_pid: nil,
     owner_ref: nil,
     queued_question: nil,
     embeddings: Cake.Embeddings,

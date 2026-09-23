@@ -1,8 +1,9 @@
 defmodule CakeWeb.BooksController do
   @moduledoc """
   Authenticated download of stored book files. `download/2` serves only
-  keys recorded as a `ParsedBook`'s `source_file_path`, reading the binary
-  through the configured `Cake.Books.Adapters` adapter — the same store
+  keys recorded as a `ParsedBook`'s `source_file_path` that also pass
+  `Cake.Books.Adapters.valid_key?/1`, reading the binary through the
+  configured `Cake.Books.Adapters` adapter — the same store
   `CakeWeb.UploadLive` writes to. Anything else is reported as not found.
   """
 
@@ -29,7 +30,19 @@ defmodule CakeWeb.BooksController do
     end
   end
 
+  # Defense in depth: the key came from a ParsedBook row, but a poisoned or
+  # legacy row must not be able to climb out of the adapter's root, so a key
+  # with a `..` segment is refused before storage is touched and reported as
+  # "Book not found" so existence is not revealed.
   defp serve_book(conn, %Books.ParsedBook{source_file_path: key} = book) do
+    if Adapters.valid_key?(key) do
+      read_book(conn, book)
+    else
+      not_found(conn, "Book not found")
+    end
+  end
+
+  defp read_book(conn, %Books.ParsedBook{source_file_path: key} = book) do
     case Adapters.adapter().read(key) do
       {:ok, binary} -> send_book(conn, book, binary)
       {:error, _reason} -> not_found(conn, "File not found in storage")
