@@ -284,6 +284,15 @@ defmodule Cake.ConversationIntegrationHelpers do
     }
   end
 
+  @doc """
+  How many search requests the cluster has served for `collection` so
+  far (its `query_total` search stat): the backend-call-absence check a
+  real backend allows — read it before and after a turn that must not
+  retrieve.
+  """
+  @spec search_request_count!(String.t()) :: non_neg_integer()
+  def search_request_count!(_collection), do: raise("not implemented yet (#249 item 4)")
+
   @doc "The `[N]` citation markers in `text`, in order of appearance, duplicates kept."
   @spec citation_markers(String.t()) :: [pos_integer()]
   def citation_markers(text) when is_binary(text) do

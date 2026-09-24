@@ -48,7 +48,8 @@ defmodule Cake.ConversationIntegrationTest do
   @question "Which booster pump is fitted in the RO-400?"
   @embedder "text-embedding-ada-002"
 
-  setup %{collection: collection} do
+  # The three-chunk corpus above, seeded into the test's collection.
+  defp seed_standard_corpus(%{collection: collection}) do
     corpus =
       seed_corpus!(collection, [
         %{text: @pump_text, axis: 0},
@@ -60,6 +61,11 @@ defmodule Cake.ConversationIntegrationTest do
     %{corpus: corpus, pump: pump, warranty: warranty, filter: filter}
   end
 
+  # A book with no chunks at all: every retrieval against it finds nothing.
+  defp seed_empty_corpus(%{collection: collection}) do
+    %{corpus: seed_corpus!(collection, [])}
+  end
+
   defp expect_query_embedding(question, vector) do
     expect(Cake.Embeddings.Mock, :embed, fn :openai, %{input: ^question}, @embedder ->
       embedding_result(vector)
@@ -67,6 +73,8 @@ defmodule Cake.ConversationIntegrationTest do
   end
 
   describe "autoask/2 end to end (plain path, decomposition: nil)" do
+    setup :seed_standard_corpus
+
     test "real hits → dense indices → resolved citations → response-ready broadcast",
          %{collection: collection, corpus: corpus, pump: pump, warranty: warranty, filter: filter} do
       test_pid = self()
@@ -139,6 +147,180 @@ defmodule Cake.ConversationIntegrationTest do
       assert :sys.get_state(pid).state == :idle
     end
   end
+
+  describe "manual flow: manualask/2 → candidates → select_docs/2" do
+    setup :seed_standard_corpus
+
+    test "candidates are the real hits, and generation sees only the chosen docs",
+         %{corpus: corpus, pump: pump, warranty: warranty, filter: filter} do
+      test_pid = self()
+      expect_query_embedding(@question, blend_vector([{0, 0.8}, {1, 0.6}]))
+
+      script_generation!(fn messages ->
+        send(test_pid, {:prompt, messages})
+        "Five years [1]."
+      end)
+
+      pid = start_subscribed_conversation!(conversation_opts(corpus.gds))
+
+      assert :ok = Conversation.manualask(pid, @question)
+      assert_receive {:state_change, :retrieving}
+      assert_receive {:candidates_ready, candidates}
+      assert_receive {:state_change, :awaiting_selection}
+
+      # Every chunk the search surfaced, hydrated and relevance-sorted, is
+      # offered — the relevance floor applies to auto mode, not to the
+      # user's own pick.
+      assert unit_ids(candidates) == [pump.id, warranty.id, filter.id]
+      assert Enum.all?(candidates, &match?(%Result{retrieval_unit: %Chunk{}}, &1))
+      assert :sys.get_state(pid).state == :awaiting_selection
+
+      # Only the warranty chunk is selected: it becomes [1], and the pump
+      # chunk — a better hit — never reaches the prompt.
+      assert :ok = Conversation.select_docs(pid, [warranty.id])
+      assert_receive {:state_change, :generating}
+      assert_receive {:response_ready, %{response: "Five years [1].", citations: [citation]}}
+      assert_receive {:state_change, :idle}
+
+      assert_receive {:prompt, [%{"role" => "system", "content" => system} | _]}
+      assert String.contains?(system, "[1] " <> Promptable.prompt_context(warranty))
+      refute String.contains?(system, @pump_text)
+      refute String.contains?(system, "[2] Book:")
+
+      assert %{new_index: 1, old_index: 1} = citation
+      assert_citation_from(citation, warranty, corpus.book)
+      assert GenServer.call(pid, :chunk_map) == %{1 => Citable.metadata(warranty)}
+
+      # The whole candidate list is what later turns reuse, not the pick.
+      assert unit_ids(GenServer.call(pid, :search_results)) == [pump.id, warranty.id, filter.id]
+    end
+  end
+
+  describe "cached retrieval across turns" do
+    setup :seed_standard_corpus
+
+    test "a follow-up turn reuses the first turn's hits without asking the cluster again",
+         %{collection: collection, corpus: corpus, pump: pump, warranty: warranty} do
+      test_pid = self()
+
+      # Exactly one embed across both turns: a re-retrieval on turn two
+      # would be an unexpected call and fail under Mox.
+      expect_query_embedding(@question, blend_vector([{0, 0.8}, {1, 0.6}]))
+
+      script_generation!(fn messages ->
+        send(test_pid, {:prompt, messages})
+
+        case List.last(messages) do
+          %{"content" => @question} -> "It is the P-100 [1]."
+          _follow_up -> "Five years [2]."
+        end
+      end)
+
+      pid = start_subscribed_conversation!(conversation_opts(corpus.gds))
+      searches_before = search_request_count!(collection)
+
+      assert :ok = Conversation.autoask(pid, @question)
+      assert_receive {:response_ready, %{response: "It is the P-100 [1]."}}
+      assert_receive {:prompt, _turn_one}
+
+      searches_after_first = search_request_count!(collection)
+      assert searches_after_first > searches_before
+
+      follow_up = "And how long is its warranty?"
+      assert :ok = Conversation.autoask(pid, follow_up)
+      assert_receive {:response_ready, %{response: "Five years [1].", citations: [citation]}}
+      assert_receive {:prompt, turn_two}
+
+      # No search request reached the collection for the second turn...
+      assert search_request_count!(collection) == searches_after_first
+
+      # ...yet its prompt carries the cached context, freshly numbered,
+      # plus the first exchange as history.
+      [%{"role" => "system", "content" => system} | rest] = turn_two
+      assert String.contains?(system, "[1] " <> Promptable.prompt_context(pump))
+      assert String.contains?(system, "[2] " <> Promptable.prompt_context(warranty))
+
+      assert rest == [
+               %{"role" => "user", "content" => @question},
+               %{"role" => "assistant", "content" => "It is the P-100 [1]."},
+               %{"role" => "user", "content" => follow_up}
+             ]
+
+      assert_citation_from(citation, warranty, corpus.book)
+
+      assert unit_ids(GenServer.call(pid, :search_results)) == [
+               pump.id,
+               warranty.id,
+               filter_id(corpus)
+             ]
+    end
+  end
+
+  describe "empty first retrieval is a completed retrieval (#255, fixed in #264)" do
+    setup :seed_empty_corpus
+
+    test "decompose and embed run once across two turns; the second reuses the cached []",
+         %{collection: collection, corpus: corpus} do
+      test_pid = self()
+      question = "Is there anything about the RO-400 at all?"
+
+      # Exactly once each, across both turns.
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, Cake.Decomposition.Result.new(question)}
+      end)
+
+      expect_query_embedding(question, blend_vector([{0, 1.0}]))
+
+      script_generation!(fn messages ->
+        send(test_pid, {:prompt, messages})
+        "I could not find anything about that."
+      end)
+
+      pid =
+        start_subscribed_conversation!(
+          conversation_opts(corpus.gds, %{decomposition: Cake.Decomposition.Mock})
+        )
+
+      assert :ok = Conversation.autoask(pid, question)
+      assert_receive {:response_ready, %{response: "I could not find anything about that."}}
+      assert_receive {:prompt, [%{"role" => "system", "content" => no_context} | _]}
+      assert no_context == Cake.Prompt.system_message_no_context()
+
+      assert GenServer.call(pid, :search_results) == []
+      assert :sys.get_state(pid).search_results == []
+      searches_after_first = search_request_count!(collection)
+
+      assert :ok = Conversation.autoask(pid, "Really nothing?")
+      assert_receive {:response_ready, %{response: "I could not find anything about that."}}
+      assert_receive {:prompt, [%{"role" => "system", "content" => ^no_context} | _]}
+
+      assert search_request_count!(collection) == searches_after_first
+      assert :sys.get_state(pid).search_results == []
+    end
+  end
+
+  describe "citation hygiene" do
+    setup :seed_standard_corpus
+
+    test "a marker with no chunk behind it is dropped from the text and the citations",
+         %{corpus: corpus, pump: pump} do
+      expect_query_embedding(@question, blend_vector([{0, 0.8}, {1, 0.6}]))
+      script_generation!(fn _messages -> "The P-100 [1], as noted [9]." end)
+
+      pid = start_subscribed_conversation!(conversation_opts(corpus.gds))
+
+      assert :ok = Conversation.autoask(pid, @question)
+      assert_receive {:response_ready, %{response: response, citations: citations}}
+
+      assert citation_markers(response) == [1]
+      assert response == "The P-100 [1], as noted ."
+      assert [%{new_index: 1, old_index: 1, id: id}] = citations
+      assert id == pump.id
+      refute Enum.any?(citations, &(&1.old_index == 9))
+    end
+  end
+
+  defp filter_id(%{chunks: [_pump, _warranty, filter]}), do: filter.id
 
   # A citation record is the Citable metadata of the seeded chunk plus the
   # two indices; nothing invented, nothing dropped along the way.
