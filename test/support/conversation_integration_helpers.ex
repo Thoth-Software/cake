@@ -291,7 +291,15 @@ defmodule Cake.ConversationIntegrationHelpers do
   retrieve.
   """
   @spec search_request_count!(String.t()) :: non_neg_integer()
-  def search_request_count!(_collection), do: raise("not implemented yet (#249 item 4)")
+  def search_request_count!(collection) when is_binary(collection) do
+    # Raw path, so the index name carries the Snap namespace itself.
+    path = "/#{SearchIntegrationCase.index_namespace()}-#{collection}/_stats/search"
+
+    case Cake.Search.Deployment.get(path) do
+      {:ok, %{"_all" => %{"total" => %{"search" => %{"query_total" => count}}}}} -> count
+      {:error, error} -> raise "search stats for #{collection} failed: #{inspect(error)}"
+    end
+  end
 
   @doc "The `[N]` citation markers in `text`, in order of appearance, duplicates kept."
   @spec citation_markers(String.t()) :: [pos_integer()]
