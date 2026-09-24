@@ -56,20 +56,14 @@ defmodule Cake.Books.Pdf.Pipeline do
     sorted_pages = Enum.sort_by(pages, & &1.page_number)
     all_text = sorted_pages |> Enum.map(& &1.text) |> Enum.join(" ")
 
-    title =
-      case metadata_title do
-        t when is_binary(t) and t != "" -> t
-        _ -> title_fallback(sorted_pages, path)
-      end
-
     %{
       pages: sorted_pages,
       skipped: skipped,
-      title: title,
+      title: resolve_title(metadata_title, sorted_pages, path),
       source_file_path: path,
       file_hash: Base.encode16(:crypto.hash(:sha256, binary), case: :lower),
       file_size: byte_size(binary),
-      total_pages: length(sorted_pages),
+      total_pages: length(sorted_pages) + length(skipped),
       word_count: count_words(all_text)
     }
   end
@@ -130,6 +124,14 @@ defmodule Cake.Books.Pdf.Pipeline do
   defp count_words(text) do
     length(String.split(text, ~r/\s+/, trim: true))
   end
+
+  # The title fallback chain: a non-blank metadata title wins; otherwise the
+  # first line of the first extracted page; otherwise the filename.
+  defp resolve_title(metadata_title, _pages, _path)
+       when is_binary(metadata_title) and metadata_title != "",
+       do: metadata_title
+
+  defp resolve_title(_metadata_title, pages, path), do: title_fallback(pages, path)
 
   defp title_fallback(pages, path) do
     case pages do
