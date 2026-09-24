@@ -171,6 +171,8 @@ The application starts children in this order under Cake.Application:
 9. `DynamicSupervisor` (`Cake.ConversationSupervisor`) — supervises the per-session `Conversation` GenServers started via `Conversation.start/1` (`:temporary` children; each stops on its own when its `:owner` LiveView exits)
 10. `CakeWeb.Endpoint` — Phoenix HTTP server (last, so all dependencies are ready)
 
+Phoenix runs `server: false` in test, so this boot order is exercised in CI only by the compose smoke test, which boots the real stack through `entrypoint.sh` and asserts that step 7 created both collections (CLAUDE.md "Compose smoke test").
+
 ### Module Boundaries (enforced by `boundary`)
 
 The layer responsibilities above are enforced at compile time by the [`boundary`](https://hex.pm/packages/boundary) compiler. Each top-level context is a boundary that declares the boundaries it may call (`deps`) and the modules it makes public (`exports`); any cross-boundary call not covered by a declared dep fails the build.
@@ -472,6 +474,7 @@ lib/
   mix/tasks/
     hooks.install.ex         # `mix hooks.install` — installs the git hooks from priv/hooks/
     precommit.ex             # `mix precommit` — pre-push gate chain, each step in its own MIX_ENV (see CLAUDE.md "Pre-push")
+    cake.nif.check.ex        # `mix cake.nif.check PATH` — extracts a PDF through the parsebooks NIF without starting the app; the compose smoke test's in-container NIF check
 
 test/                        # (abbreviated — test/cake/ and test/cake_web/ mirror lib/)
   test_helper.exs            # Starts ExUnit; sets :skip_search_backend (unit run) or repoints Deployment at a real cluster (--only integration)
@@ -506,4 +509,10 @@ config/
   runtime.exs                # Runtime config (reads env vars)
 
 native/parsebooks/           # Rust crate for PDF parsing via Rustler
+
+ci/
+  compose_smoke.sh           # docker-compose smoke test — the PR merge gate on the containers themselves (CLAUDE.md "Compose smoke test")
+docker-compose.yml           # Dev stack: cake_app (Dockerfile + entrypoint.sh), cake_db (Postgres 14), cake_opensearch
+docker-compose.ci.yml        # Smoke-test override: no dev bind mount, no db/opensearch host ports, pinned OpenSearch, smoke container names
+.env.ci                      # Checked-in, secret-free environment the smoke test interpolates into the compose files
 ```
