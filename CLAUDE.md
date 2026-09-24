@@ -81,6 +81,15 @@ mix test --only integration        # MIX_ENV=test; OPENSEARCH_URL overrides http
 
 `OPENSEARCH_URL` is read by the integration test setup; leave it unset on the host, or set it to `http://opensearch:9200` when running inside the `cake_app` container.
 
+### Live LLM tests (merge gate, internal PRs only)
+
+Test tags split by what a test *needs*, not by how slow it is:
+
+- `:integration` — hermetic infrastructure (OpenSearch, the Rustler NIF, Oban): free and deterministic, so a required merge gate on every PR (`mix test --only integration`, above).
+- `:llm` — real provider calls: secret-bearing (`OPENAI_KEY`), cost-bearing, and rate-limit-flaky. `test_helper.exs` excludes it from every default run alongside `:integration`; only `mix test --only llm` runs it.
+
+The `llm` job in `quality.yml` runs `mix test --only llm` with `OPENAI_KEY` from repository secrets, guarded by `github.event.pull_request.head.repo.full_name == github.repository`: fork PRs never receive secrets, and the guard *skips* the job rather than soft-failing it, so on an internal PR a missing or broken key turns the gate red while on a fork PR the skipped job satisfies the required check. Register the job as its own required status check. Locally: `OPENAI_KEY=... mix test --only llm`. Assertions pin shapes and invariants (vector length, schema validity, marker parseability, loop termination) — never generated content or reasoning text — and corpora stay tiny and models cheap.
+
 ---
 
 ## When to Stop and Ask

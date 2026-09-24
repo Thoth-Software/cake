@@ -4,7 +4,11 @@
 # file). A mixed run (`--include integration`) raises here, on purpose.
 run_mode = Cake.SearchIntegrationCase.run_mode()
 
-ExUnit.start(exclude: [:integration], assert_receive_timeout: 1_000)
+# Two opt-in tags, both excluded by default (CLAUDE.md "Live LLM tests"):
+# :integration is hermetic infrastructure (OpenSearch, NIF, Oban), run by
+# `mix test --only integration`; :llm is real provider calls — secret- and
+# cost-bearing — run by `mix test --only llm` with OPENAI_KEY set.
+ExUnit.start(exclude: [:integration, :llm], assert_receive_timeout: 1_000)
 Ecto.Adapters.SQL.Sandbox.mode(Cake.Repo, :manual)
 
 # Search-backend operations are skipped in every run mode: the pipelines
