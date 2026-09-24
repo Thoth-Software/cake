@@ -379,6 +379,29 @@ jobs:
       - name: Run live LLM tests
         run: mix test --only llm
 
+  compose-smoke:
+    name: Compose Smoke (merge gate)
+    runs-on: ubuntu-latest
+    # Gates the containers themselves (#250): builds the Dockerfile, boots the
+    # docker-compose stack through entrypoint.sh, and probes the running
+    # containers for what no ExUnit job can see -- the real boot path (Phoenix
+    # runs `server: false` in test, so Cake.Application's supervision order
+    # and Cake.Search.Deployment's boot-time collection creation run nowhere
+    # else in CI) and entrypoint.sh's forced NIF recompile. The `integration`
+    # job tests the code inside service containers; this one tests the
+    # topology that runs it, and is its executable record. PR-only, and
+    # slower than the ExUnit jobs by design: the image build compiles the app
+    # and the NIF from scratch, then entrypoint.sh recompiles them again.
+    # Register `Compose Smoke (merge gate)` as its own required check.
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build, boot, and probe the compose stack
+        run: ci/compose_smoke.sh
+
   dialyzer:
     name: Dialyzer
     runs-on: ubuntu-latest
