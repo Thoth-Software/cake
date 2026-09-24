@@ -72,16 +72,49 @@ defmodule Cake.SearchIntegrationCase do
     %{collection: collection}
   end
 
+  @typedoc "An entry of ExUnit's include/exclude lists: a bare tag or a `{tag, value}` pair."
+  @type tag_filter :: atom() | {atom(), term()}
+
+  @typedoc "The shape of an ExUnit run: a unit run, or an exclusive integration run."
+  @type run_mode :: :unit | :integration
+
   @doc """
-  Whether this ExUnit run includes `:integration`-tagged tests, i.e. was
-  started with `--only integration` or `--include integration`. Read by
-  `test/test_helper.exs` before it decides how to configure the search
-  backend. Mix implements `--only x` as `--include x --exclude test`, so
-  the include list is the signal.
+  The mode of this ExUnit run, from the CLI configuration mix applied. Read
+  it in `test/test_helper.exs` *before* `ExUnit.start/1`: mix turns
+  `--only integration` into `include: [:integration], exclude: [:test]`,
+  and `ExUnit.start/1` replaces the exclude list (mix merges the two back
+  together once the helper has run).
   """
-  @spec integration_run?() :: boolean()
-  def integration_run? do
-    integration_run?(Keyword.get(ExUnit.configuration(), :include, []))
+  @spec run_mode() :: run_mode()
+  def run_mode do
+    config = ExUnit.configuration()
+    run_mode(Keyword.get(config, :include, []), Keyword.get(config, :exclude, []))
+  end
+
+  @doc """
+  Classifies an ExUnit run from its include and exclude lists. Without
+  `:integration` included it is a `:unit` run. With it included *and*
+  `:test` excluded — the shape of `mix test --only integration` — it is an
+  `:integration` run. Any other mix, such as `--include integration`,
+  raises: unit tests would run against the real cluster, because the skip
+  flag and the Deployment config are global to the VM.
+  """
+  @spec run_mode([tag_filter()], [tag_filter()]) :: run_mode()
+  def run_mode(include, exclude) when is_list(include) and is_list(exclude) do
+    cond do
+      not integration_run?(include) ->
+        :unit
+
+      tagged?(exclude, :test) ->
+        :integration
+
+      true ->
+        raise ArgumentError, """
+        integration tests cannot share a run with unit tests: the search \
+        skip flag and the Cake.Search.Deployment config are global to the VM. \
+        Run them with `mix test --only integration`, not `--include integration`.\
+        """
+    end
   end
 
   @doc """
@@ -89,9 +122,15 @@ defmodule Cake.SearchIntegrationCase do
   form the CLI produces: the bare tag (`--only integration`) or a keyword
   entry with any value (`--only integration:true`).
   """
-  @spec integration_run?([atom() | {atom(), term()}]) :: boolean()
-  def integration_run?(include) when is_list(include) do
-    Enum.any?(include, &(match?(:integration, &1) or match?({:integration, _}, &1)))
+  @spec integration_run?([tag_filter()]) :: boolean()
+  def integration_run?(include) when is_list(include), do: tagged?(include, :integration)
+
+  defp tagged?(filters, tag) do
+    Enum.any?(filters, fn
+      ^tag -> true
+      {^tag, _value} -> true
+      _other -> false
+    end)
   end
 
   @doc "The cluster URL: `OPENSEARCH_URL`, or `#{@default_url}`."
