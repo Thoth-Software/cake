@@ -37,6 +37,7 @@ defmodule Cake.IngestIntegrationHelpers do
       existence on both sides keeps the two from racing.
   """
 
+  import Ecto.Query, only: [from: 2]
   import ExUnit.Callbacks, only: [on_exit: 1, start_supervised!: 1]
 
   alias Cake.Books.Adapters
@@ -47,8 +48,6 @@ defmodule Cake.IngestIntegrationHelpers do
   alias Cake.Search.Backend.OpenSearch
   alias Cake.Search.Deployment
   alias Cake.SearchIntegrationCase
-
-  import Ecto.Query, only: [from: 2]
 
   # OpenSearch's default index.max_result_window: the most one search returns.
   @max_result_window 10_000
