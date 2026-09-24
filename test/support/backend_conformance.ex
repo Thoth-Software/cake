@@ -89,10 +89,9 @@ defmodule Cake.Search.BackendConformance do
      :keyword_search},
     {":vector — knn/5 with k=30 ranks the identical vector first and returns every neighbor",
      :vector_search},
-    {":hybrid — a keyword match in should raises a document above its vector-only score",
-     :hybrid_search},
-    {":hybrid — a document outside the keyword match keeps its vector-only score",
-     :hybrid_keeps_vector_score},
+    {":hybrid — returns every vector neighbor and every keyword match", :hybrid_search},
+    {":hybrid — a keyword match outranks a non-matching document of equal vector similarity",
+     :hybrid_ranks_keyword_match_first},
     {"min_score drops every hit scoring below it", :min_score},
     {"size caps the number of hits", :size},
     {"search/1 accepts the vector query Cake.Search builds (its k and ef_search defaults)",
@@ -104,6 +103,12 @@ defmodule Cake.Search.BackendConformance do
   `:vector` (kNN over `embedding`, cosine, `k` 30), `:hybrid` (vector in
   `must`, boosted keyword in `should`), `min_score` and `size`, plus the
   exact vector query `Cake.Search` builds.
+
+  The hybrid contract is stated in ranking terms only — what comes back
+  and who outranks whom — so a backend that fuses scores differently
+  (rank fusion rather than OpenSearch's additive `must` + `should`) can
+  pass it. How OpenSearch combines the two scores is pinned in
+  `Cake.Search.Backend.OpenSearchConformanceTest`, not here.
   """
   defmacro search_modes_group do
     register_group("conformance — search modes", @search_modes_tests)
@@ -289,25 +294,28 @@ defmodule Cake.Search.BackendConformance do
   @doc false
   @spec hybrid_search(wiring(), map()) :: :ok
   def hybrid_search(wiring, %{collection: collection}) do
-    _corpus = seed_corpus!(wiring, collection)
-    {vector_hits, hybrid_hits} = vector_and_hybrid_hits(wiring, collection)
+    corpus = seed_corpus!(wiring, collection)
+    {vector_hits, hybrid_hits} = vector_and_hybrid_hits(wiring, collection, "GenServer")
 
-    # Same candidates (the vector clause is the must), re-scored: the
-    # documents matching the keyword clause gain, the rest do not.
+    # With k covering the corpus, every document is a vector neighbor and
+    # alpha and gamma are keyword matches: all of them come back.
+    assert ids(hybrid_hits) == ids(corpus)
     assert ids(hybrid_hits) == ids(vector_hits)
-    assert score_of(hybrid_hits, "alpha") > score_of(vector_hits, "alpha")
-    assert score_of(hybrid_hits, "gamma") > score_of(vector_hits, "gamma")
 
     :ok
   end
 
   @doc false
-  @spec hybrid_keeps_vector_score(wiring(), map()) :: :ok
-  def hybrid_keeps_vector_score(wiring, %{collection: collection}) do
+  @spec hybrid_ranks_keyword_match_first(wiring(), map()) :: :ok
+  def hybrid_ranks_keyword_match_first(wiring, %{collection: collection}) do
     _corpus = seed_corpus!(wiring, collection)
-    {vector_hits, hybrid_hits} = vector_and_hybrid_hits(wiring, collection)
 
-    assert_in_delta score_of(hybrid_hits, "beta"), score_of(vector_hits, "beta"), 1.0e-6
+    # alpha and gamma tie on vector similarity (both 0.5 from axis 1); only
+    # alpha contains "callbacks". Whatever the fusion, the keyword match
+    # must break that tie upward.
+    {_vector_hits, hybrid_hits} = vector_and_hybrid_hits(wiring, collection, "callbacks")
+
+    assert rank_of(hybrid_hits, "alpha") < rank_of(hybrid_hits, "gamma")
 
     :ok
   end
@@ -370,9 +378,14 @@ defmodule Cake.Search.BackendConformance do
     :ok
   end
 
-  # Vector-only hits and the hits of the same query with a boosted keyword
-  # clause in should — Cake.Search's :hybrid shape with its default weight.
-  defp vector_and_hybrid_hits(%{backend: backend}, collection) do
+  @doc """
+  Vector-only hits for axis 1, and the hits of the same query with `term`
+  as a boosted keyword clause in `should` — `Cake.Search`'s `:hybrid`
+  shape with its default weight. Shared with the backend-specific scoring
+  tests.
+  """
+  @spec vector_and_hybrid_hits(wiring(), String.t(), String.t()) :: {[Hit.t()], [Hit.t()]}
+  def vector_and_hybrid_hits(%{backend: backend}, collection, term) do
     vector_only =
       Query.knn(
         Query.new(collection, size: 30),
@@ -381,11 +394,22 @@ defmodule Cake.Search.BackendConformance do
         30
       )
 
-    hybrid = Query.match(vector_only, "GenServer", ["text"], boost: 0.8)
+    hybrid = Query.match(vector_only, term, ["text"], boost: 0.8)
 
     {:ok, vector_hits} = backend.search(vector_only)
     {:ok, hybrid_hits} = backend.search(hybrid)
     {vector_hits, hybrid_hits}
+  end
+
+  @doc "The score of the hit with `id`. Raises if there is no such hit."
+  @spec score_of([Hit.t()], String.t()) :: float()
+  def score_of(hits, id) when is_list(hits) and is_binary(id) do
+    %Hit{score: score} = Enum.find(hits, &(&1.id == id))
+    score
+  end
+
+  defp rank_of(hits, id) do
+    Enum.find_index(hits, &(&1.id == id)) || flunk("no hit with id #{id}")
   end
 
   defp ids(hits_or_docs) do
@@ -399,10 +423,5 @@ defmodule Cake.Search.BackendConformance do
   defp sorted_by_score?(hits) do
     scores = Enum.map(hits, & &1.score)
     scores == Enum.sort(scores, :desc)
-  end
-
-  defp score_of(hits, id) do
-    %Hit{score: score} = Enum.find(hits, &(&1.id == id))
-    score
   end
 end
