@@ -191,6 +191,15 @@ defmodule Cake.IngestIntegrationHelpers do
     end
   end
 
+  @doc """
+  Every document id in the GDS's fixed collection on the real node, after a
+  refresh, in no particular order.
+  """
+  @spec indexed_ids!(module()) :: [String.t()]
+  def indexed_ids!(_gds) do
+    raise "Cake.IngestIntegrationHelpers.indexed_ids!/1 is not implemented yet (#248)"
+  end
+
   @doc "The book's chunks from Postgres in `chunk_index` order."
   @spec chunks_in_order(ParsedBook.t()) :: [Chunk.t()]
   def chunks_in_order(%ParsedBook{id: book_id}) do
