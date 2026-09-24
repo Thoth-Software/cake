@@ -15,7 +15,7 @@ Test data follows two tracks; pick by whether the thing is Ecto-backed:
 - These are **not** auto-imported by `DataCase`/`ConnCase`/`ObanCase` — `import` the fixture module or `Cake.Factory` in each test that needs them.
 - Property tests (StreamData) go in `*_property_test.exs`. When fixing a bug found by a property test, add a corresponding example test in the standard file.
 - Mox expectations go in individual tests, not setup blocks.
-- `test_helper.exs` sets `Application.put_env(:cake, :skip_search_backend, true)` — unless the run includes `:integration` tests (`mix test --only integration`), in which case it repoints `Cake.Search.Deployment` at a real cluster instead. Unit tests that need search behavior mock the backend via Mox (`Cake.Search.Backend.Mock`) or the `Cake.Search.HTTPClientStub` adapter; real-cluster tests `use Cake.SearchIntegrationCase`, and a new `Cake.Search.Backend` implementation instantiates `Cake.Search.BackendConformance`.
+- `test_helper.exs` sets `Application.put_env(:cake, :skip_search_backend, true)` in every run mode; only `Cake.SearchIntegrationCase` turns it off, in its own setup, for the tests that use it. An integration run (`mix test --only integration`) additionally repoints `Cake.Search.Deployment` at a real cluster. Unit tests that need search behavior mock the backend via Mox (`Cake.Search.Backend.Mock`) or the `Cake.Search.HTTPClientStub` adapter; real-cluster tests `use Cake.SearchIntegrationCase`, and a new `Cake.Search.Backend` implementation instantiates `Cake.Search.BackendConformance`. A pre-existing `:integration`-tagged test that runs a pipeline but is not about search (the Oban job tests) pins the flag on in its own setup.
 
 ## Never use `Process.sleep` to wait for async results
 
