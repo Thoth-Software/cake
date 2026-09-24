@@ -49,7 +49,10 @@ Thumbs.db
 # Docker (don't send yourself)
 Dockerfile
 docker-compose.yml
+docker-compose.ci.yml
 .dockerignore
+.env.ci
+ci/
 
 # Scripts and docs not needed at runtime
 monitor_cake.sh
