@@ -34,7 +34,7 @@ printed manuscript page number (see #87).
 | `no_title.pdf` | 2, all with text | none (no Info dictionary) | The middle link of the fallback chain: the title is the first line of the first page. |
 | `junk_title.pdf` | 2, all with text | `Rev. 6/07` | A junk-but-present metadata title (the #86 symptom) above a real heading on the first page. Pins the current behaviour — the metadata title is honoured — until #86 decides otherwise. |
 | `skipped_page.pdf` | 3; page 2's content stream has a `Tf` operator with no operands | `Partially Extractable` | Partially extractable input: lopdf fails that one page with `syntax error in content stream: missing font operand`, so it lands in `skipped` while pages 1 and 3 extract normally. (lopdf tolerates most other damage — unterminated strings, unbalanced delimiters, binary garbage — and yields an empty page instead, so this is the corruption that reliably errors.) |
-| `truncated.pdf` | — | — | The first 256 bytes of `multi_page.pdf`: a valid header with no page tree, xref table or trailer. Loading fails with `PDF load failed: …`, as an `{:error, reason}` tuple, never a crash across the NIF boundary. |
+| `truncated.pdf` | — | — | The first 256 bytes of `multi_page.pdf`: the header and objects 1–3 (catalog, page tree, font) intact, the cut inside object 4 (the first page), and no page objects, xref table or trailer. Loading fails with `PDF load failed: failed parsing cross reference table: …`, as an `{:error, reason}` tuple, never a crash across the NIF boundary. |
 
 ### Extracted text, per fixture
 

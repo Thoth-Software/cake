@@ -85,8 +85,9 @@ defmodule Cake.PdfFixtureGenerator do
     )
   end
 
-  # The first 256 bytes of a valid PDF: the header is intact but the page
-  # tree, xref table and trailer are gone.
+  # The first 256 bytes of a valid PDF: the header and objects 1-3 (catalog,
+  # page tree, font) survive intact, the cut lands inside object 4 (the
+  # first page), and the page objects, xref table and trailer are gone.
   defp truncated(valid_pdf), do: binary_part(valid_pdf, 0, 256)
 
   # ---------------------------------------------------------------------
