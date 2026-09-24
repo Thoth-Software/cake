@@ -22,6 +22,7 @@ services:
       # DATABASE_URL: "postgres://postgres@db/cake_dev"
       OPENSEARCH_URL: "http://opensearch:9200"
       OPENSEARCH_INITIAL_ADMIN_PASSWORD: "${OPENSEARCH_INITIAL_ADMIN_PASSWORD}"
+      S3_ENDPOINT_URL: "http://moto:9000"
       OPENAI_KEY: "${OPENAI_KEY}"
     volumes:
       - .:/app
@@ -76,6 +77,28 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:9200 || exit 1"]
       interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # S3-compatible object store (moto's standalone server) for the integration
+  # test run only (`mix test --only integration`; CLAUDE.md "Integration
+  # tests"): the Cake.Books.Adapters.S3 suite creates a bucket per test here
+  # and drops it again. Not a dependency of the app container — dev uses the
+  # Disk adapter. Same image and settings as the `moto` service in
+  # .github/workflows/quality.yml (which also says why moto rather than MinIO
+  # or LocalStack); it accepts any key pair, the case template sends a fixed
+  # one. Listens on 9000 rather than moto's default 5000, which macOS
+  # reserves for AirPlay. Nothing is persisted across restarts.
+  moto:
+    image: motoserver/moto:5.2.3
+    container_name: cake_moto
+    environment:
+      - "MOTO_PORT=9000"
+    ports:
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/moto-api/ || exit 1"]
+      interval: 5s
       timeout: 5s
       retries: 5
 
