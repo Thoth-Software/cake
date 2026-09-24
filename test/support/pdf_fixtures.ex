@@ -36,4 +36,14 @@ defmodule Cake.PdfFixtures do
   @doc "The named fixture's bytes, as `Cake.ParseBooks.extract_pdf/1` takes them."
   @spec fixture_binary(name()) :: binary()
   def fixture_binary(name), do: name |> fixture_path() |> File.read!()
+
+  @doc """
+  Runs `Cake.Books.Pdf.Pipeline.parse/1` over the named fixture, keyed by its
+  `fixture_path/1`, and returns the bare `{ParsedBook, [Chunk]}` pair the
+  callback produces (unpersisted). Raises, as `parse/1` does, when the
+  fixture cannot be loaded.
+  """
+  @spec parse_fixture(name()) :: {Cake.Books.ParsedBook.t(), [Cake.Books.Chunk.t()]}
+  def parse_fixture(_name),
+    do: raise("Cake.PdfFixtures.parse_fixture/1 is not implemented (#246)")
 end
