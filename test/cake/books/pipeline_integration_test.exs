@@ -27,6 +27,7 @@ defmodule Cake.Books.PipelineIntegrationTest do
   alias Cake.Books.Pdf
   alias Cake.Books.Pipeline
   alias Cake.FailedIngests.FailedIngest
+  alias Cake.Pipelines
   alias Cake.Repo
   alias Cake.Search
   alias Cake.Search.Hit
@@ -263,6 +264,114 @@ defmodule Cake.Books.PipelineIntegrationTest do
 
       assert Books.list_parsed_books() == []
       assert indexed_ids!(ParsedBook) == []
+    end
+  end
+
+  describe "sweep and retry (run-scoped per PR #265)" do
+    defp ingest_with_sweep(keys, opts \\ []) do
+      Pipeline.ingest_with_sweep(:openai, Pdf.Pipeline, embedding_model(), keys, opts)
+    end
+
+    test "a chunk whose embed failed once is re-embedded and re-indexed by the sweep, its failure deleted" do
+      key = stage_fixture!(:multi_page)
+      {_book, [_first, second, _third]} = parse_fixture(:multi_page)
+      stub_embeddings(once_then_deterministic(%{embed_input(second) => {:error, "transient"}}))
+
+      # The return is the run's own honest summary; the sweep's outcome is
+      # logged, never folded into it.
+      assert {:ok, %{indexed: 2, failed: 1}} = ingest_with_sweep([key])
+
+      assert Repo.all(FailedIngest) == []
+      assert [%ParsedBook{} = book] = Books.list_parsed_books()
+      [first, persisted_second, third] = chunks_in_order(book)
+      assert persisted_second.embedding == deterministic_embedding(embed_input(persisted_second))
+
+      assert Enum.sort(indexed_ids!(ParsedBook)) ==
+               Enum.sort([first.id, persisted_second.id, third.id])
+
+      second_id = persisted_second.id
+      query_vector = deterministic_embedding(embed_input(persisted_second))
+
+      assert {:ok, [%Hit{id: ^second_id, score: 1.0} | _]} =
+               Search.search_chunks(:vector, "", query_vector, gds: ParsedBook)
+
+      # Deliberately unpinned: the book's embedding_status is still :failed
+      # here — the run set it, and retry_from_chunk never revisits it after
+      # resolving the chunk. Whether a sweep should update it is a question
+      # for its own issue, not something this suite decides (#248).
+    end
+
+    test "a chunk the index rejected once (wrong-dimension vector) is re-embedded and re-indexed by the sweep" do
+      key = stage_fixture!(:multi_page)
+      {_book, [_first, second, _third]} = parse_fixture(:multi_page)
+      stub_embeddings(once_then_deterministic(%{embed_input(second) => [1.0, 0.0, 0.0]}))
+
+      # The embed "succeeds", the chunk is updated with the bad vector, and
+      # the real index rejects it: a "search_backend.index" failure keyed by
+      # the chunk id, which retry_from_chunk resolves by embedding again.
+      assert {:ok, %{indexed: 2, failed: 1}} = ingest_with_sweep([key])
+
+      assert Repo.all(FailedIngest) == []
+      assert [%ParsedBook{} = book] = Books.list_parsed_books()
+      [first, persisted_second, third] = chunks_in_order(book)
+      assert persisted_second.embedding == deterministic_embedding(embed_input(persisted_second))
+
+      assert Enum.sort(indexed_ids!(ParsedBook)) ==
+               Enum.sort([first.id, persisted_second.id, third.id])
+    end
+
+    test "an unresolvable failure remains after max_sweeps with its run-scoped count intact; resolvable ones are deleted" do
+      key = stage_fixture!(:multi_page)
+      {_book, [_first, second, third]} = parse_fixture(:multi_page)
+      permanent = embed_input(third)
+      transient = once_then_deterministic(%{embed_input(second) => {:error, "transient"}})
+
+      stub_embeddings(fn
+        ^permanent -> {:error, "permanent"}
+        input -> transient.(input)
+      end)
+
+      assert {:ok, %{indexed: 1, failed: 2}} = ingest_with_sweep([key], max_sweeps: 2)
+
+      assert [%ParsedBook{} = book] = Books.list_parsed_books()
+      [first, persisted_second, persisted_third] = chunks_in_order(book)
+
+      assert [%FailedIngest{step: "books.embed", pipeline_fatal: false} = remaining] =
+               Repo.all(FailedIngest)
+
+      assert remaining.input_identifier == persisted_third.id
+      assert remaining.error_text =~ "permanent"
+      assert Pipelines.count_failures(%Pipelines.Context{run_id: remaining.run_id}) == 1
+
+      assert persisted_second.embedding == deterministic_embedding(embed_input(persisted_second))
+      assert persisted_third.embedding == nil
+      assert Enum.sort(indexed_ids!(ParsedBook)) == Enum.sort([first.id, persisted_second.id])
+    end
+
+    test "failures recorded by another run of the same pipeline are untouched by this run's sweep" do
+      # An earlier run's book, so the other run's failure names a chunk a
+      # retry could resolve — a sweep that reached it would delete it.
+      stub_embeddings()
+      earlier_key = stage_fixture!(:no_title)
+      assert {:ok, %{indexed: 2, failed: 0}} = ingest([earlier_key])
+      assert [%ParsedBook{} = earlier_book] = Books.list_parsed_books()
+      [earlier_chunk | _rest] = chunks_in_order(earlier_book)
+
+      other_run = Pipelines.build_context(Pipeline, Pdf.Pipeline, embedding_model())
+
+      {:ok, %FailedIngest{id: other_id}} =
+        Pipelines.log_and_persist_failure(other_run, "books.embed", {earlier_chunk.id, "theirs"})
+
+      # This run records one transient failure of its own and sweeps it up.
+      key = stage_fixture!(:multi_page)
+      {_book, [_first, second, _third]} = parse_fixture(:multi_page)
+      stub_embeddings(once_then_deterministic(%{embed_input(second) => {:error, "transient"}}))
+
+      assert {:ok, %{indexed: 2, failed: 1}} = ingest_with_sweep([key])
+
+      assert [%FailedIngest{id: ^other_id, run_id: other_run_id}] = Repo.all(FailedIngest)
+      assert other_run_id == other_run.run_id
+      assert Pipelines.count_failures(other_run) == 1
     end
   end
 end
