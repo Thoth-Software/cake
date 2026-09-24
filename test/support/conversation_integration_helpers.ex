@@ -301,6 +301,27 @@ defmodule Cake.ConversationIntegrationHelpers do
     end
   end
 
+  @not_implemented_5 "not implemented yet (#249 item 6)"
+
+  @typedoc "A messages list as posted over the wire (string keys) or as a Mox mock received it (atom keys)."
+  @type any_messages :: wire_messages() | [Cake.Generation.message()]
+
+  @doc "A `Cake.Decomposition.Result` marked `:self_ask`, as only a strategy module can mark it."
+  @spec self_ask_result(String.t()) :: Cake.Decomposition.Result.t()
+  def self_ask_result(_question), do: raise(@not_implemented_5)
+
+  @doc "A `Cake.Decomposition.Result` marked `:ircot`, as only a strategy module can mark it."
+  @spec ircot_result(String.t()) :: Cake.Decomposition.Result.t()
+  def ircot_result(_question), do: raise(@not_implemented_5)
+
+  @doc "Whether `messages` is a self-ask driver prompt (its system message teaches the final-answer marker)."
+  @spec driver_prompt?(any_messages()) :: boolean()
+  def driver_prompt?(_messages), do: raise(@not_implemented_5)
+
+  @doc "Every message's content in `messages`, joined by newlines, whichever key shape it has."
+  @spec prompt_text(any_messages()) :: String.t()
+  def prompt_text(_messages), do: raise(@not_implemented_5)
+
   @doc "The `[N]` citation markers in `text`, in order of appearance, duplicates kept."
   @spec citation_markers(String.t()) :: [pos_integer()]
   def citation_markers(text) when is_binary(text) do
