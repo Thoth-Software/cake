@@ -75,7 +75,7 @@ The ingestion layer has two pipeline behaviours because the two GDSes have funda
 
 **`Cake.Documents.Pipeline`** is the behaviour for ingesting programming documentation. Its GDS is `ParsedDocument`. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `success_message/1`, and optionally `retry_from_raw/2`. The module also contains the `ingest/4` orchestrator that sequences callbacks into a stream pipeline — download → persist raw → parse → persist parsed → embed → index — plus an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Documents.Hexdocs.Pipeline`.
 
-**`Cake.Books.Pipeline`** is the behaviour for ingesting books and book-like documents. Its GDS is `ParsedBook` + `Chunk`. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. Like `Documents.Pipeline`, the module also contains its own `ingest/4` orchestrator and an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Books.Pdf.Pipeline`, which uses a Rustler NIF (`parsebooks` Rust crate wrapping `pdf-extract`).
+**`Cake.Books.Pipeline`** is the behaviour for ingesting books and book-like documents. Its GDS is `ParsedBook` + `Chunk`. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. Like `Documents.Pipeline`, the module also contains its own `ingest/4` orchestrator and an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Books.Pdf.Pipeline`, which uses a Rustler NIF (`parsebooks` Rust crate wrapping `pdf-extract`). The NIF's contract and `parse/1` are pinned against fixture PDFs in the `integration` CI job (CLAUDE.md "Integration tests").
 
 **`Cake.Pipelines`** provides shared infrastructure used by both pipeline types: `detuple_with_logging/3` filters `{:ok, _}/{:error, _}` streams and persists errors to `FailedIngest`, `add_to_search_backend/3` handles index upserts, and `sweep/3` implements a retry loop for item-level failures. A `Context` struct carries pipeline identity (behaviour, implementation, version) plus a per-run `run_id` through a run: the identity fields give error provenance, and `run_id` scopes `count_failures/1`, `finalize_ingest/3`, and `sweep/3` to one run so concurrent ingests of the same source never count or retry each other's failures.
 
@@ -483,7 +483,9 @@ test/                        # (abbreviated — test/cake/ and test/cake_web/ mi
     conn_case.ex             #   Phoenix conn setup
     oban_case.ex             #   Oban testing helpers
     factory.ex               #   Cake.Factory (ExMachina) — non-Ecto structs via build/1 (e.g. ConvoChunk)
+    pdf_fixtures.ex          #   Cake.PdfFixtures — fixture PDFs by name (fixture_binary/1, fixture_path/1, parse_fixture/1) for the NIF integration suite
     fixtures/                #   Phoenix-style *_fixture/1 helpers for Ecto schemas
+      pdfs/                  #     Hand-built fixture PDFs + generate.exs + README (what each pins, how to regenerate)
     test_pipeline.ex         #   Mock pipeline implementations (Documents)
     test_books_pipeline.ex   #   Mock Books.Pipeline implementation
     mocks.ex                 #   Mox mock definitions
