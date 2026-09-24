@@ -1,13 +1,14 @@
 defmodule Cake.Search.DeploymentIntegrationTest do
   @moduledoc """
-  `Cake.Search.Deployment.create_collections_unless_exist/1` against a real
+  `Cake.Search.Deployment.create_collections_unless_exist/2` against a real
   node (#245): the boot path that creates every configured collection. The
-  tests never wait on the 10s boot task `init/1` spawns; they call the
-  function directly, with `:search_collections` pointed at a collection
-  named for the test, so nothing collides with the task's own run or with
-  other tests.
+  tests hand the function an explicit collection list naming the test's own
+  collection, so they never touch `:search_collections` and the 10s boot
+  task `init/1` spawns (which reads that config) can neither observe nor
+  race them.
 
-  `async: false`: `:search_collections` is application config.
+  `async: false`: the stand-in name module reads its name from application
+  config.
   """
 
   use Cake.SearchIntegrationCase, async: false
@@ -31,12 +32,12 @@ defmodule Cake.Search.DeploymentIntegrationTest do
 
   defp deployment_pid, do: Process.whereis(Deployment)
 
-  describe "create_collections_unless_exist/1" do
-    test "creates a configured collection that is missing, with its schema's mapping",
+  @collections [{BootCollection, Cake.Books.Chunk}]
+
+  describe "create_collections_unless_exist/2" do
+    test "creates a listed collection that is missing, with its schema's mapping",
          %{collection: collection} do
-      with_search_collections([{BootCollection, Cake.Books.Chunk}], fn ->
-        assert :ok = Deployment.create_collections_unless_exist(deployment_pid())
-      end)
+      assert :ok = Deployment.create_collections_unless_exist(deployment_pid(), @collections)
 
       assert {:ok, listed} = OpenSearch.list_collections()
       assert collection in listed
@@ -44,23 +45,19 @@ defmodule Cake.Search.DeploymentIntegrationTest do
     end
 
     test "is idempotent: a re-run leaves an existing collection alone", %{collection: collection} do
-      with_search_collections([{BootCollection, Cake.Books.Chunk}], fn ->
-        assert :ok = Deployment.create_collections_unless_exist(deployment_pid())
-        assert :ok = Deployment.create_collections_unless_exist(deployment_pid())
-      end)
+      assert :ok = Deployment.create_collections_unless_exist(deployment_pid(), @collections)
+      assert :ok = Deployment.create_collections_unless_exist(deployment_pid(), @collections)
 
       assert {:ok, listed} = OpenSearch.list_collections()
       assert Enum.count(listed, &(&1 == collection)) == 1
     end
 
-    test "restores the :search_collections config afterwards" do
-      original = Deployment.collections()
+    test "leaves the configured :search_collections untouched" do
+      before = Deployment.collections()
 
-      with_search_collections([{BootCollection, Cake.Books.Chunk}], fn ->
-        assert Deployment.collections() == [{BootCollection, Cake.Books.Chunk}]
-      end)
+      assert :ok = Deployment.create_collections_unless_exist(deployment_pid(), @collections)
 
-      assert Deployment.collections() == original
+      assert Deployment.collections() == before
     end
   end
 end

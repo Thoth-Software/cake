@@ -32,10 +32,13 @@ defmodule Cake.SearchIntegrationCase do
     * The production mapping sets `index.refresh_interval` to 30s, so
       nothing indexed is searchable until `refresh!/1` is called.
     * `Cake.Search.Deployment.init/1` spawns a task that sleeps 10s and then
-      creates the configured collections. Tests never wait on it: they
-      create what they need themselves, under names of their own. (The
-      restart in `start_real_deployment!/0` spawns a second such task; both
-      land in the namespace and neither is a test's concern.)
+      creates the collections in `:search_collections`. Tests never wait on
+      it and never touch that config: they create what they need under
+      names of their own, and the boot-path tests pass their collection
+      list to `create_collections_unless_exist/2` explicitly, so the task
+      can neither observe nor race them. (The restart in
+      `start_real_deployment!/0` spawns a second such task; both land in
+      the namespace and neither is a test's concern.)
     * Collection names are random per test, so async tests never see each
       other's indices, and a crashed run leaves nothing a later run can
       collide with.
@@ -185,30 +188,6 @@ defmodule Cake.SearchIntegrationCase do
     [%{"settings" => %{"index" => settings}}] = Map.values(response)
     settings
   end
-
-  @doc """
-  Runs `fun` with `:search_collections` set to `collections`, restoring
-  the previous config afterwards even if `fun` raises. For `async: false`
-  tests only: the config is global.
-  """
-  @spec with_search_collections([{module(), module()}], (-> result)) :: result when result: term()
-  def with_search_collections(collections, fun)
-      when is_list(collections) and is_function(fun, 0) do
-    original = Application.fetch_env(:cake, :search_collections)
-    Application.put_env(:cake, :search_collections, collections)
-
-    try do
-      fun.()
-    after
-      restore_search_collections(original)
-    end
-  end
-
-  defp restore_search_collections({:ok, original}),
-    do: Application.put_env(:cake, :search_collections, original)
-
-  defp restore_search_collections(:error),
-    do: Application.delete_env(:cake, :search_collections)
 
   defp new_collection_prefix do
     "it_" <> Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
