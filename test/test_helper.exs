@@ -21,7 +21,11 @@ Application.put_env(:cake, :skip_search_backend, true)
 
 # An integration run (`mix test --only integration`) additionally repoints
 # Cake.Search.Deployment at the real cluster (OPENSEARCH_URL, `cake_test`
-# namespace) for the whole run, so the tests that opt in really index.
+# namespace) for the whole run, so the tests that opt in really index, and
+# waits for the S3-compatible store at S3_ENDPOINT_URL to answer; the tests
+# that opt in (`use Cake.S3IntegrationCase`) point ExAws at it themselves,
+# one bucket per test.
 if run_mode == :integration do
   Cake.SearchIntegrationCase.start_real_deployment!()
+  Cake.S3IntegrationCase.await_endpoint!()
 end

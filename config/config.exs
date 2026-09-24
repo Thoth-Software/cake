@@ -17,6 +17,15 @@ config :cake,
   book_storage_adapter: Cake.Books.Adapters.Disk,
   book_storage_tenant: "default"
 
+# ExAws — the client behind Cake.Books.Adapters.S3 — sends its requests
+# through Req, which Cake already depends on. ExAws's own default is hackney,
+# which is not a dependency here: without this line every S3 adapter call
+# raised UndefinedFunctionError for :hackney.request/5 (found by the #251
+# integration suite). Credentials are not configured: the adapter assumes an
+# IAM role in production, and the S3 integration case template supplies a
+# key pair in test.
+config :ex_aws, http_client: ExAws.Request.Req
+
 # Configures the endpoint
 config :cake, CakeWeb.Endpoint,
   url: [host: "localhost"],
