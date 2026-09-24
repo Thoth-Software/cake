@@ -1,0 +1,35 @@
+# CI override for the docker-compose smoke test (ci/compose_smoke.sh, #250),
+# layered on top of docker-compose.yml:
+#
+#   docker compose --env-file .env.ci -f docker-compose.yml -f docker-compose.ci.yml ...
+#
+# The base file is the deployment topology under test and stays as it is;
+# this file changes only what a throwaway CI stack needs. `!reset` empties a
+# list the base file fills (Compose v2.24+, which the GitHub runners ship).
+services:
+  phoenix:
+    container_name: cake_smoke_app
+    # No bind mount. The dev stack overlays the host checkout onto /app so
+    # edits show up live, which is precisely what hides the image's own build
+    # and forces entrypoint.sh's recompile sequence. Here the image runs as
+    # built: /app is what `docker compose build` produced from the Dockerfile,
+    # so the smoke test exercises that sequence against the image itself.
+    # The fixture PDFs under test/support/fixtures/pdfs/ are in the image
+    # because .dockerignore does not exclude test/.
+    volumes: !reset []
+
+  db:
+    container_name: cake_smoke_db
+    # Nothing on the runner needs Postgres: the smoke script queries it
+    # through `docker compose exec db`, so no host port and no clash with a
+    # developer's own Postgres.
+    ports: !reset []
+
+  opensearch:
+    container_name: cake_smoke_opensearch
+    # Pinned rather than `latest`, for the reason the `integration` job pins
+    # its service container in .github/workflows/quality.yml: a vendor release
+    # must not turn a merge gate red on its own. Bump the two together.
+    image: opensearchproject/opensearch:3.2.0
+    # Queried through `docker compose exec opensearch`, so no host ports.
+    ports: !reset []

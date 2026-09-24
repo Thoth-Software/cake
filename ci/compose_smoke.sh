@@ -23,6 +23,12 @@
 # leaves the stack running for a look around.
 #
 # Knobs (all optional):
+#   SMOKE_ENV_FILE             compose --env-file (default .env.ci, the checked-in
+#                              CI-safe environment).
+#   SMOKE_COMPOSE_FILES        colon-separated compose files, in override order
+#                              (default docker-compose.yml:docker-compose.ci.yml;
+#                              the override drops the dev bind mount and the
+#                              service ports the stack does not need on the host).
 #   SMOKE_PROJECT              compose project name (default cake-smoke). The
 #                              project name namespaces containers, network and
 #                              volumes, so the `down -v` here never touches a
@@ -43,13 +49,19 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+SMOKE_ENV_FILE="${SMOKE_ENV_FILE:-.env.ci}"
+SMOKE_COMPOSE_FILES="${SMOKE_COMPOSE_FILES:-docker-compose.yml:docker-compose.ci.yml}"
 SMOKE_PROJECT="${SMOKE_PROJECT:-cake-smoke}"
 SMOKE_APP_URL="${SMOKE_APP_URL:-http://localhost:4000/}"
 SMOKE_HEALTH_TIMEOUT="${SMOKE_HEALTH_TIMEOUT:-300}"
 SMOKE_BOOT_TIMEOUT="${SMOKE_BOOT_TIMEOUT:-1500}"
 SMOKE_COLLECTIONS_TIMEOUT="${SMOKE_COLLECTIONS_TIMEOUT:-120}"
 
-compose=(docker compose --project-name "$SMOKE_PROJECT")
+compose=(docker compose --project-name "$SMOKE_PROJECT" --env-file "$SMOKE_ENV_FILE")
+IFS=: read -r -a compose_files <<<"$SMOKE_COMPOSE_FILES"
+for compose_file in "${compose_files[@]}"; do
+  compose+=(--file "$compose_file")
+done
 
 # The collections Cake.Search.Deployment creates at boot: the
 # `:search_collections` entries in config/config.exs, by their
