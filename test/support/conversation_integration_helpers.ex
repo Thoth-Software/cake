@@ -301,26 +301,37 @@ defmodule Cake.ConversationIntegrationHelpers do
     end
   end
 
-  @not_implemented_5 "not implemented yet (#249 item 6)"
+  @self_ask_final_marker "So the final answer is:"
 
   @typedoc "A messages list as posted over the wire (string keys) or as a Mox mock received it (atom keys)."
   @type any_messages :: wire_messages() | [Cake.Generation.message()]
 
   @doc "A `Cake.Decomposition.Result` marked `:self_ask`, as only a strategy module can mark it."
   @spec self_ask_result(String.t()) :: Cake.Decomposition.Result.t()
-  def self_ask_result(_question), do: raise(@not_implemented_5)
+  def self_ask_result(question) when is_binary(question) do
+    %Cake.Decomposition.Result{original_question: question, strategy: :self_ask}
+  end
 
   @doc "A `Cake.Decomposition.Result` marked `:ircot`, as only a strategy module can mark it."
   @spec ircot_result(String.t()) :: Cake.Decomposition.Result.t()
-  def ircot_result(_question), do: raise(@not_implemented_5)
+  def ircot_result(question) when is_binary(question) do
+    %Cake.Decomposition.Result{original_question: question, strategy: :ircot}
+  end
 
   @doc "Whether `messages` is a self-ask driver prompt (its system message teaches the final-answer marker)."
   @spec driver_prompt?(any_messages()) :: boolean()
-  def driver_prompt?(_messages), do: raise(@not_implemented_5)
+  def driver_prompt?([system | _rest]) do
+    String.contains?(message_content(system), @self_ask_final_marker)
+  end
 
   @doc "Every message's content in `messages`, joined by newlines, whichever key shape it has."
   @spec prompt_text(any_messages()) :: String.t()
-  def prompt_text(_messages), do: raise(@not_implemented_5)
+  def prompt_text(messages) when is_list(messages) do
+    Enum.map_join(messages, "\n", &message_content/1)
+  end
+
+  defp message_content(%{"content" => content}) when is_binary(content), do: content
+  defp message_content(%{content: content}) when is_binary(content), do: content
 
   @doc "The `[N]` citation markers in `text`, in order of appearance, duplicates kept."
   @spec citation_markers(String.t()) :: [pos_integer()]
