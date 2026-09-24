@@ -18,15 +18,16 @@ defmodule Cake.EmbeddingsTest do
   transport-error branch, which we exercise below by pointing
   `:base_url` at an unreachable host.
 
-  Live OpenAI calls are out of scope for unit tests and will be tagged
-  `:integration` per #109.
+  Live OpenAI calls are out of scope for unit tests; `Cake.EmbeddingsLiveTest`
+  makes them on `Cake.LiveLLMCase`, tagged `:llm` (#247).
 
   The success path is exercised below via a `Req.Test` plug injected through
   the `:req_options` config key.
 
   ## What this file does NOT test
 
-  - Live OpenAI calls (real network) — tagged `:integration` per #109.
+  - Live OpenAI calls (real network) — `Cake.EmbeddingsLiveTest`, run by
+    `mix test --only llm`.
   - The OpenAI response-shape unhappy paths beyond transport failure.
   """
 
