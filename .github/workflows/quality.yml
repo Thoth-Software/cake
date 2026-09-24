@@ -302,6 +302,83 @@ jobs:
       - name: Run integration tests
         run: mix test --only integration
 
+  llm:
+    name: Live LLM Tests (merge gate, internal PRs)
+    runs-on: ubuntu-latest
+    # Real OpenAI calls (#247): secret-bearing, cost-bearing, rate-limit-
+    # flaky, so they are their own job rather than part of `integration`.
+    # Fork PRs never receive repository secrets, so the job runs only when
+    # the PR's head lives in this repository. That is a hard `if`, not a
+    # soft-fail on a missing key: on an internal PR a missing or broken
+    # OPENAI_KEY turns the gate red (Cake.LiveLLMCase fails loudly), while
+    # on a fork PR the job is skipped, which a required status check
+    # counts as satisfied. Register `Live LLM Tests (merge gate, internal
+    # PRs)` as its own required check.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+
+    env:
+      OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+
+    # The `test` alias runs ecto.create/ecto.migrate before ExUnit, so the
+    # job needs Postgres even though no :llm test touches the database.
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cake_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Set up Rust (for Rustler NIFs)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Mix deps + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Cache Cargo registry + NIF target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/*/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('native/**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compile
+        run: mix compile --warnings-as-errors
+
+      - name: Run live LLM tests
+        run: mix test --only llm
+
   dialyzer:
     name: Dialyzer
     runs-on: ubuntu-latest

@@ -31,6 +31,17 @@ defmodule Cake.Decomposition.LLM do
     "additionalProperties" => false
   }
 
+  @doc """
+  The JSON schema `decompose/2` sends with the decomposition prompt:
+  `{"atomic": true}` or `{"sub_questions": [...]}`, no other key.
+
+  Public so the live LLM gate (#247) validates the provider's replies
+  against exactly what production sends rather than a copy that could
+  drift; the unit test pins the two as identical.
+  """
+  @spec schema() :: map()
+  def schema, do: @schema
+
   @impl Cake.Decomposition
   @spec decompose(String.t(), keyword()) ::
           {:ok, Result.t()} | {:error, Cake.Decomposition.error_reason()}
