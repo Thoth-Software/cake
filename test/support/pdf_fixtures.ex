@@ -44,6 +44,7 @@ defmodule Cake.PdfFixtures do
   fixture cannot be loaded.
   """
   @spec parse_fixture(name()) :: {Cake.Books.ParsedBook.t(), [Cake.Books.Chunk.t()]}
-  def parse_fixture(_name),
-    do: raise("Cake.PdfFixtures.parse_fixture/1 is not implemented (#246)")
+  def parse_fixture(name) do
+    Cake.Books.Pdf.Pipeline.parse({fixture_path(name), fixture_binary(name)})
+  end
 end
