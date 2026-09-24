@@ -220,11 +220,15 @@ defmodule Cake.ConversationIntegrationHelpers do
   @spec start_subscribed_conversation!(map()) :: pid()
   def start_subscribed_conversation!(%{id: id} = opts) do
     pid = ExUnit.Callbacks.start_supervised!({Conversation, opts})
-    :ok = Phoenix.PubSub.subscribe(Cake.PubSub, Events.topic(id))
+    attach!(pid, id)
+  end
 
+  # Subscribes the calling test to the conversation's topic and allows
+  # the conversation pid — and so its turn tasks — on every collaborator.
+  defp attach!(pid, id) do
+    :ok = Phoenix.PubSub.subscribe(Cake.PubSub, Events.topic(id))
     Enum.each(@mocks, &Mox.allow(&1, self(), pid))
     allow_generation_transport!(pid)
-
     pid
   end
 
@@ -333,15 +337,29 @@ defmodule Cake.ConversationIntegrationHelpers do
   defp message_content(%{"content" => content}) when is_binary(content), do: content
   defp message_content(%{content: content}) when is_binary(content), do: content
 
-  @not_implemented_7 "not implemented yet (#249 item 8)"
-
   @doc """
   Points the `Cake.Conversation` application config `CakeWeb.ChatLive`
   starts conversations from at `gds`, with Mox embeddings, for the rest
   of the test; the previous config comes back in `on_exit`.
   """
   @spec configure_chat_conversation!(module()) :: :ok
-  def configure_chat_conversation!(_gds), do: raise(@not_implemented_7)
+  def configure_chat_conversation!(gds) when is_atom(gds) do
+    previous = Application.fetch_env!(:cake, Conversation)
+
+    Application.put_env(
+      :cake,
+      Conversation,
+      Keyword.merge(previous,
+        gds: gds,
+        embeddings: Cake.Embeddings.Mock,
+        generation: @generation_transport,
+        responses: Cake.Responses
+      )
+    )
+
+    ExUnit.Callbacks.on_exit(fn -> Application.put_env(:cake, Conversation, previous) end)
+    :ok
+  end
 
   @doc """
   The conversation a mounted `CakeWeb.ChatLive` owns: subscribes the
@@ -350,7 +368,11 @@ defmodule Cake.ConversationIntegrationHelpers do
   conversation the test started itself. Returns its pid.
   """
   @spec attach_to_chat_conversation!(Phoenix.LiveViewTest.View.t()) :: pid()
-  def attach_to_chat_conversation!(_view), do: raise(@not_implemented_7)
+  def attach_to_chat_conversation!(%Phoenix.LiveViewTest.View{pid: view_pid}) do
+    %{socket: %{assigns: %{convo_pid: pid}}} = :sys.get_state(view_pid)
+    %{id: id} = :sys.get_state(pid)
+    attach!(pid, id)
+  end
 
   @doc "The `[N]` citation markers in `text`, in order of appearance, duplicates kept."
   @spec citation_markers(String.t()) :: [pos_integer()]
