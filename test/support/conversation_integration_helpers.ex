@@ -333,6 +333,25 @@ defmodule Cake.ConversationIntegrationHelpers do
   defp message_content(%{"content" => content}) when is_binary(content), do: content
   defp message_content(%{content: content}) when is_binary(content), do: content
 
+  @not_implemented_7 "not implemented yet (#249 item 8)"
+
+  @doc """
+  Points the `Cake.Conversation` application config `CakeWeb.ChatLive`
+  starts conversations from at `gds`, with Mox embeddings, for the rest
+  of the test; the previous config comes back in `on_exit`.
+  """
+  @spec configure_chat_conversation!(module()) :: :ok
+  def configure_chat_conversation!(_gds), do: raise(@not_implemented_7)
+
+  @doc """
+  The conversation a mounted `CakeWeb.ChatLive` owns: subscribes the
+  calling test to its topic and allows it on every mock and the `Req.Test`
+  plug, exactly like `start_subscribed_conversation!/1` does for a
+  conversation the test started itself. Returns its pid.
+  """
+  @spec attach_to_chat_conversation!(Phoenix.LiveViewTest.View.t()) :: pid()
+  def attach_to_chat_conversation!(_view), do: raise(@not_implemented_7)
+
   @doc "The `[N]` citation markers in `text`, in order of appearance, duplicates kept."
   @spec citation_markers(String.t()) :: [pos_integer()]
   def citation_markers(text) when is_binary(text) do
