@@ -40,26 +40,10 @@ defmodule Cake.ConversationIntegrationTest do
 
   setup :verify_on_exit!
 
-  # No token of the question below appears in the third chunk, so its
-  # BM25 contribution is zero and its backend score is the minimum.
-  @pump_text "The RO-400 reverse osmosis unit is fitted with the P-100 booster pump."
-  @warranty_text "Every P-100 booster pump carries a five-year limited warranty."
-  @filter_text "Sediment prefilter cartridges should be replaced every six months."
+  # No token of the question below appears in the standard corpus's
+  # filter chunk, so its backend score is the minimum.
   @question "Which booster pump is fitted in the RO-400?"
   @embedder "text-embedding-ada-002"
-
-  # The three-chunk corpus above, seeded into the test's collection.
-  defp seed_standard_corpus(%{collection: collection}) do
-    corpus =
-      seed_corpus!(collection, [
-        %{text: @pump_text, axis: 0},
-        %{text: @warranty_text, axis: 1},
-        %{text: @filter_text, axis: 2}
-      ])
-
-    [pump, warranty, filter] = corpus.chunks
-    %{corpus: corpus, pump: pump, warranty: warranty, filter: filter}
-  end
 
   # A book with no chunks at all: every retrieval against it finds nothing.
   defp seed_empty_corpus(%{collection: collection}) do
@@ -101,7 +85,7 @@ defmodule Cake.ConversationIntegrationTest do
       assert List.last(rest) == %{"role" => "user", "content" => @question}
       assert String.contains?(system, "[1] " <> Promptable.prompt_context(pump))
       assert String.contains?(system, "[2] " <> Promptable.prompt_context(warranty))
-      refute String.contains?(system, @filter_text)
+      refute String.contains?(system, corpus_text(:filter))
       refute String.contains?(system, "[3] Book:")
 
       # Responses.process resolved the markers against the real chunk map
@@ -184,7 +168,7 @@ defmodule Cake.ConversationIntegrationTest do
 
       assert_receive {:prompt, [%{"role" => "system", "content" => system} | _]}
       assert String.contains?(system, "[1] " <> Promptable.prompt_context(warranty))
-      refute String.contains?(system, @pump_text)
+      refute String.contains?(system, corpus_text(:pump))
       refute String.contains?(system, "[2] Book:")
 
       assert %{new_index: 1, old_index: 1} = citation

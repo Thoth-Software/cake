@@ -38,26 +38,14 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
 
   setup :verify_on_exit!
 
-  @pump_text "The RO-400 reverse osmosis unit is fitted with the P-100 booster pump."
-  @warranty_text "Every P-100 booster pump carries a five-year limited warranty."
-  @filter_text "Sediment prefilter cartridges should be replaced every six months."
   @question "Which booster pump is fitted in the RO-400?"
   @embedder "text-embedding-ada-002"
 
-  setup %{collection: collection} do
-    corpus =
-      seed_corpus!(collection, [
-        %{text: @pump_text, axis: 0},
-        %{text: @warranty_text, axis: 1},
-        %{text: @filter_text, axis: 2}
-      ])
+  setup :seed_standard_corpus
 
+  setup %{corpus: corpus} do
     configure_chat_conversation!(corpus.gds)
-
-    conn = CakeWeb.ConnCase.log_in_user(build_conn(), Cake.AccountsFixtures.user_fixture())
-
-    [pump, warranty, _filter] = corpus.chunks
-    %{conn: conn, corpus: corpus, pump: pump, warranty: warranty}
+    %{conn: CakeWeb.ConnCase.log_in_user(build_conn(), Cake.AccountsFixtures.user_fixture())}
   end
 
   defp expect_query_embedding(question, vector) do

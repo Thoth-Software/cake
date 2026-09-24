@@ -37,12 +37,6 @@ defmodule Cake.ConversationLiveTest do
   # Generous: a live turn is several provider round trips.
   @turn_timeout :timer.seconds(120)
 
-  @corpus [
-    "The RO-400 reverse osmosis unit is fitted with the P-100 booster pump.",
-    "Every P-100 booster pump carries a five-year limited warranty.",
-    "Sediment prefilter cartridges should be replaced every six months."
-  ]
-
   # A strategy that emits the dependency edge no production strategy can
   # yet (README "Strategies and tiers"): the live part is every step's
   # embedding and generation, not the decomposition itself.
@@ -70,7 +64,7 @@ defmodule Cake.ConversationLiveTest do
   setup :integration_collection
 
   setup %{collection: collection} do
-    %{corpus: seed_corpus!(collection, live_chunk_specs!(@corpus))}
+    %{corpus: seed_corpus!(collection, live_chunk_specs!(corpus_texts()))}
   end
 
   # A live turn is several provider round trips, far past the

@@ -38,26 +38,13 @@ defmodule Cake.ConversationDecompositionIntegrationTest do
 
   setup :verify_on_exit!
 
-  @pump_text "The RO-400 reverse osmosis unit is fitted with the P-100 booster pump."
-  @warranty_text "Every P-100 booster pump carries a five-year limited warranty."
-  @filter_text "Sediment prefilter cartridges should be replaced every six months."
   @embedder "text-embedding-ada-002"
 
   @question "What is the warranty on the pump used in the RO-400?"
   @pump_question "Which pump does the RO-400 use?"
   @warranty_question "What is the warranty on that pump?"
 
-  setup %{collection: collection} do
-    corpus =
-      seed_corpus!(collection, [
-        %{text: @pump_text, axis: 0},
-        %{text: @warranty_text, axis: 1},
-        %{text: @filter_text, axis: 2}
-      ])
-
-    [pump, warranty, filter] = corpus.chunks
-    %{corpus: corpus, pump: pump, warranty: warranty, filter: filter}
-  end
+  setup :seed_standard_corpus
 
   # Each question embeds on its own axis: the pump question on the pump
   # chunk's, the warranty question on the warranty chunk's. Announces the
@@ -118,7 +105,7 @@ defmodule Cake.ConversationDecompositionIntegrationTest do
       assert List.last(rest) == %{"role" => "user", "content" => @question}
       assert String.contains?(system, Promptable.prompt_context(pump))
       assert String.contains?(system, Promptable.prompt_context(warranty))
-      refute String.contains?(system, @filter_text)
+      refute String.contains?(system, corpus_text(:filter))
       refute String.contains?(system, "[3] Book:")
 
       assert citation_markers(response) == [1, 2]
@@ -439,7 +426,7 @@ defmodule Cake.ConversationDecompositionIntegrationTest do
       assert_receive {:step, step_one, step_one_opts}
       assert Keyword.fetch!(step_one_opts, :schema) == Cake.Prompt.ircot_schema()
       assert List.last(step_one).content == @question
-      refute String.contains?(prompt_text(step_one), @pump_text)
+      refute String.contains?(prompt_text(step_one), corpus_text(:pump))
 
       # Step 2 carries step 1's reasoning and the pump chunk its query
       # surfaced — unnumbered, so no marker can point at it.

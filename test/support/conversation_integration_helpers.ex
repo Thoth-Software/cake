@@ -69,6 +69,46 @@ defmodule Cake.ConversationIntegrationHelpers do
   @typedoc "The messages list `Cake.Generation.OpenAI` posted, decoded from the request body."
   @type wire_messages :: [%{String.t() => String.t()}]
 
+  # The standard three-chunk corpus every conversation suite seeds. No
+  # token of the questions the suites ask appears in the filter chunk, so
+  # its BM25 contribution is zero and it is always the lowest-scored hit.
+  @corpus_texts [
+    pump: "The RO-400 reverse osmosis unit is fitted with the P-100 booster pump.",
+    warranty: "Every P-100 booster pump carries a five-year limited warranty.",
+    filter: "Sediment prefilter cartridges should be replaced every six months."
+  ]
+
+  @typedoc "A chunk of the standard corpus, by role."
+  @type corpus_chunk :: :pump | :warranty | :filter
+
+  @doc "The standard corpus texts in seeding order: pump, warranty, filter."
+  @spec corpus_texts() :: [String.t()]
+  def corpus_texts, do: Keyword.values(@corpus_texts)
+
+  @doc "The text of one chunk of the standard corpus."
+  @spec corpus_text(corpus_chunk()) :: String.t()
+  def corpus_text(chunk) when is_atom(chunk), do: Keyword.fetch!(@corpus_texts, chunk)
+
+  @doc """
+  Named setup that seeds the standard corpus into the test's collection
+  with chunk `i` on unit-vector axis `i`: pump on 0, warranty on 1,
+  filter on 2. Adds the corpus and the three chunks to the context.
+
+      setup :seed_standard_corpus
+  """
+  @spec seed_standard_corpus(map()) :: %{
+          corpus: corpus(),
+          pump: Chunk.t(),
+          warranty: Chunk.t(),
+          filter: Chunk.t()
+        }
+  def seed_standard_corpus(%{collection: collection}) do
+    specs = Enum.with_index(corpus_texts(), fn text, axis -> %{text: text, axis: axis} end)
+    corpus = seed_corpus!(collection, specs)
+    [pump, warranty, filter] = corpus.chunks
+    %{corpus: corpus, pump: pump, warranty: warranty, filter: filter}
+  end
+
   @doc """
   Creates `collection` with the Books mapping, inserts one `ParsedBook`
   with one `Chunk` per spec (in order, so chunk `i` has `chunk_index: i`),
@@ -134,10 +174,10 @@ defmodule Cake.ConversationIntegrationHelpers do
 
     use Cake.GDS
 
-    @config_key {__MODULE__, :collection}
+    @config_key :conversation_integration_collection
 
     @doc "The application config key holding the collection name."
-    @spec config_key() :: {module(), :collection}
+    @spec config_key() :: atom()
     def config_key, do: @config_key
 
     @impl Cake.GDS
