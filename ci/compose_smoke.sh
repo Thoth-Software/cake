@@ -17,6 +17,10 @@
 #   2. The app answers HTTP 200 through the published port.
 #   3. Both search collections exist in OpenSearch (Deployment boot ran).
 #   4. Every migration under priv/repo/migrations is in schema_migrations.
+#   5. The parsebooks NIF loads inside the app container: a one-shot
+#      `mix cake.nif.check` there extracts a fixture PDF through
+#      Cake.ParseBooks.extract_pdf/1, proving entrypoint.sh's forced-recompile
+#      sequence produced a loadable Linux .so (CLAUDE.md "NIF clobbering").
 #
 # The stack is torn down (`docker compose down -v`) on exit, success or
 # failure; on failure the container logs are printed first. SMOKE_KEEP=1
@@ -67,6 +71,11 @@ done
 # `:search_collections` entries in config/config.exs, by their
 # `collection_name/0` (Cake.Books.ParsedBook and Cake.Documents.ParsedDocument).
 collections=(chunks_of_books docs)
+
+# The fixture PDF the NIF check extracts, as a path inside the app container
+# (the image carries test/; see docker-compose.ci.yml). The happy-path fixture
+# from the NIF integration suite: three text pages, nothing skipped.
+nif_fixture=test/support/fixtures/pdfs/multi_page.pdf
 
 poll_interval=5
 
@@ -178,5 +187,12 @@ applied_migrations=$("${compose[@]}" exec -T db \
 [ "$applied_migrations" = "$expected_migrations" ] ||
   fail "Expected $expected_migrations migrations in schema_migrations, found '$applied_migrations'"
 log "All $applied_migrations migrations applied"
+
+# The .so the entrypoint compiled has to be loadable by this container's VM;
+# the check runs in a second VM in the same container, against the same
+# _build, and exits non-zero if the NIF does not load or the extraction fails.
+"${compose[@]}" exec -T phoenix mix cake.nif.check "$nif_fixture" ||
+  fail "The parsebooks NIF check failed inside the app container"
+log "The parsebooks NIF loads inside the app container"
 
 log "Smoke test passed"
