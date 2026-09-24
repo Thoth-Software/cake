@@ -57,9 +57,9 @@ defmodule Cake.S3IntegrationCase do
     * S3 refuses to delete a bucket with objects in it, so `drop_bucket!/1`
       lists and deletes the objects first.
     * ex_aws_s3 parses listings with SweetXml, which Cake does not depend
-      on, so `object_keys!/1` takes the raw XML and reads the keys with
-      OTP's xmerl instead (one page of up to 1000 keys — tests write a
-      handful).
+      on, so `object_keys!/2` takes the raw XML and reads the keys with
+      OTP's xmerl instead, following continuation tokens so a bucket with
+      more keys than one page holds is still emptied.
   """
 
   use ExUnit.CaseTemplate
@@ -78,6 +78,7 @@ defmodule Cake.S3IntegrationCase do
   @secret_access_key "test"
   @region "us-east-1"
   @bucket_prefix "cake-test-"
+  @max_page_size 1000
   @readiness_attempts 60
   @readiness_interval_ms 1_000
 
@@ -259,17 +260,36 @@ defmodule Cake.S3IntegrationCase do
 
   @doc """
   Every key in `bucket`, in the order the store lists them (S3 sorts by
-  key). Raises if the bucket cannot be listed, e.g. does not exist.
+  key), across every page of the listing. `page_size` is S3's `max-keys`:
+  its default, 1000, is also its maximum, and a smaller value only exists
+  so a test can exercise the continuation. Raises if the bucket cannot be
+  listed, e.g. does not exist.
   """
-  @spec object_keys!(String.t()) :: [String.t()]
-  def object_keys!(bucket) when is_binary(bucket) do
-    # ex_aws_s3 parses the listing with SweetXml, which is not a dependency
-    # here; take the raw XML and read the keys with xmerl instead.
-    operation = %{ExAws.S3.list_objects_v2(bucket) | parser: &Function.identity/1}
+  @spec object_keys!(String.t(), pos_integer()) :: [String.t()]
+  def object_keys!(bucket, page_size \\ @max_page_size)
+      when is_binary(bucket) and is_integer(page_size) and page_size > 0 do
+    list_keys(bucket, page_size, nil, [])
+  end
+
+  # One page per request; `token` is the previous page's continuation
+  # token, `nil` for the first. ex_aws_s3 parses the listing with SweetXml,
+  # which is not a dependency here; take the raw XML and read it with
+  # xmerl instead.
+  defp list_keys(bucket, page_size, token, acc) do
+    opts = [max_keys: page_size] ++ if(token, do: [continuation_token: token], else: [])
+    operation = %{ExAws.S3.list_objects_v2(bucket, opts) | parser: &Function.identity/1}
 
     case ExAws.request(operation) do
-      {:ok, %{body: xml}} -> keys_from_listing(xml)
-      {:error, error} -> raise "could not list bucket #{bucket}: #{inspect(error)}"
+      {:ok, %{body: xml}} ->
+        keys = acc ++ keys_from_listing(xml)
+
+        case next_continuation_token(xml) do
+          nil -> keys
+          next -> list_keys(bucket, page_size, next, keys)
+        end
+
+      {:error, error} ->
+        raise "could not list bucket #{bucket}: #{inspect(error)}"
     end
   end
 
@@ -326,6 +346,15 @@ defmodule Cake.S3IntegrationCase do
 
   defp keys_from_listing(xml), do: text_nodes(xml, ~c"//Contents/Key/text()")
   defp names_from_listing(xml), do: text_nodes(xml, ~c"//Buckets/Bucket/Name/text()")
+
+  # The token for the page after `xml`, or nil on the last page. S3 sends
+  # IsTruncated with every page and the token only on a truncated one.
+  defp next_continuation_token(xml) do
+    case text_nodes(xml, ~c"//IsTruncated/text()") do
+      ["true"] -> xml |> text_nodes(~c"//NextContinuationToken/text()") |> List.first()
+      _false -> nil
+    end
+  end
 
   defp text_nodes(xml, xpath) when is_binary(xml) do
     {document, _rest} = xml |> String.to_charlist() |> :xmerl_scan.string(quiet: true)

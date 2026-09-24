@@ -16,7 +16,8 @@ defmodule Cake.S3IntegrationCaseTest do
       configuration of its own — plus a way to derive further bucket names
       under the same prefix;
     * expose the bucket helpers a test needs to observe the adapter from the
-      outside (`bucket_exists?/1`, `object_keys!/1`, `bucket_names!/0`,
+      outside (`bucket_exists?/1`, `object_keys!/2` across every page of a
+      listing, `bucket_names!/0`,
       `create_bucket!/1`, `drop_bucket!/1`, `drop_buckets!/1`);
     * drop every bucket under the test's prefix, objects and all, once the
       test is over, and restore the config however often the test re-pointed
@@ -163,6 +164,16 @@ defmodule Cake.S3IntegrationCaseTest do
                "cake-documents/default/books/a",
                "cake-documents/default/books/b"
              ]
+    end
+
+    test "object_keys!/2 follows continuation tokens across pages", %{bucket: bucket} do
+      keys = for n <- 1..3, do: "cake-documents/default/books/page_#{n}"
+      Enum.each(keys, &put_object!(bucket, &1, "x"))
+
+      # A page size below the key count forces a second page; the default
+      # page size (S3's maximum) lists the same keys in one.
+      assert object_keys!(bucket, 2) == keys
+      assert object_keys!(bucket) == keys
     end
 
     test "object_keys!/1 raises for a bucket that does not exist" do

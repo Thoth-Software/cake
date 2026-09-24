@@ -19,13 +19,18 @@ defmodule Cake.Books.Adapters.S3 do
   endpoint of the store it targets. That is the only difference between what
   the suite exercises and what production runs.
 
-  ## Errors
+  ## Results and errors
 
-  Every callback returns whatever `ExAws.request/1` hands back, unchanged:
+  Successes are normalized to the `Cake.Books.Adapters` shapes: `read/1`
+  returns `{:ok, body}` with the object's bytes, `write/2` and `delete/1`
+  return `:ok` (S3's DeleteObject is idempotent, so deleting a key that was
+  never written is `:ok` too), and `exists?/1` returns `true`.
+
+  Error reasons are passed through from `ExAws.request/1` unchanged:
   `{:error, {:http_error, status, response}}` when the store answered (a
   404 for a missing key or bucket), or `{:error, transport_error}` when it
-  could not be reached; `exists?/1` collapses both to `false`. The shapes
-  are pinned against a real store in the `integration` CI job
+  could not be reached. `exists?/1` alone collapses every error to `false`.
+  Both shapes are pinned against a real store in the `integration` CI job
   (`Cake.Books.Adapters.S3IntegrationTest`; CLAUDE.md "Integration tests").
 
   Currently reads entire objects into memory. For very large documents,
