@@ -54,6 +54,9 @@ docker-compose.ci.yml
 .env.ci
 ci/
 
+# Local secrets (the dev stack passes them as container env, never via the image)
+.env
+
 # Scripts and docs not needed at runtime
 monitor_cake.sh
 setup_cake.sh

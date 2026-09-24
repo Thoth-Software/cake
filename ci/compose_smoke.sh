@@ -13,7 +13,11 @@
 # the deployment topology.
 #
 # Assertions, in order:
-#   1. db and opensearch report healthy (their compose health checks).
+#   1. db and opensearch report healthy (their compose health checks). The app
+#      container is started only after both do: entrypoint.sh waits for
+#      OpenSearch itself but runs ecto.create/ecto.migrate against Postgres
+#      without waiting, so starting everything at once would race a cold
+#      runner's Postgres.
 #   2. The app answers HTTP 200 through the published port.
 #   3. Both search collections exist in OpenSearch (Deployment boot ran).
 #   4. Every migration under priv/repo/migrations is in schema_migrations.
@@ -164,11 +168,20 @@ collection_exists() {
 log "Building the stack"
 "${compose[@]}" build
 
-log "Starting the stack"
-"${compose[@]}" up --detach
+log "Starting db and opensearch"
+"${compose[@]}" up --detach db opensearch
 
+# Gated here rather than with `depends_on: condition: service_healthy`: compose
+# aborts `up` the moment a dependency reports unhealthy, and OpenSearch's
+# health check (no start_period) can fail its first probes on a slow runner
+# while the node is still coming up. healthy/1 tolerates that; the deadline
+# bounds it.
 wait_until "$SMOKE_HEALTH_TIMEOUT" "db is healthy" healthy db
 wait_until "$SMOKE_HEALTH_TIMEOUT" "opensearch is healthy" healthy opensearch
+
+log "Starting the app"
+"${compose[@]}" up --detach phoenix
+
 wait_until "$SMOKE_BOOT_TIMEOUT" "the app answers HTTP 200 at $SMOKE_APP_URL" app_answers
 
 for name in "${collections[@]}"; do
