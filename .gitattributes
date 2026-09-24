@@ -1,0 +1,3 @@
+# Fixture PDFs are byte-exact: their xref offsets break under any line-ending
+# normalization, so never treat them as text (see test/support/fixtures/pdfs/README.md).
+test/support/fixtures/pdfs/*.pdf binary

@@ -1,8 +1,8 @@
 defmodule Cake.Books.PageContentTest do
   @moduledoc """
   Smoke tests for the `Cake.Books.PageContent` plain struct. The struct is
-  decoded into by the Rust NIF; full ingest-path coverage is deferred until
-  fixture PDFs and a NIF mocking strategy land (see #112's description).
+  decoded into by the Rust NIF; the decoding itself is pinned against
+  fixture PDFs in `Cake.ParseBooksTest` (`mix test --only integration`).
   """
 
   use ExUnit.Case, async: true

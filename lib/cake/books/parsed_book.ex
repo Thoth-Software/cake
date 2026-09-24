@@ -12,6 +12,9 @@ defmodule Cake.Books.ParsedBook do
     :source_file_path is an object storage key (e.g. S3 key) or other path.
     :source_format is required because we pattern match on format to select chunking strategy.
     :file_hash is for deduplication
+    :total_pages is the document's page count, including pages whose text
+      could not be extracted (those are logged as skipped, not dropped from
+      the count, so a chunk's :page_number never exceeds it).
 
   Justifications for validate_required:
     :source_file_path,      # Always have this - where the file lives

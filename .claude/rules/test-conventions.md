@@ -12,6 +12,7 @@ Test data follows two tracks; pick by whether the thing is Ecto-backed:
 
 - **Ecto schemas → Phoenix-style fixtures.** Each context has a `test/support/fixtures/<context>_fixtures.ex` module (e.g. `Cake.BooksFixtures`, `Cake.AccountsFixtures`) exposing `*_fixture/1` helpers that insert through the context. Import per test (e.g. `import Cake.BooksFixtures`).
 - **Non-Ecto domain structs → `Cake.Factory` (ExMachina).** `test/support/factory.ex` defines factories built with `build/1,2` (currently `build(:convo_chunk)` for `Cake.Test.ConvoChunk`). Import per test (`import Cake.Factory`).
+- **Fixture PDFs → `Cake.PdfFixtures`.** `test/support/pdf_fixtures.ex` loads the hand-built PDFs under `test/support/fixtures/pdfs/` by name (`fixture_binary/1`, `fixture_path/1` for staging through a storage adapter, `parse_fixture/1` for the bare `Pdf.Pipeline.parse/1` result). Edit the generator script there, never a PDF, and regenerate. Tests that go through the real NIF are tagged `:integration`.
 - These are **not** auto-imported by `DataCase`/`ConnCase`/`ObanCase` — `import` the fixture module or `Cake.Factory` in each test that needs them.
 - Property tests (StreamData) go in `*_property_test.exs`. When fixing a bug found by a property test, add a corresponding example test in the standard file.
 - Mox expectations go in individual tests, not setup blocks.
