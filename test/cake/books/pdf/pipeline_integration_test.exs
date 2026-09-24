@@ -121,5 +121,19 @@ defmodule Cake.Books.Pdf.PipelineIntegrationTest do
       assert book.total_pages == 4
       assert book.word_count == 8
     end
+
+    test "counts a page that failed extraction in total_pages" do
+      # total_pages is the document's page count. A page whose text could
+      # not be extracted is still a page — its neighbours carry page numbers
+      # past it — so it is reported in the skip log, not dropped from the
+      # count. Chunks from this fixture sit on pages 1 and 3; a total of 2
+      # would put page 3 outside the book.
+      log = capture_log(fn -> send(self(), parse_fixture(:skipped_page)) end)
+      assert_received {%ParsedBook{} = book, _chunks}
+
+      assert log =~ "skipped pages 2"
+      assert book.total_pages == 3
+      assert book.word_count == 8
+    end
   end
 end
