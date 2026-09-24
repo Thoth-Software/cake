@@ -196,11 +196,17 @@ defmodule Cake.SearchIntegrationCase do
   The unit vector on `axis` in the configured embedding dimension. Cosine
   scores between unit vectors are exact — 1.0 for the same axis, 0.5 as
   OpenSearch reports two different axes — so tests can pin ranking without
-  tolerances.
+  tolerances. Raises `ArgumentError` for an axis the dimension does not
+  have; `List.replace_at/3` would otherwise hand back a zero vector.
   """
   @spec unit_vector(non_neg_integer()) :: [float()]
   def unit_vector(axis) when is_integer(axis) and axis >= 0 do
     dimension = Application.get_env(:cake, :default_embedding_dimension, 1536)
+
+    if axis >= dimension do
+      raise ArgumentError,
+            "axis #{axis} is outside the embedding dimension #{dimension} (axes run 0..#{dimension - 1})"
+    end
 
     0.0
     |> List.duplicate(dimension)

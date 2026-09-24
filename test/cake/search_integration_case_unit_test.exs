@@ -5,7 +5,9 @@ defmodule Cake.SearchIntegrationCaseUnitTest do
   include list can take (bare tags from `--only integration`, keyword
   entries from `--only integration:true`), and `run_mode/2`, which
   `test_helper.exs` uses to pick the run mode and to refuse a mixed
-  unit-and-integration run.
+  unit-and-integration run; and `unit_vector/1`, which must refuse an axis
+  the configured dimension does not have rather than hand back a zero
+  vector.
   """
 
   use ExUnit.Case, async: true
@@ -52,6 +54,26 @@ defmodule Cake.SearchIntegrationCaseUnitTest do
 
       assert_raise ArgumentError, ~r/--only integration/, fn ->
         SearchIntegrationCase.run_mode([:integration], [:integration])
+      end
+    end
+  end
+
+  describe "unit_vector/1" do
+    test "puts 1.0 on the axis and 0.0 everywhere else, in the configured dimension" do
+      dimension = Application.get_env(:cake, :default_embedding_dimension, 1536)
+      vector = SearchIntegrationCase.unit_vector(2)
+
+      assert length(vector) == dimension
+      assert Enum.at(vector, 2) == 1.0
+      assert Enum.count(vector, &(&1 == 1.0)) == 1
+      assert Enum.count(vector, &(&1 == 0.0)) == dimension - 1
+    end
+
+    test "rejects an axis at or beyond the dimension instead of returning a zero vector" do
+      dimension = Application.get_env(:cake, :default_embedding_dimension, 1536)
+
+      assert_raise ArgumentError, ~r/axis #{dimension} .* dimension #{dimension}/, fn ->
+        SearchIntegrationCase.unit_vector(dimension)
       end
     end
   end
