@@ -4,11 +4,18 @@
 # file). A mixed run (`--include integration`) raises here, on purpose.
 run_mode = Cake.SearchIntegrationCase.run_mode()
 
-# Two opt-in tags, both excluded by default (CLAUDE.md "Live LLM tests"):
+# Three opt-in tags, all excluded by default (CLAUDE.md "Live LLM tests"):
 # :integration is hermetic infrastructure (OpenSearch, NIF, Oban), run by
 # `mix test --only integration`; :llm is real provider calls — secret- and
-# cost-bearing — run by `mix test --only llm` with OPENAI_KEY set.
-ExUnit.start(exclude: [:integration, :llm], assert_receive_timeout: 1_000)
+# cost-bearing — run by `mix test --only llm` with OPENAI_KEY set; :network
+# is the integration tests that also reach the public internet (the hexdocs
+# pipeline's `git clone` of elixir-lang/elixir), tagged :network *instead
+# of* :integration (`use Cake.SearchIntegrationCase, network: true`) because
+# an include wins over an exclude and a test carrying both tags could never
+# be opted out of. They run only with
+# `mix test --only integration --include network`, which the merge gate
+# passes; `--only integration` alone leaves them out.
+ExUnit.start(exclude: [:integration, :llm, :network], assert_receive_timeout: 1_000)
 Ecto.Adapters.SQL.Sandbox.mode(Cake.Repo, :manual)
 
 # Search-backend operations are skipped in every run mode: the pipelines

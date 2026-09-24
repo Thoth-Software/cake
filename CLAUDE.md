@@ -82,6 +82,8 @@ mix test --only integration        # MIX_ENV=test; OPENSEARCH_URL overrides http
 
 `OPENSEARCH_URL` is read by the integration test setup; leave it unset on the host, or set it to `http://opensearch:9200` when running inside the `cake_app` container.
 
+**`:network` tag.** The end-to-end hexdocs tests (`Cake.Documents.Hexdocs.PipelineIntegrationTest`, `Cake.Jobs.DocumentIngestionJobIntegrationTest`) are tagged `:network` *instead of* `:integration` (`use Cake.SearchIntegrationCase, async: false, network: true`): `Hexdocs.Pipeline.download/1` really clones elixir-lang/elixir (v1.0.0, the smallest tag, ~27 MB). An ExUnit include always wins over an exclude, so a test carrying both tags could never be opted out of; with its own tag, `mix test --only integration` leaves the group out and `mix test --only integration --include network` runs it — that is the merge gate's command, and the local opt-in. Never `--only network` or `--include network` alone: without `--only integration` it is a unit-mode run (no real cluster), and the tests refuse it.
+
 ### Live LLM tests (merge gate, internal PRs only)
 
 Test tags split by what a test *needs*, not by how slow it is:
