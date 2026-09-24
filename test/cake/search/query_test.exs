@@ -46,7 +46,10 @@ defmodule Cake.Search.QueryTest do
       assert length(query.must) == 2
     end
 
-    test "includes ef_search in the knn clause when provided" do
+    test "encodes ef_search under method_parameters in the knn clause when provided" do
+      # OpenSearch rejects `ef_search` as a top-level knn key
+      # ("[knn] unknown field [ef_search]"); the query-time form is
+      # `method_parameters: %{ef_search: n}`. Found by the conformance suite (#245).
       vector = [0.1, 0.2, 0.3]
       query = Query.knn(Query.new("docs"), "embedding", vector, 10, ef_search: 128)
 
@@ -54,15 +57,17 @@ defmodule Cake.Search.QueryTest do
       knn_body = clause["knn"]["embedding"]
       assert knn_body["vector"] == vector
       assert knn_body["k"] == 10
-      assert knn_body["ef_search"] == 128
+      assert knn_body["method_parameters"] == %{"ef_search" => 128}
+      refute Map.has_key?(knn_body, "ef_search")
     end
 
-    test "omits ef_search from the knn clause when not provided" do
+    test "omits method_parameters from the knn clause when ef_search is not provided" do
       vector = [0.1, 0.2, 0.3]
       query = Query.knn(Query.new("docs"), "embedding", vector, 10)
 
       assert [clause] = query.must
       knn_body = clause["knn"]["embedding"]
+      refute Map.has_key?(knn_body, "method_parameters")
       refute Map.has_key?(knn_body, "ef_search")
     end
   end
