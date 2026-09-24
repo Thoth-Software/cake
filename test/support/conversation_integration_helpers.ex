@@ -255,7 +255,9 @@ defmodule Cake.ConversationIntegrationHelpers do
   test process to its `Cake.Conversation.Events` topic, and allows the
   conversation pid (and so its turn tasks) on every Mox mock and on the
   `Cake.Generation.OpenAI` `Req.Test` plug. A test that never scripts
-  generation gets a plug that fails the request loudly instead.
+  generation gets a plug that answers 400 with a message naming
+  `script_generation!/1`, so the turn fails as `{:error, {:http, 400, _}}`
+  instead of hanging or hitting the network.
   """
   @spec start_subscribed_conversation!(map()) :: pid()
   def start_subscribed_conversation!(%{id: id} = opts) do
@@ -287,9 +289,17 @@ defmodule Cake.ConversationIntegrationHelpers do
     end
   end
 
-  defp unscripted_generation(_conn) do
-    raise "Cake.Generation.OpenAI was called but no generation is scripted: " <>
-            "call Cake.ConversationIntegrationHelpers.script_generation!/1 first"
+  # A 4xx rather than a raise or a 5xx: Cake.Generation.OpenAI retries
+  # 5xx transiently, and a raise inside the plug would crash the turn
+  # task with a stack trace instead of an error the test can read.
+  defp unscripted_generation(conn) do
+    conn
+    |> Plug.Conn.put_status(400)
+    |> Req.Test.json(%{
+      "error" =>
+        "Cake.Generation.OpenAI was called but no generation is scripted: " <>
+          "call Cake.ConversationIntegrationHelpers.script_generation!/1 first"
+    })
   end
 
   @doc """
@@ -407,7 +417,7 @@ defmodule Cake.ConversationIntegrationHelpers do
   plug, exactly like `start_subscribed_conversation!/1` does for a
   conversation the test started itself. Returns its pid.
   """
-  @spec attach_to_chat_conversation!(Phoenix.LiveViewTest.View.t()) :: pid()
+  @spec attach_to_chat_conversation!(%Phoenix.LiveViewTest.View{}) :: pid()
   def attach_to_chat_conversation!(%Phoenix.LiveViewTest.View{pid: view_pid}) do
     %{socket: %{assigns: %{convo_pid: pid}}} = :sys.get_state(view_pid)
     %{id: id} = :sys.get_state(pid)
