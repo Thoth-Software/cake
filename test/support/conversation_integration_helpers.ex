@@ -374,8 +374,6 @@ defmodule Cake.ConversationIntegrationHelpers do
     attach!(pid, id)
   end
 
-  @not_implemented_9 "not implemented yet (#249 item 10)"
-
   @doc """
   Repoints `Cake.Search.Deployment` at the real cluster for the rest of
   an `mix test --only llm` run, the way `test_helper.exs` does for an
@@ -384,7 +382,33 @@ defmodule Cake.ConversationIntegrationHelpers do
   to the VM and would leave later unit tests on the real cluster.
   """
   @spec start_live_deployment!() :: :ok
-  def start_live_deployment!, do: raise(@not_implemented_9)
+  def start_live_deployment! do
+    config = ExUnit.configuration()
+
+    unless llm_only_run?(Keyword.get(config, :include, []), Keyword.get(config, :exclude, [])) do
+      raise ArgumentError, """
+      the live conversation suite repoints Cake.Search.Deployment at a real \
+      cluster for the rest of the run, which only an exclusive `mix test \
+      --only llm` run can absorb (the Deployment config is global to the VM). \
+      Run it with `OPENAI_KEY=... mix test --only llm`, not `--include llm`.\
+      """
+    end
+
+    SearchIntegrationCase.start_real_deployment!()
+  end
+
+  # The shape mix gives `--only llm`: the tag included, `:test` excluded.
+  defp llm_only_run?(include, exclude) do
+    tagged?(include, :llm) and tagged?(exclude, :test)
+  end
+
+  defp tagged?(filters, tag) do
+    Enum.any?(filters, fn
+      ^tag -> true
+      {^tag, _value} -> true
+      _other -> false
+    end)
+  end
 
   @doc """
   Corpus specs for `seed_corpus!/2` whose vectors come from the real
@@ -392,7 +416,16 @@ defmodule Cake.ConversationIntegrationHelpers do
   text. Raises on any provider error.
   """
   @spec live_chunk_specs!([String.t()]) :: [chunk_spec()]
-  def live_chunk_specs!(_texts), do: raise(@not_implemented_9)
+  def live_chunk_specs!(texts) when is_list(texts) do
+    model = Application.get_env(:cake, :default_embedding_model, "text-embedding-ada-002")
+
+    Enum.map(texts, fn text ->
+      case Cake.Embeddings.embed(:openai, %{input: text}, model) do
+        {:ok, %{attrs: %{embedding: embedding}}} -> %{text: text, embedding: embedding}
+        {:error, reason} -> raise "embedding the corpus live failed: #{inspect(reason)}"
+      end
+    end)
+  end
 
   @doc """
   `conversation_opts/2` with the production collaborators in place of the
@@ -400,7 +433,15 @@ defmodule Cake.ConversationIntegrationHelpers do
   `Cake.Responses`. `overrides` win.
   """
   @spec live_conversation_opts(module(), map()) :: map()
-  def live_conversation_opts(_gds, _overrides \\ %{}), do: raise(@not_implemented_9)
+  def live_conversation_opts(gds, overrides \\ %{}) when is_atom(gds) and is_map(overrides) do
+    live = %{
+      embeddings: Cake.Embeddings,
+      generation: @generation_transport,
+      responses: Cake.Responses
+    }
+
+    conversation_opts(gds, Map.merge(live, overrides))
+  end
 
   @doc "The `[N]` citation markers in `text`, in order of appearance, duplicates kept."
   @spec citation_markers(String.t()) :: [pos_integer()]

@@ -318,9 +318,14 @@ jobs:
 
     env:
       OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+      # The staging-shaped conversation suite (#249, Cake.ConversationLiveTest)
+      # seeds and searches a real index; it repoints the Deployment at this
+      # URL itself, in its own setup_all.
+      OPENSEARCH_URL: http://localhost:9200
 
-    # The `test` alias runs ecto.create/ecto.migrate before ExUnit, so the
-    # job needs Postgres even though no :llm test touches the database.
+    # Postgres for the `test` alias (ecto.create/ecto.migrate) and for the
+    # conversation suite's chunk hydration; OpenSearch for that suite's
+    # corpus — the same pinned single-node service as the `integration` job.
     services:
       postgres:
         image: postgres:14
@@ -335,6 +340,23 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+      opensearch:
+        image: opensearchproject/opensearch:3.2.0
+        env:
+          discovery.type: single-node
+          plugins.security.disabled: "true"
+          DISABLE_INSTALL_DEMO_CONFIG: "true"
+          OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -sf http://localhost:9200 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --ulimit memlock=-1:-1
+          --ulimit nofile=65536:65536
 
     steps:
       - uses: actions/checkout@v4
