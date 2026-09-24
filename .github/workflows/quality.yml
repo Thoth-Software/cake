@@ -211,6 +211,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
 
+    env:
+      # The service container publishes 9200 on the runner host; the
+      # integration case template reads this to reach it (default is the same
+      # value, set explicitly so the wiring is visible here).
+      OPENSEARCH_URL: http://localhost:9200
+
     services:
       postgres:
         image: postgres:14
@@ -225,6 +231,33 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+      # Real OpenSearch for the backend conformance suite (#245). Mirrors the
+      # `opensearch` service in docker-compose.yml: single node, security
+      # plugin disabled (plain HTTP, no credentials), bounded heap. The demo
+      # security config is skipped explicitly so the image entrypoint does not
+      # demand OPENSEARCH_INITIAL_ADMIN_PASSWORD (the compose file satisfies
+      # that check with a real password instead). The image is pinned rather
+      # than `latest` so a vendor release cannot turn the merge gate red on
+      # its own; bump it deliberately. The health check polls the root
+      # endpoint the same way the compose file does, so the job's steps only
+      # start once the node answers HTTP.
+      opensearch:
+        image: opensearchproject/opensearch:3.2.0
+        env:
+          discovery.type: single-node
+          plugins.security.disabled: "true"
+          DISABLE_INSTALL_DEMO_CONFIG: "true"
+          OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -sf http://localhost:9200 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --ulimit memlock=-1:-1
+          --ulimit nofile=65536:65536
 
     steps:
       - uses: actions/checkout@v4

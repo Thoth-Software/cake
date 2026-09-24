@@ -20,6 +20,17 @@ defmodule Cake.Jobs.DocumentIngestionJobTest do
     # Set Logger level to info for tests to capture all logs
     Logger.configure(level: :info)
 
+    # These tests exercise Oban mechanics with the real ingest pipeline; the
+    # search backend is not under test. Pin the skip flag on for their
+    # duration so the pipeline never indexes anywhere — in particular not
+    # into the real cluster of an integration run, where the :integration-
+    # tagged tests below also run (Cake.SearchIntegrationCase tests turn the
+    # flag off for themselves; this module is async: false, so no such test
+    # runs concurrently with it).
+    original_skip = Application.get_env(:cake, :skip_search_backend)
+    Application.put_env(:cake, :skip_search_backend, true)
+    on_exit(fn -> Application.put_env(:cake, :skip_search_backend, original_skip) end)
+
     :ok
   end
 

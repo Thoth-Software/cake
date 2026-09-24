@@ -42,7 +42,12 @@ defmodule Cake.Search.Query do
     }
   end
 
-  @doc "Appends a knn clause to `must`. Accepts an optional `:ef_search` keyword."
+  @doc """
+  Appends a knn clause to `must`. Accepts an optional `:ef_search` keyword,
+  emitted as the clause's `method_parameters.ef_search` — the query-time
+  form OpenSearch accepts (a top-level `ef_search` key is rejected as an
+  unknown field).
+  """
   @spec knn(t(), String.t(), [float()], pos_integer(), keyword()) :: t()
   def knn(%__MODULE__{} = query, field, vector, k, opts \\ [])
       when is_binary(field) and is_list(vector) and is_integer(k) and k > 0 do
@@ -51,7 +56,7 @@ defmodule Cake.Search.Query do
     body =
       case Keyword.get(opts, :ef_search) do
         nil -> base
-        ef when is_integer(ef) -> Map.put(base, "ef_search", ef)
+        ef when is_integer(ef) -> Map.put(base, "method_parameters", %{"ef_search" => ef})
       end
 
     clause = %{"knn" => %{field => body}}

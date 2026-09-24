@@ -52,7 +52,8 @@ defmodule Cake.SearchTest do
 
       [knn_clause] = query.query.bool.must
       knn_body = knn_clause["knn"]["embedding"]
-      assert knn_body["ef_search"] == ef
+      assert knn_body["method_parameters"] == %{"ef_search" => ef}
+      refute Map.has_key?(knn_body, "ef_search")
     end
 
     test "build_query threads ef_search from opts into the knn clause" do
@@ -64,7 +65,7 @@ defmodule Cake.SearchTest do
         |> Backend.OpenSearch.to_query_map()
 
       [knn_clause | _] = query.query.bool.must
-      assert knn_clause["knn"]["embedding"]["ef_search"] == 128
+      assert knn_clause["knn"]["embedding"]["method_parameters"] == %{"ef_search" => 128}
     end
   end
 

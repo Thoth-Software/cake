@@ -41,6 +41,7 @@ Load the full file when the task matches the trigger. Reference files live in `p
 | Create a new GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct | `priv/reference/creating-things.md` |
 | Add/modify a GDS, or implement `Cake.GDS`/`Cake.Promptable`/`Cake.Citable` | README "Cardinality" + "Adding a New GDS"; `lib/cake/gds.ex` + `promptable.ex` + `citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md` |
 | Add/modify a decomposition strategy, or touch `Cake.Decomposition` | README "Query Decomposition"; `lib/cake/decomposition.ex` + `decomposition/result.ex`; `decomposition/llm.ex` as reference implementation |
+| Add a `Cake.Search.Backend` implementation, or change `Backend.OpenSearch` / `Search.Deployment` | README "Search Design"; `test/support/backend_conformance.ex` (instantiate it for the new backend) + `test/support/search_integration_case.ex`; run `mix test --only integration` (see "Integration tests") |
 
 Work under `test/` auto-loads `.claude/rules/test-conventions.md` (path-scoped) — no manual trigger needed.
 
@@ -68,7 +69,17 @@ The `security` job in `.github/workflows/quality.yml` runs the dependency-audit 
 ```bash
 mix precommit  # MIX_ENV=dev: compile --force --warnings-as-errors → format --check-formatted → credo --strict; then MIX_ENV=test: test --exclude integration
 ```
-`mix precommit` is a Mix task (`lib/mix/tasks/precommit.ex`, not an alias) that runs that chain in that order, one child `mix` process per step with `MIX_ENV` set explicitly: the compile, format, and credo steps run in the dev env (so `--warnings-as-errors` enforces `boundary`) and the test step runs in the test env. It stops at the first failing step and exits non-zero. Run it before pushing; it works the same whatever `MIX_ENV` you invoke it under. On-push CI (`quality.yml`) runs the same checks **plus** gates with no local alias: a dev-env compile with `--warnings-as-errors` (enforces `boundary`), the compile-coupling ratchet `mix xref graph --label compile-connected --fail-above 3` (baseline 3; see #208), `mix docs --warnings-as-errors` (the documentation gate, #204), dialyzer, and coverage via `mix coveralls.json --exclude integration` against the `coveralls.json` minimum. Tests tagged `:integration` (OpenSearch, external HTTP, or the Rustler NIF) are excluded on-push and run separately as a merge gate via `mix test --only integration`.
+`mix precommit` is a Mix task (`lib/mix/tasks/precommit.ex`, not an alias) that runs that chain in that order, one child `mix` process per step with `MIX_ENV` set explicitly: the compile, format, and credo steps run in the dev env (so `--warnings-as-errors` enforces `boundary`) and the test step runs in the test env. It stops at the first failing step and exits non-zero. Run it before pushing; it works the same whatever `MIX_ENV` you invoke it under. On-push CI (`quality.yml`) runs the same checks **plus** gates with no local alias: a dev-env compile with `--warnings-as-errors` (enforces `boundary`), the compile-coupling ratchet `mix xref graph --label compile-connected --fail-above 3` (baseline 3; see #208), `mix docs --warnings-as-errors` (the documentation gate, #204), dialyzer, and coverage via `mix coveralls.json --exclude integration` against the `coveralls.json` minimum. Tests tagged `:integration` are excluded on-push and run separately as a merge gate via `mix test --only integration` against a real OpenSearch node (see below).
+
+### Integration tests (merge gate)
+The `integration` job in `quality.yml` runs `mix test --only integration` against a real single-node OpenSearch service container (`opensearchproject/opensearch`, security plugin disabled, mirroring the `opensearch` service in `docker-compose.yml`) plus Postgres. What runs there: the backend conformance suite (`Cake.Search.BackendConformance`, instantiated for `Backend.OpenSearch` — collection lifecycle and search modes), the mapping + boot tests (`build_mapping/1` accepted by the server for both GDS schemas, `Deployment.create_collections_unless_exist/2`), and the GDS round-trip tests (`Pipelines.add_to_search_backend/3` → search → `load_from_hits/1` → `expand_with_neighbors/2`). All of them `use Cake.SearchIntegrationCase`, which gives each test a collection of its own inside the `cake_test` Snap index namespace and drops it afterwards, so a developer's real `docs`/`chunks_of_books` indices are never touched. A new `Cake.Search.Backend` implementation instantiates the suite with `use Cake.Search.BackendConformance, backend: ..., mapping: ...` and must pass it unchanged. Unit and integration tests cannot share one run (the skip flag and the Deployment config are global), which is why this is a separate invocation: `test_helper.exs` refuses a mixed `--include integration` run with an error pointing at `--only integration`. Locally, start the same node and run the same command:
+
+```bash
+docker compose up -d opensearch   # publishes http://localhost:9200 (see docker-compose.yml)
+mix test --only integration        # MIX_ENV=test; OPENSEARCH_URL overrides http://localhost:9200
+```
+
+`OPENSEARCH_URL` is read by the integration test setup; leave it unset on the host, or set it to `http://opensearch:9200` when running inside the `cake_app` container.
 
 ---
 

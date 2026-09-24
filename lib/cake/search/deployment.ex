@@ -29,9 +29,22 @@ defmodule Cake.Search.Deployment do
   end
 
   def create_collections_unless_exist(pid) when is_pid(pid) do
+    create_collections_unless_exist(pid, collections())
+  end
+
+  @doc """
+  Creates every collection in `collections` that the deployment does not
+  have yet, leaving existing ones untouched. Each entry is
+  `{name_module, mapping_schema}` as in `collections/0`, which is what the
+  boot path passes; callers with their own list (integration tests, for
+  one) pass it here and never touch the `:search_collections` config.
+  """
+  @spec create_collections_unless_exist(pid(), [{module(), module()}]) :: :ok
+  def create_collections_unless_exist(pid, collections)
+      when is_pid(pid) and is_list(collections) do
     {:ok, existing} = OpenSearch.list_collections()
 
-    Enum.each(collections(), fn {name_module, mapping_schema} ->
+    Enum.each(collections, fn {name_module, mapping_schema} ->
       create_collection_if_missing(existing, name_module.collection_name(), mapping_schema)
     end)
   end
