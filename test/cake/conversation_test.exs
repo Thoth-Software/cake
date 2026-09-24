@@ -839,11 +839,29 @@ defmodule Cake.ConversationTest do
   describe ":owner option" do
     test "stops with :normal when the owner process exits" do
       owner = spawn(fn -> receive(do: (:stop -> :ok)) end)
+      owner_ref = Process.monitor(owner)
+
       {:ok, pid} = Conversation.start(valid_opts(%{owner: owner}))
       ref = Process.monitor(pid)
 
+      # CI once saw this monitor report :noproc: the conversation was already
+      # gone before :stop was sent, and the assert_receive below could only
+      # report a timeout. A :noproc DOWN is enqueued by Process.monitor/1
+      # itself, so checking the mailbox here is deterministic. Fail with the
+      # state of both processes so the next occurrence explains itself.
+      receive do
+        {:DOWN, ^ref, :process, ^pid, reason} ->
+          flunk("""
+          conversation #{inspect(pid)} exited (#{inspect(reason)}) before its owner was stopped
+          owner #{inspect(owner)}: #{inspect(Process.info(owner, [:status, :messages, :monitored_by]))}
+          """)
+      after
+        0 -> :ok
+      end
+
       send(owner, :stop)
 
+      assert_receive {:DOWN, ^owner_ref, :process, ^owner, :normal}
       assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
 
       children = DynamicSupervisor.which_children(Cake.ConversationSupervisor)
