@@ -31,14 +31,7 @@ defmodule Cake.Prompt.SelfAskLiveTest do
   @question "What is the sum of two and two?"
   @follow_up_answer_system "Answer the question in one short sentence."
 
-  # The model Cake.Conversation drives the protocol with, from its config.
-  defp model do
-    fallback = Application.get_env(:cake, :default_response_model, "gpt-4o-mini")
-
-    :cake
-    |> Application.get_env(Cake.Conversation, [])
-    |> Keyword.get(:response_model, fallback)
-  end
+  defp model, do: production_response_model()
 
   defp max_iterations, do: Application.get_env(:cake, :max_self_ask_iterations, 5)
 

@@ -26,7 +26,7 @@ defmodule Cake.Generation.OpenAIJSONLiveTest do
   @ircot_question "What is the tallest mountain on Earth?"
   @wrong_key "sk-not-a-real-key"
 
-  defp model, do: Application.get_env(:cake, :default_response_model, "gpt-4o-mini")
+  defp model, do: production_response_model()
 
   # Red phase: routed through apply/3 so the suite compiles before
   # Cake.Decomposition.LLM.schema/0 exists (item 9).

@@ -141,6 +141,13 @@ defmodule Cake.LiveLLMCaseTest do
     end
   end
 
+  describe "production_response_model/0" do
+    test "is the :response_model Cake.Conversation is configured with, not :default_response_model" do
+      assert LiveLLMCase.production_response_model() ==
+               Keyword.fetch!(Application.fetch_env!(:cake, Cake.Conversation), :response_model)
+    end
+  end
+
   describe "restore_config!/1" do
     test "puts back the replaced config, deleting a block that had none" do
       Application.put_env(:cake, Cake.Embeddings, openai_key: "before", base_url: "http://before")

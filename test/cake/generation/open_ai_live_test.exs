@@ -25,9 +25,7 @@ defmodule Cake.Generation.OpenAILiveTest do
   ]
   @wrong_key "sk-not-a-real-key"
 
-  # The production response model, read at run time so the gate follows
-  # config rather than a copy of it.
-  defp model, do: Application.get_env(:cake, :default_response_model, "gpt-4o-mini")
+  defp model, do: production_response_model()
 
   describe "complete/3 against the Responses API" do
     test "parses a completed response into the normalized completion" do

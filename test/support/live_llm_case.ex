@@ -138,6 +138,21 @@ defmodule Cake.LiveLLMCase do
   end
 
   @doc """
+  The response model production conversations send: `Cake.Conversation`'s
+  `:response_model` config, the key `CakeWeb.ChatLive` starts every
+  conversation from. Read with `fetch!` so a missing key fails the gate
+  rather than silently testing some other model. (The `:default_response_model`
+  key in `config.exs` is read by nothing in `lib/`, so a gate on it would
+  guard nothing.)
+  """
+  @spec production_response_model() :: String.t()
+  def production_response_model do
+    :cake
+    |> Application.fetch_env!(Cake.Conversation)
+    |> Keyword.fetch!(:response_model)
+  end
+
+  @doc """
   Whether both LLM modules currently point at the real endpoints with no
   test transport hook — the state a test on this template runs in.
   """
