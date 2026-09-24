@@ -73,11 +73,22 @@ defmodule Cake.SearchIntegrationCase do
   Whether this ExUnit run includes `:integration`-tagged tests, i.e. was
   started with `--only integration` or `--include integration`. Read by
   `test/test_helper.exs` before it decides how to configure the search
-  backend.
+  backend. Mix implements `--only x` as `--include x --exclude test`, so
+  the include list is the signal.
   """
   @spec integration_run?() :: boolean()
   def integration_run? do
-    :integration in Keyword.get(ExUnit.configuration(), :include, [])
+    integration_run?(Keyword.get(ExUnit.configuration(), :include, []))
+  end
+
+  @doc """
+  Whether an ExUnit include list selects `:integration` tests, in either
+  form the CLI produces: the bare tag (`--only integration`) or a keyword
+  entry with any value (`--only integration:true`).
+  """
+  @spec integration_run?([atom() | {atom(), term()}]) :: boolean()
+  def integration_run?(include) when is_list(include) do
+    Enum.any?(include, &(match?(:integration, &1) or match?({:integration, _}, &1)))
   end
 
   @doc "The cluster URL: `OPENSEARCH_URL`, or `#{@default_url}`."
