@@ -374,6 +374,34 @@ defmodule Cake.ConversationIntegrationHelpers do
     attach!(pid, id)
   end
 
+  @not_implemented_9 "not implemented yet (#249 item 10)"
+
+  @doc """
+  Repoints `Cake.Search.Deployment` at the real cluster for the rest of
+  an `mix test --only llm` run, the way `test_helper.exs` does for an
+  integration run, so a live suite can seed and search a real index.
+  Call from `setup_all`. Refuses any other run shape: the swap is global
+  to the VM and would leave later unit tests on the real cluster.
+  """
+  @spec start_live_deployment!() :: :ok
+  def start_live_deployment!, do: raise(@not_implemented_9)
+
+  @doc """
+  Corpus specs for `seed_corpus!/2` whose vectors come from the real
+  embeddings endpoint, with the configured embedding model, one call per
+  text. Raises on any provider error.
+  """
+  @spec live_chunk_specs!([String.t()]) :: [chunk_spec()]
+  def live_chunk_specs!(_texts), do: raise(@not_implemented_9)
+
+  @doc """
+  `conversation_opts/2` with the production collaborators in place of the
+  test doubles: the real `Cake.Embeddings`, `Cake.Generation.OpenAI` and
+  `Cake.Responses`. `overrides` win.
+  """
+  @spec live_conversation_opts(module(), map()) :: map()
+  def live_conversation_opts(_gds, _overrides \\ %{}), do: raise(@not_implemented_9)
+
   @doc "The `[N]` citation markers in `text`, in order of appearance, duplicates kept."
   @spec citation_markers(String.t()) :: [pos_integer()]
   def citation_markers(text) when is_binary(text) do
