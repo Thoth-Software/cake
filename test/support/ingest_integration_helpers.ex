@@ -50,6 +50,9 @@ defmodule Cake.IngestIntegrationHelpers do
 
   import Ecto.Query, only: [from: 2]
 
+  # OpenSearch's default index.max_result_window: the most one search returns.
+  @max_result_window 10_000
+
   @typedoc "What `stub_embeddings/1`'s function answers for one input: a vector, or the provider's error."
   @type embedding_response :: [float()] | {:error, String.t()}
 
@@ -196,8 +199,14 @@ defmodule Cake.IngestIntegrationHelpers do
   refresh, in no particular order.
   """
   @spec indexed_ids!(module()) :: [String.t()]
-  def indexed_ids!(_gds) do
-    raise "Cake.IngestIntegrationHelpers.indexed_ids!/1 is not implemented yet (#248)"
+  def indexed_ids!(gds) when is_atom(gds) do
+    collection = gds.collection_name()
+    SearchIntegrationCase.refresh!(collection)
+
+    case OpenSearch.search(Cake.Search.Query.new(collection, size: @max_result_window)) do
+      {:ok, hits} -> Enum.map(hits, & &1.id)
+      {:error, error} -> raise "could not list #{collection}: #{inspect(error)}"
+    end
   end
 
   @doc "The book's chunks from Postgres in `chunk_index` order."
@@ -212,11 +221,21 @@ defmodule Cake.IngestIntegrationHelpers do
   """
   @spec clear_collection!(String.t()) :: :ok
   def clear_collection!(collection) when is_binary(collection) do
+    # delete_by_query only sees what a search sees: without the refresh a
+    # document indexed moments ago (the mapping refreshes every 30s) would
+    # survive the clear and surface in a later test.
+    SearchIntegrationCase.refresh!(collection)
     query = %{query: %{match_all: %{}}}
 
     case Snap.Search.delete_by_query(Deployment, collection, query, refresh: true) do
-      {:ok, %Snap.DeleteResponse{}} -> :ok
-      {:error, error} -> raise "could not clear #{collection}: #{inspect(error)}"
+      {:ok, %Snap.DeleteResponse{failures: [], version_conflicts: 0}} ->
+        :ok
+
+      {:ok, %Snap.DeleteResponse{} = response} ->
+        raise "clearing #{collection} left documents behind: #{inspect(response)}"
+
+      {:error, error} ->
+        raise "could not clear #{collection}: #{inspect(error)}"
     end
   end
 
