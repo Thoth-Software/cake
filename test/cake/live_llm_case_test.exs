@@ -46,6 +46,18 @@ defmodule Cake.LiveLLMCaseTest do
     :ok
   end
 
+  # Where a test module's async flag lives moved in ExUnit 1.20: it is now
+  # `__ex_unit__(:config).async?`, and the runner merges `:async` into each
+  # test's tags only at run time. Before 1.20 it was stamped onto every
+  # test's tags at definition, and `__ex_unit__/1` does not exist.
+  defp module_async?(module) do
+    if function_exported?(module, :__ex_unit__, 1) do
+      module.__ex_unit__(:config).async?
+    else
+      Enum.any?(module.__ex_unit__().tests, fn %ExUnit.Test{tags: tags} -> tags.async end)
+    end
+  end
+
   defp put_or_delete_env(name, nil), do: System.delete_env(name)
   defp put_or_delete_env(name, value), do: System.put_env(name, value)
 
@@ -151,11 +163,9 @@ defmodule Cake.LiveLLMCaseTest do
       %ExUnit.TestModule{tests: tests} = Cake.LiveLLMCaseTest.Tagged.__ex_unit__()
 
       assert tests != []
+      for %ExUnit.Test{tags: tags} <- tests, do: assert(tags.llm == true)
 
-      for %ExUnit.Test{tags: tags} <- tests do
-        assert tags.llm == true
-        assert tags.async == false
-      end
+      refute module_async?(Cake.LiveLLMCaseTest.Tagged)
     end
 
     test "refuses async: true — the config it swaps is global to the VM" do
