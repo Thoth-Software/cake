@@ -21,6 +21,23 @@ defmodule Cake.Decomposition.LLMTest do
      }}
   end
 
+  describe "schema/0" do
+    # Red phase: routed through apply/3 so the suite compiles before
+    # schema/0 exists (#247, item 9).
+    test "is exactly the JSON schema decompose/2 sends, so the live gate validates what production sends" do
+      expect(Cake.Generation.Mock, :complete_json, fn _messages, _model, opts ->
+        send(self(), {:schema_sent, Keyword.fetch!(opts, :schema)})
+        completion(%{"atomic" => true})
+      end)
+
+      assert {:ok, %Result{}} = LLM.decompose(@question, generation: Cake.Generation.Mock)
+      assert_received {:schema_sent, sent}
+
+      assert apply(LLM, :schema, []) == sent
+      assert sent["additionalProperties"] == false
+    end
+  end
+
   describe "decompose/2" do
     test "sends the decomposition prompt and a JSON schema to the generation module" do
       expect(Cake.Generation.Mock, :complete_json, fn messages, _model, opts ->
