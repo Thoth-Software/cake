@@ -105,8 +105,10 @@ defmodule Cake.S3IntegrationCase do
 
     on_exit(fn ->
       # The test may have re-pointed or removed the config; the teardown
-      # needs the endpoint, so it points ExAws there itself first.
-      configure_s3!()
+      # needs the endpoint, so it points ExAws there itself first. What that
+      # replaces is the test's leftovers, not worth keeping: `snapshot` below
+      # is what goes back.
+      _leftover = configure_s3!()
       drop_buckets!(bucket)
       restore_config!(snapshot)
       restore_bucket_config(previous_bucket)
