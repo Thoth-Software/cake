@@ -116,14 +116,21 @@ defmodule Cake.Documents.Hexdocs.PipelineIntegrationTest do
       assert Repo.all(FailedIngest) == []
       assert Enum.sort(indexed_ids!(ParsedDocument)) == Enum.sort(ids(docs))
 
+      # Retrievable by its own embedding at an exact score of 1.0. Not
+      # necessarily alone at the top: deterministic_embedding/1 maps each
+      # text onto one of the configured dimension's axes, and with this many
+      # documents some pairs share an axis (which pairs depends on the exact
+      # source text, and Macro.to_string/1 formats it differently across
+      # Elixir versions), so a collided neighbour scores 1.0 too.
       absname_id = absname.id
 
-      assert {:ok, [%Hit{id: ^absname_id, score: 1.0} | _] = hits} =
+      assert {:ok, hits} =
                Search.search_chunks(:vector, "", deterministic_embedding(embed_input(absname)),
                  gds: ParsedDocument
                )
 
-      assert [%ParsedDocument{id: ^absname_id} | _] = ParsedDocument.load_from_hits(hits)
+      assert %Hit{score: 1.0} = Enum.find(hits, &(&1.id == absname_id))
+      assert Enum.any?(ParsedDocument.load_from_hits(hits), &(&1.id == absname_id))
 
       # retry_from_raw/2 works from the persisted raw row: with the clone
       # gone from disk it re-parses the same documents the run produced.
