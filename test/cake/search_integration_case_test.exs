@@ -150,3 +150,25 @@ defmodule Cake.SearchIntegrationCaseTest do
     end
   end
 end
+
+defmodule Cake.SearchIntegrationCaseTest.Networked do
+  @moduledoc """
+  The `network: true` option of `Cake.SearchIntegrationCase`: the module is
+  tagged `:network` and not `:integration`, so `--only integration` alone
+  never selects it and `--include network` does. This module runs only
+  under the latter (with the real cluster, like any other); it makes no
+  network call itself.
+  """
+
+  use Cake.SearchIntegrationCase, async: true, network: true
+
+  test "tags every test :network and not :integration", context do
+    assert context[:network] == true
+    refute Map.has_key?(context, :integration)
+  end
+
+  test "still gets the template's real-cluster setup", %{collection: collection} do
+    assert collection =~ ~r/^it_[0-9a-f]{16}$/
+    assert Application.get_env(:cake, :skip_search_backend) == false
+  end
+end

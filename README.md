@@ -77,6 +77,8 @@ The ingestion layer has two pipeline behaviours because the two GDSes have funda
 
 **`Cake.Books.Pipeline`** is the behaviour for ingesting books and book-like documents. Its GDS is `ParsedBook` + `Chunk`. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. Like `Documents.Pipeline`, the module also contains its own `ingest/4` orchestrator and an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Books.Pdf.Pipeline`, which uses a Rustler NIF (`parsebooks` Rust crate wrapping `pdf-extract`). The NIF's contract and `parse/1` are pinned against fixture PDFs in the `integration` CI job (CLAUDE.md "Integration tests").
 
+Both orchestrators are also pinned end to end in that job — a fixture PDF, or a real clone of one tagged Elixir release, through `ingest/4` into real Postgres rows and a real OpenSearch collection and back out through `Cake.Search` — with only the embedding provider substituted, plus `ingest_with_sweep/5`'s run-scoped retries and the Oban job driving the real Hexdocs pipeline (`Cake.IngestIntegrationHelpers` under `test/support/`; CLAUDE.md "Integration tests").
+
 **`Cake.Pipelines`** provides shared infrastructure used by both pipeline types: `detuple_with_logging/3` filters `{:ok, _}/{:error, _}` streams and persists errors to `FailedIngest`, `add_to_search_backend/3` handles index upserts, and `sweep/3` implements a retry loop for item-level failures. A `Context` struct carries pipeline identity (behaviour, implementation, version) plus a per-run `run_id` through a run: the identity fields give error provenance, and `run_id` scopes `count_failures/1`, `finalize_ingest/3`, and `sweep/3` to one run so concurrent ingests of the same source never count or retry each other's failures.
 
 There is deliberately no `Cake.Ingestion` behaviour unifying the two pipeline behaviours. They have different callback shapes because they answer different questions. Each GDS owns its own ingestion contract; unification is deferred indefinitely.
@@ -485,6 +487,7 @@ test/                        # (abbreviated — test/cake/ and test/cake_web/ mi
     oban_case.ex             #   Oban testing helpers
     factory.ex               #   Cake.Factory (ExMachina) — non-Ecto structs via build/1 (e.g. ConvoChunk)
     pdf_fixtures.ex          #   Cake.PdfFixtures — fixture PDFs by name (fixture_binary/1, fixture_path/1, parse_fixture/1) for the NIF integration suite
+    ingest_integration_helpers.ex  # Cake.IngestIntegrationHelpers — end-to-end ingestion tests: Disk-staged fixtures, the GDS's fixed collection on the real node, deterministic Mox embeddings
     fixtures/                #   Phoenix-style *_fixture/1 helpers for Ecto schemas
       pdfs/                  #     Hand-built fixture PDFs + generate.exs + README (what each pins, how to regenerate)
     test_pipeline.ex         #   Mock pipeline implementations (Documents)
