@@ -212,10 +212,11 @@ jobs:
     if: github.event_name == 'pull_request'
 
     env:
-      # The service container publishes 9200 on the runner host; the
-      # integration case template reads this to reach it (default is the same
-      # value, set explicitly so the wiring is visible here).
+      # The service containers publish 9200 and 9000 on the runner host; the
+      # integration case templates read these to reach them (defaults are the
+      # same values, set explicitly so the wiring is visible here).
       OPENSEARCH_URL: http://localhost:9200
+      S3_ENDPOINT_URL: http://localhost:9000
 
     services:
       postgres:
@@ -258,6 +259,33 @@ jobs:
           --health-retries 12
           --ulimit memlock=-1:-1
           --ulimit nofile=65536:65536
+
+      # S3-compatible object store for the Cake.Books.Adapters.S3 suite (#251):
+      # moto's standalone server, speaking the real S3 HTTP API on one port.
+      # The issue named MinIO or LocalStack; neither is runnable here any
+      # more — MinIO has withdrawn its community images (Docker Hub and
+      # quay.io deny `minio/minio`, dl.min.io answers 410 Gone) and
+      # LocalStack's 2026.x images exit at start-up without a paid
+      # LOCALSTACK_AUTH_TOKEN (4.9.2, from October 2025, was the last free
+      # release). moto is maintained, Apache-2.0, ~200 MB and up in seconds.
+      # It accepts any key pair; the case template (Cake.S3IntegrationCase)
+      # sends a fixed one, the test-time stand-in for the IAM-role credentials
+      # the adapter assumes in production. Listens on 9000 (MOTO_PORT) rather
+      # than its default 5000, which macOS reserves for AirPlay. Pinned like
+      # OpenSearch above so a vendor release cannot turn the gate red on its
+      # own; bump it deliberately. The health check polls moto's own API
+      # endpoint, so the job's steps only start once the server answers.
+      moto:
+        image: motoserver/moto:5.2.3
+        env:
+          MOTO_PORT: "9000"
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -sf http://localhost:9000/moto-api/ || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
 
     steps:
       - uses: actions/checkout@v4
