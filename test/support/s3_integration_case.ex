@@ -100,10 +100,10 @@ defmodule Cake.S3IntegrationCase do
   setup do
     snapshot = configure_s3!()
     previous_bucket = Application.fetch_env(:cake, :book_storage_s3_bucket)
+    bucket = new_bucket_name()
 
-    bucket = create_bucket!(new_bucket_name())
-    Application.put_env(:cake, :book_storage_s3_bucket, bucket)
-
+    # Registered before the bucket exists so a failing `create_bucket!/1`
+    # still restores the config; dropping by prefix is a no-op then.
     on_exit(fn ->
       # The test may have re-pointed or removed the config; the teardown
       # needs the endpoint, so it points ExAws there itself first. What that
@@ -114,6 +114,9 @@ defmodule Cake.S3IntegrationCase do
       restore_config!(snapshot)
       restore_bucket_config(previous_bucket)
     end)
+
+    _bucket = create_bucket!(bucket)
+    Application.put_env(:cake, :book_storage_s3_bucket, bucket)
 
     %{bucket: bucket}
   end
