@@ -66,8 +66,15 @@ defmodule Cake.Books.Persistence do
     {:error, {:invalid_input, %{book: book, chunks: chunks}}}
   end
 
+  @doc """
+  Persists the pair without the `file_hash` lookup. If another run inserted
+  the same bytes first, the unique index on `file_hash` refuses the insert
+  and the winner's row comes back as `{:duplicate, existing}`: losing that
+  check-then-insert race is a duplicate, not a persist error.
+  """
   @spec persist_books_and_chunks(ParsedBook.t(), [Chunk.t()]) ::
           {:ok, {ParsedBook.t(), [Chunk.t()]}}
+          | {:duplicate, ParsedBook.t()}
           | {:error, {String.t(), Ecto.Changeset.t() | chunk_error()}}
   def persist_books_and_chunks(%ParsedBook{} = book, chunks) when is_list(chunks) do
     book
@@ -156,8 +163,29 @@ defmodule Cake.Books.Persistence do
       {:ok, %{book: persisted_book, chunks: persisted_chunks}} ->
         {:ok, {persisted_book, persisted_chunks}}
 
+      {:error, :book, %Ecto.Changeset{} = changeset, _changes_so_far} ->
+        duplicate_or_error(changeset, book)
+
       {:error, _step, reason, _changes_so_far} ->
         {:error, {book.source_file_path, reason}}
     end
+  end
+
+  # The book insert failed. If it was the unique index on file_hash, another
+  # run inserted the same bytes between our lookup and our insert (or the
+  # caller skipped the lookup): that is the duplicate case, answered with
+  # the row that won. Any other changeset error is a genuine persist error.
+  defp duplicate_or_error(changeset, book) do
+    with true <- unique_file_hash_violation?(changeset),
+         %ParsedBook{} = existing <-
+           Repo.one(from b in ParsedBook, where: b.file_hash == ^book.file_hash) do
+      {:duplicate, existing}
+    else
+      _no_winner_or_other_error -> {:error, {book.source_file_path, changeset}}
+    end
+  end
+
+  defp unique_file_hash_violation?(%Ecto.Changeset{errors: errors}) do
+    match?({_message, [constraint: :unique, constraint_name: _name]}, errors[:file_hash])
   end
 end
