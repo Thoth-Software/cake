@@ -79,6 +79,26 @@ defmodule Cake.Books.PersistenceTest do
     assert Enum.map(Repo.all(Chunk), & &1.id) == Enum.map(first_chunks, & &1.id)
   end
 
+  test "losing a check-then-insert race on file_hash is a duplicate, not a failure" do
+    # Two runs of the same bytes can both find no row and both insert; the
+    # unique index refuses the second. persist_books_and_chunks/2 skips the
+    # lookup, which is exactly the loser's position, so it reproduces the
+    # race deterministically: the answer must be the winner's row, as
+    # {:duplicate, existing}, never a persist error.
+    b = book()
+    chunks = [chunk(0, 1)]
+
+    {:ok, {winner, _chunks}} = Persistence.persist_books_and_chunks({b, chunks})
+
+    loser = %ParsedBook{b | source_file_path: "/tmp/racer.pdf"}
+
+    assert {:duplicate, %ParsedBook{} = existing} =
+             Persistence.persist_books_and_chunks(loser, chunks)
+
+    assert existing.id == winner.id
+    assert length(Repo.all(ParsedBook)) == 1
+  end
+
   test "returns error for chunks missing required fields" do
     bad_chunk = %Chunk{text: nil, chunk_index: nil, word_count: nil, char_count: nil}
 
