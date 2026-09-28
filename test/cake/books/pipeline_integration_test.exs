@@ -110,30 +110,45 @@ defmodule Cake.Books.PipelineIntegrationTest do
   end
 
   describe "contracts: dedup on file_hash" do
-    test "re-ingesting the same PDF under a new key keeps one book, re-embeds and re-indexes its chunks" do
+    test "re-ingesting the same PDF under a new key keeps one book and neither re-embeds nor re-indexes it" do
       stub_embeddings()
       first_key = stage_fixture!(:multi_page)
       second_key = stage_fixture!(:multi_page)
 
       assert {:ok, %{indexed: 3, failed: 0}} = ingest([first_key])
-      assert [%ParsedBook{id: book_id} = book] = Books.list_parsed_books()
-      chunks = chunks_in_order(book)
 
-      # Same bytes, different key: Persistence finds the file_hash and hands
-      # back the existing book and chunks, which are then embedded and
-      # indexed again. The row keeps the key it was first ingested under.
-      assert {:ok, %{indexed: 3, failed: 0}} = ingest([second_key])
-
-      assert [
-               %ParsedBook{
-                 id: ^book_id,
-                 source_file_path: ^first_key,
-                 embedding_status: :completed
-               }
-             ] =
+      assert [%ParsedBook{id: book_id, updated_at: book_updated_at} = book] =
                Books.list_parsed_books()
 
-      assert ids(chunks_in_order(book)) == ids(chunks)
+      chunks = chunks_in_order(book)
+      operations_before = indexing_operations!(ParsedBook)
+
+      # Same bytes, different key: the file_hash names a book that is already
+      # ingested, so the run must not spend an embedding call or an index
+      # write on it. Any embed reports itself here, and would also overwrite
+      # the stored vector with a different one; any index write moves the
+      # node's operation counter.
+      test_pid = self()
+
+      stub_embeddings(fn input ->
+        send(test_pid, {:embedded, input})
+        deterministic_embedding("re-embedded: " <> input)
+      end)
+
+      result = ingest([second_key])
+
+      refute_received {:embedded, _input}
+      assert indexing_operations!(ParsedBook) == operations_before
+
+      assert [%ParsedBook{id: ^book_id, source_file_path: ^first_key} = same_book] =
+               Books.list_parsed_books()
+
+      assert same_book.embedding_status == :completed
+      assert same_book.updated_at == book_updated_at
+      assert chunks_in_order(book) == chunks
+
+      # Nothing new was indexed, nothing failed: the duplicate is not an item.
+      assert {:ok, %{indexed: 0, failed: 0}} = result
       assert Repo.all(FailedIngest) == []
       assert Enum.sort(indexed_ids!(ParsedBook)) == Enum.sort(ids(chunks))
     end

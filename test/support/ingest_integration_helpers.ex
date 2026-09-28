@@ -208,6 +208,26 @@ defmodule Cake.IngestIntegrationHelpers do
     end
   end
 
+  @doc """
+  How many indexing operations the real node has received for the GDS's
+  fixed collection since it was created: every upsert, whether it changed
+  the document (`index_total`) or found it unchanged (`noop_update_total`).
+  Two readings that agree prove that nothing was written to the index in
+  between, whatever the documents held. Raises if the node refuses.
+  """
+  @spec indexing_operations!(module()) :: non_neg_integer()
+  def indexing_operations!(gds) when is_atom(gds) do
+    index = Snap.Cluster.Namespace.add_namespace_to_index(gds.collection_name(), Deployment)
+
+    case Deployment.get("/#{index}/_stats/indexing") do
+      {:ok, %{"_all" => %{"primaries" => %{"indexing" => stats}}}} ->
+        stats["index_total"] + stats["noop_update_total"]
+
+      {:error, error} ->
+        raise "could not read indexing stats of #{index}: #{inspect(error)}"
+    end
+  end
+
   @doc "The book's chunks from Postgres in `chunk_index` order."
   @spec chunks_in_order(ParsedBook.t()) :: [Chunk.t()]
   def chunks_in_order(%ParsedBook{id: book_id}) do
