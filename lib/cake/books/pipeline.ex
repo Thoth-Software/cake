@@ -97,6 +97,10 @@ defmodule Cake.Books.Pipeline do
   a failure belongs to; counting and sweeping are scoped by the context's
   `run_id`.
 
+  A book whose `file_hash` is already persisted is a duplicate: it is
+  logged and dropped after the persist step, never re-embedded or
+  re-indexed, and counted in neither `indexed` nor `failed`.
+
   `validate_paths/1` runs first, eagerly: an invalid key list is
   pipeline-fatal and short-circuits to `Pipelines.handle_ingest_error/2`,
   returning `{:error, {:validate_paths, reason}}` before anything is loaded.
@@ -164,7 +168,8 @@ defmodule Cake.Books.Pipeline do
   @doc """
   Retries a single failed ingest item. Dispatches based on the step that failed:
   early failures re-run from the file, embed/index failures resume from the
-  persisted chunk.
+  persisted chunk. A file that turns out to be a duplicate of an already
+  ingested book resolves the failure without embedding or indexing anything.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, retry_error()}
@@ -267,17 +272,21 @@ defmodule Cake.Books.Pipeline do
         zip_input_on_exit: true
       )
       |> Stream.map(&munge_persisted_stream/1)
+      |> Stream.reject(&skip_duplicate?/1)
       |> Pipelines.detuple_with_logging("books.persist", ctx)
 
     {:ok, persisted_stream}
   end
 
   @spec munge_persisted_stream({:ok, term()} | {:exit, term()}) ::
-          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, any()}
+          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:duplicate, ParsedBook.t()} | {:error, any()}
   def munge_persisted_stream(persisted_books_and_chunks) do
     case persisted_books_and_chunks do
       {:ok, {:ok, persisted}} ->
         {:ok, persisted}
+
+      {:ok, {:duplicate, %ParsedBook{} = existing}} ->
+        {:duplicate, existing}
 
       {:ok, {:error, {path, reason}}} ->
         {:error, {path, inspect(reason)}}
@@ -292,6 +301,20 @@ defmodule Cake.Books.Pipeline do
         {:error, {nil, inspect(reason)}}
     end
   end
+
+  # A duplicate is neither an item that made it through nor a failure: the
+  # book is already ingested, so it is dropped here, before the detuple step
+  # would record it as a failure, and never reaches the embed or index stages.
+  defp skip_duplicate?({:duplicate, %ParsedBook{} = existing}) do
+    Logger.info(
+      "[books.persist] Skipping duplicate of already-ingested book " <>
+        "#{existing.title} (#{existing.file_hash}): not re-embedded or re-indexed"
+    )
+
+    true
+  end
+
+  defp skip_duplicate?(_result), do: false
 
   @spec embed_all_chunks(Enumerable.t(), atom(), String.t(), Pipelines.Context.t()) ::
           {:ok, Enumerable.t()}
@@ -378,11 +401,28 @@ defmodule Cake.Books.Pipeline do
       with {:ok, binary} <- format_pipeline.load_binary(path),
            {parsed_book, chunks} <- try_parse(format_pipeline, binary),
            {:ok, {_persisted_book, persisted_chunks}} <-
-             Persistence.persist_books_and_chunks({parsed_book, chunks}),
+             persist_unless_duplicate({parsed_book, chunks}),
            :ok <- embed_and_index_chunks(persisted_chunks, embedding_service, embedding_model) do
         _ = Cake.FailedIngests.delete_failed_ingest(failure)
         {:ok, :retried}
       end
+    end
+  end
+
+  # A retried file whose bytes are already ingested has nothing left to do:
+  # the existing book stands, with no chunks to embed or index.
+  defp persist_unless_duplicate(book_and_chunks) do
+    case Persistence.persist_books_and_chunks(book_and_chunks) do
+      {:duplicate, %ParsedBook{} = existing} ->
+        Logger.info(
+          "[books.retry] Duplicate of already-ingested book #{existing.title} " <>
+            "(#{existing.file_hash}): resolved without re-embedding or re-indexing"
+        )
+
+        {:ok, {existing, []}}
+
+      other ->
+        other
     end
   end
 

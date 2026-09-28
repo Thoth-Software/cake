@@ -1,7 +1,9 @@
 defmodule Cake.Books.Persistence do
   @moduledoc """
   Write-path for the Books GDS: persists a parsed book and its chunks in a
-  single transaction, deduplicating by `file_hash`.
+  single transaction, deduplicating by `file_hash`: a book whose bytes are
+  already persisted is reported as `{:duplicate, existing}` rather than
+  inserted, so the pipeline can skip embedding and indexing it again.
 
   Separated from the `Cake.Books` CRUD context because this is bespoke ingest
   logic (hash dedup, `Ecto.Multi`, bulk `insert_all` with a count check) used
@@ -38,15 +40,22 @@ defmodule Cake.Books.Persistence do
           {:invalid_input, map()}
           | {String.t(), Ecto.Changeset.t() | chunk_error()}
 
+  @doc """
+  Persists a `{book, chunks}` pair in one transaction, unless a book with
+  the same `file_hash` already exists: then nothing is written and the
+  existing book comes back as `{:duplicate, existing}`, never as `{:ok, _}`,
+  so a caller cannot mistake it for freshly persisted rows to embed.
+  """
   @spec persist_books_and_chunks({ParsedBook.t(), [Chunk.t()]} | {term(), term()}) ::
-          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, persist_error()}
+          {:ok, {ParsedBook.t(), [Chunk.t()]}}
+          | {:duplicate, ParsedBook.t()}
+          | {:error, persist_error()}
   def persist_books_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
       when is_list(chunks) do
     case Repo.one(from b in ParsedBook, where: b.file_hash == ^hash) do
       %ParsedBook{} = existing ->
-        existing_chunks = Repo.all(from c in Chunk, where: c.parsed_book_id == ^existing.id)
         Logger.debug("Skipping already-persisted book #{existing.title} (#{hash})")
-        {:ok, {existing, existing_chunks}}
+        {:duplicate, existing}
 
       nil ->
         persist_books_and_chunks(book, chunks)

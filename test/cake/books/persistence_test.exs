@@ -62,17 +62,21 @@ defmodule Cake.Books.PersistenceTest do
              Persistence.persist_books_and_chunks({"not_a_book", []})
   end
 
-  test "deduplicates by file_hash, returning existing book and chunks" do
+  test "reports a duplicate file_hash as {:duplicate, existing} and writes nothing" do
     b = book()
     chunks = [chunk(0, 1)]
 
     {:ok, {first_book, first_chunks}} = Persistence.persist_books_and_chunks({b, chunks})
 
     dupe = %ParsedBook{b | source_file_path: "/tmp/different.pdf", file_hash: b.file_hash}
-    {:ok, {second_book, second_chunks}} = Persistence.persist_books_and_chunks({dupe, chunks})
 
-    assert first_book.id == second_book.id
-    assert length(first_chunks) == length(second_chunks)
+    assert {:duplicate, %ParsedBook{} = existing} =
+             Persistence.persist_books_and_chunks({dupe, chunks})
+
+    assert existing.id == first_book.id
+    assert existing.source_file_path == first_book.source_file_path
+    assert length(Repo.all(ParsedBook)) == 1
+    assert Enum.map(Repo.all(Chunk), & &1.id) == Enum.map(first_chunks, & &1.id)
   end
 
   test "returns error for chunks missing required fields" do

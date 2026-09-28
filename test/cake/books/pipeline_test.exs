@@ -421,6 +421,46 @@ defmodule Cake.Books.PipelineTest do
       end)
     end
 
+    test "retry/4 resolves a file that is a duplicate of an ingested book without embedding" do
+      # The book was ingested under one key; a failure recorded under another
+      # key resolves to the same bytes. The retry must not embed (no Mox
+      # expectation is set, so any call would fail it) and must delete the
+      # failure: the book is already there.
+      book = make_book("Dup Book", "dup_#{System.unique_integer([:positive])}")
+      first_path = book.source_file_path
+      second_path = "/test/other-copy-of-#{book.file_hash}.pdf"
+      chunk = make_chunk("Duplicate chunk")
+
+      register_test_books([{first_path, {book, [chunk]}}, {second_path, {book, [chunk]}}])
+
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, _input, "test-model" ->
+        successful_embed_response()
+      end)
+
+      capture_log(fn -> assert {:ok, %{indexed: 1, failed: 0}} = run_ingest([first_path]) end)
+
+      {:ok, failure} =
+        Cake.FailedIngests.create_failed_ingest(%{
+          run_id: Ecto.UUID.generate(),
+          pipeline_behaviour: "Cake.Books.Pipeline",
+          pipeline_implementation: "Cake.TestBooksPipeline",
+          step: "books.parse",
+          version: "test-model",
+          error_text: "boom",
+          input_identifier: second_path,
+          pipeline_fatal: false
+        })
+
+      capture_log(fn ->
+        assert {:ok, :retried} =
+                 Pipeline.retry(failure, Cake.TestBooksPipeline, :openai, "test-model")
+      end)
+
+      assert Repo.all(FailedIngest) == []
+      assert [%ParsedBook{source_file_path: ^first_path}] = persisted_books()
+      assert [%Chunk{embedding: @fake_embedding}] = Repo.all(Chunk)
+    end
+
     test "ingest_with_sweep/5 finds and resolves a failure recorded during the run" do
       book = make_book("Sweep Book", "sweep")
       path = book.source_file_path
