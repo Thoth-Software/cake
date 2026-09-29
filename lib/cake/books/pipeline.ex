@@ -97,9 +97,14 @@ defmodule Cake.Books.Pipeline do
   a failure belongs to; counting and sweeping are scoped by the context's
   `run_id`.
 
-  A book whose `file_hash` is already persisted is a duplicate: it is
-  logged and dropped after the persist step, never re-embedded or
-  re-indexed, and counted in neither `indexed` nor `failed`.
+  A book whose `file_hash` is already persisted and finished (`:completed`,
+  or `:processing` under another run) is a duplicate: it is logged and
+  dropped after the persist step, never re-embedded or re-indexed, and
+  counted in neither `indexed` nor `failed`. One that an earlier run
+  persisted but left `:pending` or `:failed` is resumed instead: its
+  existing chunks are embedded and indexed again and its status moves
+  through the normal transitions, so re-ingesting the same bytes repairs
+  a book whose first run did not finish.
 
   `validate_paths/1` runs first, eagerly: an invalid key list is
   pipeline-fatal and short-circuits to `Pipelines.handle_ingest_error/2`,
