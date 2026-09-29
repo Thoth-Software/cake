@@ -14,7 +14,16 @@ config :cake, Cake.Repo,
   hostname: "localhost",
   database: "cake_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+  pool_size: System.schedulers_online() * 2,
+  # The end-to-end ingestion suites run the real pipelines under the shared
+  # sandbox (async: false), where every process funnels through the test's
+  # one connection. The pipelines' Task.async_stream fan-out (4–5 workers
+  # per stage, ~1,400 documents for the hexdocs clone) queues on it, and
+  # DBConnection's defaults (queue_target 50 ms, queue_interval 1 s) drop a
+  # queued checkout after ~100 ms under load. A budget sized to the fan-out
+  # turns that into waiting rather than a spurious ConnectionError (#248).
+  queue_target: 1_000,
+  queue_interval: 5_000
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
