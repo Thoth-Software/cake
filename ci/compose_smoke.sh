@@ -25,6 +25,12 @@
 #      `mix cake.nif.check` there extracts a fixture PDF through
 #      Cake.ParseBooks.extract_pdf/1, proving entrypoint.sh's forced-recompile
 #      sequence produced a loadable Linux .so (CLAUDE.md "NIF clobbering").
+#      The image's own build (the Dockerfile's `mix do compile`) already
+#      carries a valid .so, which would satisfy the check with or without that
+#      sequence, so the script overwrites it with a stale one in the created,
+#      not yet started, container: the dev bind mount's failure, a .so the
+#      container cannot load, reproduced without a bind mount. Only a rebuild
+#      at boot can make the check pass.
 #
 # The stack is torn down (`docker compose down -v`) on exit, success or
 # failure; on failure the container logs are printed first. SMOKE_KEEP=1
@@ -81,7 +87,15 @@ collections=(chunks_of_books docs)
 # from the NIF integration suite: three text pages, nothing skipped.
 nif_fixture=test/support/fixtures/pdfs/multi_page.pdf
 
+# Where Rustler loads the parsebooks NIF from, inside the app container:
+# :code.priv_dir(:cake)/native/<[lib] name in native/parsebooks/Cargo.toml>.so,
+# and _build/dev/lib/cake/priv is Mix's symlink to /app/priv. entrypoint.sh
+# deletes and rebuilds exactly this file.
+nif_so=/app/priv/native/parsebooks.so
+
 poll_interval=5
+
+scratch=$(mktemp -d)
 
 log() { printf '==> %s\n' "$*"; }
 
@@ -106,6 +120,7 @@ cleanup() {
     "${compose[@]}" down --volumes --remove-orphans || true
   fi
 
+  rm -rf "$scratch"
   exit "$status"
 }
 trap cleanup EXIT
@@ -179,8 +194,20 @@ log "Starting db and opensearch"
 wait_until "$SMOKE_HEALTH_TIMEOUT" "db is healthy" healthy db
 wait_until "$SMOKE_HEALTH_TIMEOUT" "opensearch is healthy" healthy opensearch
 
+log "Creating the app container"
+"${compose[@]}" create --no-recreate phoenix
+
+# Plant a stale NIF before entrypoint.sh runs (assertion 5). Copying the built
+# .so out first proves the image carries it at nif_so: planting at any other
+# path would leave the image's valid .so in place and the check vacuous.
+docker cp "$(container_id phoenix):$nif_so" "$scratch/built.so" ||
+  fail "The image has no NIF at $nif_so; update nif_so to where Rustler loads it from"
+printf 'stale parsebooks NIF planted by ci/compose_smoke.sh\n' >"$scratch/stale.so"
+docker cp "$scratch/stale.so" "$(container_id phoenix):$nif_so"
+log "Planted a stale NIF at $nif_so; only entrypoint.sh's rebuild can replace it"
+
 log "Starting the app"
-"${compose[@]}" up --detach phoenix
+"${compose[@]}" start phoenix
 
 wait_until "$SMOKE_BOOT_TIMEOUT" "the app answers HTTP 200 at $SMOKE_APP_URL" app_answers
 

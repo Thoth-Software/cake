@@ -12,8 +12,11 @@ services:
     # No bind mount. The dev stack overlays the host checkout onto /app so
     # edits show up live, which is precisely what hides the image's own build
     # and forces entrypoint.sh's recompile sequence. Here the image runs as
-    # built: /app is what `docker compose build` produced from the Dockerfile,
-    # so the smoke test exercises that sequence against the image itself.
+    # built: /app is what `docker compose build` produced from the Dockerfile.
+    # That build already carries a valid Linux NIF, so running it as built
+    # cannot on its own prove the recompile sequence works; ci/compose_smoke.sh
+    # plants a stale .so in the created container before entrypoint.sh runs,
+    # so its NIF check passes only if entrypoint.sh rebuilt it.
     # The fixture PDFs under test/support/fixtures/pdfs/ are in the image
     # because .dockerignore does not exclude test/.
     volumes: !reset []
