@@ -40,7 +40,7 @@ defmodule Cake.ConversationLiveTest do
   # ExUnit's 60s default bounds setup and test body together, so it must
   # exceed the turn bound plus the live corpus embeddings in setup, or the
   # test is killed before the turn's own timeout can report.
-  @moduletag timeout: :timer.seconds(180)
+  @moduletag timeout: @turn_timeout + :timer.seconds(60)
 
   # A strategy that emits the dependency edge no production strategy can
   # yet (README "Strategies and tiers"): the live part is every step's
