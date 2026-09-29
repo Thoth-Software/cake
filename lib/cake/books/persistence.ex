@@ -1,7 +1,16 @@
 defmodule Cake.Books.Persistence do
   @moduledoc """
   Write-path for the Books GDS: persists a parsed book and its chunks in a
-  single transaction, deduplicating by `file_hash`.
+  single transaction, deduplicating by `file_hash`. A book whose bytes are
+  already persisted *and ingested* — `embedding_status` `:completed`, which
+  `Cake.Books.Pipeline` writes only after every chunk is embedded and
+  accepted by the index — is reported as `{:duplicate, existing}` rather
+  than inserted, so the pipeline skips it. A book in any other status
+  (`:pending`, `:processing`, `:failed`) is one an earlier run did not
+  finish: its existing rows come back as `{:ok, {existing, chunks}}` so the
+  pipeline resumes it. The row is committed before any chunk is embedded,
+  which is why the status, not the row's existence, decides; and nothing
+  records who owns a `:processing` book, which is why it is resumable.
 
   Separated from the `Cake.Books` CRUD context because this is bespoke ingest
   logic (hash dedup, `Ecto.Multi`, bulk `insert_all` with a count check) used
@@ -38,15 +47,31 @@ defmodule Cake.Books.Persistence do
           {:invalid_input, map()}
           | {String.t(), Ecto.Changeset.t() | chunk_error()}
 
+  @doc """
+  Persists a `{book, chunks}` pair in one transaction, unless a book with
+  the same `file_hash` already exists. Then nothing is written, and the
+  answer depends on that book's `embedding_status`: `:completed` is
+  `{:duplicate, existing}`, never `{:ok, _}`, so a caller cannot mistake it
+  for rows to embed; anything else is `{:ok, {existing, existing_chunks}}`,
+  the rows to resume, in `chunk_index` order.
+  """
   @spec persist_books_and_chunks({ParsedBook.t(), [Chunk.t()]} | {term(), term()}) ::
-          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, persist_error()}
+          {:ok, {ParsedBook.t(), [Chunk.t()]}}
+          | {:duplicate, ParsedBook.t()}
+          | {:error, persist_error()}
   def persist_books_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
       when is_list(chunks) do
     case Repo.one(from b in ParsedBook, where: b.file_hash == ^hash) do
-      %ParsedBook{} = existing ->
-        existing_chunks = Repo.all(from c in Chunk, where: c.parsed_book_id == ^existing.id)
-        Logger.debug("Skipping already-persisted book #{existing.title} (#{hash})")
-        {:ok, {existing, existing_chunks}}
+      %ParsedBook{embedding_status: :completed} = existing ->
+        Logger.debug("Skipping already-ingested book #{existing.title} (#{hash})")
+        {:duplicate, existing}
+
+      %ParsedBook{embedding_status: status} = existing ->
+        Logger.info(
+          "Resuming #{status} book #{existing.title} (#{hash}): persisted by an earlier run, never finished"
+        )
+
+        {:ok, {existing, existing_chunks(existing)}}
 
       nil ->
         persist_books_and_chunks(book, chunks)
@@ -57,8 +82,19 @@ defmodule Cake.Books.Persistence do
     {:error, {:invalid_input, %{book: book, chunks: chunks}}}
   end
 
+  defp existing_chunks(%ParsedBook{id: book_id}) do
+    Repo.all(from c in Chunk, where: c.parsed_book_id == ^book_id, order_by: c.chunk_index)
+  end
+
+  @doc """
+  Persists the pair without the `file_hash` lookup. If another run inserted
+  the same bytes first, the unique index on `file_hash` refuses the insert
+  and the winner's row comes back as `{:duplicate, existing}`: losing that
+  check-then-insert race is a duplicate, not a persist error.
+  """
   @spec persist_books_and_chunks(ParsedBook.t(), [Chunk.t()]) ::
           {:ok, {ParsedBook.t(), [Chunk.t()]}}
+          | {:duplicate, ParsedBook.t()}
           | {:error, {String.t(), Ecto.Changeset.t() | chunk_error()}}
   def persist_books_and_chunks(%ParsedBook{} = book, chunks) when is_list(chunks) do
     book
@@ -147,8 +183,29 @@ defmodule Cake.Books.Persistence do
       {:ok, %{book: persisted_book, chunks: persisted_chunks}} ->
         {:ok, {persisted_book, persisted_chunks}}
 
+      {:error, :book, %Ecto.Changeset{} = changeset, _changes_so_far} ->
+        duplicate_or_error(changeset, book)
+
       {:error, _step, reason, _changes_so_far} ->
         {:error, {book.source_file_path, reason}}
     end
+  end
+
+  # The book insert failed. If it was the unique index on file_hash, another
+  # run inserted the same bytes between our lookup and our insert (or the
+  # caller skipped the lookup): that is the duplicate case, answered with
+  # the row that won. Any other changeset error is a genuine persist error.
+  defp duplicate_or_error(changeset, book) do
+    with true <- unique_file_hash_violation?(changeset),
+         %ParsedBook{} = existing <-
+           Repo.one(from b in ParsedBook, where: b.file_hash == ^book.file_hash) do
+      {:duplicate, existing}
+    else
+      _no_winner_or_other_error -> {:error, {book.source_file_path, changeset}}
+    end
+  end
+
+  defp unique_file_hash_violation?(%Ecto.Changeset{errors: errors}) do
+    match?({_message, [constraint: :unique, constraint_name: _name]}, errors[:file_hash])
   end
 end

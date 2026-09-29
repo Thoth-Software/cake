@@ -3,7 +3,8 @@ defmodule Cake.SearchIntegrationCase do
   Case template for tests that talk to a real search cluster (#245).
 
   `use Cake.SearchIntegrationCase, async: true` tags the module's tests
-  `:integration`, sets up the Ecto sandbox (the round-trip tests hydrate
+  `:integration` (`network: true` tags them `:network` instead — see
+  `module_tag/1`), sets up the Ecto sandbox (the round-trip tests hydrate
   hits from Postgres), neutralizes the `:skip_search_backend` flag for the
   run, and hands each test a `:collection` name unique to it. Everything a
   test creates under that name is dropped again in `on_exit`.
@@ -53,12 +54,27 @@ defmodule Cake.SearchIntegrationCase do
   @readiness_attempts 60
   @readiness_interval_ms 1_000
 
-  using do
+  using opts do
     quote do
-      @moduletag :integration
+      @moduletag unquote(Cake.SearchIntegrationCase.module_tag(opts))
 
       import Cake.SearchIntegrationCase
     end
+  end
+
+  @doc """
+  The tag a module using this template carries: `:integration`, or
+  `:network` when the `use` options say `network: true`. A `:network` module
+  needs everything an `:integration` one does (the real cluster, the
+  namespace) but also reaches the public internet, so it must never be
+  picked up by `--only integration` alone: ExUnit's include wins over its
+  exclude, so a test tagged both could not be opted out of. It runs only
+  with `mix test --only integration --include network` (the merge gate
+  passes that; CLAUDE.md "Integration tests").
+  """
+  @spec module_tag(keyword()) :: :integration | :network
+  def module_tag(opts) when is_list(opts) do
+    if Keyword.get(opts, :network, false), do: :network, else: :integration
   end
 
   setup tags do

@@ -265,10 +265,18 @@ defmodule Cake.Pipelines do
   @doc """
   Builds the honest result of an ingest run from its outcome counts.
 
-  Returns `{:ok, summary}` when at least one item made it through (including a
-  partial run, whose `summary.failed` is non-zero — partial success is reported
-  *as* partial, never as clean success). A non-empty run where nothing made it
-  through is a failure: `{:error, {:no_items_ingested, summary}}`.
+  The rule: a run is an error, `{:error, {:no_items_ingested, summary}}`,
+  when it recorded failures and no successes (`failed > 0` and
+  `indexed == 0`). Everything else is `{:ok, summary}`, including a partial
+  run, whose `summary.failed` is non-zero — partial success is reported
+  *as* partial, never as clean success.
+
+  Duplicates count in neither number and so never enter the rule: a book
+  whose `file_hash` is already ingested is dropped by
+  `Cake.Books.Pipeline.ingest/4` before the embed stage, so a run made only
+  of duplicates is `{:ok, %{indexed: 0, failed: 0}}`. The state the caller
+  asked for already holds, and an idempotent operation reports success
+  when the desired end state holds, whether or not it did work to get there.
   """
   @spec summarize_ingest(String.t(), non_neg_integer(), non_neg_integer()) ::
           {:ok, ingest_summary()} | {:error, {:no_items_ingested, ingest_summary()}}

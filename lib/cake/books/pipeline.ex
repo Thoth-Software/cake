@@ -97,6 +97,20 @@ defmodule Cake.Books.Pipeline do
   a failure belongs to; counting and sweeping are scoped by the context's
   `run_id`.
 
+  A book's `embedding_status` moves to `:processing` as its chunks start
+  to embed, and its final value is written only after they have been
+  through both the embed stage and the index stage: `:completed` when
+  every chunk was embedded *and* accepted by the index, `:failed`
+  otherwise. So `:completed` means ingested, and it is the one status that
+  makes a later `file_hash` hit a duplicate: such a book is logged and
+  dropped after the persist step, never re-embedded or re-indexed, and
+  counted in neither `indexed` nor `failed`. A book in any other status —
+  `:pending`, `:processing` (an interrupted run leaves it there; nothing
+  proves another run still owns it), `:failed` — is resumed instead: its
+  existing chunks are embedded and indexed again and its final status is
+  rewritten from the result, so re-ingesting the same bytes repairs a book
+  whose earlier run did not finish.
+
   `validate_paths/1` runs first, eagerly: an invalid key list is
   pipeline-fatal and short-circuits to `Pipelines.handle_ingest_error/2`,
   returning `{:error, {:validate_paths, reason}}` before anything is loaded.
@@ -124,8 +138,7 @@ defmodule Cake.Books.Pipeline do
          {:ok, embedded_books} <-
            embed_all_chunks(persisted_books_and_chunks, embedding_service, embedding_model, ctx) do
       embedded_books
-      |> update_book_embedding_statuses()
-      |> Pipelines.add_to_search_backend(ParsedBook.collection_name(), ctx)
+      |> index_books_and_update_statuses(ctx)
       |> Pipelines.finalize_ingest(ctx, format_pipeline.success_message())
     else
       error -> Pipelines.handle_ingest_error(error, ctx)
@@ -164,7 +177,8 @@ defmodule Cake.Books.Pipeline do
   @doc """
   Retries a single failed ingest item. Dispatches based on the step that failed:
   early failures re-run from the file, embed/index failures resume from the
-  persisted chunk.
+  persisted chunk. A file that turns out to be a duplicate of an already
+  ingested book resolves the failure without embedding or indexing anything.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, retry_error()}
@@ -267,17 +281,21 @@ defmodule Cake.Books.Pipeline do
         zip_input_on_exit: true
       )
       |> Stream.map(&munge_persisted_stream/1)
+      |> Stream.reject(&skip_duplicate?/1)
       |> Pipelines.detuple_with_logging("books.persist", ctx)
 
     {:ok, persisted_stream}
   end
 
   @spec munge_persisted_stream({:ok, term()} | {:exit, term()}) ::
-          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:error, any()}
+          {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:duplicate, ParsedBook.t()} | {:error, any()}
   def munge_persisted_stream(persisted_books_and_chunks) do
     case persisted_books_and_chunks do
       {:ok, {:ok, persisted}} ->
         {:ok, persisted}
+
+      {:ok, {:duplicate, %ParsedBook{} = existing}} ->
+        {:duplicate, existing}
 
       {:ok, {:error, {path, reason}}} ->
         {:error, {path, inspect(reason)}}
@@ -292,6 +310,20 @@ defmodule Cake.Books.Pipeline do
         {:error, {nil, inspect(reason)}}
     end
   end
+
+  # A duplicate is neither an item that made it through nor a failure: the
+  # book is already ingested, so it is dropped here, before the detuple step
+  # would record it as a failure, and never reaches the embed or index stages.
+  defp skip_duplicate?({:duplicate, %ParsedBook{} = existing}) do
+    Logger.info(
+      "[books.persist] Skipping duplicate of already-ingested book " <>
+        "#{existing.title} (#{existing.file_hash}): not re-embedded or re-indexed"
+    )
+
+    true
+  end
+
+  defp skip_duplicate?(_result), do: false
 
   @spec embed_all_chunks(Enumerable.t(), atom(), String.t(), Pipelines.Context.t()) ::
           {:ok, Enumerable.t()}
@@ -329,17 +361,31 @@ defmodule Cake.Books.Pipeline do
     {:ok, embedded_stream}
   end
 
-  @spec update_book_embedding_statuses(Enumerable.t()) :: Enumerable.t()
-  def update_book_embedding_statuses(embedded_books_stream) do
-    Stream.flat_map(embedded_books_stream, fn {book, expected_count, embedded_chunks} ->
-      status =
-        case length(embedded_chunks) do
-          ^expected_count -> :completed
-          _ -> :failed
-        end
+  @doc """
+  Indexes each book's embedded chunks into the Books collection through
+  `Pipelines.add_to_search_backend/3` (index failures are recorded there
+  under `"search_backend.index"`), then writes the book's `embedding_status`
+  from the outcome: `:completed` only when every one of the book's chunks
+  was both embedded and accepted by the index, `:failed` otherwise. This is
+  the book's final status write of the run (`embed_all_chunks/4` set
+  `:processing` when embedding began), placed after the index stage on
+  purpose — it is the durable record `Persistence` reads to decide whether
+  a later `file_hash` hit is a duplicate or a book to resume. Emits the
+  indexed chunks.
+  """
+  @spec index_books_and_update_statuses(Enumerable.t(), Pipelines.Context.t()) :: Enumerable.t()
+  def index_books_and_update_statuses(embedded_books_stream, %Pipelines.Context{} = ctx) do
+    collection = ParsedBook.collection_name()
 
+    Stream.flat_map(embedded_books_stream, fn {book, expected_count, embedded_chunks} ->
+      indexed_chunks =
+        embedded_chunks
+        |> Pipelines.add_to_search_backend(collection, ctx)
+        |> Enum.to_list()
+
+      status = if length(indexed_chunks) == expected_count, do: :completed, else: :failed
       _ = Books.update_parsed_book(book, %{embedding_status: status})
-      embedded_chunks
+      indexed_chunks
     end)
   end
 
@@ -378,11 +424,28 @@ defmodule Cake.Books.Pipeline do
       with {:ok, binary} <- format_pipeline.load_binary(path),
            {parsed_book, chunks} <- try_parse(format_pipeline, binary),
            {:ok, {_persisted_book, persisted_chunks}} <-
-             Persistence.persist_books_and_chunks({parsed_book, chunks}),
+             persist_unless_duplicate({parsed_book, chunks}),
            :ok <- embed_and_index_chunks(persisted_chunks, embedding_service, embedding_model) do
         _ = Cake.FailedIngests.delete_failed_ingest(failure)
         {:ok, :retried}
       end
+    end
+  end
+
+  # A retried file whose bytes are already ingested has nothing left to do:
+  # the existing book stands, with no chunks to embed or index.
+  defp persist_unless_duplicate(book_and_chunks) do
+    case Persistence.persist_books_and_chunks(book_and_chunks) do
+      {:duplicate, %ParsedBook{} = existing} ->
+        Logger.info(
+          "[books.retry] Duplicate of already-ingested book #{existing.title} " <>
+            "(#{existing.file_hash}): resolved without re-embedding or re-indexing"
+        )
+
+        {:ok, {existing, []}}
+
+      other ->
+        other
     end
   end
 

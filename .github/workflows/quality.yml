@@ -210,6 +210,13 @@ jobs:
     name: Integration Tests (merge gate)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    # `--include network` adds the :network-tagged tests (#248): the hexdocs
+    # pipeline's real `git clone` of one small tagged Elixir release
+    # (elixir-lang/elixir v1.0.0), both directly and through the Oban job.
+    # They need git and outbound HTTPS to github.com, which the hosted
+    # runner has. They are tagged :network instead of :integration, so a
+    # plain `mix test --only integration` (the local default) leaves them
+    # out and this flag is the one place that opts them in.
 
     env:
       # The service container publishes 9200 on the runner host; the
@@ -299,8 +306,8 @@ jobs:
       - name: Compile
         run: mix compile --warnings-as-errors
 
-      - name: Run integration tests
-        run: mix test --only integration
+      - name: Run integration tests (with the network group)
+        run: mix test --only integration --include network
 
   llm:
     name: Live LLM Tests (merge gate, internal PRs)

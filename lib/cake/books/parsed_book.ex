@@ -15,6 +15,12 @@ defmodule Cake.Books.ParsedBook do
     :total_pages is the document's page count, including pages whose text
       could not be extracted (those are logged as skipped, not dropped from
       the count, so a chunk's :page_number never exceeds it).
+    :embedding_status is the book's ingestion state, written by
+      Cake.Books.Pipeline: :pending once persisted, :processing while its
+      chunks embed, then — after the index stage — :completed when every
+      chunk was embedded and accepted by the search index, :failed
+      otherwise. :completed is the only state that makes a later upload of
+      the same bytes a duplicate; every other state is resumed.
 
   Justifications for validate_required:
     :source_file_path,      # Always have this - where the file lives
