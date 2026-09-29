@@ -109,10 +109,16 @@ defmodule Cake.S3IntegrationCase do
       # needs the endpoint, so it points ExAws there itself first. What that
       # replaces is the test's leftovers, not worth keeping: `snapshot` below
       # is what goes back.
+      # A store failing mid-cleanup still raises, but only after both global
+      # keys are back, so later tests never inherit this one's config.
       _leftover = configure_s3!()
-      drop_buckets!(bucket)
-      restore_config!(snapshot)
-      restore_bucket_config(previous_bucket)
+
+      try do
+        drop_buckets!(bucket)
+      after
+        restore_config!(snapshot)
+        restore_bucket_config(previous_bucket)
+      end
     end)
 
     _bucket = create_bucket!(bucket)

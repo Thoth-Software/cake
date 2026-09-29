@@ -68,7 +68,7 @@ defmodule Cake.Books.Pdf.PipelineS3IntegrationTest do
     end
 
     test "wraps an unreachable store the same way, naming the transport error" do
-      configure_s3!(port: closed_port(), retries: [max_attempts: 1])
+      configure_s3!(host: "127.0.0.1", port: closed_port(), retries: [max_attempts: 1])
 
       log =
         capture_log(fn ->

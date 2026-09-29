@@ -56,8 +56,14 @@ defmodule Cake.S3IntegrationCaseTest do
       # Reaching the store again needs the endpoint config the template has
       # just (correctly) removed; put it back for the check, then undo that.
       snapshot = configure_s3!()
-      leftovers = Enum.filter(created, &bucket_exists?/1)
-      restore_config!(snapshot)
+
+      leftovers =
+        try do
+          Enum.filter(created, &bucket_exists?/1)
+        after
+          restore_config!(snapshot)
+        end
+
       assert leftovers == [], "buckets survived their test's teardown: #{inspect(leftovers)}"
     end)
 

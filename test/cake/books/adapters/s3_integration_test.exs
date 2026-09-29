@@ -28,6 +28,8 @@ defmodule Cake.Books.Adapters.S3IntegrationTest do
 
   # A port on this host with nothing listening: a request to it is refused
   # at once, so the adapter sees a transport error rather than a timeout.
+  # The request goes to loopback, where the port was chosen, not to the
+  # configured store host (`moto` inside `cake_app`).
   defp closed_port do
     {:ok, socket} = :gen_tcp.listen(0, [])
     {:ok, port} = :inet.port(socket)
@@ -35,7 +37,8 @@ defmodule Cake.Books.Adapters.S3IntegrationTest do
     port
   end
 
-  defp unreachable_store!, do: configure_s3!(port: closed_port(), retries: [max_attempts: 1])
+  defp unreachable_store!,
+    do: configure_s3!(host: "127.0.0.1", port: closed_port(), retries: [max_attempts: 1])
 
   # ExAws logs every failed attempt; the unreachable-store tests expect
   # exactly that, so they capture it rather than let it through.
