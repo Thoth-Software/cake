@@ -278,7 +278,7 @@ Protocols in Cake define value-level contracts. The question they answer is "wha
 
 ### ParsedBook Fields
 
-`title`, `source_file_path` (required; the `Cake.Books.Adapters` storage key the binary was written under — `CakeWeb.BooksController` reads it back through the configured adapter for downloads — and the `Citable` `source_ref`), `authors` (string array), `source_format`, `file_hash` (deduplication), `file_size`, `word_count`, `total_pages`, `parsed_at`, `embedding_status` (enum: pending/processing/completed/failed), `metadata` (map), `table_of_contents` (map), `language` (ISO code), `isbn`, `publisher`, `publication_date`. Has many `Chunk` records.
+`title`, `source_file_path` (required; the `Cake.Books.Adapters` storage key the binary was written under — `CakeWeb.BooksController` reads it back through the configured adapter for downloads — and the `Citable` `source_ref`), `authors` (string array), `source_format`, `file_hash` (deduplication), `file_size`, `word_count`, `total_pages`, `parsed_at`, `embedding_status` (enum: pending/processing/completed/failed — written after the index stage, so `completed` means every chunk embedded *and* indexed; it is the one state that makes a re-upload of the same bytes a duplicate, any other is resumed), `metadata` (map), `table_of_contents` (map), `language` (ISO code), `isbn`, `publisher`, `publication_date`. Has many `Chunk` records.
 
 ### Chunk Fields
 

@@ -2,14 +2,15 @@ defmodule Cake.Books.Persistence do
   @moduledoc """
   Write-path for the Books GDS: persists a parsed book and its chunks in a
   single transaction, deduplicating by `file_hash`. A book whose bytes are
-  already persisted *and finished* (`embedding_status` `:completed`, or
-  `:processing` because another run is on it) is reported as
-  `{:duplicate, existing}` rather than inserted, so the pipeline skips
-  embedding and indexing it again. A book whose bytes are persisted but
-  which an earlier run left `:pending` or `:failed` is not finished: its
-  existing rows come back as `{:ok, {existing, chunks}}` so the pipeline
-  resumes it. The row is committed before any chunk is embedded, which is
-  why the status, not the row's existence, decides.
+  already persisted *and ingested* — `embedding_status` `:completed`, which
+  `Cake.Books.Pipeline` writes only after every chunk is embedded and
+  accepted by the index — is reported as `{:duplicate, existing}` rather
+  than inserted, so the pipeline skips it. A book in any other status
+  (`:pending`, `:processing`, `:failed`) is one an earlier run did not
+  finish: its existing rows come back as `{:ok, {existing, chunks}}` so the
+  pipeline resumes it. The row is committed before any chunk is embedded,
+  which is why the status, not the row's existence, decides; and nothing
+  records who owns a `:processing` book, which is why it is resumable.
 
   Separated from the `Cake.Books` CRUD context because this is bespoke ingest
   logic (hash dedup, `Ecto.Multi`, bulk `insert_all` with a count check) used
@@ -49,11 +50,10 @@ defmodule Cake.Books.Persistence do
   @doc """
   Persists a `{book, chunks}` pair in one transaction, unless a book with
   the same `file_hash` already exists. Then nothing is written, and the
-  answer depends on that book's `embedding_status`: `:completed` or
-  `:processing` is `{:duplicate, existing}`, never `{:ok, _}`, so a caller
-  cannot mistake it for rows to embed; `:pending` or `:failed` is
-  `{:ok, {existing, existing_chunks}}`, the rows to resume, in
-  `chunk_index` order.
+  answer depends on that book's `embedding_status`: `:completed` is
+  `{:duplicate, existing}`, never `{:ok, _}`, so a caller cannot mistake it
+  for rows to embed; anything else is `{:ok, {existing, existing_chunks}}`,
+  the rows to resume, in `chunk_index` order.
   """
   @spec persist_books_and_chunks({ParsedBook.t(), [Chunk.t()]} | {term(), term()}) ::
           {:ok, {ParsedBook.t(), [Chunk.t()]}}
@@ -62,8 +62,8 @@ defmodule Cake.Books.Persistence do
   def persist_books_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
       when is_list(chunks) do
     case Repo.one(from b in ParsedBook, where: b.file_hash == ^hash) do
-      %ParsedBook{embedding_status: status} = existing when status in [:completed, :processing] ->
-        Logger.debug("Skipping already-persisted book #{existing.title} (#{hash})")
+      %ParsedBook{embedding_status: :completed} = existing ->
+        Logger.debug("Skipping already-ingested book #{existing.title} (#{hash})")
         {:duplicate, existing}
 
       %ParsedBook{embedding_status: status} = existing ->
