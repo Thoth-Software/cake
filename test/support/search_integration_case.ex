@@ -62,12 +62,27 @@ defmodule Cake.SearchIntegrationCase do
   end
 
   setup tags do
+    integration_collection(tags)
+  end
+
+  @doc """
+  The template's per-test setup as a named setup, for a test module on
+  another case template that also needs a real-cluster collection (the
+  live conversation suite on `Cake.LiveLLMCase`): sets up the Ecto
+  sandbox, checks the Deployment points at the real cluster, neutralizes
+  the `:skip_search_backend` flag, and hands out a `:collection` unique
+  to the test that is dropped again in `on_exit`.
+
+      setup :integration_collection
+  """
+  @spec integration_collection(map()) :: %{collection: String.t()}
+  def integration_collection(tags) when is_map(tags) do
     Cake.DataCase.setup_sandbox(tags)
     assert_real_deployment!()
     Application.put_env(:cake, :skip_search_backend, false)
 
     collection = new_collection_prefix()
-    on_exit(fn -> drop_collections!(collection) end)
+    ExUnit.Callbacks.on_exit(fn -> drop_collections!(collection) end)
 
     %{collection: collection}
   end
