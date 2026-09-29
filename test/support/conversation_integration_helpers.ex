@@ -426,7 +426,7 @@ defmodule Cake.ConversationIntegrationHelpers do
 
   @doc """
   Repoints `Cake.Search.Deployment` at the real cluster for the rest of
-  an `mix test --only llm` run, the way `test_helper.exs` does for an
+  a `mix test --only llm` run, the way `test_helper.exs` does for an
   integration run, so a live suite can seed and search a real index.
   Call from `setup_all`. Refuses any other run shape: the swap is global
   to the VM and would leave later unit tests on the real cluster.
