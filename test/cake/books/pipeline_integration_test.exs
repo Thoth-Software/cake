@@ -191,6 +191,45 @@ defmodule Cake.Books.PipelineIntegrationTest do
     end
   end
 
+  describe "contracts: embedding_status covers indexing" do
+    test "a book with a chunk the index rejects is :failed, and re-ingesting the same bytes repairs it" do
+      key = stage_fixture!(:multi_page)
+      {_book, [_first, second, _third]} = parse_fixture(:multi_page)
+      bad_input = embed_input(second)
+
+      # The embed "succeeds" with a three-element vector; the real index
+      # refuses it. Embedding alone is not ingestion: the book must not
+      # read :completed while one of its chunks is missing from the index.
+      stub_embeddings(fn
+        ^bad_input -> [1.0, 0.0, 0.0]
+        input -> deterministic_embedding(input)
+      end)
+
+      assert {:ok, %{indexed: 2, failed: 1}} = ingest([key])
+
+      assert [%ParsedBook{id: book_id, embedding_status: :failed}] = Books.list_parsed_books()
+      [first, persisted_second, third] = chunks_in_order(Books.get_parsed_book!(book_id))
+
+      assert [%FailedIngest{step: "search_backend.index", input_identifier: failed_id}] =
+               Repo.all(FailedIngest)
+
+      assert failed_id == persisted_second.id
+      assert Enum.sort(indexed_ids!(ParsedBook)) == Enum.sort([first.id, third.id])
+
+      # Same bytes again, with a provider that behaves: the :failed book is
+      # resumed, every chunk embedded and indexed, and only then :completed.
+      stub_embeddings()
+      again = stage_fixture!(:multi_page)
+
+      assert {:ok, %{indexed: 3, failed: 0}} = ingest([again])
+
+      assert [%ParsedBook{id: ^book_id, embedding_status: :completed}] = Books.list_parsed_books()
+      chunks = chunks_in_order(Books.get_parsed_book!(book_id))
+      assert Enum.all?(chunks, &(&1.embedding == deterministic_embedding(embed_input(&1))))
+      assert Enum.sort(indexed_ids!(ParsedBook)) == Enum.sort(ids(chunks))
+    end
+  end
+
   describe "contracts: honest summaries" do
     test "one good and one unparseable PDF is a partial run: the good book is indexed, the failure persisted" do
       stub_embeddings()

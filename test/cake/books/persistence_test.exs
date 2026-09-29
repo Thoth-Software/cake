@@ -63,9 +63,11 @@ defmodule Cake.Books.PersistenceTest do
   end
 
   # A file_hash hit means the bytes are known; whether the book is *done*
-  # is its embedding_status. Complete or in-flight books are duplicates and
-  # nothing is written; a book an earlier run left :pending or :failed is
-  # handed back with its chunks so the pipeline resumes it.
+  # is its embedding_status, and :completed is the only done state — it is
+  # written after every chunk is embedded and accepted by the index. Any
+  # other status (:pending, :processing with no owner to speak of, :failed)
+  # is a book an earlier run did not finish, handed back with its chunks so
+  # the pipeline resumes it.
   test "reports a duplicate file_hash of a :completed book as {:duplicate, existing} and writes nothing" do
     b = book()
     chunks = [chunk(0, 1)]
@@ -85,19 +87,21 @@ defmodule Cake.Books.PersistenceTest do
     assert Enum.map(Repo.all(Chunk), & &1.id) == Enum.map(first_chunks, & &1.id)
   end
 
-  test "a :processing book with the same file_hash is a duplicate too: another run owns it" do
+  test "a :processing book with the same file_hash is resumed: nothing proves another run still owns it" do
     b = book()
-    {:ok, {first_book, _chunks}} = Persistence.persist_books_and_chunks({b, [chunk(0, 1)]})
+    {:ok, {first_book, first_chunks}} = Persistence.persist_books_and_chunks({b, [chunk(0, 1)]})
 
     {:ok, _processing} =
       Cake.Books.update_parsed_book(first_book, %{embedding_status: :processing})
 
     dupe = %ParsedBook{b | source_file_path: "/tmp/different.pdf"}
 
-    assert {:duplicate, %ParsedBook{id: id}} =
+    assert {:ok, {%ParsedBook{id: id}, resumed}} =
              Persistence.persist_books_and_chunks({dupe, [chunk(0, 1)]})
 
     assert id == first_book.id
+    assert Enum.map(resumed, & &1.id) == Enum.map(first_chunks, & &1.id)
+    assert length(Repo.all(ParsedBook)) == 1
   end
 
   test "a :failed book with the same file_hash is resumed: the existing rows come back as {:ok, _}" do
