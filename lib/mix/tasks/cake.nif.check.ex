@@ -10,8 +10,8 @@ defmodule Mix.Tasks.Cake.Nif.Check do
       NIF ok: test/support/fixtures/pdfs/multi_page.pdf: title "Cake Fixture Book", 3 pages (3 extracted, 0 skipped), 28 words
 
   The point is the load, not the parse. `Cake.ParseBooks` loads
-  `priv/native/libparsebooks.so` on first use, and that `.so` has to have
-  been compiled for the machine running this command. The docker-compose
+  `priv/native/parsebooks.so` on first use, and that `.so` has to have
+  been compiled for the machine running this command.
   smoke test (`ci/compose_smoke.sh`, #250) runs this inside the app container
   to prove that `entrypoint.sh`'s forced-recompile sequence produced a
   loadable Linux NIF rather than a stale host-compiled one (CLAUDE.md "NIF
