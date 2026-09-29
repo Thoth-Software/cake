@@ -97,16 +97,17 @@ defmodule Cake.Books.Pipeline do
   a failure belongs to; counting and sweeping are scoped by the context's
   `run_id`.
 
-  A book's `embedding_status` is written once per run, after its chunks
-  have been through both the embed stage and the index stage: `:completed`
-  when every chunk was embedded *and* accepted by the index, `:failed`
+  A book's `embedding_status` moves to `:processing` as its chunks start
+  to embed, and its final value is written only after they have been
+  through both the embed stage and the index stage: `:completed` when
+  every chunk was embedded *and* accepted by the index, `:failed`
   otherwise. So `:completed` means ingested, and it is the one status that
   makes a later `file_hash` hit a duplicate: such a book is logged and
   dropped after the persist step, never re-embedded or re-indexed, and
   counted in neither `indexed` nor `failed`. A book in any other status —
   `:pending`, `:processing` (an interrupted run leaves it there; nothing
   proves another run still owns it), `:failed` — is resumed instead: its
-  existing chunks are embedded and indexed again and its status is
+  existing chunks are embedded and indexed again and its final status is
   rewritten from the result, so re-ingesting the same bytes repairs a book
   whose earlier run did not finish.
 
@@ -365,10 +366,12 @@ defmodule Cake.Books.Pipeline do
   `Pipelines.add_to_search_backend/3` (index failures are recorded there
   under `"search_backend.index"`), then writes the book's `embedding_status`
   from the outcome: `:completed` only when every one of the book's chunks
-  was both embedded and accepted by the index, `:failed` otherwise. The
-  status is written after the index stage on purpose — it is the durable
-  record `Persistence` reads to decide whether a later `file_hash` hit is a
-  duplicate or a book to resume. Emits the indexed chunks.
+  was both embedded and accepted by the index, `:failed` otherwise. This is
+  the book's final status write of the run (`embed_all_chunks/4` set
+  `:processing` when embedding began), placed after the index stage on
+  purpose — it is the durable record `Persistence` reads to decide whether
+  a later `file_hash` hit is a duplicate or a book to resume. Emits the
+  indexed chunks.
   """
   @spec index_books_and_update_statuses(Enumerable.t(), Pipelines.Context.t()) :: Enumerable.t()
   def index_books_and_update_statuses(embedded_books_stream, %Pipelines.Context{} = ctx) do
