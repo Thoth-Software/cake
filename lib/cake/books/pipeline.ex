@@ -97,7 +97,7 @@ defmodule Cake.Books.Pipeline do
   a failure belongs to; counting and sweeping are scoped by the context's
   `run_id`.
 
-  A book's `embedding_status` is written once per run, after its chunks
+  A book's final `embedding_status` is written once per run, after its chunks
   have been through both the embed stage and the index stage: `:completed`
   when every chunk was embedded *and* accepted by the index, `:failed`
   otherwise. So `:completed` means ingested, and it is the one status that
