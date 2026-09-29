@@ -154,6 +154,43 @@ defmodule Cake.Books.PipelineIntegrationTest do
     end
   end
 
+  describe "contracts: resuming an incomplete book" do
+    test "re-ingesting the bytes of a book left :failed embeds and indexes it again, to :completed" do
+      key = stage_fixture!(:multi_page)
+      {_book, [_first, second, _third]} = parse_fixture(:multi_page)
+      failing_input = embed_input(second)
+
+      stub_embeddings(fn
+        ^failing_input -> {:error, "rate limited"}
+        input -> deterministic_embedding(input)
+      end)
+
+      assert {:ok, %{indexed: 2, failed: 1}} = ingest([key])
+      assert [%ParsedBook{id: book_id, embedding_status: :failed}] = Books.list_parsed_books()
+      assert [%FailedIngest{step: "books.embed", run_id: first_run_id}] = Repo.all(FailedIngest)
+
+      # A book whose file_hash is known but whose embedding never completed
+      # is not a duplicate of anything the caller could want: the same bytes
+      # under a new key resume it — every chunk embedded and indexed again,
+      # the book :completed — rather than being dropped as already ingested.
+      stub_embeddings()
+      again = stage_fixture!(:multi_page)
+
+      assert {:ok, %{indexed: 3, failed: 0}} = ingest([again])
+
+      assert [%ParsedBook{id: ^book_id, source_file_path: ^key, embedding_status: :completed}] =
+               Books.list_parsed_books()
+
+      chunks = chunks_in_order(Books.get_parsed_book!(book_id))
+      assert Enum.all?(chunks, &(&1.embedding == deterministic_embedding(embed_input(&1))))
+      assert Enum.sort(indexed_ids!(ParsedBook)) == Enum.sort(ids(chunks))
+
+      # The first run's failure row is that run's bookkeeping, not this
+      # one's: it stays until that run's sweep retries it (and then succeeds).
+      assert [%FailedIngest{run_id: ^first_run_id}] = Repo.all(FailedIngest)
+    end
+  end
+
   describe "contracts: honest summaries" do
     test "one good and one unparseable PDF is a partial run: the good book is indexed, the failure persisted" do
       stub_embeddings()
