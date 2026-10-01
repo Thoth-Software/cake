@@ -138,11 +138,6 @@ defmodule Cake.Documents.ParsedDocument do
     from h in query,
       where: h.source == ^source
   end
-
-  @spec doc_attrs() :: map()
-  def doc_attrs do
-    %{}
-  end
 end
 
 defimpl Cake.Promptable, for: Cake.Documents.ParsedDocument do
