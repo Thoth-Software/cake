@@ -1,44 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Mirrors the documented pre-push chain in CLAUDE.md and the on-push CI gate:
-#   mix compile --warnings-as-errors && mix test --exclude integration \
-#     && mix credo --strict && mix format --check-formatted
+# Mirrors the documented pre-push chain in CLAUDE.md and the on-push CI gate
+# by running `mix precommit` (lib/mix/tasks/precommit.ex), which runs each
+# step in the env CI runs it in:
+#   MIX_ENV=dev  mix compile --force --warnings-as-errors
+#   MIX_ENV=dev  mix format --check-formatted
+#   MIX_ENV=dev  mix credo --strict
+#   MIX_ENV=test mix test --exclude integration
 # Integration tests (OpenSearch / external HTTP / Rustler NIF) run separately
-# as a merge gate, so they are excluded here.
+# as a merge gate, so they are excluded there.
 
-echo "==> Running 'mix compile --force --warnings-as-errors' (pre-push gate 1)..."
+echo "==> Running 'mix precommit' (the pre-push gate chain)..."
 
-if ! mix compile --force --warnings-as-errors; then
-    echo ""
-    echo "!! Push rejected: Your code doesn't even COMPILE without warnings, bro."
-    exit 1
-fi
-
-echo "==> Code compiles with no warnings. Running tests (pre-push gate 2)..."
-
-if ! mix test --exclude integration; then
+if ! mix precommit; then
   echo ""
-  echo "!! Push rejected: Tests are failing."
-  echo "!! Run 'mix test --exclude integration' to see details, fix them, then push again."
-  exit 1
-fi
-
-echo "==> Tests passed. Running Credo (pre-push gate 3)..."
-
-if ! mix credo --strict; then
-  echo ""
-  echo "!! Push rejected: Credo found issues."
-  echo "!! Run 'mix credo --strict' to see details, fix them, then push again."
-  exit 1
-fi
-
-echo "==> Credo passed. Checking formatting (pre-push gate 4)..."
-
-if ! mix format --check-formatted; then
-  echo ""
-  echo "!! Push rejected: Code is not formatted."
-  echo "!! Run 'mix format', then push again."
+  echo "!! Push rejected: 'mix precommit' failed."
+  echo "!! The step named above is the one that failed:"
+  echo "!!   compile  — your code doesn't even COMPILE without warnings, bro."
+  echo "!!   format   — run 'mix format', then push again."
+  echo "!!   credo    — run 'mix credo --strict' to see details, fix them, then push again."
+  echo "!!   test     — run 'mix test --exclude integration' to see details, fix them, then push again."
   exit 1
 fi
 

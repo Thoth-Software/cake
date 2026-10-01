@@ -24,7 +24,7 @@ defmodule Cake.FailedIngests.FailedIngest do
     field :error_text, :string
     field :input_identifier, :string
     field :pipeline_fatal, :boolean, default: false
-    field :retry_count, :integer
+    field :retry_count, :integer, default: 0
     field :last_retried_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
