@@ -17,6 +17,11 @@ defmodule CakeWeb.ChatLive.SelectionForm do
     field :selected_doc_ids, {:array, :string}, default: []
   end
 
+  @doc """
+  Casts and validates a manual document selection: blank ids are dropped
+  first, then `:selected_doc_ids` must be a non-empty subset of
+  `available_doc_ids`, the candidate document ids the UI offered.
+  """
   @spec changeset(map(), [String.t()]) :: Ecto.Changeset.t()
   def changeset(attrs, available_doc_ids) do
     attrs = filter_empty_doc_ids(attrs)

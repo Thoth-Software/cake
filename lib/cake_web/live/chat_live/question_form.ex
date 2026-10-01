@@ -19,6 +19,12 @@ defmodule CakeWeb.ChatLive.QuestionForm do
     field :mode, Ecto.Enum, values: [:auto, :manual]
   end
 
+  @doc """
+  Casts a question submission, requires `:question` and `:mode` (`:auto` or
+  `:manual`), checks the question is non-empty, and then strips NUL bytes —
+  in that order, so a question made only of NUL bytes passes validation and
+  comes out as `""`.
+  """
   @spec changeset(map()) :: Ecto.Changeset.t()
   def changeset(attrs) do
     %__MODULE__{}
