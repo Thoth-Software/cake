@@ -204,7 +204,7 @@ This section traces how content flows from raw document to user-facing answer, c
 
 ## Custom Structs: Complete Inventory
 
-Every custom struct in Cake, its module, its purpose, and whether it defines a `t()` type.
+Every custom struct in Cake, its module, and its purpose. Every one of them defines `@type t`.
 
 ### Ecto Schemas (use Cake.Schema)
 
