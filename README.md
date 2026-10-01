@@ -122,7 +122,7 @@ Conversation → Responses
 
 **`Cake.Responses`** handles post-generation processing. Builds the chunk map (integer index → chunk metadata), parses citation markers, deduplicates, and assembles the final structured response. Uses `Cake.Citations` for citation parsing. `Cake.Responses.Behaviour` defines the contract; `Cake.Responses.Result` is the output struct.
 
-**`Cake.Citations`** is a pure function module. Parses `[N]` markers from response text, resolves against the chunk map, filters hallucinated citations, deduplicates, sorts.
+**`Cake.Citations`** is a pure function module. Parses `[N]` markers from response text, resolves them against the chunk map, separates hallucinated indices out (they come back alongside the valid list, and `Responses` turns them into warnings), and deduplicates, preserving first-appearance order. The numeric renumbering and sorting happens inside `Cake.Responses`, which renumbers the survivors by first appearance.
 
 #### Query Decomposition
 
