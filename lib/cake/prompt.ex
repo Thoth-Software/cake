@@ -103,6 +103,12 @@ defmodule Cake.Prompt do
     |> Kernel.++([%{role: "user", content: question}])
   end
 
+  @doc """
+  Turns the flat `[question, answer, ...]` history into alternating
+  user/assistant messages, keeping only the last #{@max_history_exchanges}
+  exchanges (older turns are dropped, not summarized) and discarding a
+  trailing unanswered question.
+  """
   @spec history_messages([String.t()]) :: [message()]
   def history_messages(history) do
     history
@@ -116,11 +122,19 @@ defmodule Cake.Prompt do
     end)
   end
 
+  @doc """
+  Renders one indexed chunk as a numbered context entry: `[idx] ` followed by
+  the retrieval unit's `Cake.Promptable.prompt_context/1`.
+  """
   @spec format_chunk(indexed_chunk()) :: String.t()
   def format_chunk({idx, %Result{retrieval_unit: unit}}) do
     "[#{idx}] " <> Cake.Promptable.prompt_context(unit)
   end
 
+  @doc """
+  The system prompt for a turn that has context: the citation instructions
+  followed by the formatted chunks, joined with `---` separators.
+  """
   @spec system_message_with_context([String.t()]) :: String.t()
   def system_message_with_context(formatted_chunks) do
     context_block = Enum.join(formatted_chunks, "\n---\n")
@@ -246,6 +260,11 @@ defmodule Cake.Prompt do
     [%{role: "system", content: system}, %{role: "user", content: question}]
   end
 
+  @doc """
+  The self-ask driver's system prompt (#231): teaches the two markers
+  `parse_self_ask_response/1` classifies by — exactly one follow-up question
+  per reply, or the final answer.
+  """
   @spec self_ask_system_message() :: String.t()
   def self_ask_system_message do
     """
@@ -327,6 +346,11 @@ defmodule Cake.Prompt do
     [%{role: "system", content: system}, %{role: "user", content: question}]
   end
 
+  @doc """
+  The IRCoT driver's system prompt (#232): one JSON reasoning step per reply,
+  with `retrieval_query` set to `null` when the reasoning is complete.
+  `ircot_schema/0` is the matching schema.
+  """
   @spec ircot_system_message() :: String.t()
   def ircot_system_message do
     """
@@ -421,6 +445,11 @@ defmodule Cake.Prompt do
     ]
   end
 
+  @doc """
+  The decomposition prompt's system message: classify the question as atomic
+  (`{"atomic": true}`) or return `sub_questions`, JSON only — the shape
+  `Cake.Decomposition.LLM.schema/0` validates.
+  """
   @spec decomposition_system_message() :: String.t()
   def decomposition_system_message do
     """
@@ -437,6 +466,10 @@ defmodule Cake.Prompt do
     """
   end
 
+  @doc """
+  The system prompt for a turn whose `prepare_context/2` quality was `:none`:
+  tell the user nothing relevant was found, and do not guess.
+  """
   @spec system_message_no_context() :: String.t()
   def system_message_no_context do
     """
