@@ -498,7 +498,7 @@ lib/
     user_auth.ex             # Auth plugs + LiveView on_mount hooks
   mix/tasks/
     hooks.install.ex         # `mix hooks.install` — installs the git hooks from priv/hooks/
-    precommit.ex             # `mix precommit` — pre-push gate chain, each step in its own MIX_ENV (see CLAUDE.md "Pre-push")
+    precommit.ex             # `mix precommit` — pre-push gate chain, each step in its own MIX_ENV (see CLAUDE.md "Quality Gates")
     cake.nif.check.ex        # `mix cake.nif.check PATH` — extracts a PDF through the parsebooks NIF without starting the app; the compose smoke test's in-container NIF check
 
 test/                        # (abbreviated — test/cake/ and test/cake_web/ mirror lib/)
