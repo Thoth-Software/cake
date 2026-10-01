@@ -508,7 +508,4 @@ defmodule Cake.Books.Pipeline do
       end
     end
   end
-
-  @spec persist_parsed_books(any()) :: nil
-  def persist_parsed_books(_), do: nil
 end
