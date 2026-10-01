@@ -57,6 +57,26 @@ defmodule Cake.FailedIngestsTest do
       assert failed_ingest.run_id == run_id
     end
 
+    test "create_failed_ingest/1 without a retry_count reads 0 before any reload" do
+      # The table defaults retry_count to 0; the struct must agree, so a
+      # freshly inserted row never reports nil retries.
+      attrs = %{
+        run_id: Ecto.UUID.generate(),
+        pipeline_behaviour: "some pipeline_behaviour",
+        pipeline_implementation: "some pipeline_implementation",
+        step: "some step",
+        version: "some version",
+        error_text: "some error_text",
+        pipeline_fatal: false
+      }
+
+      assert {:ok, %FailedIngest{retry_count: 0} = failed_ingest} =
+               FailedIngests.create_failed_ingest(attrs)
+
+      assert %FailedIngest{retry_count: 0} = FailedIngests.get_failed_ingest!(failed_ingest.id)
+      assert %FailedIngest{retry_count: 0} = %FailedIngest{}
+    end
+
     test "create_failed_ingest/1 without a run_id returns error changeset" do
       attrs = %{
         pipeline_behaviour: "some pipeline_behaviour",
