@@ -233,7 +233,7 @@ Every custom struct in Cake, its module, and its purpose. Every one of them defi
 | `Conversation.State` | `Cake.Conversation.State` | Internal state for the `Conversation` GenServer. Enforced keys: `id`, `embedder`, `response_model`, `provider`, `gds`, and the three decomposition budgets `max_context_tokens` (for accumulated answers/steps), `max_self_ask_iterations` and `max_ircot_iterations` (round caps) — the budgets are enforced rather than defaulted so their config.exs defaults, read by `Conversation.build_state/1`, cannot drift from a struct-level copy. Also carries the collaborator modules (`embeddings`, `generation`, `responses`, `decomposition`), the turn FSM fields (`state`, `pending`, `turn_ref`, `turn_pid`, `queued_question`), the `owner_ref` monitor on the optional `:owner` pid, search results, message history, chunk map, citations, and accumulated errors. |
 | `Books.PageContent` | `Cake.Books.PageContent` | Elixir-side struct the Rust PDF NIF decodes into (via NifStruct): one page's extracted text and page number. |
 | `Books.PdfExtraction` | `Cake.Books.PdfExtraction` | Elixir-side struct the Rust PDF NIF decodes into: the full extraction result (pages, skipped pages, title). |
-| `Books.SkippedPage` | `Cake.Books.SkippedPage` | Elixir-side struct the Rust PDF NIF decodes into: a page that could not be extracted, with its page number. |
+| `Books.SkippedPage` | `Cake.Books.SkippedPage` | Elixir-side struct the Rust PDF NIF decodes into: a page that could not be extracted, with its page number and a `reason` string. |
 | `Decomposition.Result` | `Cake.Decomposition.Result` | Outcome of decomposing a question: `original_question`, `strategy` (`:none` \| `:flat` \| `:sequential` \| `:self_ask` \| `:ircot`), `sub_questions` (a dependency DAG of `%{question, depends_on}` entries — `new/2` validates indices and acyclicity), and `question_index` mapping positional index → entry so `Search.Provenance` can reference sub-questions by index. `topological_order/1` yields the sequential resolution order. |
 
 ### Embedded Schemas (LiveView forms)
@@ -278,15 +278,19 @@ Protocols in Cake define value-level contracts. The question they answer is "wha
 
 ### ParsedDocument Fields
 
-`source` (pipeline identifier), `version`, `package` (module/gem/class name), `language`, `title` (function/method name — used in embeddings), `text`, `url`, `embedding` (1536-float array), `core` (boolean: part of stdlib?). Query helpers: `by_version/2`, `by_language/2`, `by_source/2`.
+`source` (pipeline identifier), `version`, `package` (module/gem/class name), `language`, `title` (function/method name — used in embeddings), `text`, `url`, `embedding` (1536-float array), `core` (boolean: part of stdlib?). Query helpers: `base_query/0`, `by_version/2`, `by_language/2`, `by_source/2`.
+
+### Hexdoc Fields
+
+`module`, `version`, `core` (boolean, default `true`), `url`, `content` (the raw Elixir source), `source` (default `"hexdocs"`), `language` (default `"elixir"`). Query helpers: `base_query/0`, `by_module/2`, `by_version/2`; `to_parsed_docs/1` turns one row into the `ParsedDocument` attrs the parse stage emits.
 
 ### ParsedBook Fields
 
-`title`, `source_file_path` (required; the `Cake.Books.Adapters` storage key the binary was written under — `CakeWeb.BooksController` reads it back through the configured adapter for downloads — and the `Citable` `source_ref`), `authors` (string array), `source_format`, `file_hash` (deduplication), `file_size`, `word_count`, `total_pages`, `parsed_at`, `embedding_status` (enum: pending/processing/completed/failed — written after the index stage, so `completed` means every chunk embedded *and* indexed; it is the one state that makes a re-upload of the same bytes a duplicate, any other is resumed), `metadata` (map), `table_of_contents` (map), `language` (ISO code), `isbn`, `publisher`, `publication_date`. Has many `Chunk` records.
+`title`, `source_file_path` (required; the `Cake.Books.Adapters` storage key the binary was written under — `CakeWeb.BooksController` reads it back through the configured adapter for downloads — and the `Citable` `source_ref`), `authors` (string array), `source_format`, `file_hash` (deduplication), `file_size`, `word_count`, `total_pages`, `parsed_at`, `embedding_status` (enum: pending/processing/completed/failed — written after the index stage, so `completed` means every chunk embedded *and* indexed; it is the one state that makes a re-upload of the same bytes a duplicate, any other is resumed), `metadata` (map), `table_of_contents` (map), `language` (ISO code), `isbn`, `publisher`, `publication_date`. Has many `Chunk` records. Query helpers: `base_query/0`, `by_title/2`, `by_language/2`, `by_file_path/2`, `by_author/2`, `by_format/2`, `by_isbn/2`, `by_publisher/2`, `published_on/2`, `published_before/2`, `published_after/2`, `parsed_on/2`, `parsed_before/2`, `parsed_after/2`.
 
 ### Chunk Fields
 
-`text`, `page_number` (nullable), `chunk_index` (ordering for unpaginated formats), `section_title`, `word_count`, `char_count`, `embedding` (1536-float array). Belongs to `ParsedBook`. Query helpers: `by_book/2`, `on_page/2`, `within_pages/3`, `by_section/2`.
+`text`, `page_number` (nullable), `chunk_index` (ordering for unpaginated formats), `section_title`, `word_count`, `char_count`, `embedding` (1536-float array). Belongs to `ParsedBook`. Query helpers: `base_query/0`, `by_book/2`, `on_page/2`, `within_pages/3`, `by_section/2`.
 
 ### FailedIngest Fields
 
