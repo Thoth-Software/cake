@@ -42,6 +42,17 @@ defmodule Cake.Documents.PipelineTest do
 
   defp retry(failure), do: Pipeline.retry(failure, Hexdocs.Pipeline, :openai, @embedding_model)
 
+  describe "retry/4 on a row with no input_identifier" do
+    test "rejects a docs.persist row with an error tuple instead of crashing" do
+      # A "docs.persist" row recorded from {:error, {:task_exit, _}} carries no
+      # identifier, so there is no raw doc to re-parse from.
+      failure = insert_failure(build_ctx(), "docs.persist", %{input_identifier: nil})
+
+      assert {:error, {:no_input_identifier, failure.id}} == retry(failure)
+      assert [%FailedIngest{input_identifier: nil}] = Repo.all(FailedIngest)
+    end
+  end
+
   describe "retry/4 on a step it does not handle" do
     test "returns {:error, {:unsupported_step, step}} for a docs.parse row" do
       failure = insert_failure(build_ctx(), "docs.parse")

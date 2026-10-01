@@ -479,4 +479,27 @@ defmodule Cake.Books.PipelineTest do
       assert chunk.embedding == @fake_embedding
     end
   end
+
+  describe "retry/4 on a row with no input_identifier" do
+    test "rejects a books.embed row with an error tuple instead of crashing" do
+      # A "books.embed" row persisted as {nil, reason} (a task exit with no
+      # chunk attached) names no chunk to resume from.
+      {:ok, failure} =
+        Cake.FailedIngests.create_failed_ingest(%{
+          run_id: Ecto.UUID.generate(),
+          pipeline_behaviour: "Cake.Books.Pipeline",
+          pipeline_implementation: "Cake.TestBooksPipeline",
+          step: "books.embed",
+          version: "test-model",
+          error_text: "boom",
+          input_identifier: nil,
+          pipeline_fatal: false
+        })
+
+      assert {:error, {:no_input_identifier, failure.id}} ==
+               Pipeline.retry(failure, Cake.TestBooksPipeline, :openai, "test-model")
+
+      assert [%FailedIngest{input_identifier: nil}] = Repo.all(FailedIngest)
+    end
+  end
 end

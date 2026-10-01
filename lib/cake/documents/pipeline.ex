@@ -85,10 +85,14 @@ defmodule Cake.Documents.Pipeline do
   `{:unsupported_step, step}` is the answer for a row recorded under a step
   `retry/4` has no strategy for (a source pipeline's own `"docs.persist_raw"`
   or `"docs.parse"`): the sweep logs it and counts the row as remaining.
+  `{:no_input_identifier, failure_id}` is the answer for a `"docs.persist"`
+  row that names no raw doc to re-parse from (one recorded from a task
+  exit), likewise left for the sweep to count as remaining.
   """
   @type retry_error ::
           {:retry_not_implemented, module()}
           | {:unsupported_step, String.t()}
+          | {:no_input_identifier, String.t()}
           | {:document_not_found, String.t()}
           | retry_from_raw_error()
           | {String.t(), String.t()}
@@ -293,6 +297,15 @@ defmodule Cake.Documents.Pipeline do
       {:exit, reason} -> {:error, {:task_exit, reason}}
     end)
     |> Pipelines.detuple_with_logging("docs.persist", ctx)
+  end
+
+  defp retry_persist_failure(
+         %{input_identifier: nil} = failure,
+         _source_pipeline,
+         _service,
+         _model
+       ) do
+    {:error, {:no_input_identifier, failure.id}}
   end
 
   defp retry_persist_failure(failure, source_pipeline, embedding_service, embedding_model) do

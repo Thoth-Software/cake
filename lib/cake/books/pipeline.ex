@@ -455,6 +455,10 @@ defmodule Cake.Books.Pipeline do
     e -> {:error, {:parse_failed, Exception.message(e)}}
   end
 
+  defp retry_from_chunk(%{input_identifier: nil} = failure, _embedding_service, _embedding_model) do
+    {:error, {:no_input_identifier, failure.id}}
+  end
+
   defp retry_from_chunk(failure, embedding_service, embedding_model) do
     case Repo.get(Chunk, failure.input_identifier) do
       nil ->
