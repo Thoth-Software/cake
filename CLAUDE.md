@@ -187,9 +187,9 @@ Dev runs three containers via `docker-compose.yml`: `cake_app`, `cake_db` (Postg
 
 ## Known Defects and Deferred Work
 
-If your task touches these, flag rather than silently resolving or ignoring.
-- **Post-demo formats:** Word, Excel, CSV, JPG pipelines are explicitly deferred.
+If your task touches these, flag rather than silently resolving or ignoring. One line each; the detail lives in the linked issue.
+- **Post-demo formats** (README "Roadmap"): Word, Excel, CSV, JPG pipelines are explicitly deferred.
 - **Advisory backlog (#206):** `mix hex.audit` / `mix deps.audit` are report-only in CI until the backlog clears, then flip to blocking.
 - **xref coupling ratchet (#208):** `--fail-above 3` baseline comes from `Conversation.State`'s defstruct DI defaults; ratchets to 0 once those are decoupled.
-- **Book status after a sweep (found by #248):** `Books.Pipeline.ingest_with_sweep/5` leaves a book's `embedding_status` at `:failed` after `retry_from_chunk` has resolved its last failing chunk — the run sets the status and the retry never revisits it. `Cake.Books.PipelineIntegrationTest` notes this and deliberately pins neither behaviour.
-- **Hexdocs sources with several top-level forms (found by #248):** `Hexdoc.to_parsed_docs/1` accepts only a bare `defmodule` AST, so a file such as `enum.ex` (`defprotocol Enumerable` + `defmodule Enum` + `defimpl`s), `kernel.ex`, `string.ex` or `stream.ex` yields no `ParsedDocument` and no `FailedIngest`; its `__block__` clause is unreachable. Relatedly, a multi-clause `def` yields one document per clause under one title, and how many survive the `(source, version, package, title)` dedup depends on the concurrent insert's timing. `Cake.Documents.Hexdocs.PipelineIntegrationTest` pins a single-`defmodule` file and compares title sets for that reason.
+- **Book status after a sweep (#305, found by #248):** `Books.Pipeline.ingest_with_sweep/5` leaves `embedding_status` at `:failed` after `retry_from_chunk` resolves a book's last failing chunk.
+- **Hexdocs sources with several top-level forms (#291, found by #248):** `Hexdoc.to_parsed_docs/1` accepts only a bare `defmodule` AST, so `enum.ex`, `kernel.ex`, `string.ex` and the like yield no `ParsedDocument` and no `FailedIngest`.
