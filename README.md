@@ -156,7 +156,7 @@ On follow-up turns, retrieval is skipped — cached chunks are reused with the n
 
 **`CakeWeb.UploadLive`** is the book-upload UI: accepts PDF and ZIP uploads (ZIP archives are unpacked to PDFs via `Cake.Books.ZipExtractor`), writes the files through the configured `Cake.Books.Adapters` storage adapter, then runs `Cake.Books.Pipeline.ingest/4` with `Cake.Books.Pdf.Pipeline` as an async task.
 
-**`CakeWeb.UserAuth`** provides authentication plugs.
+**`CakeWeb.UserAuth`** provides the authentication plugs and the three `on_mount/4` LiveView hooks (`:mount_current_user`, `:ensure_authenticated`, `:redirect_if_user_is_authenticated`) that the router's `live_session`s use.
 
 ### Supervision Tree Boot Order
 
