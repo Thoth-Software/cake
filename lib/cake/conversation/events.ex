@@ -12,6 +12,11 @@ defmodule Cake.Conversation.Events do
 
   @type t :: response_ready() | candidates_ready() | state_change() | error()
 
+  @doc """
+  The PubSub topic for one conversation: `"conversation:\#{conversation_id}"`.
+  `Cake.Conversation` broadcasts every event here and `CakeWeb.ChatLive`
+  subscribes to it.
+  """
   @spec topic(String.t()) :: String.t()
   def topic(conversation_id), do: "conversation:#{conversation_id}"
 end
