@@ -301,7 +301,7 @@ The question to ask when designing a new GDS is *Why is the customer interested 
 3. **Implement `Cake.Promptable`** on the retrieval-unit schema. Define how a search result renders in the numbered context block.
 4. **Implement `Cake.Citable`** on the retrieval-unit schema. Define citation metadata — the map must carry exactly five keys: `id`, `label`, `source_ref`, `preview`, `extras`.
 5. **Design a pipeline behaviour** targeting this GDS, or implement an existing one if the GDS already has a behaviour.
-6. **Create an OpenSearch index mapping.** Embedding dimension must match the configured model (currently 1536 for `text-embedding-ada-002`).
+6. **Register the collection in `config :cake, :search_collections`** as a `{IdentityModule, RetrievalUnitSchema}` pair. `Cake.Search.Deployment` creates every registered collection at boot, and `Backend.OpenSearch.build_mapping/1` derives the mapping from the retrieval-unit schema's fields (`:text` → `text`, `:embedding` → `knn_vector` sized by `:default_embedding_dimension`, everything else → `keyword`), so that schema must carry `:text` and `:embedding` fields. Nobody hand-writes a mapping, and an unregistered GDS gets no collection.
 7. **Thread the GDS through `Cake.Conversation`.** Pass `gds: YourGDS` in opts. `Cake.Search` will use the GDS's callbacks for collection name, field selection, hit hydration, and neighbor expansion.
 
 ---
