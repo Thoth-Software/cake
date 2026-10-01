@@ -51,6 +51,23 @@ defmodule Cake.Documents.PipelineTest do
       assert {:error, {:no_input_identifier, failure.id}} == retry(failure)
       assert [%FailedIngest{input_identifier: nil}] = Repo.all(FailedIngest)
     end
+
+    test "rejects a docs.embed row with an error tuple instead of crashing" do
+      # batch_embed/5 records a provider error as {nil, reason}: no document
+      # id to resume from.
+      failure = insert_failure(build_ctx(), "docs.embed", %{input_identifier: nil})
+
+      assert {:error, {:no_input_identifier, failure.id}} == retry(failure)
+      assert [%FailedIngest{input_identifier: nil}] = Repo.all(FailedIngest)
+    end
+
+    test "rejects a docs.embed_persist row with an error tuple instead of crashing" do
+      # A killed embed-persistence task is recorded as {nil, reason} too.
+      failure = insert_failure(build_ctx(), "docs.embed_persist", %{input_identifier: nil})
+
+      assert {:error, {:no_input_identifier, failure.id}} == retry(failure)
+      assert [%FailedIngest{input_identifier: nil}] = Repo.all(FailedIngest)
+    end
   end
 
   describe "retry/4 on a step it does not handle" do

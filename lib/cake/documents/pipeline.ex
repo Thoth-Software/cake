@@ -85,9 +85,11 @@ defmodule Cake.Documents.Pipeline do
   `{:unsupported_step, step}` is the answer for a row recorded under a step
   `retry/4` has no strategy for (a source pipeline's own `"docs.persist_raw"`
   or `"docs.parse"`): the sweep logs it and counts the row as remaining.
-  `{:no_input_identifier, failure_id}` is the answer for a `"docs.persist"`
-  row that names no raw doc to re-parse from (one recorded from a task
-  exit), likewise left for the sweep to count as remaining.
+  `{:no_input_identifier, failure_id}` is the answer for any row with no
+  `input_identifier` to resume from — a `"docs.persist"` row recorded from
+  a task exit, or a `"docs.embed"`/`"docs.embed_persist"` row recorded from
+  a provider error or a killed task — likewise left for the sweep to count
+  as remaining.
   """
   @type retry_error ::
           {:retry_not_implemented, module()}
@@ -177,13 +179,24 @@ defmodule Cake.Documents.Pipeline do
   @doc """
   Retries a single failed ingest item. Dispatches based on the step that failed:
   persist failures re-run from the raw source doc; embed/index failures resume
-  from the existing ParsedDocument. Any other step — the ones a source
-  pipeline records inside its own `persist_raw_docs/2` and `parse/2` — is
-  answered with `{:error, {:unsupported_step, step}}` rather than a crash, so
+  from the existing ParsedDocument. A row with no `input_identifier` is
+  answered with `{:error, {:no_input_identifier, failure_id}}` before any
+  dispatch, whatever its step. Any other step — the ones a source pipeline
+  records inside its own `persist_raw_docs/2` and `parse/2` — is answered
+  with `{:error, {:unsupported_step, step}}`. Neither crashes, so
   `Pipelines.sweep/3` counts the row as remaining and moves on.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, retry_error()}
+  def retry(
+        %Cake.FailedIngests.FailedIngest{input_identifier: nil} = failure,
+        _source_pipeline,
+        _embedding_service,
+        _embedding_model
+      ) do
+    {:error, {:no_input_identifier, failure.id}}
+  end
+
   def retry(
         %Cake.FailedIngests.FailedIngest{step: "docs.persist"} = failure,
         source_pipeline,
@@ -297,15 +310,6 @@ defmodule Cake.Documents.Pipeline do
       {:exit, reason} -> {:error, {:task_exit, reason}}
     end)
     |> Pipelines.detuple_with_logging("docs.persist", ctx)
-  end
-
-  defp retry_persist_failure(
-         %{input_identifier: nil} = failure,
-         _source_pipeline,
-         _service,
-         _model
-       ) do
-    {:error, {:no_input_identifier, failure.id}}
   end
 
   defp retry_persist_failure(failure, source_pipeline, embedding_service, embedding_model) do
