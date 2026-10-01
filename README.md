@@ -385,6 +385,18 @@ OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi
 
 ---
 
+## Configuration Keys
+
+The domain-level `:cake` application-env keys that `lib/` reads, grouped by consumer. Values are `config/config.exs` defaults unless noted. Framework configuration is as Phoenix generated it and is not listed here: `Cake.Repo`, `CakeWeb.Endpoint`, `Cake.Mailer`, `Oban` and `:dns_cluster_query` (both read in Cake.Application, which is `@moduledoc false`).
+
+- **Models and providers.** `:default_embedding_model` (`text-embedding-ada-002`; read by `UploadLive` and `SearchLive`), `:default_embedding_dimension` (1536; read only by `Backend.OpenSearch.build_mapping/1`), `:default_provider` (`:openai`; `UploadLive`, `SearchLive`). `:default_response_model` is set but read by nothing in `lib/`. `config :cake, Cake.Conversation` (`gds`, `embedder`, `response_model`, `provider`) is what `ChatLive` starts conversations from.
+- **Provider transports.** `config :cake, Cake.Embeddings` — `:openai_key`, `:base_url`, `:req_options` (a `Req.Test` plug in tests, empty in prod). `config :cake, Cake.Generation.OpenAI` — `:openai_key`, `:response_url` (the Responses API endpoint), and an optional `:plug` (a `Req.Test` plug in tests, unset in prod). `:embeddings_module` swaps the whole module for the pipelines (`Cake.Embeddings.Mock` in `config/test.exs`); the pipelines read it at call time.
+- **Search.** `:search_collections` (the boot-time `{name_module, mapping_schema}` pairs), `config :cake, Cake.Search.Deployment` (the Snap cluster: URL per env, `http_client_adapter: Cake.Search.HTTPClientStub` in test), and `:search_backend` — set in no config file; `Backend.backend/0` defaults it to `Backend.OpenSearch`, and tests inject the Mox mock with `Application.put_env`. `:skip_search_backend` makes `Pipelines.add_to_search_backend/3` pass records through unindexed; `test_helper.exs` sets it for every run; `Cake.SearchIntegrationCase` turns it off per test for the real-cluster suites, and `test/cake/pipelines_search_backend_test.exs` does the same to drive indexing through the Mox backend.
+- **Book storage.** `:book_storage_adapter` (`Disk` by default, `S3` in prod, `Mock` in test), `:book_storage_tenant` (the tenant segment of storage keys, `"default"`), `:book_storage_root` (the Disk adapter's directory, default `priv/book_storage`), `:book_storage_s3_bucket` (`config/runtime.exs`, from the environment).
+- **Decomposition.** `:decomposition_max_context_tokens` (4096), `:max_self_ask_iterations` (5), `:max_ircot_iterations` (5), `:max_sub_search_concurrency` (4), and `:sub_search_timeout` (30 s) — the last has no entry in any config file and exists only as the `Application.get_env` default in `Cake.Conversation`.
+
+---
+
 ## Roadmap: Planned and Deferred
 
 **Shipped since first draft:** query decomposition in its own `Cake.Decomposition` boundary (not inside `Prompt` as originally sketched): flat concurrent fan-out end-to-end, plus the `Conversation`-side machinery for the other three tiers — sequential least-to-most, the self-ask loop and the IRCoT loop. The shipped LLM strategy emits atomic-or-flat decompositions only, so `:sequential` awaits a strategy that emits dependency edges, and `:self_ask`/`:ircot` await one that marks them (`Result.new/2` never derives either). See "Query Decomposition" under Layer 3.
