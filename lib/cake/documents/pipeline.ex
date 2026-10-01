@@ -82,9 +82,13 @@ defmodule Cake.Documents.Pipeline do
   Composed from subsystem error types: `retry_from_raw_error()` for source
   re-parsing, `embed_index_error()` for the embed-and-index tail, and
   `{String.t(), String.t()}` for persistence failures in `safe_create_parsed_docs`.
+  `{:unsupported_step, step}` is the answer for a row recorded under a step
+  `retry/4` has no strategy for (a source pipeline's own `"docs.persist_raw"`
+  or `"docs.parse"`): the sweep logs it and counts the row as remaining.
   """
   @type retry_error ::
           {:retry_not_implemented, module()}
+          | {:unsupported_step, String.t()}
           | {:document_not_found, String.t()}
           | retry_from_raw_error()
           | {String.t(), String.t()}
@@ -169,7 +173,10 @@ defmodule Cake.Documents.Pipeline do
   @doc """
   Retries a single failed ingest item. Dispatches based on the step that failed:
   persist failures re-run from the raw source doc; embed/index failures resume
-  from the existing ParsedDocument.
+  from the existing ParsedDocument. Any other step — the ones a source
+  pipeline records inside its own `persist_raw_docs/2` and `parse/2` — is
+  answered with `{:error, {:unsupported_step, step}}` rather than a crash, so
+  `Pipelines.sweep/3` counts the row as remaining and moves on.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, retry_error()}
@@ -190,6 +197,15 @@ defmodule Cake.Documents.Pipeline do
       )
       when step in ["docs.embed", "docs.embed_persist", "search_backend.index"] do
     retry_embed_failure(failure, embedding_service, embedding_model)
+  end
+
+  def retry(
+        %Cake.FailedIngests.FailedIngest{step: step},
+        _source_pipeline,
+        _embedding_service,
+        _embedding_model
+      ) do
+    {:error, {:unsupported_step, step}}
   end
 
   # TODO: give `ctx` a custom type the Dialyzer can check instead of `map()`.
