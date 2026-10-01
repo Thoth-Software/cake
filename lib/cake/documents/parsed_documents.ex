@@ -61,6 +61,13 @@ defmodule Cake.Documents.ParsedDocuments do
     ParsedDocument.changeset(parsed_document, attrs)
   end
 
+  @doc """
+  Inserts a batch of parsed-doc attrs concurrently (`Task.async_stream/3`, ten
+  at a time, 5 s each) through `create_parsed_doc!/1`, returning a stream of
+  the inserted rows. Accepts the list wrapped as `{:ok, list}`. Nothing in
+  `lib/` or `test/` calls it today: the parse stage emits bare attrs, and the
+  pipeline persists them one at a time.
+  """
   @spec create_parsed_docs!({:ok, [map()]}) :: Enumerable.t()
   def create_parsed_docs!({:ok, parsed_docs_list}) do
     parsed_docs_list
@@ -68,6 +75,10 @@ defmodule Cake.Documents.ParsedDocuments do
     |> Stream.map(fn {:ok, doc} -> doc end)
   end
 
+  @doc """
+  Inserts one `ParsedDocument` from attrs, raising on an invalid changeset.
+  Query logging is off: this runs once per documented function.
+  """
   @spec create_parsed_doc!(map()) :: ParsedDocument.t()
   def create_parsed_doc!(attrs) do
     %ParsedDocument{}
@@ -75,6 +86,10 @@ defmodule Cake.Documents.ParsedDocuments do
     |> Cake.Repo.insert!(log: false, on_replace: :replace_all)
   end
 
+  @doc """
+  Applies attrs to an existing `ParsedDocument` and updates it, raising on an
+  invalid changeset. Query logging is off, as for `create_parsed_doc!/1`.
+  """
   @spec update_parsed_doc!(ParsedDocument.t(), map()) :: ParsedDocument.t()
   def update_parsed_doc!(%ParsedDocument{} = parsed_document, attrs) do
     parsed_document
@@ -94,6 +109,7 @@ defmodule Cake.Documents.ParsedDocuments do
     |> Repo.exists?()
   end
 
+  @doc "All parsed documents for a `language` and `version`."
   @spec by_language_and_version(String.t(), String.t()) :: [ParsedDocument.t()]
   def by_language_and_version(language, version) do
     ParsedDocument.base_query()
@@ -102,6 +118,7 @@ defmodule Cake.Documents.ParsedDocuments do
     |> Repo.all(log: false)
   end
 
+  @doc "All parsed documents for a `source` (for example `\"hexdocs\"`) and `version`."
   @spec by_source_and_version(String.t(), String.t()) :: [ParsedDocument.t()]
   def by_source_and_version(source, version) do
     ParsedDocument.base_query()

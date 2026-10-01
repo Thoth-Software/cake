@@ -69,6 +69,15 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
       where: h.module == ^module
   end
 
+  @doc """
+  Turns one raw `Hexdoc` row into the `ParsedDocument` attrs the parse stage
+  emits: one map per documented function, each `doc_attrs/0` merged with the
+  function's `text` and `title`, the row's `url` and `version`, and the module
+  as `package`. Accepts the row bare or as `{:ok, row}`. Only a source whose AST
+  is a single bare `defmodule` yields anything; a top-level `__block__` (several
+  forms in one file) or a parse error yields `[]` with no error — the gap
+  tracked as #291.
+  """
   @spec to_parsed_docs({:ok, %__MODULE__{}} | %__MODULE__{}) :: [map()]
   def to_parsed_docs({:ok, hexdoc}), do: to_parsed_docs(hexdoc)
 

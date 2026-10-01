@@ -303,6 +303,16 @@ defmodule Cake.Pipelines do
     summarize_ingest(message, indexed, count_failures(ctx))
   end
 
+  @doc """
+  Builds the per-run `Cake.Pipelines.Context`.
+
+  `behaviour_module` and `source_pipeline` are stored inspected, as the error
+  provenance every `FailedIngest` row of the run carries; `version` is either a
+  string or a `{major, minor, patch}` tuple, joined with dots; `opts` is kept on
+  the context (`:search_backend_timeout` is the one key read today). Each call
+  generates a fresh `run_id`, which is what scopes `count_failures/1`,
+  `finalize_ingest/3` and `sweep/3` to this run.
+  """
   @spec build_context(atom(), atom(), String.t() | {integer(), integer(), integer()}, keyword()) ::
           context()
   def build_context(behaviour_module, source_pipeline, version, opts \\ [])
@@ -331,6 +341,18 @@ defmodule Cake.Pipelines do
     }
   end
 
+  @doc """
+  Routes a pipeline-fatal error out of an orchestrator's `with`/`else`.
+
+  A tagged `{:error, step, reason}` (from an eager run-level step such as
+  `download/1` or `validate_paths/1`) is logged with the run's context,
+  persisted as a `FailedIngest` row with `pipeline_fatal: true`,
+  `step: Atom.to_string(step)` and an empty `input_identifier`, and returned as
+  `{:error, {step, reason}}`. An untagged `{:error, reason}` is persisted the
+  same way under `step: "ingest"` and returned unchanged. Item-level failures
+  never come here; they go through `detuple_with_logging/3` or
+  `log_and_persist_failure/3` as the stream runs.
+  """
   @spec handle_ingest_error({:error, any()} | {:error, atom(), any()}, context()) ::
           {:error, {atom(), any()}} | {:error, any()}
   def handle_ingest_error({:error, step, error}, ctx) when is_atom(step) do

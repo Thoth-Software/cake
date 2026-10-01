@@ -169,7 +169,7 @@ defmodule Cake.MixProject do
       # here — an alias of the same name would shadow the task. `precommit` in
       # particular cannot be an alias: it runs the test step in the test env
       # and the compile/format/credo steps in the dev env, one child `mix`
-      # process each (see CLAUDE.md "Pre-push").
+      # process each (see CLAUDE.md "Quality Gates").
     ]
   end
 

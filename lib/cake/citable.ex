@@ -41,6 +41,15 @@ defprotocol Cake.Citable do
           required(:extras) => map()
         }
 
+  @doc """
+  Citation metadata for one retrieval unit.
+
+  Returns a map with exactly five keys and no others: `:id` (the candidate id
+  `Cake.Conversation.select_docs/2` accepts back), `:label`, `:source_ref` (a
+  storage key or URL the UI can link to, or `nil`), `:preview`, and `:extras`
+  (a map for anything GDS-specific). `Cake.Responses.build_citation_map/1`
+  stores it per prompt index, and the chat UI renders it.
+  """
   @spec metadata(t) :: metadata()
   def metadata(citable)
 end

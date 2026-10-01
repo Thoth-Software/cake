@@ -14,6 +14,16 @@ defmodule CakeWeb.BooksController do
   alias Cake.Books
   alias Cake.Books.Adapters
 
+  @doc """
+  `GET /books/download/*file_path`: serves the stored book whose `ParsedBook`
+  `source_file_path` equals the joined path segments, read through the
+  configured `Cake.Books.Adapters` adapter and sent as a download named after
+  the key and the book's format. Every failure is a 404: an unknown key and
+  a key failing `Cake.Books.Adapters.valid_key?/1` both answer "Book not
+  found", while a known key whose adapter read fails answers "File not found
+  in storage", so the body does distinguish a missing row from a missing
+  object.
+  """
   @spec download(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def download(conn, %{"file_path" => file_path_segments}) do
     key = Enum.join(file_path_segments, "/")

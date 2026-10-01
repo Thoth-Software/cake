@@ -14,12 +14,23 @@ defmodule Cake.Search.Deployment do
 
   require Logger
 
+  @doc """
+  `Snap.Cluster` init hook: starts a linked task that creates the configured
+  collections once the cluster process is registered (see
+  `create_collections_unless_exist/1`) and returns the config unchanged.
+  """
   @spec init(keyword()) :: {:ok, keyword()}
   def init(config) do
     _ = Task.start_link(fn -> create_collections_unless_exist(nil) end)
     {:ok, config}
   end
 
+  @doc """
+  Boot-time collection creation. Called with `nil` from `init/1`, it sleeps
+  10 s and checks `Process.whereis/1` for the cluster process, re-entering the
+  same clause until it is registered; then it calls itself with the pid for
+  one `create_collections_unless_exist/2` pass over the `collections/0` list.
+  """
   @spec create_collections_unless_exist(nil | pid()) :: :ok
   def create_collections_unless_exist(nil) do
     Logger.debug("Deployment not running yet.\n\nWaiting to create collections...")

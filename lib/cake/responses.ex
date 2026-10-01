@@ -32,6 +32,11 @@ defmodule Cake.Responses do
     |> finalize_formatting(opts)
   end
 
+  @doc """
+  Builds the chunk map: prompt index → `Cake.Citable.metadata/1` of that
+  chunk's retrieval unit. Stage one of `process/3`, and the map
+  `Cake.Citations.extract/2` resolves `[N]` markers against.
+  """
   @spec build_citation_map(Cake.Responses.Behaviour.indexed_chunks()) :: map()
   def build_citation_map(indexed_chunks) do
     Map.new(indexed_chunks, fn {idx, %Cake.Search.Result{retrieval_unit: unit}} ->

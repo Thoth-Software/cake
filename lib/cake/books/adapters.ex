@@ -43,16 +43,33 @@ defmodule Cake.Books.Adapters do
   @doc "Deletes the object stored under `key`."
   @callback delete(key()) :: :ok | {:error, adapter_error()}
 
+  @doc """
+  The configured storage adapter: `config :cake, :book_storage_adapter`,
+  defaulting to `Cake.Books.Adapters.Disk`.
+  """
   @spec adapter() :: module()
   def adapter do
     Application.get_env(:cake, :book_storage_adapter, Cake.Books.Adapters.Disk)
   end
 
+  @doc """
+  The tenant segment of storage keys: `config :cake, :book_storage_tenant`,
+  defaulting to `"default"`.
+  """
   @spec tenant() :: String.t()
   def tenant do
     Application.get_env(:cake, :book_storage_tenant, "default")
   end
 
+  @doc """
+  Builds a storage key, `cake-documents/<tenant>/<gds>/<unique-id>`, with
+  `tenant` defaulting to `tenant/0`. The components are interpolated
+  unchanged: a key is an identifier, so it is never sanitized, and this
+  function does not validate it. `valid_key?/1` is there for callers and
+  adapters to apply — `Cake.Books.Adapters.Disk` and `CakeWeb.BooksController`
+  do, the S3 adapter does not, and `CakeWeb.UploadLive` writes the keys it
+  generates without checking them.
+  """
   @spec build_key(String.t(), String.t(), String.t()) :: key()
   def build_key(tenant \\ tenant(), gds, unique_id) do
     "cake-documents/#{tenant}/#{gds}/#{unique_id}"
