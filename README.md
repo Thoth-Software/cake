@@ -158,6 +158,10 @@ On follow-up turns, retrieval is skipped — cached chunks are reused with the n
 
 **`CakeWeb.UploadLive`** is the book-upload UI: accepts PDF and ZIP uploads (ZIP archives are unpacked to PDFs via `Cake.Books.ZipExtractor`), writes the files through the configured `Cake.Books.Adapters` storage adapter, then runs `Cake.Books.Pipeline.ingest/4` with `Cake.Books.Pdf.Pipeline` as an async task.
 
+**`CakeWeb.SearchLive`** is a direct search UI at `/search`: it embeds the query itself (`Cake.Embeddings` with `:default_provider` and `:default_embedding_model`), runs `Cake.Search.search_chunks_with_context/5` against the `Cake.Books.ParsedBook` GDS, which it hardcodes, and renders the grouped results without starting a conversation.
+
+**`CakeWeb.BooksController`** serves authenticated book downloads at `/books/download/*file_path`: only keys recorded as a `ParsedBook`'s `source_file_path` that also pass `Cake.Books.Adapters.valid_key?/1` are read back through the configured adapter — the same store `UploadLive` writes to; anything else is reported as not found.
+
 **`CakeWeb.UserAuth`** provides the authentication plugs and the three `on_mount/4` LiveView hooks (`:mount_current_user`, `:ensure_authenticated`, `:redirect_if_user_is_authenticated`) that the router's `live_session`s use.
 
 ### Supervision Tree Boot Order
