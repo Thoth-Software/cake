@@ -214,7 +214,7 @@ Every custom struct in Cake, its module, and its purpose. Every one of them defi
 | `Chunk` | `Cake.Books.Chunk` | Atomic searchable text fragment within a book. Retrieval unit for the Books GDS. |
 | `ParsedDocument` | `Cake.Documents.ParsedDocument` | Programming documentation entry. Both GDS identity and retrieval unit for the Documents GDS. |
 | `Hexdoc` | `Cake.Documents.Hexdocs.Hexdoc` | Raw Elixir source cloned from the elixir-lang/elixir repository. Intermediate storage (raw data struct). |
-| `FailedIngest` | `Cake.FailedIngests.FailedIngest` | Persists item-level pipeline failures for retry via `sweep/3`, tagged with the recording run's `run_id`. |
+| `FailedIngest` | `Cake.FailedIngests.FailedIngest` | Persists item-level pipeline failures for retry via `Cake.Pipelines.sweep/3`, tagged with the recording run's `run_id`. |
 | `User` | `Cake.Accounts.User` | Phoenix authentication user record. |
 | `UserToken` | `Cake.Accounts.UserToken` | Session and email confirmation tokens. |
 
