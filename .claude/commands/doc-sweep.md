@@ -1,3 +1,53 @@
+# Monthly documentation sweep for Cake
+
+How to use this file: paste everything below the rule as the prompt for a fresh Claude Code session on a clean checkout of `master`, or save it as `.claude/commands/doc-sweep.md` and invoke `/doc-sweep`. It is written for an autonomous run that ends in a report and issues, not in merged changes.
+
+---
+
+Do a documentation sweep of this repository and bring the documentation back into agreement with the code. Work in the phases below, in order. Do not write code or change documentation during the audit phases; the audit ends in a report and a set of issues, and the fixes are executed only after I have made the judgment calls. Read `CLAUDE.md` and `README.md` first and obey them throughout.
+
+## Principles that govern the whole sweep
+
+- **The code is the ground truth for *what is*; the docs are the ground truth for *what should be*.** When they disagree, classify before touching anything: (a) the README is stale and the code is clearly right; (b) the README states an intended contract and the code violates it, which is a code defect to file, not a sentence to soften; (c) two defensible readings exist, which is a judgment call for me. Never silently resolve a (b) or a (c).
+- **Verify before you assert.** Every claim you add to a doc must be checked against the source at the line level before you write it, and every claim a reviewer challenges must be re-checked before you reply. The failure mode of the last sweep was not missing facts but overstating them: "only X does Y", "after every stage", "the gate before every call", "is not revealed". Completeness and universality words need a grep behind them.
+- **Mechanical versus judgment.** A fix is mechanical when the code already decides the right text and two careful people would write the same thing. It needs judgment when a reasonable alternative exists, when it reverses a recorded decision, when it changes a contract, or when it changes what the product does. Keep the two apart in the report and in the issues, and when you recommend an option on a judgment item, still present it as a choice.
+- **Scope discipline.** A doc sweep documents behaviour; it does not change it. Code defects the sweep finds become issues with a tests-first checklist. Dead public API becomes a question for me, because removing it needs approval under CLAUDE.md.
+
+## Phase 0: Orient
+
+1. Record the head commit, the README front-matter `date:`, and the date of the last sweep (search closed issues and PRs for "documentation sweep" / "Documentation pass"). Everything you report is drift since then.
+2. List open issues so findings link to existing tracker items instead of duplicating them, and so Known Defects entries can carry issue numbers.
+3. Note the repo's label conventions (`.github/workflows/auto-label.yml`) and the epic convention (an epic carries the union of its sub-issues' labels plus `epic-N`).
+
+## Phase 1: README against the code
+
+Fan out read-only auditors, one per section cluster (ingestion and error handling; search and embeddings; conversation, prompt, generation, responses and decomposition; web, supervision tree, boundaries, the three inventories, data schemas). Each auditor extracts every checkable claim in its sections (module and function names with arities, callback lists, struct fields and enforced keys, defaults, config keys, step strings, event shapes, error shapes, file paths, "current implementations" lists) and verifies each against `lib/`, `config/`, `test/support/`, `priv/repo/migrations` and `mix.exs`. Require from each: a count of claims checked, then only disparities with README line, quoted claim, `path:line`, what the code does, and an (a)/(b)/(c) verdict; then an "Omissions" list of things in the code the README should name and does not (the enumeration rule: inventories of structs, behaviours, protocols, implementations, pipelines, boundaries, config keys, events, error unions).
+
+Then spot-check the auditors yourself: re-read the source behind every (b) and every surprising (a) before it goes in the report. Specific traps from the last sweep, all of which a reviewer caught:
+
+- "Only X turns this off / sets this / calls this" — grep the whole tree, including `test/`, before writing "only".
+- Events, callbacks and hooks fire on state transitions or conditions, not "after every stage"; name the states.
+- Collection operations that filter before they dedupe ("one action per unique `source_ref`" was really "per unique non-`nil` `source_ref`").
+- Config inventories: either list every key `lib/` reads (grep `Application.get_env(:cake` and `fetch_env!(:cake`, including `__MODULE__`-keyed blocks and optional keys like `:plug`) or state the scope narrowly and name what is excluded.
+- Security-flavoured phrasing ("existence is not revealed") must match the actual response bodies.
+- Loops: "waits N seconds then proceeds" versus "polls every N seconds until a condition".
+- Validation order: say what runs before what, and what slips through because of it.
+
+## Phase 2: CLAUDE.md
+
+CLAUDE.md is paid for on every turn, so the test for each paragraph is whether a task unrelated to its subject still needs it in context. Measure it (words per section), then build a redundancy map against: `.claude/rules/*.md`, the comments in `test/test_helper.exs`, the job comments in `.github/workflows/quality.yml`, the moduledocs of the Mix tasks, `mix.exs` alias comments, and the README. Report what is stated more than once and where the single home should be, what can move behind the "Load by trigger" table or a path-scoped rule (name the globs and the always-on remainder), and which trigger rows point at files that do not exist or which `priv/reference/` files no trigger reaches. Check CLAUDE.md's tooling claims against `mix.exs`, the workflow job list, `coveralls.json`, `.sobelow-conf` and `priv/hooks/`, and check Known Defects entries against open issues (each should be one line plus an issue number; anything without an issue needs one cut before it can be shortened).
+
+## Phase 3: Docstrings
+
+Measure from compiled docs chunks, not by grepping for `@doc`: lower-arity heads produced by default arguments count as documented when the full arity is, `@impl` functions are hidden rather than missing, protocol implementation modules are skipped, and `use`-generated functions are separated from the module's own. Run `mix docs --warnings-as-errors` first (if `Cake.ParseBooks` fails to load, `MIX_ENV=dev mix compile --force` rebuilds the NIF; that is environmental, not a doc problem). Then run this script with `MIX_ENV=dev mix run --no-start doc_coverage.exs` and report: modules without `@moduledoc` (expect Phoenix scaffolding only), callbacks without `@doc`, public own functions without `@doc` grouped by kind (README-cited API first, then pipeline stages, prompt text, query helpers, web), explicit `@doc false` worth a second look, and `@typedoc` coverage.
+
+```elixir
+# doc_coverage.exs — docstring coverage from the compiled docs chunks of the :cake app
+Application.load(:cake)
+mods = :cake |> Application.spec(:modules) |> Enum.sort()
+
+generated =
+  ~w(__info__ __struct__ __changeset__ __schema__ __impl__ __protocol__ __deriving__ module_info
      behaviour_info __live__ __components__ __phoenix_verify_routes__ __phoenix_component_verify__
      __mix_recompile__? __routes__ __helpers__ __checks__ __gettext__ __live_view__ __live_component__
      __boundary__ __mix_task__ __sobelow__ __ex_unit__ __adapter__ __log__ __struct_fields__)a
@@ -48,70 +98,3 @@ for mod <- mods, Code.ensure_loaded?(mod) do
     end
   end
 
-  exports =
-    mod.module_info(:exports)
-    |> Enum.reject(fn {n, _} -> MapSet.member?(generated, n) end)
-    |> Enum.map(fn {n, a} ->
-      case Atom.to_string(n) do
-        "MACRO-" <> rest -> {:macro, String.to_atom(rest), a - 1}
-        _ -> {:function, n, a}
-      end
-    end)
-    |> Enum.sort()
-
-  fun_rows =
-    for {kind, n, a} <- exports, not protocol_impl? do
-      {kind, n, a, doc_state.(kind, n, a), MapSet.member?(callbacks_of_behaviours, {n, a}), src_defines?.(source, n)}
-    end
-
-  own_callbacks = if function_exported?(mod, :behaviour_info, 1), do: mod.behaviour_info(:callbacks), else: []
-
-  cb_rows =
-    for {n, a} <- own_callbacks do
-      st =
-        case {doc_state.(:callback, n, a), doc_state.(:macrocallback, n, a)} do
-          {:present, _} -> :present
-          {_, :present} -> :present
-          {:hidden, _} -> :hidden
-          _ -> :none
-        end
-      {n, a, st}
-    end
-
-  types = for {{:type, n, a}, _, _, d, _} <- docs, do: {n, a, (case d do %{} -> :present; :hidden -> :hidden; _ -> :none end)}
-
-  missing_fun = for {k, n, a, :none, false, true} <- fun_rows, do: "#{k} #{n}/#{a}"
-  missing_gen = for {k, n, a, :none, false, false} <- fun_rows, do: "#{k} #{n}/#{a}"
-  hidden_noncb = for {k, n, a, :hidden, false, true} <- fun_rows, n not in [:child_spec, :impl_for, :impl_for!], do: "#{k} #{n}/#{a}"
-  missing_cb = for {n, a, :none} <- cb_rows, do: "#{n}/#{a}"
-  missing_typedoc = for {n, a, :none} <- types, do: "#{n}/#{a}"
-
-  clean? = md_state == :present and missing_fun == [] and missing_cb == [] and missing_gen == [] and hidden_noncb == [] and missing_typedoc == []
-
-  unless clean? or protocol_impl? do
-    IO.puts("## #{inspect(mod)}  (#{Path.relative_to_cwd(to_string(mod.module_info(:compile)[:source]))})")
-    IO.puts("- moduledoc: #{md_state}")
-    if missing_fun != [], do: IO.puts("- public, own def, NO @doc: #{Enum.join(missing_fun, ", ")}")
-    if missing_gen != [], do: IO.puts("- public, generated by `use`, no @doc: #{Enum.join(missing_gen, ", ")}")
-    if missing_cb != [], do: IO.puts("- @callback without @doc: #{Enum.join(missing_cb, ", ")}")
-    if hidden_noncb != [], do: IO.puts("- own def with @doc false (not a callback impl): #{Enum.join(hidden_noncb, ", ")}")
-    if missing_typedoc != [], do: IO.puts("- @type without @typedoc: #{Enum.join(missing_typedoc, ", ")}")
-    IO.puts("")
-  end
-end
-```
-
-## Phase 4: Report
-
-Write one markdown report (a file I can open, not only chat) with: a headline per area; the README disparities split into (a), (b) and (c) tables with README line, claim and `path:line`; the omissions grouped by section; the CLAUDE.md size table, redundancy map and move table; the docstring totals and the grouped missing lists; and a closing section that sorts every fix into four buckets: mechanical documentation, mechanical code, documentation needing a judgment call, code needing a judgment call. Items in the judgment buckets must be phrased as a choice with the alternatives, even when you recommend one. Then stop and wait for my calls.
-
-## Phase 5: Issues (after my calls)
-
-Cut one issue per bucket, plus an epic that references all four and carries the union of their labels plus `epic-1`, and attach the four as sub-issues. In each issue: one checkbox per fix and one commit per checkbox; `path:line` references pinned to the head commit; for code fixes, a red commit (failing test encoding the contract) before a green one wherever a test can drive the change; cross-issue ordering stated once in the epic; and, as the final checkbox, the enumeration-rule documentation update CLAUDE.md requires. Known Defects entries that have no issue get one cut before the entry is shortened, and detail that would otherwise be lost is moved into the linked issue as a comment.
-
-## Phase 6: Executing a documentation issue (when I ask)
-
-- Restart the designated branch from current `master` if its previous PR merged; the branch name stays.
-- One commit per checkbox, in issue order; tick the boxes on the issue as you go. Verify each added fact against the source immediately before writing it, with the Phase 1 traps in mind.
-- Gates per docstring commit: `mix compile --warnings-as-errors`; before pushing: `mix precommit` and `mix docs --warnings-as-errors`. Make the docs gate check strict — test the command's exit status, not a grep count, because a swallowed warning count is how a red docs gate got pushed last time. Two ExDoc rules that bit: reference types as `t:Mod.type/0`, and never backtick a `@moduledoc false` module such as `Cake.Application`.
-- Open the PR with `Closes #N`, subscribe to it, and request a Copilot review. For every finding: verify it against the code; fix the ones that hold by folding each fix into the commit that introduced the text (fixup commits plus a non-interactive autosquash rebase, then a force-with-lease push on this branch only); reply once per thread in one line and resolve it; note any pre-existing inaccuracy the finding exposes outside the PR's checkboxes for the follow-up issue; re-request the review until it approves. CI failures in jobs the diff does not touch (the live-provider suite, the owner-exit flake tracked in #299) get one standing-down comment and one re-run, never a loosened assertion.
