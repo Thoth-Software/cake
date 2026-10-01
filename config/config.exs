@@ -85,6 +85,12 @@ config :cake, :max_ircot_iterations, 5
 # fan-out in constrained environments (e.g. Colima's default FD limits).
 config :cake, :max_sub_search_concurrency, 4
 
+# Per-search deadline, in milliseconds, for each sub-question search of a
+# decomposed turn (one embedding call plus one search-backend query). A
+# :flat fan-out fails the whole turn with {:error, :sub_search_timeout}
+# when any sub-search exceeds it.
+config :cake, :sub_search_timeout, 30_000
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails
