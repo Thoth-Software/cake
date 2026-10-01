@@ -345,7 +345,7 @@ Every stream step must use `Pipelines.detuple_with_logging/3` with a descriptive
 
 ## Error Handling in Pipelines
 
-Cake distinguishes between item-level failures (one document fails to parse) and pipeline-fatal failures (the download step itself fails). Item-level failures are persisted to `FailedIngest` via `detuple_with_logging/3`, tagged with the run's `run_id`, and can be retried via `sweep/3`, which only ever touches that run's rows. Pipeline-fatal failures short-circuit the `with` chain and are logged in the `else` branch.
+Cake distinguishes between item-level failures (one document fails to parse) and pipeline-fatal failures (the download step itself fails). Item-level failures are persisted to `FailedIngest` via `detuple_with_logging/3`, tagged with the run's `run_id`, and can be retried via `sweep/3`, which only ever touches that run's rows. The sweep calls each pipeline's `retry/4` with no rescue, so `retry/4` answers every row with a result tuple: a row recorded under a step it has no strategy for (`Documents.Pipeline`: a source pipeline's own `"docs.persist_raw"` and `"docs.parse"`) gets `{:error, {:unsupported_step, step}}`, and a row with no `input_identifier` to resume from gets `{:error, {:no_input_identifier, failure_id}}`; both are logged and counted as remaining, never retried. Pipeline-fatal failures short-circuit the `with` chain and are logged in the `else` branch.
 
 ### Pipeline-Fatal Steps and the `with` Chain
 
