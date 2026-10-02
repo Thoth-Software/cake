@@ -201,7 +201,7 @@ The compiler runs in `:dev`/`:prod` only — test files and support modules deli
 This section traces how content flows from raw document to user-facing answer, connecting the layers described above.
 
 1. **Acquire**: A pipeline implementation fetches source content (a PDF binary from the storage adapter, a `git clone` of elixir-lang/elixir for hexdocs, etc.).
-2. **Persist raw**: Raw content is saved to Postgres as the source of truth, enabling re-parsing without re-downloading.
+2. **Persist raw**: Raw content is persisted before parsing, as the source of truth that enables re-parsing without re-acquiring it. Where it lives depends on the pipeline: Hexdocs source goes to Postgres as `Hexdoc.content`; book binaries go to the `Cake.Books.Adapters` store, with Postgres holding the book's `source_file_path` (the storage key) and `file_hash`.
 3. **Parse**: The pipeline transforms raw content into GDS schema records (e.g., `ParsedBook` + `Chunk`).
 4. **Index**: Embedded records are upserted into OpenSearch indices via `Cake.Pipelines.add_to_search_backend/3`. The retrieval unit maps one-to-one to OpenSearch documents.
 5. **Retrieve**: `Cake.Conversation` orchestrates retrieval — embed the question, search OpenSearch, score and rank results.
