@@ -1,6 +1,6 @@
 # Creating New Things — Policies
 
-Load when creating a new GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct.
+Load when creating or modifying a GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct. The headings below say "new", but the rules hold for changes to an existing one too.
 
 When asked to create new functionality, first reason about whether it is testable. If so, write the tests first, ensure they fail, then STOP. If the user approves, write the code that makes them pass. Do unit tests this way as a matter of course. If the functionality requires integration testing, stop and ask the user what to do. Always favor property tests where possible: while reasoning about testability, consider what properties each function ought to have and whether a property test can cover them; if so, prefer property tests over ordinary tests.
 
