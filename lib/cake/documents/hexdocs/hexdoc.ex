@@ -27,6 +27,7 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
     timestamps(type: :utc_datetime)
   end
 
+  @typedoc "A raw hexdocs row: one module's source for one Elixir version, before parsing."
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,

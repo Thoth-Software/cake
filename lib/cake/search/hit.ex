@@ -8,6 +8,10 @@ defmodule Cake.Search.Hit do
   backend-specific types.
   """
 
+  @typedoc """
+  One backend hit: the document's own `id` (from its source, not the backend's
+  internal id), the backend score, and the stored source map.
+  """
   @type t :: %__MODULE__{
           id: String.t(),
           score: float() | nil,

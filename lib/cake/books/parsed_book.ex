@@ -86,6 +86,10 @@ defmodule Cake.Books.ParsedBook do
     timestamps(type: :utc_datetime)
   end
 
+  @typedoc """
+  A persisted book row: book-level metadata for one stored binary, deduplicated
+  by `file_hash` (see the moduledoc for `embedding_status`).
+  """
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,

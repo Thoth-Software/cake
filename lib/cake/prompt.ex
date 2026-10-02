@@ -23,8 +23,19 @@ defmodule Cake.Prompt do
 
   alias Cake.Search.Result
 
+  @typedoc """
+  A search result paired with its 1-based prompt index, the `[N]` the model
+  cites it by.
+  """
   @type indexed_chunk :: {pos_integer(), Result.t()}
+
+  @typedoc """
+  What `prepare_context/2` reports: `:none` when no chunk survives the filter,
+  `:good` otherwise.
+  """
   @type context_quality :: :good | :none
+
+  @typedoc "One chat message, in the shape `Cake.Generation` takes."
   @type message :: %{role: String.t(), content: String.t()}
 
   @typedoc "A resolved sub-question and its intermediate answer, oldest first."

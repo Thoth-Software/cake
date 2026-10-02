@@ -15,6 +15,10 @@ defmodule Cake.Responses.Behaviour do
 
   alias Cake.Responses.Result
 
+  @typedoc """
+  The prompt-indexed search results the answer was generated over, numbered as
+  the prompt numbered them.
+  """
   @type indexed_chunks :: [{pos_integer(), Cake.Search.Result.t()}]
 
   @doc """

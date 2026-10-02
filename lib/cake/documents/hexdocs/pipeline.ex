@@ -14,6 +14,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   alias Cake.Pipelines.Context
   alias Cake.Repo
 
+  @typedoc "A source release; the same type as `t:Cake.Documents.Pipeline.version/0`."
   @type version :: Cake.Documents.Pipeline.version()
 
   @impl Cake.Documents.Pipeline

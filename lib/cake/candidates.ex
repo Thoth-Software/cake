@@ -16,7 +16,16 @@ defmodule Cake.Candidates do
   alias Cake.Citable
   alias Cake.Search.Result
 
+  @typedoc """
+  The document a candidate belongs to: its `Cake.Citable` `source_ref`, or its
+  `id` when it has none, as a string.
+  """
   @type doc_id :: String.t()
+
+  @typedoc """
+  Candidates grouped by document, in first-seen document order, each group in
+  result order.
+  """
   @type grouped :: [{doc_id(), [Result.t()]}]
 
   @doc """

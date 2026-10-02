@@ -32,6 +32,10 @@ defmodule Cake.Documents.Pipeline do
   alias Cake.Search.Backend
   require Logger
 
+  @typedoc """
+  A source release as `{major, minor, patch}`. `ingest/4` joins it into the run
+  context's `"major.minor.patch"` version string.
+  """
   @type version :: {integer(), integer(), integer()}
 
   @doc "Fetches the raw source for the versioned run, returning the file paths to ingest."

@@ -81,6 +81,11 @@ defmodule Cake.Documents.ParsedDocument do
     timestamps()
   end
 
+  @typedoc """
+  A persisted documentation entry: its `title` and `text`, its provenance
+  (`source`, `version`, `package`, `language`), and its embedding, which is
+  `nil` until the embed stage writes it.
+  """
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,

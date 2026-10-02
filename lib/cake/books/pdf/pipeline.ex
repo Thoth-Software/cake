@@ -17,6 +17,12 @@ defmodule Cake.Books.Pdf.Pipeline do
 
   require Logger
 
+  @typedoc """
+  Everything `parse/1` derives from one PDF before building the book and its
+  chunks: the NIF's pages (sorted by page number) and skipped pages, the
+  resolved title, and the file's storage key, SHA-256 hash, size, total page
+  count and word count.
+  """
   @type extraction() :: %{
           pages: [PageContent.t()],
           skipped: [SkippedPage.t()],

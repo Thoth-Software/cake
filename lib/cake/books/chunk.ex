@@ -38,6 +38,10 @@ defmodule Cake.Books.Chunk do
     timestamps(type: :utc_datetime)
   end
 
+  @typedoc """
+  A persisted chunk row (see the moduledoc for the non-obvious fields).
+  `embedding` is `nil` until the embed stage writes it.
+  """
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,

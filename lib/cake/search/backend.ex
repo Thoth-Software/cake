@@ -12,6 +12,7 @@ defmodule Cake.Search.Backend do
   alias Cake.Search.Hit
   alias Cake.Search.Query
 
+  @typedoc "A collection name (an OpenSearch index)."
   @type collection :: String.t()
 
   @typedoc "Error reasons returned by Snap-backed operations."

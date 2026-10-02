@@ -27,9 +27,22 @@ defmodule Cake.Search do
   alias Cake.Search.Query
   alias Cake.Search.Result
 
+  @typedoc """
+  The query mode: BM25 `:keyword`, k-NN `:vector`, or `:hybrid` (vector clause
+  in `must`, boosted keyword clause in `should`).
+  """
   @type search_type :: :keyword | :vector | :hybrid
+
+  @typedoc """
+  Per-call options: `:gds` (required, the GDS module to search) plus the
+  overrides `:size`, `:k`, `:ef_search`, `:keyword_weight` and `:fields`.
+  """
   @type search_opts :: keyword()
+
+  @typedoc "The backend's raw hits, or its error."
   @type search_result :: {:ok, [Hit.t()]} | {:error, Backend.search_error()}
+
+  @typedoc "Hydrated, scored search results."
   @type result_list :: [Result.t()]
 
   @default_size 30
