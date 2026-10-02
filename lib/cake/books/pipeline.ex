@@ -22,6 +22,12 @@ defmodule Cake.Books.Pipeline do
 
   `ingest_with_sweep/5` runs the same pipeline, then retries the item-level
   failures that run recorded via `Cake.Pipelines.sweep/3`.
+
+  ## Stage functions
+
+  `persist_books_and_chunks/2,3` and `munge_persisted_stream/1` are public
+  so tests can drive a single stage directly. They are `@doc false`: not
+  part of the API, and free to change with `ingest/4`.
   """
 
   alias Cake.Books
@@ -264,6 +270,7 @@ defmodule Cake.Books.Pipeline do
     {:ok, books_and_chunks_stream}
   end
 
+  @doc false
   @spec persist_books_and_chunks(Enumerable.t(), Pipelines.Context.t(), keyword()) ::
           {:ok, Enumerable.t()}
   def persist_books_and_chunks(books_and_chunks_stream, ctx, opts \\ []) do
@@ -287,6 +294,7 @@ defmodule Cake.Books.Pipeline do
     {:ok, persisted_stream}
   end
 
+  @doc false
   @spec munge_persisted_stream({:ok, term()} | {:exit, term()}) ::
           {:ok, {ParsedBook.t(), [Chunk.t()]}} | {:duplicate, ParsedBook.t()} | {:error, any()}
   def munge_persisted_stream(persisted_books_and_chunks) do

@@ -43,7 +43,8 @@ defmodule Cake.Conversation do
     picks; `select_docs/2` applies the selection synchronously so unknown
     ids are rejected before any task starts.
 
-  Stages are `@doc false` public functions for direct testability.
+  Stages are `@doc false` public functions: public so tests can drive
+  them directly, not part of the API.
 
   ## Query decomposition
 

@@ -1,6 +1,9 @@
 defmodule Cake.Documents.Hexdocs.Pipeline do
   @moduledoc """
   Implements the document ingestion pipeline for hexdocs.
+
+  `to_hexdoc_attrs/2` is public so tests can drive that stage directly. It
+  is `@doc false`: not part of the API.
   """
 
   @behaviour Cake.Documents.Pipeline
@@ -128,6 +131,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   defp changeset_module(changeset),
     do: to_string(Ecto.Changeset.get_field(changeset, :module) || "unknown")
 
+  @doc false
   @spec to_hexdoc_attrs(String.t(), String.t()) :: map()
   def to_hexdoc_attrs(path, version) do
     url_suffix =
