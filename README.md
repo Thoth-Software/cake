@@ -179,7 +179,7 @@ The application starts children in this order under Cake.Application:
 9. `DynamicSupervisor` (`Cake.ConversationSupervisor`) — supervises the per-session `Conversation` GenServers started via `Conversation.start/1` (`:temporary` children; each stops on its own when its `:owner` LiveView exits)
 10. `CakeWeb.Endpoint` — Phoenix HTTP server (last, so all dependencies are ready)
 
-Phoenix runs `server: false` in test, so this boot order is exercised in CI only by the compose smoke test, which boots the real stack through `entrypoint.sh` and asserts that step 7 created both collections (CLAUDE.md "Compose smoke test").
+Phoenix runs `server: false` in test, so this boot order is exercised in CI only by the compose smoke test, which boots the real stack through `entrypoint.sh` and asserts that step 7 created both collections (`.claude/rules/compose-smoke.md`).
 
 ### Module Boundaries (enforced by `boundary`)
 
