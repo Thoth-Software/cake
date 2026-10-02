@@ -14,8 +14,8 @@ defmodule Mix.Tasks.Cake.Nif.Check do
   been compiled for the machine running this command. The docker-compose
   smoke test (`ci/compose_smoke.sh`, #250) runs this inside the app container
   to prove that `entrypoint.sh`'s forced-recompile sequence produced a
-  loadable Linux NIF rather than a stale host-compiled one (CLAUDE.md "NIF
-  clobbering"); it is as useful on a host where the app reports
+  loadable Linux NIF rather than a stale host-compiled one (.claude/rules/infrastructure-gotchas.md,
+  "NIF clobbering"); it is as useful on a host where the app reports
   `module not available` or `:nif_not_loaded`, which is what this command
   crashes with when the NIF does not load.
 
