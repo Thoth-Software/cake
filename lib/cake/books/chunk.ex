@@ -13,6 +13,10 @@ defmodule Cake.Books.Chunk do
     :text,               # The actual content - can't have empty chunks
     :word_count,         # Computed from text, always available
     :char_count          # ut supra
+
+  Query helpers (`base_query/0`, `by_book/2`, `by_section/2`, `on_page/2`,
+  `within_pages/3`) are `@doc false`: building blocks for the `Cake.Books`
+  context modules, not part of the API.
   """
 
   use Cake.Schema
@@ -75,19 +79,23 @@ defmodule Cake.Books.Chunk do
     |> sanitize_text_fields()
   end
 
+  @doc false
   @spec base_query() :: Ecto.Query.t()
   def base_query(), do: from(c in __MODULE__)
 
+  @doc false
   @spec by_book(Ecto.Query.t(), binary()) :: Ecto.Query.t()
   def by_book(query, parsed_book_id) do
     from c in query, where: c.parsed_book_id == ^parsed_book_id
   end
 
+  @doc false
   @spec on_page(Ecto.Query.t(), integer()) :: Ecto.Query.t()
   def on_page(query, page_number) do
     from c in query, where: c.page_number == ^page_number
   end
 
+  @doc false
   @spec within_pages(Ecto.Query.t(), integer(), integer()) :: Ecto.Query.t()
   def within_pages(query, center_page, range) do
     first_page = center_page - range
@@ -98,6 +106,7 @@ defmodule Cake.Books.Chunk do
       where: c.page_number >= ^first_page and c.page_number <= ^last_page
   end
 
+  @doc false
   @spec by_section(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_section(query, section_title) do
     from c in query, where: c.section_title == ^section_title

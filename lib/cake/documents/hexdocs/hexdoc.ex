@@ -2,6 +2,10 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
   @moduledoc """
   Ecto schema for a raw hexdocs row (module, version, url, content) as fetched
   from the `hexdocs` source, before it is parsed into a `ParsedDocument`.
+
+  Query helpers (`base_query/0`, `by_module/2`, `by_version/2`) are
+  `@doc false`: building blocks for `Cake.Documents.Hexdocs`, not part of
+  the API.
   """
 
   use Cake.Schema
@@ -54,15 +58,18 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
     |> sanitize_text_fields()
   end
 
+  @doc false
   @spec base_query() :: Ecto.Query.t()
   def base_query(), do: from(h in __MODULE__)
 
+  @doc false
   @spec by_version(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_version(query, version) do
     from h in query,
       where: h.version == ^version
   end
 
+  @doc false
   @spec by_module(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_module(query, module) do
     from h in query,

@@ -11,6 +11,10 @@ defmodule Cake.Documents.ParsedDocument do
   `:embedding` contains the vector generated from the title-prepended `:text`
   value used by the ingestion pipeline. It is a semantic representation and
   is not expected to decode back to the original text.
+
+  Query helpers (`base_query/0`, `by_language/2`, `by_source/2`,
+  `by_version/2`) are `@doc false`: building blocks for
+  `Cake.Documents.ParsedDocuments`, not part of the API.
   """
 
   use Cake.Schema
@@ -118,21 +122,25 @@ defmodule Cake.Documents.ParsedDocument do
     |> sanitize_text_fields()
   end
 
+  @doc false
   @spec base_query() :: Ecto.Query.t()
   def base_query(), do: from(p in __MODULE__)
 
+  @doc false
   @spec by_version(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_version(query, version) do
     from h in query,
       where: h.version == ^version
   end
 
+  @doc false
   @spec by_language(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_language(query, language) do
     from h in query,
       where: h.language == ^language
   end
 
+  @doc false
   @spec by_source(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   def by_source(query, source) do
     from h in query,
