@@ -8,6 +8,7 @@ defmodule CakeWeb.ChatLive.SelectionForm do
 
   import Ecto.Changeset
 
+  @typedoc "A manual selection: the chosen candidate document ids."
   @type t :: %__MODULE__{
           selected_doc_ids: [String.t()]
         }

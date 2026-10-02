@@ -31,6 +31,10 @@ defmodule Cake.Accounts.UserToken do
     timestamps(type: :utc_datetime, updated_at: false)
   end
 
+  @typedoc """
+  A session or email token row: the token bytes, the `context` it was issued
+  for, the address it was `sent_to` (email tokens only), and the owning user.
+  """
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,

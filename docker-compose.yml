@@ -81,9 +81,9 @@ services:
       retries: 5
 
   # S3-compatible object store (moto's standalone server) for the integration
-  # test run only (`mix test --only integration`; CLAUDE.md "Integration
-  # tests"): the Cake.Books.Adapters.S3 suite creates a bucket per test here
-  # and drops it again. Not a dependency of the app container — dev uses the
+  # test run only (`mix test --only integration`;
+  # .claude/rules/integration-tests.md): the Cake.Books.Adapters.S3 suite
+  # creates a bucket per test here and drops it again. Not a dependency of the app container — dev uses the
   # Disk adapter. Same image and settings as the `moto` service in
   # .github/workflows/quality.yml (which also says why moto rather than MinIO
   # or LocalStack); it accepts any key pair, the case template sends a fixed

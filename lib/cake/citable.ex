@@ -33,6 +33,7 @@ defprotocol Cake.Citable do
   crash rather than returning degraded output.
   """
 
+  @typedoc "The five-key map `metadata/1` returns; `metadata/1` describes each key."
   @type metadata :: %{
           required(:id) => term(),
           required(:label) => String.t(),

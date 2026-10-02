@@ -17,6 +17,10 @@ defmodule Cake.Search.Provenance do
   follow-up rounds for self-ask, reasoning/retrieval rounds for IRCoT.
   """
 
+  @typedoc """
+  The search conditions a `Cake.Search.Result` was found under; the moduledoc
+  describes the decomposition fields.
+  """
   @type t :: %__MODULE__{
           search_type: :keyword | :vector | :hybrid,
           query_text: String.t(),

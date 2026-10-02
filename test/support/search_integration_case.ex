@@ -70,7 +70,7 @@ defmodule Cake.SearchIntegrationCase do
   picked up by `--only integration` alone: ExUnit's include wins over its
   exclude, so a test tagged both could not be opted out of. It runs only
   with `mix test --only integration --include network` (the merge gate
-  passes that; CLAUDE.md "Integration tests").
+  passes that; .claude/rules/integration-tests.md).
   """
   @spec module_tag(keyword()) :: :integration | :network
   def module_tag(opts) when is_list(opts) do
@@ -274,7 +274,7 @@ defmodule Cake.SearchIntegrationCase do
       raise """
       Cake.SearchIntegrationCase tests need the real cluster, but \
       Cake.Search.Deployment still carries the unit-test config. Run them \
-      with `mix test --only integration` (see CLAUDE.md, "Integration tests").\
+      with `mix test --only integration` (see .claude/rules/integration-tests.md).\
       """
     end
   end

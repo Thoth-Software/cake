@@ -21,6 +21,11 @@ defmodule Cake.Responses.Result do
       for pattern-matchability.
   """
 
+  @typedoc """
+  One surviving citation: the index the model wrote (`old_index`), the
+  renumbered index the user sees (`new_index`), and the `Cake.Citable` metadata
+  it resolves to.
+  """
   @type citation :: %{
           old_index: pos_integer(),
           new_index: pos_integer(),
@@ -31,6 +36,10 @@ defmodule Cake.Responses.Result do
           extras: map()
         }
 
+  @typedoc """
+  An image selected for display beside the citation it belongs to. Media
+  selection is a stub, so none are produced today.
+  """
   @type media_item :: %{
           required(:kind) => :image,
           required(:url) => String.t(),
@@ -38,14 +47,20 @@ defmodule Cake.Responses.Result do
           required(:citation_index) => pos_integer()
         }
 
+  @typedoc "A UI action derived from the citations, such as a download of a cited `source_ref`."
   @type action :: %{
           required(:kind) => :download | :external_link,
           required(:label) => String.t(),
           required(:source_ref) => String.t()
         }
 
+  @typedoc """
+  A non-fatal issue: `{:hallucinated_citation, n}` for an `[n]` marker that
+  resolved to no chunk, or another `{atom, term}`.
+  """
   @type warning :: {:hallucinated_citation, pos_integer()} | {atom(), term()}
 
+  @typedoc "The structured response; the moduledoc gives each field's owner."
   @type t :: %__MODULE__{
           raw_text: String.t(),
           final_text: String.t() | nil,

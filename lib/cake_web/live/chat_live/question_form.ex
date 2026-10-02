@@ -8,6 +8,7 @@ defmodule CakeWeb.ChatLive.QuestionForm do
 
   import Ecto.Changeset
 
+  @typedoc "The chat input: the question text and the turn mode (`:auto` or `:manual`)."
   @type t :: %__MODULE__{
           question: String.t() | nil,
           mode: :auto | :manual | nil

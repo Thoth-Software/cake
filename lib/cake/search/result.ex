@@ -27,8 +27,10 @@ defmodule Cake.Search.Result do
 
   alias Cake.Search.Provenance
 
+  @typedoc "`:search` for a direct hit, `:expansion` for a neighbor added by context expansion."
   @type hit_source :: :search | :expansion
 
+  @typedoc "A normalized search result; the moduledoc describes each field."
   @type t :: %__MODULE__{
           retrieval_unit: struct(),
           backend_score: float() | nil,

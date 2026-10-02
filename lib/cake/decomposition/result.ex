@@ -39,6 +39,10 @@ defmodule Cake.Decomposition.Result do
   limp past.
   """
 
+  @typedoc """
+  How a question was decomposed: `:none` (atomic), `:flat`, `:sequential`,
+  `:self_ask` or `:ircot`; the moduledoc describes each.
+  """
   @type strategy :: :none | :flat | :sequential | :self_ask | :ircot
 
   @typedoc """
@@ -47,6 +51,7 @@ defmodule Cake.Decomposition.Result do
   """
   @type entry :: %{question: String.t(), depends_on: [non_neg_integer()]}
 
+  @typedoc "A decomposition outcome. Build it with `new/2`, which validates the sub-question DAG."
   @type t :: %__MODULE__{
           original_question: String.t(),
           strategy: strategy(),
