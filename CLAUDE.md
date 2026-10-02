@@ -135,6 +135,7 @@ If you're loosening an assertion to make a test pass, you're almost certainly in
 
 - **Every public function has a `@spec`.** No exceptions — including `@impl` callback implementations, which must redundantly spec the callback signature. This ensures specs appear in LLM context and that dialyzer catches impl/callback mismatches.
 - **Every custom struct defines `@type t :: %__MODULE__{}`** with all fields typed. Use `MyStruct.t()` in specs, never `%MyStruct{}`.
+- **Every `@type` has a `@typedoc`**, struct `t/0` included. `@typep` is exempt.
 - Behaviour callbacks (`@callback`) and protocol functions (`@spec`) get full typespecs.
 - Retrieval callbacks return `[struct()]`, not a specific struct type — deliberate (see GDS behaviour docs in README).
 - **List-of-struct args use `when is_list(arg)` guards**, not head-matching on list elements. The `@spec` controls what the list contains; the guard validates the container type at runtime.
