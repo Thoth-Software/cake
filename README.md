@@ -404,9 +404,9 @@ The domain-level `:cake` application-env keys that `lib/` reads, grouped by cons
 
 ## Roadmap: Planned and Deferred
 
-**Shipped since first draft:** query decomposition in its own `Cake.Decomposition` boundary (not inside `Prompt` as originally sketched): flat concurrent fan-out end-to-end, plus the `Conversation`-side machinery for the other three tiers — sequential least-to-most, the self-ask loop and the IRCoT loop. The shipped LLM strategy emits atomic-or-flat decompositions only, so `:sequential` awaits a strategy that emits dependency edges, and `:self_ask`/`:ircot` await one that marks them (`Result.new/2` never derives either). See "Query Decomposition" under Layer 3.
+**Shipped since first draft:** query decomposition in its own `Cake.Decomposition` boundary (not inside `Prompt` as originally sketched): flat concurrent fan-out end-to-end, plus the `Conversation`-side machinery for the other three tiers — sequential least-to-most, the self-ask loop and the IRCoT loop. The shipped LLM strategy emits atomic-or-flat decompositions only, so `:sequential` awaits a strategy that emits dependency edges, and `:self_ask`/`:ircot` await one that marks them (`Result.new/2` never derives either). See "Query Decomposition" under Layer 3. Conversation layer decomposition: `Prompt` and `Generation` are their own boundaries, and `Responses` is collapsed to post-processing only (it makes no HTTP calls).
 
-**Post-demo planned:** conversation layer decomposition (extract `Prompt` and `Generation` fully; collapse `Responses` to post-processing only), test coverage expansion, Word/Excel/CSV/JPG pipelines.
+**Post-demo planned:** test coverage expansion, Word/Excel/CSV/JPG pipelines.
 
 **Longer-term:** autorating (`Search` or dedicated module), cross-encoder reranking (`Search`), HyDE-style query expansion (`Prompt` + `Retrieval`), multi-index search and result merging (`Retrieval`).
 
