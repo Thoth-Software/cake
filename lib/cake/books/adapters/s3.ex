@@ -31,7 +31,7 @@ defmodule Cake.Books.Adapters.S3 do
   404 for a missing key or bucket), or `{:error, transport_error}` when it
   could not be reached. `exists?/1` alone collapses every error to `false`.
   Both shapes are pinned against a real store in the `integration` CI job
-  (`Cake.Books.Adapters.S3IntegrationTest`; CLAUDE.md "Integration tests").
+  (`Cake.Books.Adapters.S3IntegrationTest`; .claude/rules/integration-tests.md).
 
   Currently reads entire objects into memory. For very large documents,
   streaming via `ExAws.S3.download_file/4` or multipart reads may be
