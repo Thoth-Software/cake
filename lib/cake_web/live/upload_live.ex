@@ -5,6 +5,12 @@ defmodule CakeWeb.UploadLive do
   `Cake.Books.Adapters` adapter, and runs Books ingestion
   (`Cake.Books.Pipeline.ingest/4` with `Cake.Books.Pdf.Pipeline`) as an
   async task.
+
+  The upload limits (20 archives of up to 100 MB each) bound compressed
+  bytes only; how far an archive may expand is bounded by
+  `Cake.Books.ZipExtractor` (`config :cake, :max_zip_expanded_bytes` and
+  `:max_zip_entries`), and an archive it rejects is reported with the
+  limit it broke.
   """
 
   use CakeWeb, :live_view
@@ -129,7 +135,7 @@ defmodule CakeWeb.UploadLive do
         {:noreply,
          assign(socket,
            status: :error,
-           error: "Failed to process #{name}: #{inspect(reason)}"
+           error: "Failed to process #{name}: #{describe_zip_error(reason)}"
          )}
 
       all_keys == [] ->
@@ -166,6 +172,22 @@ defmodule CakeWeb.UploadLive do
       _ -> []
     end)
   end
+
+  @spec describe_zip_error(term()) :: String.t()
+  defp describe_zip_error({:too_large, declared, max_bytes}) do
+    "its PDFs would expand to #{format_size(declared)}, " <>
+      "over the #{format_size(max_bytes)} limit for one archive"
+  end
+
+  defp describe_zip_error({:too_many_entries, count, max_entries}) do
+    "it holds #{count} entries, over the limit of #{max_entries}"
+  end
+
+  defp describe_zip_error({:size_mismatch, entry_name}) do
+    "#{entry_name} does not expand to the size the archive declares for it"
+  end
+
+  defp describe_zip_error(reason), do: inspect(reason)
 
   @spec process_document_entry(String.t(), binary(), module()) ::
           {:pdf, [String.t()]}
