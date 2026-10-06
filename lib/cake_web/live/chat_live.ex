@@ -100,9 +100,14 @@ defmodule CakeWeb.ChatLive do
     {:noreply, assign(socket, question_form: to_form(changeset))}
   end
 
-  def handle_event("new_conversation", _params, socket) do
+  def handle_event("new_conversation", _params, %{assigns: %{convo_pid: nil}} = socket) do
     {:noreply, socket |> start_conversation() |> reset_to_idle()}
   end
+
+  # A duplicate (double-click, or a client sending the event directly) would
+  # otherwise start and monitor another owner-bound conversation and orphan
+  # the one already assigned.
+  def handle_event("new_conversation", _params, socket), do: {:noreply, socket}
 
   @spec handle_info(term(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}

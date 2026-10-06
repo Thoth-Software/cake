@@ -221,6 +221,21 @@ defmodule CakeWeb.ChatLiveTest do
       broadcast_to_view(view, {:state_change, :generating})
       assert render(view) =~ "Thinking..."
     end
+
+    test "a repeated new_conversation event does not start a second conversation",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      kill_conversation(view)
+
+      # A double-click queues both events before the first patch removes
+      # the button, so the second arrives with a live pid already assigned.
+      render_click(view, "new_conversation", %{})
+      first_pid = :sys.get_state(view.pid).socket.assigns.convo_pid
+
+      render_click(view, "new_conversation", %{})
+
+      assert :sys.get_state(view.pid).socket.assigns.convo_pid == first_pid
+    end
   end
 
   # --- Helpers ---
