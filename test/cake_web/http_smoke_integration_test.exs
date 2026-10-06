@@ -55,13 +55,14 @@ defmodule CakeWeb.HttpSmokeIntegrationTest do
       assert rendered_text(rendered) =~ "Cake Chat"
     end
 
-    test "a join without the session's CSRF token is refused a session", ctx do
+    test "a join without the session's CSRF token is refused", ctx do
       cookie = log_in!(ctx, user_fixture())
 
       # The socket only hands the cookie session to the LiveView when the
-      # connect carries the matching CSRF token; without it the
-      # authenticated live_session redirects instead of rendering.
-      assert {:error, %{"redirect" => %{"to" => "/users/log_in"}}} =
+      # connect carries the matching CSRF token. Without a session LiveView
+      # refuses the join outright as "stale" (the client answers with a full
+      # page reload) rather than mounting the view unauthenticated.
+      assert {:error, %{"reason" => "stale"}} =
                live_join!(ctx, "/chat", cookie, csrf_token: "not-the-session-token")
     end
   end
