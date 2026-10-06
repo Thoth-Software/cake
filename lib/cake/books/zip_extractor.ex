@@ -165,7 +165,7 @@ defmodule Cake.Books.ZipExtractor do
           {:ok, local_header()} | {:error, :bad_local_header}
   defp read_local_header(zip_binary, offset) do
     case zip_binary do
-      <<_::binary-size(offset), @local_header_signature::little-32, _version::little-16,
+      <<_::binary-size(^offset), @local_header_signature::little-32, _version::little-16,
         flags::little-16, method::little-16, _mod_time::little-16, _mod_date::little-16,
         crc::little-32, _comp_size::little-32, _uncomp_size::little-32, name_length::little-16,
         extra_length::little-16, _::binary>> ->
@@ -241,11 +241,11 @@ defmodule Cake.Books.ZipExtractor do
   defp expected_crc(zip_binary, %{flags: flags}, data_end)
        when (flags &&& @data_descriptor_flag) != 0 do
     case zip_binary do
-      <<_::binary-size(data_end), @data_descriptor_signature::little-32, crc::little-32,
+      <<_::binary-size(^data_end), @data_descriptor_signature::little-32, crc::little-32,
         _::binary>> ->
         {:ok, crc}
 
-      <<_::binary-size(data_end), crc::little-32, _::binary>> ->
+      <<_::binary-size(^data_end), crc::little-32, _::binary>> ->
         {:ok, crc}
 
       _ ->

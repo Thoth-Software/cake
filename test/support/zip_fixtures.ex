@@ -97,7 +97,7 @@ defmodule Cake.ZipFixtures do
     zip
     |> :binary.matches(<<@central_header_signature::little-32>>)
     |> Enum.find_value(fn {position, _length} ->
-      <<_::binary-size(position + 28), name_length::little-16, _::binary>> = zip
+      <<_::binary-size(^position + 28), name_length::little-16, _::binary>> = zip
 
       if binary_part(zip, position + 46, name_length) == name, do: position
     end) || raise ArgumentError, "no central directory entry named #{inspect(name)}"
@@ -106,13 +106,13 @@ defmodule Cake.ZipFixtures do
   @spec local_header_position(binary(), String.t()) :: non_neg_integer()
   defp local_header_position(zip, name) do
     position = central_header_position(zip, name)
-    <<_::binary-size(position + 42), offset::little-32, _::binary>> = zip
+    <<_::binary-size(^position + 42), offset::little-32, _::binary>> = zip
     offset
   end
 
   @spec patch(binary(), non_neg_integer(), binary()) :: binary()
   defp patch(binary, position, replacement) do
-    <<before::binary-size(position), _::binary-size(byte_size(replacement)), rest::binary>> =
+    <<before::binary-size(^position), _::binary-size(byte_size(^replacement)), rest::binary>> =
       binary
 
     <<before::binary, replacement::binary, rest::binary>>
