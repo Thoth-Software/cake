@@ -94,6 +94,15 @@ defmodule Cake.Books.ZipExtractorTest do
       assert {:ok, [{"a.pdf", "content-a"}, {"b.pdf", ""}]} = ZipExtractor.extract_pdfs(zip)
     end
 
+    test "finds the end record behind an archive comment that contains its signature" do
+      # A stray end-record signature (PK\x05\x06) inside the comment, near
+      # the end of the archive, must not be mistaken for the record.
+      comment = ~c"note " ++ [?P, ?K, 5, 6] ++ ~c" not a record"
+      zip = zip_binary([{"a.pdf", "content-a"}], comment: comment)
+
+      assert {:ok, [{"a.pdf", "content-a"}]} = ZipExtractor.extract_pdfs(zip)
+    end
+
     test "reads ZIP64 end records and ZIP64 extra fields" do
       entries = [{"a.pdf", "content-a"}, {"notes.txt", "text"}, {"b.pdf", "content-b"}]
       zip = streamed_zip_binary(entries, zip64: true)

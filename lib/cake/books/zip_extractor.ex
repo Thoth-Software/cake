@@ -132,17 +132,38 @@ defmodule Cake.Books.ZipExtractor do
   end
 
   # The record sits in the last 22 bytes plus an archive comment of up to
-  # 64 KB; the last signature in that window is the record.
+  # 64 KB. The comment may itself contain the signature, so candidates are
+  # tried right to left and only one whose comment length ends it exactly
+  # at the end of the binary is the record.
   @spec find_end_of_central_dir(binary()) ::
           {:ok, %{entries: non_neg_integer(), cd_offset: non_neg_integer()}}
           | {:error, :not_a_zip | :bad_central_directory | :multiple_disks_not_supported}
   defp find_end_of_central_dir(zip_binary) do
-    window_start = max(byte_size(zip_binary) - @eocd_size - @max_comment_size, 0)
-    window = binary_part(zip_binary, window_start, byte_size(zip_binary) - window_start)
+    size = byte_size(zip_binary)
+    window_start = max(size - @eocd_size - @max_comment_size, 0)
+    window = binary_part(zip_binary, window_start, size - window_start)
 
-    case List.last(:binary.matches(window, <<@eocd_signature::little-32>>)) do
-      {position, _length} -> parse_end_of_central_dir(zip_binary, window_start + position)
+    record_position =
+      window
+      |> :binary.matches(<<@eocd_signature::little-32>>)
+      |> Enum.map(fn {position, _length} -> window_start + position end)
+      |> Enum.reverse()
+      |> Enum.find(&end_of_central_dir_at?(zip_binary, &1))
+
+    case record_position do
       nil -> {:error, :not_a_zip}
+      position -> parse_end_of_central_dir(zip_binary, position)
+    end
+  end
+
+  @spec end_of_central_dir_at?(binary(), non_neg_integer()) :: boolean()
+  defp end_of_central_dir_at?(zip_binary, position) do
+    case zip_binary do
+      <<_::binary-size(^position), _::binary-size(20), comment_length::little-16, _::binary>> ->
+        position + @eocd_size + comment_length == byte_size(zip_binary)
+
+      _ ->
+        false
     end
   end
 
