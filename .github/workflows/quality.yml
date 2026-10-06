@@ -334,6 +334,23 @@ jobs:
       - name: Compile
         run: mix compile --warnings-as-errors
 
+      # Migration rollback gate (#252): every other job only ever migrates a
+      # fresh database forward, so an irreversible migration (an `execute/1`
+      # without a down, a `remove` without its type) or an asymmetric one (a
+      # down that leaves something behind the next up then trips over) stays
+      # invisible until someone needs to roll back. Migrate, roll every
+      # migration back, migrate again; any step failing turns the gate red.
+      # Runs in the test env against the Postgres service, before the tests,
+      # so the suite below also runs on the re-migrated schema.
+      - name: Migration round trip (migrate, rollback --all, migrate)
+        env:
+          MIX_ENV: test
+        run: |
+          mix ecto.create
+          mix ecto.migrate
+          mix ecto.rollback --all
+          mix ecto.migrate
+
       - name: Run integration tests (with the network group)
         run: mix test --only integration --include network
 
