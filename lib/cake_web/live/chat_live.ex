@@ -396,9 +396,11 @@ defmodule CakeWeb.ChatLive do
   @spec dispatch_question(pid(), String.t(), :auto | :manual) ::
           :ok | {:error, :conversation_down}
   # autoask/2 is a cast and reports :ok even to a dead pid, so the dead case
-  # is checked here; a dead pid stays dead, so this is not a liveness race. A
-  # conversation that dies after accepting the cast is a mid-turn crash, which
-  # its :DOWN reports.
+  # is checked here; a dead pid stays dead, so this check never misreports
+  # one. It is not atomic with the cast: a conversation that dies after the
+  # check but before the cast lands drops the question while the page keeps
+  # it, and its :DOWN then reports the loss like a mid-turn crash. Closing
+  # that needs autoask/2 to acknowledge acceptance (#311).
   defp dispatch_question(convo_pid, question, :auto) do
     if Process.alive?(convo_pid),
       do: Cake.Conversation.autoask(convo_pid, question),
