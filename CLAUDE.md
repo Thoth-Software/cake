@@ -45,6 +45,7 @@ Load the full file when the task matches the trigger. Reference files live in `p
 | Change what `Books.Pipeline.ingest/4` / `Documents.Pipeline.ingest/4` / `ingest_with_sweep/5` persist, embed, index or report, or add an end-to-end ingestion test | `.claude/rules/integration-tests.md`; `test/support/ingest_integration_helpers.ex`; the existing `*_integration_test.exs` for the pipeline as reference; run `mix test --only integration --include network` against a real node (the `:network` group clones elixir-lang/elixir) |
 | Change `Cake.Books.Adapters.S3`, ExAws config, or `Cake.S3IntegrationCase`; add a `Cake.Books.Adapters` implementation | `lib/cake/books/adapters.ex` + `adapters/s3.ex` (the "Authentication" and "Errors" sections); `test/support/s3_integration_case.ex`; `test/cake/books/adapters/s3_integration_test.exs` as reference; run `mix test --only integration` (see `.claude/rules/integration-tests.md`) |
 | Add/modify a live-provider test (`:llm`), touch `Cake.LiveLLMCase`, or change what `Cake.Embeddings` / `Cake.Generation.OpenAI` / `Cake.Decomposition.LLM` send over the wire | `.claude/rules/live-llm-tests.md`; `test/support/live_llm_case.ex`; the existing `*_live_test.exs` for the module as reference; run `OPENAI_KEY=... mix test --only llm` |
+| Add or change an Ecto migration under `priv/repo/migrations/` | Quality Gates "migration rollback gate" below; run the round trip locally before pushing |
 | Add/modify an end-to-end `Cake.Conversation` test (tier 1 `:integration` or tier 2 `:llm`), or touch `Cake.ConversationIntegrationHelpers` | `.claude/rules/integration-tests.md` + `.claude/rules/live-llm-tests.md`; `test/support/conversation_integration_helpers.ex`; README "The Per-Turn Pipeline"; `test/cake/conversation_integration_test.exs` as reference; run `mix test --only integration` (and `OPENAI_KEY=... mix test --only llm` for the live tier) |
 
 Path-scoped rules in `.claude/rules/` auto-load when you work on a file their `paths:` frontmatter matches — no manual trigger needed: `test-conventions.md` (anything under `test/`), `integration-tests.md`, `live-llm-tests.md`, `compose-smoke.md`, `infrastructure-gotchas.md` and `security-gate.md`. The rows above that name one of them are for loading it before you have opened a matching file.
@@ -69,7 +70,15 @@ On-push CI (`.github/workflows/quality.yml`) runs the same checks **plus** gates
 - `mix coveralls.json --exclude integration` — coverage must not drop below the minimum in `coveralls.json` (the SSOT for the threshold).
 - The `security` job: `mix deps.unlock --check-unused`, `mix hex.audit` + `mix deps.audit` (report-only until #206 clears) and `mix sobelow --config --exit` (`.claude/rules/security-gate.md`).
 
-Tests tagged `:integration`, `:network` and `:llm` are excluded on-push and run separately as merge gates (see "Test tags and run modes" below). PRs additionally run the compose smoke test, `ci/compose_smoke.sh`, which gates the containers rather than the code (`.claude/rules/compose-smoke.md`). A failure there is a finding about the containers: fix `Dockerfile`, `entrypoint.sh` or the compose files, never loosen an assertion.
+Tests tagged `:integration`, `:network` and `:llm` are excluded on-push and run separately as merge gates (see "Test tags and run modes" below).
+
+The `integration` job also runs the **migration rollback gate** before its tests (#252): `mix ecto.migrate` → `mix ecto.rollback --all` → `mix ecto.migrate` (`MIX_ENV=test`, against the job's Postgres service). Every other job only migrates a fresh database forward, so this is the one place an irreversible migration (`execute/1` with no down, `remove` without its type, an `up/0` with no `down/0`) or an asymmetric one (a down that leaves behind something the next up trips over) turns red. Run it yourself whenever you add or change a migration:
+
+```bash
+MIX_ENV=test mix ecto.migrate && MIX_ENV=test mix ecto.rollback --all && MIX_ENV=test mix ecto.migrate
+```
+
+A red rollback gate is a finding about the migration: fix the migration (give it a `down/0`, or the type its `remove` needs), never drop the step. PRs additionally run the compose smoke test, `ci/compose_smoke.sh`, which gates the containers rather than the code (`.claude/rules/compose-smoke.md`). A failure there is a finding about the containers: fix `Dockerfile`, `entrypoint.sh` or the compose files, never loosen an assertion.
 
 ### Test tags and run modes
 
