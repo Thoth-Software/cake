@@ -182,9 +182,59 @@ defmodule CakeWeb.ChatLiveTest do
       assert html =~ "ended unexpectedly"
       refute html =~ "boom"
     end
+
+    test "a dead conversation disarms the question form instead of crashing the view",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      kill_conversation(view)
+
+      assert render(view) =~ "ended unexpectedly"
+
+      html =
+        view
+        |> form("form", question_form: %{question: "Still there?", mode: "manual"})
+        |> render_submit()
+
+      assert Process.alive?(view.pid)
+      assert html =~ "ended unexpectedly"
+      refute html =~ "Still there?"
+      assert has_element?(view, ~s(input[name="question_form[question]"][disabled]))
+      assert has_element?(view, "button", "Start a new conversation")
+    end
+
+    test "starting a new conversation re-arms the form with a live process", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      dead_pid = kill_conversation(view)
+
+      html = view |> element("button", "Start a new conversation") |> render_click()
+
+      new_pid = :sys.get_state(view.pid).socket.assigns.convo_pid
+      assert is_pid(new_pid) and new_pid != dead_pid
+      assert Process.alive?(new_pid)
+      assert html =~ "ended unexpectedly"
+      refute has_element?(view, "button", "Start a new conversation")
+      refute has_element?(view, ~s(input[name="question_form[question]"][disabled]))
+
+      broadcast_to_view(view, {:state_change, :generating})
+      assert render(view) =~ "Thinking..."
+    end
   end
 
   # --- Helpers ---
+
+  # Kills the view's conversation and returns once the view has received the
+  # `:DOWN` (traced, so the next call to the view is processed after it).
+  defp kill_conversation(view) do
+    convo_pid = :sys.get_state(view.pid).socket.assigns.convo_pid
+    1 = :erlang.trace(view.pid, true, [:receive])
+
+    Process.exit(convo_pid, :kill)
+
+    assert_receive {:trace, _, :receive, {:DOWN, _, :process, ^convo_pid, :killed}}
+    _ = :erlang.trace(view.pid, false, [:receive])
+    convo_pid
+  end
 
   defp conversation_id(view) do
     :sys.get_state(view.pid).socket.assigns.convo_pid
