@@ -18,6 +18,10 @@ defmodule Cake.Accounts.User do
     timestamps(type: :utc_datetime)
   end
 
+  @typedoc """
+  A registered user. `password` and `current_password` are virtual fields that
+  only changesets read; the stored secret is `hashed_password`.
+  """
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,

@@ -23,6 +23,7 @@ defmodule Cake.Search.Query do
   @enforce_keys [:index]
   defstruct [:index, :min_score, size: 10, must: [], should: [], filter: []]
 
+  @typedoc "A composable query. Build it with `new/2` and the clause builders."
   @type t :: %__MODULE__{
           index: String.t(),
           size: pos_integer(),

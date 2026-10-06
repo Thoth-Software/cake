@@ -17,6 +17,10 @@ defmodule Cake.Books.Adapters do
   when browsing the storage backend directly.
   """
 
+  @typedoc """
+  A storage key as `build_key/3` produces it:
+  `cake-documents/<tenant>/<gds>/<unique-id>`.
+  """
   @type key :: String.t()
 
   @typedoc """

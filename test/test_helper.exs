@@ -4,7 +4,7 @@
 # file). A mixed run (`--include integration`) raises here, on purpose.
 run_mode = Cake.SearchIntegrationCase.run_mode()
 
-# Three opt-in tags, all excluded by default (CLAUDE.md "Live LLM tests"):
+# Three opt-in tags, all excluded by default (CLAUDE.md "Test tags and run modes"):
 # :integration is hermetic infrastructure (OpenSearch, NIF, Oban), run by
 # `mix test --only integration`; :llm is real provider calls — secret- and
 # cost-bearing — run by `mix test --only llm` with OPENAI_KEY set; :network

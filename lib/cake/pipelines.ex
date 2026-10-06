@@ -36,6 +36,8 @@ defmodule Cake.Pipelines do
     *which* run, so concurrent runs of the same source never count or
     sweep each other's failures.
     """
+
+    @typedoc "A run's identity and options; the moduledoc describes each field."
     @type t :: %__MODULE__{
             run_id: Ecto.UUID.t(),
             behaviour: String.t(),
@@ -46,6 +48,7 @@ defmodule Cake.Pipelines do
     defstruct [:run_id, :behaviour, :implementation, :version, :opts]
   end
 
+  @typedoc "Shorthand for `t:Cake.Pipelines.Context.t/0`."
   @type context :: Context.t()
 
   @default_search_backend_timeout 5_000

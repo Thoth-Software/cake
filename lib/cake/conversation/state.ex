@@ -30,8 +30,14 @@ defmodule Cake.Conversation.State do
   defensive clauses).
   """
 
+  @typedoc "The turn state machine's states; the moduledoc gives the transitions."
   @type state_name :: :idle | :retrieving | :awaiting_selection | :generating
 
+  @typedoc """
+  The `Cake.Conversation` GenServer's state: identity and collaborator modules,
+  the decomposition budgets, the turn state-machine fields, and the cached
+  search results, history, chunk map, citations and errors.
+  """
   @type t :: %__MODULE__{
           id: String.t(),
           state: state_name(),

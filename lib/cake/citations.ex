@@ -8,6 +8,10 @@ defmodule Cake.Citations do
 
   @citation_pattern ~r/\[(\d+)\]/
 
+  @typedoc """
+  One valid citation: the `[N]` index as the model wrote it and the chunk-map
+  metadata it resolves to.
+  """
   @type citation :: %{
           required(:index) => pos_integer(),
           required(:metadata) => Cake.Citable.metadata()

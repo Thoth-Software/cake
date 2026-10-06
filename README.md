@@ -75,11 +75,11 @@ The ingestion layer has two pipeline behaviours because the two GDSes have funda
 
 **`Cake.Documents.Pipeline`** is the behaviour for ingesting programming documentation. Its GDS is `ParsedDocument`. Callbacks: `download/1`, `persist_raw_docs/2`, `parse/2`, `success_message/1`, and optionally `retry_from_raw/2`. The module also contains the `ingest/4` orchestrator that sequences callbacks into a stream pipeline — download → persist raw → parse → persist parsed → embed → index — plus an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Documents.Hexdocs.Pipeline`. Two dedup checks run inside the stages: the generic persist-parsed stage skips attrs whose `(source, version, package, title)` already exists (`ParsedDocuments.parsed_doc_exists?/4`), and the Hexdocs `persist_raw_docs/2` skips `(module, version)` pairs already stored (`Hexdocs.hexdoc_exists?/2`).
 
-**`Cake.Books.Pipeline`** is the behaviour for ingesting books and book-like documents. Its GDS is `ParsedBook` + `Chunk`. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. Like `Documents.Pipeline`, the module also contains its own `ingest/4` orchestrator and an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Books.Pdf.Pipeline`, which uses a Rustler NIF (`parsebooks` Rust crate wrapping `pdf-extract`). The NIF's contract and `parse/1` are pinned against fixture PDFs in the `integration` CI job, and `load_binary/1` against a real S3-compatible store with the S3 adapter configured (CLAUDE.md "Integration tests"). Two helper modules sit beside the behaviour: `Cake.Books.Persistence` owns the write path — `persist_books_and_chunks/1` looks the `file_hash` up and returns `{:duplicate, book}` for a `:completed` book, resumes a book in any other status with its existing chunks, and inserts a new book and its chunks otherwise — and `Cake.Books.Retrieval` owns the read path that `ParsedBook` delegates its `load_from_hits/1` and `expand_with_neighbors/2` GDS callbacks to.
+**`Cake.Books.Pipeline`** is the behaviour for ingesting books and book-like documents. Its GDS is `ParsedBook` + `Chunk`. Callbacks: `load_binary/1`, `parse/1`, `format/0`, `success_message/0`. Like `Documents.Pipeline`, the module also contains its own `ingest/4` orchestrator and an `ingest_with_sweep/5` variant that follows the run with `sweep`-based retry passes. Current implementation: `Cake.Books.Pdf.Pipeline`, which uses a Rustler NIF (`parsebooks` Rust crate wrapping `pdf-extract`). The NIF's contract and `parse/1` are pinned against fixture PDFs in the `integration` CI job, and `load_binary/1` against a real S3-compatible store with the S3 adapter configured (`.claude/rules/integration-tests.md`). Two helper modules sit beside the behaviour: `Cake.Books.Persistence` owns the write path — `persist_books_and_chunks/1` looks the `file_hash` up and returns `{:duplicate, book}` for a `:completed` book, resumes a book in any other status with its existing chunks, and inserts a new book and its chunks otherwise — and `Cake.Books.Retrieval` owns the read path that `ParsedBook` delegates its `load_from_hits/1` and `expand_with_neighbors/2` GDS callbacks to.
 
-Both orchestrators are also pinned end to end in that job — a fixture PDF, or a real clone of one tagged Elixir release, through `ingest/4` into real Postgres rows and a real OpenSearch collection and back out through `Cake.Search` — with only the embedding provider substituted, plus `ingest_with_sweep/5`'s run-scoped retries and the Oban job driving the real Hexdocs pipeline (`Cake.IngestIntegrationHelpers` under `test/support/`; CLAUDE.md "Integration tests"). The two take their arguments in different orders: Books is `ingest(embedding_service, format_pipeline, embedding_model, paths)`, Documents is `ingest(embedding_service, source_pipeline, version_tuple, embedding_model)`.
+Both orchestrators are also pinned end to end in that job — a fixture PDF, or a real clone of one tagged Elixir release, through `ingest/4` into real Postgres rows and a real OpenSearch collection and back out through `Cake.Search` — with only the embedding provider substituted, plus `ingest_with_sweep/5`'s run-scoped retries and the Oban job driving the real Hexdocs pipeline (`Cake.IngestIntegrationHelpers` under `test/support/`; `.claude/rules/integration-tests.md`). The two take their arguments in different orders: Books is `ingest(embedding_service, format_pipeline, embedding_model, paths)`, Documents is `ingest(embedding_service, source_pipeline, version_tuple, embedding_model)`.
 
-**`Cake.Pipelines`** provides shared infrastructure used by both pipeline types: `detuple_with_logging/3` filters `{:ok, _}/{:error, _}` streams and persists errors to `FailedIngest`, `add_to_search_backend/3` handles index upserts, and `sweep/3` implements a retry loop for item-level failures. A `Context` struct carries pipeline identity (behaviour, implementation, version) plus a per-run `run_id` through a run: the identity fields give error provenance, and `run_id` scopes `count_failures/1`, `finalize_ingest/3`, and `sweep/3` to one run so concurrent ingests of the same source never count or retry each other's failures. `Context` also carries an `opts` keyword, read for `:search_backend_timeout` (the per-record indexing deadline, default 5000 ms); both orchestrators build it with `opts: []` today.
+**`Cake.Pipelines`** provides shared infrastructure used by both pipeline types: `detuple_with_logging/3` filters `{:ok, _}/{:error, _}` streams and persists errors to `FailedIngest`, `log_and_persist_failure/3` persists one item's failure for a stage that handles outcomes itself, `add_to_search_backend/3` handles index upserts, and `sweep/3` implements a retry loop for item-level failures. A `Context` struct carries pipeline identity (behaviour, implementation, version) plus a per-run `run_id` through a run: the identity fields give error provenance, and `run_id` scopes `count_failures/1`, `finalize_ingest/3`, and `sweep/3` to one run so concurrent ingests of the same source never count or retry each other's failures. `Context` also carries an `opts` keyword, read for `:search_backend_timeout` (the per-record indexing deadline, default 5000 ms); both orchestrators build it with `opts: []` today.
 
 There is deliberately no `Cake.Ingestion` behaviour unifying the two pipeline behaviours. They have different callback shapes because they answer different questions. Each GDS owns its own ingestion contract; unification is deferred indefinitely.
 
@@ -95,9 +95,9 @@ There is deliberately no `Cake.Ingestion` behaviour unifying the two pipeline be
 
 **`Cake.Search.Deployment`** is the OpenSearch `Snap.Cluster` — connection management and index lifecycle only, not query logic. Query construction lives in `Cake.Search.Query`. At boot it reads `collections/0` (the `{name_module, mapping_schema}` pairs in `:search_collections`) and calls `create_collections_unless_exist/2`, which lists the cluster's collections and creates the missing ones with `Backend.OpenSearch.build_mapping/1`: the schema-derived mapping (`:text` → `text`; `:embedding` → an HNSW `knn_vector` on the `faiss` engine with cosine similarity, `ef_construction: 512`, `m: 16`; everything else `keyword`) plus `index.knn` and a 30 s `index.refresh_interval`. `init/1` starts a linked task that polls `Process.whereis/1` every 10 s until the cluster process is registered and only then creates the collections, and that path calls `Backend.OpenSearch` directly rather than through `Backend.backend/0`, so a second backend would get no boot-time collection creation.
 
-**`Cake.Embeddings`** calls the configured embedding service (OpenAI by default). Implements `Cake.Embeddings.Behaviour` for Mox substitution. It embeds the text it is given verbatim — it does no title prepending itself. At ingestion time the pipelines prepend a title to the text before calling it (the chunk's `section_title` for books, the document `title` for docs); query-time callers embed the question as-is. Used at both ingestion time (by the pipelines) and query time (by `Cake.Conversation`, and directly by `CakeWeb.SearchLive`, which is why `CakeWeb` declares `Cake.Embeddings` as a boundary dep). Its live contract — a vector of the configured dimension, the usage shape, a 401 as an error tuple — is pinned against the real endpoint in the `llm` CI job (`Cake.EmbeddingsLiveTest` on `Cake.LiveLLMCase`; CLAUDE.md "Live LLM tests").
+**`Cake.Embeddings`** calls the configured embedding service (OpenAI by default). Implements `Cake.Embeddings.Behaviour` for Mox substitution. It embeds the text it is given verbatim — it does no title prepending itself. At ingestion time the pipelines prepend a title to the text before calling it (the chunk's `section_title` for books, the document `title` for docs); query-time callers embed the question as-is. Used at both ingestion time (by the pipelines) and query time (by `Cake.Conversation`, and directly by `CakeWeb.SearchLive`, which is why `CakeWeb` declares `Cake.Embeddings` as a boundary dep). Its live contract — a vector of the configured dimension, the usage shape, a 401 as an error tuple — is pinned against the real endpoint in the `llm` CI job (`Cake.EmbeddingsLiveTest` on `Cake.LiveLLMCase`; `.claude/rules/live-llm-tests.md`).
 
-Indices are one-per-GDS on a shared OpenSearch cluster: `collection_name/0` returns a fixed name per GDS (currently `"chunks_of_books"` and `"docs"`), created at boot by `Cake.Search.Deployment`. There is no tenant concept in the code today — `collection_name/0` takes no tenant argument and the app runs a single endpoint. The intended multi-tenant deployment model (a separate index set and a bespoke frontend per client) is a planned operational pattern, not yet implemented here.
+Indices are one-per-GDS on a shared OpenSearch cluster: `collection_name/0` returns a fixed name per GDS (currently `"chunks_of_books"` and `"docs"`), created at boot by `Cake.Search.Deployment`.
 
 ### Layer 3: Conversation — Stateful Multi-Turn RAG
 
@@ -112,11 +112,11 @@ Conversation → Generation
 Conversation → Responses
 ```
 
-**`Cake.Conversation`** is a GenServer managing single-conversation state: message history, retrieved chunks, chunk map, citations, accumulated errors. `start/1` spawns it under the `Cake.ConversationSupervisor` DynamicSupervisor; an optional `:owner` pid (ChatLive passes itself) is monitored so the conversation stops when its owner exits. A turn starts one of two ways, and neither blocks the caller: every slow stage runs in a task under `Cake.TaskSupervisor` and reports back by PubSub broadcast (`Cake.Conversation.Events`). `autoask/2` casts the full retrieve-and-generate loop; `manualask/2` replies `:ok` and retrieves candidate results (`[Search.Result.t()]`) in a `:retrieving` state, broadcasting them as `{:candidates_ready, _}` for the user to pick from — `select_docs/2` then supplies the Citable ids of the chosen candidates (chunk ids, for books; the web layer groups candidates by document and expands a document selection back into candidate ids via `Cake.Candidates`), rejects unknown ids synchronously, and otherwise replies `:ok` while generation proceeds in a task. When the `:decomposition` opt is set (a `Cake.Decomposition` implementation; default `nil`), an `autoask/2` turn that begins before any retrieval has completed (`search_results` still `nil`, its uninitialized sentinel) decomposes the question before searching — the first auto-mode turn. Manual mode never decomposes, and a manual turn's cached candidates suppress decomposition on later auto turns (see "Query Decomposition" below). Follow-up turns reuse cached search results rather than re-retrieving; a completed retrieval that found nothing (`[]`) is cached and reused like any other, distinguishable from the never-retrieved `nil`. The whole loop is pinned end to end against a real cluster in the `integration` CI job — `Cake.ConversationIntegrationTest` (plain, manual and cached turns), `Cake.ConversationDecompositionIntegrationTest` (all four decomposition strategies over a Mox collaborator) and `CakeWeb.ChatLiveIntegrationTest` (the LiveView round trip), on `Cake.ConversationIntegrationHelpers` — and with every collaborator live in the `llm` job (`Cake.ConversationLiveTest`, the staging-gate seed of #244); CLAUDE.md "Integration tests" and "Live LLM tests".
+**`Cake.Conversation`** is a GenServer managing single-conversation state: message history, retrieved chunks, chunk map, citations, accumulated errors. `start/1` spawns it under the `Cake.ConversationSupervisor` DynamicSupervisor; an optional `:owner` pid (ChatLive passes itself) is monitored so the conversation stops when its owner exits. A turn starts one of two ways, and neither blocks the caller: every slow stage runs in a task under `Cake.TaskSupervisor` and reports back by PubSub broadcast (`Cake.Conversation.Events`). `autoask/2` casts the full retrieve-and-generate loop; `manualask/2` replies `:ok` and retrieves candidate results (`[Search.Result.t()]`) in a `:retrieving` state, broadcasting them as `{:candidates_ready, _}` for the user to pick from — `select_docs/2` then supplies the Citable ids of the chosen candidates (chunk ids, for books; the web layer groups candidates by document and expands a document selection back into candidate ids via `Cake.Candidates`), rejects unknown ids synchronously, and otherwise replies `:ok` while generation proceeds in a task. When the `:decomposition` opt is set (a `Cake.Decomposition` implementation; default `nil`), an `autoask/2` turn that begins before any retrieval has completed (`search_results` still `nil`, its uninitialized sentinel) decomposes the question before searching — the first auto-mode turn. Manual mode never decomposes, and a manual turn's cached candidates suppress decomposition on later auto turns (see "Query Decomposition" below). Follow-up turns reuse cached search results rather than re-retrieving; a completed retrieval that found nothing (`[]`) is cached and reused like any other, distinguishable from the never-retrieved `nil`. The whole loop is pinned end to end against a real cluster in the `integration` CI job — `Cake.ConversationIntegrationTest` (plain, manual and cached turns), `Cake.ConversationDecompositionIntegrationTest` (all four decomposition strategies over a Mox collaborator) and `CakeWeb.ChatLiveIntegrationTest` (the LiveView round trip), on `Cake.ConversationIntegrationHelpers` — and with every collaborator live in the `llm` job (`Cake.ConversationLiveTest`, the staging-gate seed of #244); `.claude/rules/integration-tests.md` and `.claude/rules/live-llm-tests.md`.
 
 **Events, queued turns, and error shapes.** `Cake.Conversation.Events` defines the four broadcast shapes on the `"conversation:#{id}"` topic (`Events.topic/1`): `{:state_change, state_name}` whenever the turn FSM moves (`:retrieving`, `:awaiting_selection`, `:generating`, `:idle` — an auto turn broadcasts `:generating` once before its combined retrieve-and-generate task and `:idle` when it finishes), `{:candidates_ready, candidates}`, `{:response_ready, %{response: text, citations: list}}`, and `{:error, reason}`. An `autoask/2` that arrives while a turn is `:generating` is stored in `queued_question` (a later one overwrites an earlier one) and replayed as a fresh turn when the current one completes; every other invalid transition has no clause and crashes the GenServer by design — the UI is expected to prevent it. `select_docs/2` rejects unknown ids with `{:error, {:unknown_candidate_ids, ids}}` and returns the conversation to `:idle`. A `:flat` fan-out fails the whole turn with `{:error, :sub_search_timeout}` or `{:error, {:sub_search_crashed, reason}}`. Collaborator failures are typed: `t:Cake.Decomposition.error_reason/0` is `{:invalid_response, _}` or `{:generation, _}`, and `t:Cake.Generation.error_reason/0` enumerates transport, timeout, rate-limit, auth, HTTP-status, malformed-response, malformed-JSON, empty-response, content-filter and provider errors. Four read-only calls — `GenServer.call(pid, :search_results | :chunk_map | :citations | :inspect)` — expose state for tests and tooling with no public wrapper; `:search_results` replies `[]` for the never-retrieved `nil`. The child spec is `restart: :temporary`, which is what makes the owner-exit stop final under `Cake.ConversationSupervisor`.
 
-**`Cake.Prompt`** owns prompt engineering. Builds the messages list for the LLM (system prompt, conversation history, retrieved context as a numbered block, user question). Filters chunks by relevance floor and chunk ceiling, assigns dense 1..N indices. Also owns the decomposition-side prompts and budgeting: `decomposition_prompt/1` (the JSON-answering prompt `Decomposition.LLM` sends), `build_with_prior_answers/5` (folds accumulated sub-question/answer pairs into the system message for sequential resolution), `fit_answer_pairs/2` (evicts oldest pairs to fit the token budget), `estimate_tokens/1` (~4 chars/token estimate), the self-ask driver protocol — `self_ask_prompt/3` (the marker-teaching driver prompt with accumulated pairs folded in) and `parse_self_ask_response/1` (classifies the model's reply as a follow-up question or the final answer) — and the IRCoT driver protocol: `ircot_prompt/3` (the CoT driver prompt with accumulated reasoning steps and their retrieved context folded in), `ircot_schema/0` (the `reasoning`/`retrieval_query` JSON schema its structured replies must satisfy), and `parse_ircot_response/1` (classifies a validated step as continue-with-query or done). Both driver protocols are pinned against the production model in the `llm` CI job — `Cake.Prompt.SelfAskLiveTest` (marker usage and termination) and `Cake.Prompt.IRCoTLiveTest` (schema validity and the null terminator) — driven through `Prompt` and `Generation` alone; full interleaved turns through `Conversation` are #271's (CLAUDE.md "Live LLM tests"). The rest of its public surface is the prompt text itself — `system_message_with_context/1`, `system_message_no_context/0`, `self_ask_system_message/0`, `ircot_system_message/0`, `decomposition_system_message/0` — plus `format_chunk/1` (one numbered context entry) and `history_messages/1`, which keeps only the last five exchanges. `prepare_context/2` returns `{indexed_chunks, context_quality}`, the quality being `:good` or `:none`; `Conversation` discards it today. `parse_ircot_response/1` treats a blank `retrieval_query` as the terminator too, not only `null`.
+**`Cake.Prompt`** owns prompt engineering. Builds the messages list for the LLM (system prompt, conversation history, retrieved context as a numbered block, user question). Filters chunks by relevance floor and chunk ceiling, assigns dense 1..N indices. Also owns the decomposition-side prompts and budgeting: `decomposition_prompt/1` (the JSON-answering prompt `Decomposition.LLM` sends), `build_with_prior_answers/5` (folds accumulated sub-question/answer pairs into the system message for sequential resolution), `fit_answer_pairs/2` (evicts oldest pairs to fit the token budget), `estimate_tokens/1` (~4 chars/token estimate), the self-ask driver protocol — `self_ask_prompt/3` (the marker-teaching driver prompt with accumulated pairs folded in) and `parse_self_ask_response/1` (classifies the model's reply as a follow-up question or the final answer) — and the IRCoT driver protocol: `ircot_prompt/3` (the CoT driver prompt with accumulated reasoning steps and their retrieved context folded in), `ircot_schema/0` (the `reasoning`/`retrieval_query` JSON schema its structured replies must satisfy), and `parse_ircot_response/1` (classifies a validated step as continue-with-query or done). Both driver protocols are pinned against the production model in the `llm` CI job — `Cake.Prompt.SelfAskLiveTest` (marker usage and termination) and `Cake.Prompt.IRCoTLiveTest` (schema validity and the null terminator) — driven through `Prompt` and `Generation` alone; full interleaved turns through `Conversation` are #271's (`.claude/rules/live-llm-tests.md`). The rest of its public surface is the prompt text itself — `system_message_with_context/1`, `system_message_no_context/0`, `self_ask_system_message/0`, `ircot_system_message/0`, `decomposition_system_message/0` — plus `format_chunk/1` (one numbered context entry) and `history_messages/1`, which keeps only the last five exchanges. `prepare_context/2` returns `{indexed_chunks, context_quality}`, the quality being `:good` or `:none`; `Conversation` discards it today. `parse_ircot_response/1` treats a blank `retrieval_query` as the terminator too, not only `null`.
 
 **`Cake.Retrieval`** (planned) will own retrieval strategy: search, scoring, autorating. Currently these responsibilities are split between `Conversation` and `Cake.Search`.
 
@@ -179,7 +179,7 @@ The application starts children in this order under Cake.Application:
 9. `DynamicSupervisor` (`Cake.ConversationSupervisor`) — supervises the per-session `Conversation` GenServers started via `Conversation.start/1` (`:temporary` children; each stops on its own when its `:owner` LiveView exits)
 10. `CakeWeb.Endpoint` — Phoenix HTTP server (last, so all dependencies are ready)
 
-Phoenix runs `server: false` in test, so this boot order is exercised in CI only by the compose smoke test, which boots the real stack through `entrypoint.sh` and asserts that step 7 created both collections (CLAUDE.md "Compose smoke test").
+Phoenix runs `server: false` in test, so this boot order is exercised in CI only by the compose smoke test, which boots the real stack through `entrypoint.sh` and asserts that step 7 created both collections (`.claude/rules/compose-smoke.md`).
 
 ### Module Boundaries (enforced by `boundary`)
 
@@ -201,7 +201,7 @@ The compiler runs in `:dev`/`:prod` only — test files and support modules deli
 This section traces how content flows from raw document to user-facing answer, connecting the layers described above.
 
 1. **Acquire**: A pipeline implementation fetches source content (a PDF binary from the storage adapter, a `git clone` of elixir-lang/elixir for hexdocs, etc.).
-2. **Persist raw**: Raw content is saved to Postgres as the source of truth, enabling re-parsing without re-downloading.
+2. **Persist raw**: Raw content is persisted before parsing, as the source of truth that enables re-parsing without re-acquiring it. Where it lives depends on the pipeline: Hexdocs source goes to Postgres as `Hexdoc.content`; book binaries go to the `Cake.Books.Adapters` store, with Postgres holding the book's `source_file_path` (the storage key) and `file_hash`.
 3. **Parse**: The pipeline transforms raw content into GDS schema records (e.g., `ParsedBook` + `Chunk`).
 4. **Index**: Embedded records are upserted into OpenSearch indices via `Cake.Pipelines.add_to_search_backend/3`. The retrieval unit maps one-to-one to OpenSearch documents.
 5. **Retrieve**: `Cake.Conversation` orchestrates retrieval — embed the question, search OpenSearch, score and rank results.
@@ -283,7 +283,7 @@ Protocols in Cake define value-level contracts. The question they answer is "wha
 
 ### ParsedDocument Fields
 
-`source` (pipeline identifier), `version`, `package` (module/gem/class name), `language`, `title` (function/method name — used in embeddings), `text`, `url`, `embedding` (1536-float array), `core` (boolean: part of stdlib?). Query helpers: `base_query/0`, `by_version/2`, `by_language/2`, `by_source/2`.
+`source` (pipeline identifier), `version`, `package` (module/gem/class name), `language`, `title` (function/method name — used in embeddings), `text`, `url`, `embedding` (an array of floats whose length is the embedding model's output dimension (1536 for the default, `text-embedding-ada-002`)), `core` (boolean: part of stdlib?). Query helpers: `base_query/0`, `by_version/2`, `by_language/2`, `by_source/2`.
 
 ### Hexdoc Fields
 
@@ -295,7 +295,7 @@ Protocols in Cake define value-level contracts. The question they answer is "wha
 
 ### Chunk Fields
 
-`text`, `page_number` (nullable), `chunk_index` (ordering for unpaginated formats), `section_title`, `word_count`, `char_count`, `embedding` (1536-float array). Belongs to `ParsedBook`. Query helpers: `base_query/0`, `by_book/2`, `on_page/2`, `within_pages/3`, `by_section/2`.
+`text`, `page_number` (nullable), `chunk_index` (ordering for unpaginated formats), `section_title`, `word_count`, `char_count`, `embedding` (an array of floats whose length is the embedding model's output dimension (1536 for the default, `text-embedding-ada-002`)). Belongs to `ParsedBook`. Query helpers: `base_query/0`, `by_book/2`, `on_page/2`, `within_pages/3`, `by_section/2`.
 
 ### FailedIngest Fields
 
@@ -339,7 +339,7 @@ Implement the behaviour for the target GDS. Consult `Cake.Books.Pdf.Pipeline` or
 
 ### Requirements for All Pipeline Implementations
 
-Every stream step must use `Pipelines.detuple_with_logging/3` with a descriptive step name: fallible per-item work produces result tuples that the callback detuples (persisting failures) before returning, so the stream a callback returns carries bare successful values. Direct fallible callbacks return `{:ok, _}` / `{:error, _}` (plus `download/1`'s tagged `{:error, :download, reason}`); declarative callbacks return bare values; and `Books.Pipeline.parse/1` returns a bare pair on success and raises on failure — the orchestrator rescues the exception into the per-item error tuple, and any returned value (an `{:error, _}` included) is wrapped as success, so never signal failure from it by return value. Pipeline-fatal errors go in the `else` branch of the behaviour's `ingest` `with` chain, which must open with at least one eager, run-level fallible step (see "Pipeline-Fatal Steps and the `with` Chain" below). Persist raw data first.
+Every stream step must record its per-item failures to `FailedIngest`, under a descriptive step name, through one of two `Cake.Pipelines` functions — never a silent filter that drops a failure without persisting it. `Pipelines.detuple_with_logging/3` is the default: fallible per-item work produces result tuples that the callback detuples (persisting failures) before returning, so the stream a callback returns carries bare successful values. `Pipelines.log_and_persist_failure/3` is for a step that handles each item's outcome itself and has no result-tuple stream to detuple — the Books embed stage uses it, recording every failed chunk under `"books.embed"` as it maps embedding results back onto chunks. Direct fallible callbacks return `{:ok, _}` / `{:error, _}` (plus `download/1`'s tagged `{:error, :download, reason}`); declarative callbacks return bare values; and `Books.Pipeline.parse/1` returns a bare pair on success and raises on failure — the orchestrator rescues the exception into the per-item error tuple, and any returned value (an `{:error, _}` included) is wrapped as success, so never signal failure from it by return value. Pipeline-fatal errors go in the `else` branch of the behaviour's `ingest` `with` chain, which must open with at least one eager, run-level fallible step (see "Pipeline-Fatal Steps and the `with` Chain" below). Persist raw data first.
 
 ---
 
@@ -370,7 +370,7 @@ Behaviours that return `{:error, reason}` define a named union type enumerating 
 
 - **`Cake.Search.Backend.search_error()`** — union of `Snap.ResponseError.t()`, `Snap.HTTPClient.Error.t()`, and `Jason.DecodeError.t()`. Fully enforceable by dialyzer: a new backend whose errors aren't in the union will fail the callback type check.
 
-- **`Cake.Books.Adapters.adapter_error()`** — union of `File.posix()` (Disk adapter) and `term()` (S3 adapter, because `ExAws.request/1` specs `{:error, term()}`). The `term()` contribution collapses the union for dialyzer today, but enumerating `File.posix()` explicitly documents the Disk contract and will become enforceable once ExAws publishes a concrete error type. The Disk implementation narrows its own specs to `File.posix()` independently. What the S3 side actually returns — `{:http_error, status, response}` when the store answered, the transport error when it could not be reached — is pinned against a real store in the `integration` CI job (`Cake.Books.Adapters.S3IntegrationTest` on `Cake.S3IntegrationCase`; CLAUDE.md "Integration tests").
+- **`Cake.Books.Adapters.adapter_error()`** — union of `File.posix()` (Disk adapter) and `term()` (S3 adapter, because `ExAws.request/1` specs `{:error, term()}`). The `term()` contribution collapses the union for dialyzer today, but enumerating `File.posix()` explicitly documents the Disk contract and will become enforceable once ExAws publishes a concrete error type. The Disk implementation narrows its own specs to `File.posix()` independently. What the S3 side actually returns — `{:http_error, status, response}` when the store answered, the transport error when it could not be reached — is pinned against a real store in the `integration` CI job (`Cake.Books.Adapters.S3IntegrationTest` on `Cake.S3IntegrationCase`; `.claude/rules/integration-tests.md`).
 
 - **`Cake.Books.Persistence.persist_error()`** — union of `{:invalid_input, map()}` and `{String.t(), Ecto.Changeset.t() | chunk_error()}`, with `chunk_error()` itself a union of `{:invalid_chunk, keyword(), map()}` and `{:chunk_insert_count_mismatch, non_neg_integer(), non_neg_integer()}`. Fully concrete — every error path is accounted for.
 
@@ -384,7 +384,7 @@ OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi
 
 `Cake.Search` builds queries via `Cake.Search.Query`, delegates execution to the configured `Cake.Search.Backend` (default: `Backend.OpenSearch`), and hydrates hits into `Cake.Search.Result` structs via the GDS's `load_from_hits/1`. The backend is injected via `Application.get_env(:cake, :search_backend)` and mocked with Mox in tests.
 
-`Backend` defines `@type search_error` as the explicit union of all error types that any backend implementation can return. When a new backend is added, its error types must be added to this union — dialyzer enforces this by checking each implementation's return types against the callback specs. This makes the set of possible search errors a conscious, enumerated registry rather than an opaque `term()`; `index_document/3` returns the same union, passing Snap's `{:error, reason}` through unchanged. In the test env `Cake.Search.Deployment` is configured with `Cake.Search.HTTPClientStub` (a `Snap.HTTPClient` adapter under `test/support/`) so backend tests can drive Snap's real request/response path against canned replies. Against a real node, `Cake.Search.BackendConformance` (`test/support/`) is the backend-parameterized conformance suite — collection lifecycle and the `:keyword`/`:vector`/`:hybrid` search modes with `min_score` and `size` — that every backend implementation instantiates (`use Cake.Search.BackendConformance, backend: ..., mapping: ...`) and must pass unchanged; it runs in the `integration` CI job on `Cake.SearchIntegrationCase`, which repoints the Deployment at `OPENSEARCH_URL` inside the `cake_test` Snap index namespace and gives each test a collection of its own (CLAUDE.md "Integration tests").
+`Backend` defines `@type search_error` as the explicit union of all error types that any backend implementation can return. When a new backend is added, its error types must be added to this union — dialyzer enforces this by checking each implementation's return types against the callback specs. This makes the set of possible search errors a conscious, enumerated registry rather than an opaque `term()`; `index_document/3` returns the same union, passing Snap's `{:error, reason}` through unchanged. In the test env `Cake.Search.Deployment` is configured with `Cake.Search.HTTPClientStub` (a `Snap.HTTPClient` adapter under `test/support/`) so backend tests can drive Snap's real request/response path against canned replies. Against a real node, `Cake.Search.BackendConformance` (`test/support/`) is the backend-parameterized conformance suite — collection lifecycle and the `:keyword`/`:vector`/`:hybrid` search modes with `min_score` and `size` — that every backend implementation instantiates (`use Cake.Search.BackendConformance, backend: ..., mapping: ...`) and must pass unchanged; it runs in the `integration` CI job on `Cake.SearchIntegrationCase`, which repoints the Deployment at `OPENSEARCH_URL` inside the `cake_test` Snap index namespace and gives each test a collection of its own (`.claude/rules/integration-tests.md`).
 
 `search_chunks_with_context/5` returns `{:ok, [Cake.Search.Result.t()]}` (or the backend's error tuple). Direct hits carry `hit_source: :search` and the backend `_score`; expanded neighbors carry `hit_source: :expansion` and `backend_score: nil`. The Result struct is the single carrier of retrieval metadata through the rest of the pipeline (scoring, prompt assembly, response post-processing) — everything above the Search.Result boundary speaks CAKE; everything below speaks vendor. CAKE-computed scores (`cosine_score`, `relevance_score`) are populated by `Search.score_results/2` and `Search.normalize_and_combine/1`; `prompt_index` is populated by `Prompt.prepare_context/2`. Each Result also carries a `Search.Provenance` describing the search conditions (type, query text) under which it was discovered.
 
@@ -404,143 +404,8 @@ The domain-level `:cake` application-env keys that `lib/` reads, grouped by cons
 
 ## Roadmap: Planned and Deferred
 
-**Shipped since first draft:** query decomposition in its own `Cake.Decomposition` boundary (not inside `Prompt` as originally sketched): flat concurrent fan-out end-to-end, plus the `Conversation`-side machinery for the other three tiers — sequential least-to-most, the self-ask loop and the IRCoT loop. The shipped LLM strategy emits atomic-or-flat decompositions only, so `:sequential` awaits a strategy that emits dependency edges, and `:self_ask`/`:ircot` await one that marks them (`Result.new/2` never derives either). See "Query Decomposition" under Layer 3.
+**Shipped since first draft:** query decomposition in its own `Cake.Decomposition` boundary (not inside `Prompt` as originally sketched): flat concurrent fan-out end-to-end, plus the `Conversation`-side machinery for the other three tiers — sequential least-to-most, the self-ask loop and the IRCoT loop. The shipped LLM strategy emits atomic-or-flat decompositions only, so `:sequential` awaits a strategy that emits dependency edges, and `:self_ask`/`:ircot` await one that marks them (`Result.new/2` never derives either). See "Query Decomposition" under Layer 3. Conversation layer decomposition: `Prompt` and `Generation` are their own boundaries, and `Responses` is collapsed to post-processing only (it makes no HTTP calls).
 
-**Post-demo planned:** conversation layer decomposition (extract `Prompt` and `Generation` fully; collapse `Responses` to post-processing only), test coverage expansion, Word/Excel/CSV/JPG pipelines.
+**Post-demo planned:** test coverage expansion, Word/Excel/CSV/JPG pipelines.
 
 **Longer-term:** autorating (`Search` or dedicated module), cross-encoder reranking (`Search`), HyDE-style query expansion (`Prompt` + `Retrieval`), multi-index search and result merging (`Retrieval`).
-
----
-
-## Directory Structure
-
-```
-lib/
-  cake/
-    application.ex           # OTP application + supervision tree
-    schema.ex                # Base Ecto schema macro — `use Cake.Schema`
-    mailer.ex                # Swoosh mailer (Phoenix scaffolding)
-    accounts/                # Phoenix auth (User, UserToken, UserNotifier)
-    books.ex                 # Books context (CRUD over ParsedBook + Chunk)
-    books/                   # Book ingestion subsystem (ParsedBook + Chunk GDS)
-      chunk.ex               #   Chunk schema (retrieval unit)
-      parsed_book.ex         #   ParsedBook schema (GDS identity)
-      pipeline.ex            #   Books.Pipeline behaviour + orchestrator
-      pdf/pipeline.ex        #   PDF implementation (Rustler NIF)
-      persistence.ex         #   Write-path: persist book + chunks, hash dedup
-      retrieval.ex           #   Read-path: GDS hit hydration + neighbor expansion
-      page_content.ex        #   NIF-decoded struct: one page's text
-      pdf_extraction.ex      #   NIF-decoded struct: full PDF extraction result
-      skipped_page.ex        #   NIF-decoded struct: a page that failed extraction
-      zip_extractor.ex       #   Extracts PDFs from uploaded ZIP archives (in-memory :zip)
-      adapters.ex            #   Cake.Books.Adapters behaviour (raw file storage)
-      adapters/
-        disk.ex              #     Disk adapter — local filesystem storage
-        s3.ex                #     S3 adapter — AWS S3 storage
-    documents/               # Documentation ingestion subsystem (ParsedDocument GDS)
-      parsed_document.ex     #   ParsedDocument schema (GDS identity + retrieval unit)
-      parsed_documents.ex    #   ParsedDocuments context (CRUD)
-      pipeline.ex            #   Documents.Pipeline behaviour + orchestrator
-      hexdocs.ex             #   Hexdocs context (CRUD over raw hexdocs)
-      hexdocs/
-        hexdoc.ex            #     Raw hexdoc schema
-        pipeline.ex          #     Hexdocs.Pipeline implementation
-    jobs/
-      document_ingestion_job.ex  # Oban job that runs Documents.Pipeline.ingest
-    failed_ingests/          # FailedIngest schema + context
-    parse_books.ex           # Rustler NIF wrapper (PDF extraction)
-    search.ex                # Cake.Search — search orchestration + pure scoring utilities
-    search/
-      backend.ex             #   Cake.Search.Backend behaviour
-      backend/
-        open_search.ex       #     Cake.Search.Backend.OpenSearch — OpenSearch implementation
-      deployment.ex          #   Cake.Search.Deployment — Snap cluster (connection + index lifecycle)
-      hit.ex                 #   Search.Hit struct (backend-agnostic search hit)
-      query.ex               #   Composable query builder (new/2, knn/4, match/4)
-      result.ex              #   Search.Result struct (retrieval-metadata carrier)
-      provenance.ex          #   Search.Provenance struct (search conditions)
-    candidates.ex            # Pure-function candidate grouping and chunk-ID extraction
-    conversation.ex          # Conversation GenServer (orchestrator)
-    conversation/
-      state.ex               #   Conversation state struct
-      events.ex              #   PubSub topic + event helpers
-    decomposition.ex         # Cake.Decomposition behaviour (query-decomposition strategies)
-    decomposition/
-      llm.ex                 #   Cake.Decomposition.LLM — LLM-backed implementation
-      result.ex              #   Decomposition.Result struct (sub-question dependency DAG)
-    gds.ex                   # Cake.GDS behaviour
-    promptable.ex            # Cake.Promptable protocol
-    citable.ex               # Cake.Citable protocol
-    citations.ex             # Pure-function citation parser
-    embeddings.ex            # OpenAI embeddings client (Cake.Embeddings.Behaviour impl)
-    embeddings/behaviour.ex  #   Cake.Embeddings.Behaviour contract
-    generation.ex            # Cake.Generation behaviour
-    generation/
-      open_ai.ex             #   Cake.Generation.OpenAI — real implementation
-      anthropic.ex           #   Cake.Generation.Anthropic — placeholder stub
-    pipelines.ex             # Shared pipeline helpers + Context struct
-    prompt.ex                # Cake.Prompt — prompt engineering
-    responses.ex             # Post-processing pipeline
-    responses/
-      behaviour.ex           #   Cake.Responses.Behaviour (contract)
-      result.ex              #   Cake.Responses.Result struct
-  cake_web/
-    controllers/
-      books_controller.ex    #   Authenticated book-file download (ParsedBook key, read via the storage adapter)
-    live/
-      chat_live.ex           # LiveView chat UI
-      chat_live/
-        question_form.ex     #   Embedded schema for question + mode validation
-        selection_form.ex    #   Embedded schema for document-selection validation
-      search_live.ex         # LiveView search UI
-      upload_live.ex         # LiveView book-upload UI (PDF/ZIP → adapter storage → Books ingestion)
-    router.ex                # Routes + auth pipelines
-    user_auth.ex             # Auth plugs + LiveView on_mount hooks
-  mix/tasks/
-    hooks.install.ex         # `mix hooks.install` — installs the git hooks from priv/hooks/
-    precommit.ex             # `mix precommit` — pre-push gate chain, each step in its own MIX_ENV (see CLAUDE.md "Quality Gates")
-    cake.nif.check.ex        # `mix cake.nif.check PATH` — extracts a PDF through the parsebooks NIF without starting the app; the compose smoke test's in-container NIF check
-
-test/                        # (abbreviated — test/cake/ and test/cake_web/ mirror lib/)
-  test_helper.exs            # Starts ExUnit; sets :skip_search_backend (unit run) or repoints Deployment at a real cluster (--only integration)
-  support/
-    search_integration_case.ex  # Cake.SearchIntegrationCase — real-cluster case template: per-test collections in the cake_test namespace, refresh!/1, teardown
-    s3_integration_case.ex   #   Cake.S3IntegrationCase — real-object-store case template: ExAws pointed at S3_ENDPOINT_URL per test, per-test bucket in :book_storage_s3_bucket, bucket helpers, teardown
-    backend_conformance.ex   #   Cake.Search.BackendConformance — backend-parameterized conformance suite (lifecycle, search modes)
-    search_http_client_stub.ex  # Cake.Search.HTTPClientStub — Snap.HTTPClient adapter serving canned replies to unit tests
-    live_llm_case.ex         #   Cake.LiveLLMCase — live-provider case template (:llm tag): OPENAI_KEY, real endpoints per test, restore on exit
-    conversation_integration_helpers.ex  # Cake.ConversationIntegrationHelpers — real-index Chunk corpus, per-test CollectionGDS, Req.Test-scripted generation, conversation attach; live-tier variants
-    data_case.ex             #   Ecto sandbox setup
-    conn_case.ex             #   Phoenix conn setup
-    oban_case.ex             #   Oban testing helpers
-    factory.ex               #   Cake.Factory (ExMachina) — non-Ecto structs via build/1 (e.g. ConvoChunk)
-    pdf_fixtures.ex          #   Cake.PdfFixtures — fixture PDFs by name (fixture_binary/1, fixture_path/1, parse_fixture/1) for the NIF integration suite
-    ingest_integration_helpers.ex  # Cake.IngestIntegrationHelpers — end-to-end ingestion tests: Disk-staged fixtures, the GDS's fixed collection on the real node, deterministic Mox embeddings
-    fixtures/                #   Phoenix-style *_fixture/1 helpers for Ecto schemas
-      pdfs/                  #     Hand-built fixture PDFs + generate.exs + README (what each pins, how to regenerate)
-    test_pipeline.ex         #   Mock pipeline implementations (Documents)
-    test_books_pipeline.ex   #   Mock Books.Pipeline implementation
-    mocks.ex                 #   Mox mock definitions
-    decomposition_generators.ex # StreamData generators for decomposition property tests
-    fixture_gds.ex           #   Test GDS used by search/conversation tests
-    convo_chunk.ex           #   Cake.Test.ConvoChunk struct (built by the factory)
-    stub_chunk.ex            #   Minimal chunk stub
-    query_generators.ex      #   StreamData generators for property tests
-  cake/                      # Unit tests mirroring lib/cake/ (incl. *_property_test.exs, and *_live_test.exs on Cake.LiveLLMCase)
-  cake_web/                  # Controller + LiveView tests mirroring lib/cake_web/
-
-config/
-  config.exs                 # Base compile-time config (embedder model, Oban, endpoint)
-  dev.exs                    # Dev config (live reload, logging)
-  test.exs                   # Test config (sandbox, Oban manual mode)
-  prod.exs                   # Prod compile-time config
-  runtime.exs                # Runtime config (reads env vars)
-
-native/parsebooks/           # Rust crate for PDF parsing via Rustler
-
-ci/
-  compose_smoke.sh           # docker-compose smoke test — the PR merge gate on the containers themselves (CLAUDE.md "Compose smoke test")
-docker-compose.yml           # Dev stack: cake_app (Dockerfile + entrypoint.sh), cake_db (Postgres 14), cake_opensearch
-docker-compose.ci.yml        # Smoke-test override: no dev bind mount, no db/opensearch host ports, pinned OpenSearch, smoke container names
-.env.ci                      # Checked-in, secret-free environment the smoke test interpolates into the compose files
-```

@@ -24,7 +24,8 @@
 #   5. The parsebooks NIF loads inside the app container: a one-shot
 #      `mix cake.nif.check` there extracts a fixture PDF through
 #      Cake.ParseBooks.extract_pdf/1, proving entrypoint.sh's forced-recompile
-#      sequence produced a loadable Linux .so (CLAUDE.md "NIF clobbering").
+#      sequence produced a loadable Linux .so (.claude/rules/
+#      infrastructure-gotchas.md, "NIF clobbering").
 #      The image's own build (the Dockerfile's `mix do compile`) already
 #      carries a valid .so, which would satisfy the check with or without that
 #      sequence, so the script overwrites it with a stale one in the created,

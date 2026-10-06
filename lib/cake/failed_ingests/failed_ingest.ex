@@ -30,6 +30,11 @@ defmodule Cake.FailedIngests.FailedIngest do
     timestamps(type: :utc_datetime)
   end
 
+  @typedoc """
+  One recorded pipeline failure: the run and pipeline that recorded it, the
+  step, the error text, the failed item's `input_identifier`, whether it was
+  pipeline-fatal, and the retry bookkeeping columns.
+  """
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,

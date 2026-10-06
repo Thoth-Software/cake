@@ -4,8 +4,8 @@ defmodule Cake.LiveLLMCase do
 
   `use Cake.LiveLLMCase` tags the module's tests `:llm`, which
   `test/test_helper.exs` excludes from every default run: only
-  `mix test --only llm` runs them, in CI the `llm` job (CLAUDE.md "Live
-  LLM tests"). Each test gets `Cake.Embeddings` and
+  `mix test --only llm` runs them, in CI the `llm` job
+  (.claude/rules/live-llm-tests.md). Each test gets `Cake.Embeddings` and
   `Cake.Generation.OpenAI` pointed at OpenAI's real endpoints with the key
   from `OPENAI_KEY` — the variable `config/runtime.exs` reads in prod —
   and no `Req.Test` plug in the way; `on_exit` puts the previous

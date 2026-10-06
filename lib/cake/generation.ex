@@ -30,10 +30,21 @@ defmodule Cake.Generation do
 
   use Boundary, top_level?: true, deps: [Cake], exports: [OpenAI]
 
+  @typedoc """
+  One chat message: a `role` (`"system"`, `"user"` or `"assistant"`) and its
+  `content`.
+  """
   @type message :: %{role: String.t(), content: String.t()}
+
+  @typedoc "The ordered message list a completion is requested for."
   @type messages :: [message()]
+
+  @typedoc """
+  A provider model name, such as `"gpt-4o-mini"`.
+  """
   @type model :: String.t()
 
+  @typedoc "Token counts for one completion, normalized across providers."
   @type usage :: %{
           input_tokens: non_neg_integer(),
           output_tokens: non_neg_integer(),
@@ -87,6 +98,10 @@ defmodule Cake.Generation do
           | {:content_filtered, reason :: term()}
           | {:provider_error, String.t()}
 
+  @typedoc """
+  Options for `c:complete/3`: the per-request `:timeout` in milliseconds,
+  transport `:max_retries`, and sampling `:temperature`.
+  """
   @type complete_opts :: [
           timeout: non_neg_integer(),
           max_retries: non_neg_integer(),
