@@ -191,10 +191,12 @@ defmodule CakeWeb.ChatLiveTest do
 
       assert render(view) =~ "ended unexpectedly"
 
+      # Pushed directly rather than through `form/3`, which refuses a disabled
+      # input: this is the submit that left the browser before the re-render.
       html =
-        view
-        |> form("form", question_form: %{question: "Still there?", mode: "manual"})
-        |> render_submit()
+        render_submit(view, "submit", %{
+          "question_form" => %{"question" => "Still there?", "mode" => "manual"}
+        })
 
       assert Process.alive?(view.pid)
       assert html =~ "ended unexpectedly"
