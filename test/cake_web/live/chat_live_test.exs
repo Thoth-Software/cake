@@ -236,6 +236,29 @@ defmodule CakeWeb.ChatLiveTest do
       assert has_element?(view, "button", "Start a new conversation")
     end
 
+    test "an auto submit that reaches a dead pid before its :DOWN does not keep the question",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      # autoask/2 is a cast, so it returns :ok whether or not anything
+      # receives it; the question must still not be kept.
+      dead_pid = spawn(fn -> :ok end)
+      ref = Process.monitor(dead_pid)
+      assert_receive {:DOWN, ^ref, :process, ^dead_pid, _}
+
+      :sys.replace_state(view.pid, fn state ->
+        put_in(state.socket.assigns.convo_pid, dead_pid)
+      end)
+
+      html =
+        render_submit(view, "submit", %{
+          "question_form" => %{"question" => "Still there?", "mode" => "auto"}
+        })
+
+      assert Process.alive?(view.pid)
+      refute html =~ "Still there?"
+    end
+
     test "a document selection that reaches a dead pid before its :DOWN does not crash the view",
          %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
