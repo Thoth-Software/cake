@@ -1,6 +1,7 @@
 defmodule CakeWeb.UploadLiveTest do
   use CakeWeb.ConnCase, async: true
 
+  import Cake.ZipFixtures
   import ExUnit.CaptureLog
   import Phoenix.LiveViewTest
 
@@ -105,6 +106,35 @@ defmodule CakeWeb.UploadLiveTest do
         ])
 
       assert {:error, [[_ref, :not_accepted]]} = preflight_upload(non_pdf_upload)
+    end
+  end
+
+  describe "ZIP expansion limit" do
+    test "rejects an archive whose PDFs declare more than the cap, naming the cap", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+      cap = Application.fetch_env!(:cake, :max_zip_expanded_bytes)
+
+      # A few hundred bytes on the wire whose central directory claims 3 GB.
+      bomb =
+        [{"a.pdf", "fake-pdf"}]
+        |> zip_binary()
+        |> forge_declared_size("a.pdf", 3_000_000_000)
+
+      upload =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "bomb.zip", content: bomb, type: "application/zip"}
+        ])
+
+      assert render_upload(upload, "bomb.zip") =~ "bomb.zip"
+
+      html = view |> element("#upload-form") |> render_submit()
+
+      assert html =~ "Failed to process bomb.zip"
+      assert html =~ "over the #{Float.round(cap / 1_048_576, 1)} MB limit"
+      assert Process.alive?(view.pid)
+      assert render(view) =~ "Failed to process bomb.zip"
     end
   end
 

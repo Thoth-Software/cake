@@ -1,13 +1,11 @@
 defmodule Cake.Books.ZipExtractorTest do
   use ExUnit.Case, async: true
 
+  import Cake.ZipFixtures
+
   alias Cake.Books.ZipExtractor
 
-  defp make_zip(entries) do
-    charlist_entries = Enum.map(entries, fn {name, content} -> {~c"#{name}", content} end)
-    {:ok, {~c"test.zip", zip_binary}} = :zip.create(~c"test.zip", charlist_entries, [:memory])
-    zip_binary
-  end
+  defp make_zip(entries), do: zip_binary(entries)
 
   describe "extract_pdfs/1" do
     test "extracts PDF files from a flat ZIP" do
@@ -81,6 +79,117 @@ defmodule Cake.Books.ZipExtractorTest do
 
     test "returns error for corrupt binary" do
       assert {:error, _reason} = ZipExtractor.extract_pdfs("not-a-zip")
+    end
+
+    test "extracts stored (uncompressed) PDF entries" do
+      zip = zip_binary([{"stored.pdf", "stored-content"}], compress: [])
+
+      assert {:ok, [{"stored.pdf", "stored-content"}]} = ZipExtractor.extract_pdfs(zip)
+    end
+
+    test "extracts entries whose CRC and sizes trail the data in a descriptor" do
+      zip = streamed_zip_binary([{"a.pdf", "content-a"}, {"notes.txt", "text"}, {"b.pdf", ""}])
+
+      assert {:ok, [{"a.pdf", "content-a"}, {"b.pdf", ""}]} = ZipExtractor.extract_pdfs(zip)
+    end
+  end
+
+  describe "extract_pdfs/2 expansion limits" do
+    test "rejects an archive whose PDF entries declare more than the cap, before inflating" do
+      # The entry is 16 bytes; only its central-directory record claims 2 MB.
+      zip =
+        [{"a.pdf", "sixteen-bytes!!!"}]
+        |> zip_binary()
+        |> forge_declared_size("a.pdf", 2_000_000)
+
+      assert {:error, {:too_large, 2_000_000, 1_000_000}} =
+               ZipExtractor.extract_pdfs(zip, max_expanded_bytes: 1_000_000)
+    end
+
+    test "sums the declared sizes of every PDF entry against the cap" do
+      zip =
+        zip_binary([{"a.pdf", String.duplicate("a", 600)}, {"b.pdf", String.duplicate("b", 600)}])
+
+      assert {:error, {:too_large, 1_200, 1_000}} =
+               ZipExtractor.extract_pdfs(zip, max_expanded_bytes: 1_000)
+    end
+
+    test "accepts PDF entries whose declared sizes sum to exactly the cap" do
+      zip =
+        zip_binary([{"a.pdf", String.duplicate("a", 500)}, {"b.pdf", String.duplicate("b", 500)}])
+
+      assert {:ok, [_, _]} = ZipExtractor.extract_pdfs(zip, max_expanded_bytes: 1_000)
+    end
+
+    test "non-PDF entries do not count against the cap and are never returned" do
+      zip =
+        zip_binary([
+          {"huge.bin", :binary.copy(<<0>>, 100_000)},
+          {"__MACOSX/._small.pdf", :binary.copy(<<0>>, 100_000)},
+          {"small.pdf", "pdf-content"}
+        ])
+
+      assert {:ok, [{"small.pdf", "pdf-content"}]} =
+               ZipExtractor.extract_pdfs(zip, max_expanded_bytes: 1_000)
+    end
+
+    test "rejects an archive with more entries than the entry limit, PDF or not" do
+      zip = zip_binary([{"a.pdf", "a"}, {"b.txt", "b"}, {"c.png", "c"}, {"d.pdf", "d"}])
+
+      assert {:error, {:too_many_entries, 4, 3}} = ZipExtractor.extract_pdfs(zip, max_entries: 3)
+      assert {:ok, [_, _]} = ZipExtractor.extract_pdfs(zip, max_entries: 4)
+    end
+
+    test "stops inflating an entry that expands past the size the archive declares for it" do
+      # 1 MB of zeros deflates to ~1 KB; the central directory claims 10 bytes,
+      # so the declared-size pre-check passes and only the bounded inflate
+      # can catch it.
+      zip =
+        [{"bomb.pdf", :binary.copy(<<0>>, 1_000_000)}]
+        |> zip_binary()
+        |> forge_declared_size("bomb.pdf", 10)
+
+      assert {:error, {:size_mismatch, "bomb.pdf"}} =
+               ZipExtractor.extract_pdfs(zip, max_expanded_bytes: 1_000)
+    end
+
+    test "rejects an entry that inflates to less than the size it declares" do
+      zip = [{"short.pdf", "short"}] |> zip_binary() |> forge_declared_size("short.pdf", 50)
+
+      assert {:error, {:size_mismatch, "short.pdf"}} = ZipExtractor.extract_pdfs(zip)
+    end
+
+    test "rejects an entry whose content does not match its CRC" do
+      zip = [{"a.pdf", "content"}] |> zip_binary() |> forge_local_crc("a.pdf", 0xDEADBEEF)
+
+      assert {:error, {:bad_crc, "a.pdf"}} = ZipExtractor.extract_pdfs(zip)
+    end
+
+    test "rejects an entry compressed with a method other than store or deflate" do
+      # 12 is bzip2.
+      zip = [{"a.pdf", "content"}] |> zip_binary() |> forge_compression_method("a.pdf", 12)
+
+      assert {:error, {:unsupported_compression, "a.pdf"}} = ZipExtractor.extract_pdfs(zip)
+    end
+
+    test "rejects an entry whose deflate stream is corrupt" do
+      # Method 8 over data that was stored raw: not a valid deflate stream.
+      zip =
+        [{"a.pdf", :binary.copy(<<0xFF>>, 64)}]
+        |> zip_binary(compress: [])
+        |> forge_compression_method("a.pdf", 8)
+
+      assert {:error, {:corrupt_entry, "a.pdf"}} = ZipExtractor.extract_pdfs(zip)
+    end
+
+    test "reads its limits from the application environment by default" do
+      cap = Application.fetch_env!(:cake, :max_zip_expanded_bytes)
+      declared = cap + 1
+
+      zip = [{"a.pdf", "content"}] |> zip_binary() |> forge_declared_size("a.pdf", declared)
+
+      assert {:error, {:too_large, ^declared, ^cap}} = ZipExtractor.extract_pdfs(zip)
+      assert is_integer(Application.fetch_env!(:cake, :max_zip_entries))
     end
   end
 end
