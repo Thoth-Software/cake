@@ -182,9 +182,148 @@ defmodule CakeWeb.ChatLiveTest do
       assert html =~ "ended unexpectedly"
       refute html =~ "boom"
     end
+
+    test "a dead conversation disarms the question form instead of crashing the view",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      kill_conversation(view)
+
+      assert render(view) =~ "ended unexpectedly"
+
+      # Pushed directly rather than through `form/3`, which refuses a disabled
+      # input: this is the submit that left the browser before the re-render.
+      html =
+        render_submit(view, "submit", %{
+          "question_form" => %{"question" => "Still there?", "mode" => "manual"}
+        })
+
+      assert Process.alive?(view.pid)
+      assert html =~ "ended unexpectedly"
+      refute html =~ "Still there?"
+      assert has_element?(view, ~s(input[name="question_form[question]"][disabled]))
+      assert has_element?(view, "button", "Start a new conversation")
+    end
+
+    test "a manual submit that reaches a dead pid before its :DOWN neither crashes the view nor keeps the question",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      # The window between the conversation dying and the view handling its
+      # :DOWN: the assigned pid is dead but not yet cleared.
+      dead_pid = spawn(fn -> :ok end)
+      ref = Process.monitor(dead_pid)
+      assert_receive {:DOWN, ^ref, :process, ^dead_pid, _}
+
+      :sys.replace_state(view.pid, fn state ->
+        put_in(state.socket.assigns.convo_pid, dead_pid)
+      end)
+
+      submitted_html =
+        render_submit(view, "submit", %{
+          "question_form" => %{"question" => "Still there?", "mode" => "manual"}
+        })
+
+      assert Process.alive?(view.pid)
+      refute submitted_html =~ "Still there?"
+
+      # The :DOWN that was queued behind the submit then disarms the page.
+      send(view.pid, {:DOWN, make_ref(), :process, dead_pid, :killed})
+
+      disarmed_html = render(view)
+      assert disarmed_html =~ "ended unexpectedly"
+      refute disarmed_html =~ "Still there?"
+      assert has_element?(view, "button", "Start a new conversation")
+    end
+
+    test "an auto submit that reaches a dead pid before its :DOWN does not keep the question",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      # autoask/2 is a cast, so it returns :ok whether or not anything
+      # receives it; the question must still not be kept.
+      dead_pid = spawn(fn -> :ok end)
+      ref = Process.monitor(dead_pid)
+      assert_receive {:DOWN, ^ref, :process, ^dead_pid, _}
+
+      :sys.replace_state(view.pid, fn state ->
+        put_in(state.socket.assigns.convo_pid, dead_pid)
+      end)
+
+      html =
+        render_submit(view, "submit", %{
+          "question_form" => %{"question" => "Still there?", "mode" => "auto"}
+        })
+
+      assert Process.alive?(view.pid)
+      refute html =~ "Still there?"
+    end
+
+    test "a document selection that reaches a dead pid before its :DOWN does not crash the view",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      broadcast_to_view(view, {:candidates_ready, build_candidates()})
+
+      dead_pid = spawn(fn -> :ok end)
+      ref = Process.monitor(dead_pid)
+      assert_receive {:DOWN, ^ref, :process, ^dead_pid, _}
+
+      :sys.replace_state(view.pid, fn state ->
+        put_in(state.socket.assigns.convo_pid, dead_pid)
+      end)
+
+      view |> element("button", "Use all") |> render_click()
+
+      assert Process.alive?(view.pid)
+    end
+
+    test "starting a new conversation re-arms the form with a live process", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      dead_pid = kill_conversation(view)
+
+      html = view |> element("button", "Start a new conversation") |> render_click()
+
+      new_pid = :sys.get_state(view.pid).socket.assigns.convo_pid
+      assert is_pid(new_pid) and new_pid != dead_pid
+      assert Process.alive?(new_pid)
+      assert html =~ "ended unexpectedly"
+      refute has_element?(view, "button", "Start a new conversation")
+      refute has_element?(view, ~s(input[name="question_form[question]"][disabled]))
+
+      broadcast_to_view(view, {:state_change, :generating})
+      assert render(view) =~ "Thinking..."
+    end
+
+    test "a repeated new_conversation event does not start a second conversation",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      kill_conversation(view)
+
+      # A double-click queues both events before the first patch removes
+      # the button, so the second arrives with a live pid already assigned.
+      render_click(view, "new_conversation", %{})
+      first_pid = :sys.get_state(view.pid).socket.assigns.convo_pid
+
+      render_click(view, "new_conversation", %{})
+
+      assert :sys.get_state(view.pid).socket.assigns.convo_pid == first_pid
+    end
   end
 
   # --- Helpers ---
+
+  # Kills the view's conversation and returns once the view has received the
+  # `:DOWN` (traced, so the next call to the view is processed after it).
+  defp kill_conversation(view) do
+    convo_pid = :sys.get_state(view.pid).socket.assigns.convo_pid
+    1 = :erlang.trace(view.pid, true, [:receive])
+
+    Process.exit(convo_pid, :kill)
+
+    assert_receive {:trace, _, :receive, {:DOWN, _, :process, ^convo_pid, :killed}}
+    _ = :erlang.trace(view.pid, false, [:receive])
+    convo_pid
+  end
 
   defp conversation_id(view) do
     :sys.get_state(view.pid).socket.assigns.convo_pid

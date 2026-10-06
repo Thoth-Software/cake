@@ -5,6 +5,11 @@ defmodule CakeWeb.ChatLive do
   to its PubSub topic, rendering state changes, manual-mode candidate
   selection, responses with citations, and errors as they are broadcast
   (see `Cake.Conversation.Events`).
+
+  If the conversation dies, the LiveView survives it: the `:DOWN` handler
+  drops the pid (`convo_pid: nil`), keeps the message history, disables the
+  question form, and offers a "Start a new conversation" action that starts
+  a fresh `Cake.Conversation` with no memory of the earlier turns.
   """
 
   use CakeWeb, :live_view
@@ -20,7 +25,7 @@ defmodule CakeWeb.ChatLive do
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      {:ok, socket |> start_conversation() |> init_ui_state()}
+      {:ok, socket |> init_ui_state() |> start_conversation()}
     else
       {:ok, init_ui_state(socket)}
     end
@@ -28,6 +33,13 @@ defmodule CakeWeb.ChatLive do
 
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
+  # Nothing reaches a dead conversation: with no pid the form is disabled,
+  # and a submit that races the `:DOWN` is dropped rather than calling it.
+  def handle_event(event, _params, %{assigns: %{convo_pid: nil}} = socket)
+      when event in ["submit", "submit_selection", "use_all"] do
+    {:noreply, socket}
+  end
+
   def handle_event("submit", %{"question_form" => params}, socket) do
     changeset = QuestionForm.changeset(params)
 
@@ -35,11 +47,16 @@ defmodule CakeWeb.ChatLive do
       question = Ecto.Changeset.get_change(changeset, :question)
       mode = Ecto.Changeset.get_change(changeset, :mode)
 
-      {:noreply,
-       socket
-       |> append_message(%{role: :user, text: question})
-       |> assign(question_form: to_form(QuestionForm.changeset(%{question: "", mode: mode})))
-       |> dispatch_question(question, mode)}
+      case dispatch_question(socket.assigns.convo_pid, question, mode) do
+        :ok ->
+          {:noreply,
+           socket
+           |> append_message(%{role: :user, text: question})
+           |> assign(question_form: to_form(QuestionForm.changeset(%{question: "", mode: mode})))}
+
+        {:error, :conversation_down} ->
+          {:noreply, socket}
+      end
     else
       {:noreply,
        assign(socket,
@@ -54,7 +71,10 @@ defmodule CakeWeb.ChatLive do
     if changeset.valid? do
       selected_doc_ids = Ecto.Changeset.get_change(changeset, :selected_doc_ids, [])
       chunk_ids = Candidates.expand_to_chunk_ids(selected_doc_ids, socket.assigns.candidates)
-      _ = Cake.Conversation.select_docs(socket.assigns.convo_pid, chunk_ids)
+
+      _ =
+        call_conversation(socket.assigns.convo_pid, &Cake.Conversation.select_docs(&1, chunk_ids))
+
       {:noreply, socket}
     else
       {:noreply,
@@ -66,7 +86,7 @@ defmodule CakeWeb.ChatLive do
 
   def handle_event("use_all", _params, socket) do
     chunk_ids = Candidates.all_chunk_ids(socket.assigns.candidates)
-    _ = Cake.Conversation.select_docs(socket.assigns.convo_pid, chunk_ids)
+    _ = call_conversation(socket.assigns.convo_pid, &Cake.Conversation.select_docs(&1, chunk_ids))
     {:noreply, socket}
   end
 
@@ -87,6 +107,15 @@ defmodule CakeWeb.ChatLive do
 
     {:noreply, assign(socket, question_form: to_form(changeset))}
   end
+
+  def handle_event("new_conversation", _params, %{assigns: %{convo_pid: nil}} = socket) do
+    {:noreply, socket |> start_conversation() |> reset_to_idle()}
+  end
+
+  # A duplicate (double-click, or a client sending the event directly) would
+  # otherwise start and monitor another owner-bound conversation and orphan
+  # the one already assigned.
+  def handle_event("new_conversation", _params, socket), do: {:noreply, socket}
 
   @spec handle_info(term(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
@@ -134,9 +163,10 @@ defmodule CakeWeb.ChatLive do
      socket
      |> append_message(%{
        role: :assistant,
-       text: "Sorry, the conversation ended unexpectedly. Please start a new question."
+       text: "Sorry, the conversation ended unexpectedly. Please start a new conversation."
      })
-     |> reset_to_idle()}
+     |> reset_to_idle()
+     |> assign(convo_pid: nil, conversation_state: :ended)}
   end
 
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
@@ -155,9 +185,17 @@ defmodule CakeWeb.ChatLive do
             available_doc_ids={@available_doc_ids}
             selection_form={@selection_form}
           />
-        <% _idle -> %>
+        <% state -> %>
+          <div :if={state == :ended} class="mb-4">
+            <.button type="button" phx-click="new_conversation">Start a new conversation</.button>
+          </div>
           <.simple_form for={@question_form} phx-submit="submit" phx-change="validate_question">
-            <.input field={@question_form[:question]} type="text" placeholder="Ask a question..." />
+            <.input
+              field={@question_form[:question]}
+              type="text"
+              placeholder="Ask a question..."
+              disabled={is_nil(@convo_pid)}
+            />
             <div class="flex items-center gap-2">
               <input type="hidden" name={@question_form[:mode].name} value="auto" />
               <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
@@ -171,7 +209,9 @@ defmodule CakeWeb.ChatLive do
               </label>
             </div>
             <:actions>
-              <.button type="submit" disabled={not @question_form.source.valid?}>Send</.button>
+              <.button type="submit" disabled={is_nil(@convo_pid) or not @question_form.source.valid?}>
+                Send
+              </.button>
             </:actions>
           </.simple_form>
       <% end %>
@@ -327,6 +367,7 @@ defmodule CakeWeb.ChatLive do
   @spec init_ui_state(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   defp init_ui_state(socket) do
     assign(socket,
+      convo_pid: nil,
       messages: [],
       conversation_state: :idle,
       question_form: to_form(QuestionForm.changeset(%{question: "", mode: :auto})),
@@ -352,16 +393,37 @@ defmodule CakeWeb.ChatLive do
     assign(socket, messages: [message | socket.assigns.messages])
   end
 
-  @spec dispatch_question(Phoenix.LiveView.Socket.t(), String.t(), :auto | :manual) ::
-          Phoenix.LiveView.Socket.t()
-  defp dispatch_question(socket, question, mode) do
-    _ =
-      case mode do
-        :auto -> Cake.Conversation.autoask(socket.assigns.convo_pid, question)
-        :manual -> Cake.Conversation.manualask(socket.assigns.convo_pid, question)
-      end
+  @spec dispatch_question(pid(), String.t(), :auto | :manual) ::
+          :ok | {:error, :conversation_down}
+  # autoask/2 is a cast and reports :ok even to a dead pid, so the dead case
+  # is checked here; a dead pid stays dead, so this check never misreports
+  # one. It is not atomic with the cast: a conversation that dies after the
+  # check but before the cast lands drops the question while the page keeps
+  # it, and its :DOWN then reports the loss like a mid-turn crash. Closing
+  # that needs autoask/2 to acknowledge acceptance (#311).
+  defp dispatch_question(convo_pid, question, :auto) do
+    if Process.alive?(convo_pid),
+      do: Cake.Conversation.autoask(convo_pid, question),
+      else: {:error, :conversation_down}
+  end
 
-    socket
+  defp dispatch_question(convo_pid, question, :manual),
+    do: call_conversation(convo_pid, &Cake.Conversation.manualask(&1, question))
+
+  # The conversation can die after an event is queued but before its :DOWN is
+  # handled (or while the call waits), so the call exits with :noproc or the
+  # conversation's exit reason. A dead pid guarantees the :DOWN is on its way
+  # to disarm the page, so the exit is absorbed; any other exit (a timeout
+  # against a live conversation) propagates as before.
+  @spec call_conversation(pid(), (pid() -> result)) :: result | {:error, :conversation_down}
+        when result: term()
+  defp call_conversation(convo_pid, call) do
+    call.(convo_pid)
+  catch
+    :exit, reason ->
+      if Process.alive?(convo_pid),
+        do: :erlang.raise(:exit, reason, __STACKTRACE__),
+        else: {:error, :conversation_down}
   end
 
   defp sanitize_title(title) when is_binary(title) do
