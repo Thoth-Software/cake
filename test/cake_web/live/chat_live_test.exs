@@ -205,6 +205,55 @@ defmodule CakeWeb.ChatLiveTest do
       assert has_element?(view, "button", "Start a new conversation")
     end
 
+    test "a manual submit that reaches a dead pid before its :DOWN neither crashes the view nor keeps the question",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      # The window between the conversation dying and the view handling its
+      # :DOWN: the assigned pid is dead but not yet cleared.
+      dead_pid = spawn(fn -> :ok end)
+      ref = Process.monitor(dead_pid)
+      assert_receive {:DOWN, ^ref, :process, ^dead_pid, _}
+
+      :sys.replace_state(view.pid, fn state ->
+        put_in(state.socket.assigns.convo_pid, dead_pid)
+      end)
+
+      submitted_html =
+        render_submit(view, "submit", %{
+          "question_form" => %{"question" => "Still there?", "mode" => "manual"}
+        })
+
+      assert Process.alive?(view.pid)
+      refute submitted_html =~ "Still there?"
+
+      # The :DOWN that was queued behind the submit then disarms the page.
+      send(view.pid, {:DOWN, make_ref(), :process, dead_pid, :killed})
+
+      disarmed_html = render(view)
+      assert disarmed_html =~ "ended unexpectedly"
+      refute disarmed_html =~ "Still there?"
+      assert has_element?(view, "button", "Start a new conversation")
+    end
+
+    test "a document selection that reaches a dead pid before its :DOWN does not crash the view",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      broadcast_to_view(view, {:candidates_ready, build_candidates()})
+
+      dead_pid = spawn(fn -> :ok end)
+      ref = Process.monitor(dead_pid)
+      assert_receive {:DOWN, ^ref, :process, ^dead_pid, _}
+
+      :sys.replace_state(view.pid, fn state ->
+        put_in(state.socket.assigns.convo_pid, dead_pid)
+      end)
+
+      view |> element("button", "Use all") |> render_click()
+
+      assert Process.alive?(view.pid)
+    end
+
     test "starting a new conversation re-arms the form with a live process", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
       dead_pid = kill_conversation(view)

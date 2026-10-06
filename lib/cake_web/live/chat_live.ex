@@ -47,11 +47,16 @@ defmodule CakeWeb.ChatLive do
       question = Ecto.Changeset.get_change(changeset, :question)
       mode = Ecto.Changeset.get_change(changeset, :mode)
 
-      {:noreply,
-       socket
-       |> append_message(%{role: :user, text: question})
-       |> assign(question_form: to_form(QuestionForm.changeset(%{question: "", mode: mode})))
-       |> dispatch_question(question, mode)}
+      case dispatch_question(socket.assigns.convo_pid, question, mode) do
+        :ok ->
+          {:noreply,
+           socket
+           |> append_message(%{role: :user, text: question})
+           |> assign(question_form: to_form(QuestionForm.changeset(%{question: "", mode: mode})))}
+
+        {:error, :conversation_down} ->
+          {:noreply, socket}
+      end
     else
       {:noreply,
        assign(socket,
@@ -66,7 +71,10 @@ defmodule CakeWeb.ChatLive do
     if changeset.valid? do
       selected_doc_ids = Ecto.Changeset.get_change(changeset, :selected_doc_ids, [])
       chunk_ids = Candidates.expand_to_chunk_ids(selected_doc_ids, socket.assigns.candidates)
-      _ = Cake.Conversation.select_docs(socket.assigns.convo_pid, chunk_ids)
+
+      _ =
+        call_conversation(socket.assigns.convo_pid, &Cake.Conversation.select_docs(&1, chunk_ids))
+
       {:noreply, socket}
     else
       {:noreply,
@@ -78,7 +86,7 @@ defmodule CakeWeb.ChatLive do
 
   def handle_event("use_all", _params, socket) do
     chunk_ids = Candidates.all_chunk_ids(socket.assigns.candidates)
-    _ = Cake.Conversation.select_docs(socket.assigns.convo_pid, chunk_ids)
+    _ = call_conversation(socket.assigns.convo_pid, &Cake.Conversation.select_docs(&1, chunk_ids))
     {:noreply, socket}
   end
 
@@ -385,16 +393,28 @@ defmodule CakeWeb.ChatLive do
     assign(socket, messages: [message | socket.assigns.messages])
   end
 
-  @spec dispatch_question(Phoenix.LiveView.Socket.t(), String.t(), :auto | :manual) ::
-          Phoenix.LiveView.Socket.t()
-  defp dispatch_question(socket, question, mode) do
-    _ =
-      case mode do
-        :auto -> Cake.Conversation.autoask(socket.assigns.convo_pid, question)
-        :manual -> Cake.Conversation.manualask(socket.assigns.convo_pid, question)
-      end
+  @spec dispatch_question(pid(), String.t(), :auto | :manual) ::
+          :ok | {:error, :conversation_down}
+  defp dispatch_question(convo_pid, question, :auto),
+    do: Cake.Conversation.autoask(convo_pid, question)
 
-    socket
+  defp dispatch_question(convo_pid, question, :manual),
+    do: call_conversation(convo_pid, &Cake.Conversation.manualask(&1, question))
+
+  # The conversation can die after an event is queued but before its :DOWN is
+  # handled (or while the call waits), so the call exits with :noproc or the
+  # conversation's exit reason. A dead pid guarantees the :DOWN is on its way
+  # to disarm the page, so the exit is absorbed; any other exit (a timeout
+  # against a live conversation) propagates as before.
+  @spec call_conversation(pid(), (pid() -> result)) :: result | {:error, :conversation_down}
+        when result: term()
+  defp call_conversation(convo_pid, call) do
+    call.(convo_pid)
+  catch
+    :exit, reason ->
+      if Process.alive?(convo_pid),
+        do: :erlang.raise(:exit, reason, __STACKTRACE__),
+        else: {:error, :conversation_down}
   end
 
   defp sanitize_title(title) when is_binary(title) do
