@@ -257,24 +257,32 @@ defmodule Cake.HttpServerCase do
   # Origin's host against the endpoint's `url` host.
   defp connect_live_socket!(base_url, cookie, csrf_token) do
     %URI{host: host, port: port} = URI.parse(base_url)
-    origin = "http://#{Endpoint.config(:url)[:host]}:#{port}"
     query = URI.encode_query(%{"_csrf_token" => csrf_token, "vsn" => @serializer_vsn})
 
-    headers = [
-      {"origin", origin} | Enum.map(cookie_header(cookie), fn {_k, v} -> {"cookie", v} end)
-    ]
+    {conn, ref} =
+      open_upgrade!(host, port, "/live/websocket?" <> query, upgrade_headers(port, cookie))
 
-    {:ok, conn} = Mint.HTTP.connect(:http, host, port, protocols: [:http1], mode: :passive)
-    {:ok, conn, ref} = Mint.WebSocket.upgrade(:ws, conn, "/live/websocket?" <> query, headers)
-    {conn, status, response_headers} = await_upgrade!(conn, ref, %{})
+    {upgraded, status, response_headers} = await_upgrade!(conn, ref, %{})
 
-    case Mint.WebSocket.new(conn, ref, status, response_headers, mode: :passive) do
-      {:ok, conn, websocket} ->
-        %{conn: conn, ref: ref, websocket: websocket, frames: []}
+    case Mint.WebSocket.new(upgraded, ref, status, response_headers, mode: :passive) do
+      {:ok, websocket_conn, websocket} ->
+        %{conn: websocket_conn, ref: ref, websocket: websocket, frames: []}
 
       {:error, _conn, reason} ->
         raise "WebSocket upgrade of /live/websocket refused (HTTP #{status}): #{inspect(reason)}"
     end
+  end
+
+  defp upgrade_headers(port, cookie) do
+    origin = "http://#{Endpoint.config(:url)[:host]}:#{port}"
+    cookies = for {:cookie, value} <- cookie_header(cookie), do: {"cookie", value}
+    [{"origin", origin} | cookies]
+  end
+
+  defp open_upgrade!(host, port, path, headers) do
+    {:ok, conn} = Mint.HTTP.connect(:http, host, port, protocols: [:http1], mode: :passive)
+    {:ok, upgrading, ref} = Mint.WebSocket.upgrade(:ws, conn, path, headers)
+    {upgrading, ref}
   end
 
   defp await_upgrade!(conn, ref, acc) do
