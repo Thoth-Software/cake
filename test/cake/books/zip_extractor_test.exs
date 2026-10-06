@@ -78,7 +78,8 @@ defmodule Cake.Books.ZipExtractorTest do
     end
 
     test "returns error for corrupt binary" do
-      assert {:error, _reason} = ZipExtractor.extract_pdfs("not-a-zip")
+      assert {:error, :not_a_zip} = ZipExtractor.extract_pdfs("not-a-zip")
+      assert {:error, :not_a_zip} = ZipExtractor.extract_pdfs("")
     end
 
     test "extracts stored (uncompressed) PDF entries" do
@@ -91,6 +92,23 @@ defmodule Cake.Books.ZipExtractorTest do
       zip = streamed_zip_binary([{"a.pdf", "content-a"}, {"notes.txt", "text"}, {"b.pdf", ""}])
 
       assert {:ok, [{"a.pdf", "content-a"}, {"b.pdf", ""}]} = ZipExtractor.extract_pdfs(zip)
+    end
+
+    test "reads ZIP64 end records and ZIP64 extra fields" do
+      entries = [{"a.pdf", "content-a"}, {"notes.txt", "text"}, {"b.pdf", "content-b"}]
+      zip = streamed_zip_binary(entries, zip64: true)
+
+      # The fixture is a valid ZIP64 archive by OTP's reading too.
+      assert {:ok, [_comment | listed]} = :zip.list_dir(zip)
+      assert length(listed) == 3
+
+      assert {:ok, [{"a.pdf", "content-a"}, {"b.pdf", "content-b"}]} =
+               ZipExtractor.extract_pdfs(zip)
+
+      assert {:error, {:too_many_entries, 3, 2}} = ZipExtractor.extract_pdfs(zip, max_entries: 2)
+
+      assert {:error, {:too_large, 18, 10}} =
+               ZipExtractor.extract_pdfs(zip, max_expanded_bytes: 10)
     end
   end
 
@@ -140,6 +158,24 @@ defmodule Cake.Books.ZipExtractorTest do
       assert {:ok, [_, _]} = ZipExtractor.extract_pdfs(zip, max_entries: 4)
     end
 
+    test "checks the entry count the end record declares before reading any entry" do
+      zip =
+        [{"a.pdf", "a"}, {"b.txt", "b"}, {"c.png", "c"}, {"d.pdf", "d"}]
+        |> zip_binary()
+        |> corrupt_central_directory()
+
+      assert {:error, {:too_many_entries, 4, 3}} = ZipExtractor.extract_pdfs(zip, max_entries: 3)
+      assert {:error, :bad_central_directory} = ZipExtractor.extract_pdfs(zip, max_entries: 4)
+    end
+
+    test "lists an archive of long-named entries without expanding the names" do
+      long_name = fn i -> String.duplicate("n", 60_000) <> "#{i}.pdf" end
+      entries = Enum.map(1..40, &{long_name.(&1), "content-#{&1}"})
+
+      assert {:ok, pdfs} = entries |> zip_binary() |> ZipExtractor.extract_pdfs()
+      assert pdfs == entries
+    end
+
     test "stops inflating an entry that expands past the size the archive declares for it" do
       # 1 MB of zeros deflates to ~1 KB; the central directory claims 10 bytes,
       # so the declared-size pre-check passes and only the bounded inflate
@@ -160,7 +196,7 @@ defmodule Cake.Books.ZipExtractorTest do
     end
 
     test "rejects an entry whose content does not match its CRC" do
-      zip = [{"a.pdf", "content"}] |> zip_binary() |> forge_local_crc("a.pdf", 0xDEADBEEF)
+      zip = [{"a.pdf", "content"}] |> zip_binary() |> forge_crc("a.pdf", 0xDEADBEEF)
 
       assert {:error, {:bad_crc, "a.pdf"}} = ZipExtractor.extract_pdfs(zip)
     end
