@@ -164,6 +164,8 @@ On follow-up turns, retrieval is skipped — cached chunks are reused with the n
 
 **`CakeWeb.UserAuth`** provides the authentication plugs and the three `on_mount/4` LiveView hooks (`:mount_current_user`, `:ensure_authenticated`, `:redirect_if_user_is_authenticated`) that the router's `live_session`s use.
 
+Every other web test drives `CakeWeb.Endpoint` in-process (`Phoenix.ConnTest`, `Phoenix.LiveViewTest`, with `server: false`), so the HTTP adapter itself (Bandit) is pinned separately in the `integration` CI job by `CakeWeb.HttpSmokeIntegrationTest` (#252), on the `Cake.HttpServerCase` test-support case template (`test/support/http_server_case.ex`). The template boots the endpoint with `server: true` on an ephemeral loopback port for the module's duration. The suite covers a password login round trip over real HTTP (session cookie set, then authenticating the next request), an authenticated `/chat` mount over a real `/live/websocket` (plus a join with the wrong CSRF token refused), and the 404 page. It is the proof-it-still-serves check for a Bandit upgrade (#206).
+
 ### Supervision Tree Boot Order
 
 The application starts children in this order under Cake.Application:

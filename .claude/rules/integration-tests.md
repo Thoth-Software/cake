@@ -3,6 +3,7 @@ paths:
   - "test/**/*integration*"
   - "test/support/search_integration_case.ex"
   - "test/support/s3_integration_case.ex"
+  - "test/support/http_server_case.ex"
   - "test/support/backend_conformance.ex"
   - "test/support/*integration_helpers.ex"
   - "lib/cake/search/backend/**"
@@ -23,6 +24,8 @@ docker compose up -d opensearch moto               # publishes http://localhost:
 mix test --only integration --include network      # the merge gate's command; MIX_ENV=test; OPENSEARCH_URL and S3_ENDPOINT_URL override those defaults
 mix test --only integration                        # the same minus the :network group (no clone) — a local shortcut, not the gate
 ```
+
+**HTTP smoke and migration rollback (#252).** `CakeWeb.HttpSmokeIntegrationTest` runs in the same test step on `Cake.HttpServerCase` (`test/support/http_server_case.ex`). The template restarts `CakeWeb.Endpoint` with `server: true` on an ephemeral loopback port for the module's duration, so requests cross the real Bandit adapter. It checks a password login round trip (the session cookie authenticates the next request), an authenticated `/chat` mount over a real `/live/websocket` (and a join with the wrong CSRF token refused as `"stale"`), and the 404 page. It needs no service of its own beyond Postgres and is the proof-it-still-serves check for a Bandit upgrade (#206). Before the test step, the job runs the migration rollback round trip, `mix ecto.migrate` → `mix ecto.rollback --all` → `mix ecto.migrate` (`MIX_ENV=test`): a red step there is an irreversible or asymmetric migration, so fix the migration and keep the step.
 
 `OPENSEARCH_URL` and `S3_ENDPOINT_URL` are read by the integration test setup only; leave them unset on the host, or set them to `http://opensearch:9200` and `http://moto:9000` when running inside the `cake_app` container (the compose file already does). The `moto` service is the S3-compatible object store for the `Cake.Books.Adapters.S3` suite (#251): moto's standalone server rather than MinIO or LocalStack, because MinIO has withdrawn its community images and LocalStack's current images need a paid token (the compose file and `quality.yml` carry the details). Only the integration run needs it; dev uses the Disk adapter.
 
