@@ -118,7 +118,7 @@ defmodule Cake.Books.ZipExtractorTest do
       zip = streamed_zip_binary([{"a.pdf", "content-a"}], zip64: true)
       {record, _length} = :binary.match(zip, <<0x06064B50::little-32>>)
       # The ZIP64 end record's own disk number sits 16 bytes in.
-      <<before::binary-size(record + 16), _disk::little-32, rest::binary>> = zip
+      <<before::binary-size(^record + 16), _disk::little-32, rest::binary>> = zip
       split = <<before::binary, 1::little-32, rest::binary>>
 
       assert {:error, :multiple_disks_not_supported} = ZipExtractor.extract_pdfs(split)
