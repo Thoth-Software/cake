@@ -10,7 +10,9 @@ defmodule CakeWeb.UploadLive do
   bytes only; how far an archive may expand is bounded by
   `Cake.Books.ZipExtractor` (`config :cake, :max_zip_expanded_bytes` and
   `:max_zip_entries`), and an archive it rejects is reported with the
-  limit it broke.
+  limit it broke: as the page's error when nothing else in the batch can be
+  ingested, otherwise in a warning listing each rejected archive beside the
+  ingestion of the rest.
   """
 
   use CakeWeb, :live_view
@@ -40,7 +42,8 @@ defmodule CakeWeb.UploadLive do
        status: :idle,
        results: nil,
        error: nil,
-       skipped_count: 0
+       skipped_count: 0,
+       rejected_archives: []
      )}
   end
 
@@ -61,7 +64,14 @@ defmodule CakeWeb.UploadLive do
   end
 
   def handle_event("reset", _params, socket) do
-    {:noreply, assign(socket, status: :idle, results: nil, error: nil, skipped_count: 0)}
+    {:noreply,
+     assign(socket,
+       status: :idle,
+       results: nil,
+       error: nil,
+       skipped_count: 0,
+       rejected_archives: []
+     )}
   end
 
   @impl Phoenix.LiveView
@@ -145,7 +155,11 @@ defmodule CakeWeb.UploadLive do
       true ->
         socket =
           socket
-          |> assign(status: :processing, skipped_count: skipped)
+          |> assign(
+            status: :processing,
+            skipped_count: skipped,
+            rejected_archives: Enum.map(zip_errors, &describe_rejected_archive/1)
+          )
           |> start_async(:ingest, fn ->
             provider = Application.fetch_env!(:cake, :default_provider)
             model = Application.fetch_env!(:cake, :default_embedding_model)
@@ -173,6 +187,10 @@ defmodule CakeWeb.UploadLive do
     end)
   end
 
+  # Archives rejected in a batch whose other files still go on to ingestion.
+  @spec describe_rejected_archive({String.t(), term()}) :: String.t()
+  defp describe_rejected_archive({name, reason}), do: "#{name}: #{describe_zip_error(reason)}"
+
   @spec describe_zip_error(term()) :: String.t()
   defp describe_zip_error({:too_large, declared, max_bytes}) do
     "its PDFs would expand to #{format_size(declared)}, " <>
@@ -187,6 +205,7 @@ defmodule CakeWeb.UploadLive do
     "#{entry_name} does not expand to the size the archive declares for it"
   end
 
+  defp describe_zip_error(reason) when is_binary(reason), do: reason
   defp describe_zip_error(reason), do: inspect(reason)
 
   @spec process_document_entry(String.t(), binary(), module()) ::
@@ -261,6 +280,8 @@ defmodule CakeWeb.UploadLive do
     ~H"""
     <div class="max-w-2xl mx-auto p-4">
       <h1 class="text-2xl font-bold mb-4">Upload Documents</h1>
+
+      <.rejected_archives :if={@rejected_archives != []} archives={@rejected_archives} />
 
       <%= case @status do %>
         <% :idle -> %>
@@ -348,6 +369,17 @@ defmodule CakeWeb.UploadLive do
     >
       <span>{entry.client_name}:</span>
       <span :for={msg <- upload_errors(@upload, entry)}>{upload_error_to_string(msg)}</span>
+    </div>
+    """
+  end
+
+  defp rejected_archives(assigns) do
+    ~H"""
+    <div id="rejected-archives" class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded text-sm">
+      <p class="font-medium">These archives were not ingested:</p>
+      <ul class="list-disc ml-5">
+        <li :for={archive <- @archives}>{archive}</li>
+      </ul>
     </div>
     """
   end
