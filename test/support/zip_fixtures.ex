@@ -161,6 +161,12 @@ defmodule Cake.ZipFixtures do
     patch(zip, central_header_position(zip, name) + 10, <<method::little-16>>)
   end
 
+  @doc "Rewrites the general-purpose flags the central directory records for `name`."
+  @spec forge_flags(binary(), String.t(), non_neg_integer()) :: binary()
+  def forge_flags(zip, name, flags) do
+    patch(zip, central_header_position(zip, name) + 8, <<flags::little-16>>)
+  end
+
   @doc """
   Zeroes the signature of the first central-directory header, so any
   reader that walks the central directory fails on its first entry.

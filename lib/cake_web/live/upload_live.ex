@@ -205,6 +205,24 @@ defmodule CakeWeb.UploadLive do
     "#{entry_name} does not expand to the size the archive declares for it"
   end
 
+  defp describe_zip_error(:not_a_zip), do: "it is not a ZIP archive, or it is damaged"
+  defp describe_zip_error(:bad_central_directory), do: "its file index is damaged"
+
+  defp describe_zip_error(:multiple_disks_not_supported) do
+    "it is one part of a split archive; upload a single-file ZIP"
+  end
+
+  defp describe_zip_error({:encrypted, entry_name}), do: "#{entry_name} is password-protected"
+
+  defp describe_zip_error({:unsupported_compression, entry_name}) do
+    "#{entry_name} uses a compression method other than Deflate or Store"
+  end
+
+  defp describe_zip_error({reason, entry_name})
+       when reason in [:bad_crc, :corrupt_entry, :truncated, :bad_local_header] do
+    "#{entry_name} is damaged inside the archive"
+  end
+
   defp describe_zip_error(reason) when is_binary(reason), do: reason
   defp describe_zip_error(reason), do: inspect(reason)
 
@@ -375,7 +393,11 @@ defmodule CakeWeb.UploadLive do
 
   defp rejected_archives(assigns) do
     ~H"""
-    <div id="rejected-archives" class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded text-sm">
+    <div
+      id="rejected-archives"
+      role="status"
+      class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded text-sm"
+    >
       <p class="font-medium">These archives were not ingested:</p>
       <ul class="list-disc ml-5">
         <li :for={archive <- @archives}>{archive}</li>

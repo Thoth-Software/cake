@@ -110,6 +110,34 @@ defmodule CakeWeb.UploadLiveTest do
     end
   end
 
+  describe "unreadable archives" do
+    # Each archive is rejected on its own, so its reason is the page's error.
+    test "explains each rejection in words rather than an Elixir term", %{conn: conn} do
+      encrypted = [{"book.pdf", "pdf"}] |> zip_binary() |> forge_flags("book.pdf", 0x0001)
+
+      bzip2 =
+        [{"book.pdf", "pdf"}] |> zip_binary() |> forge_compression_method("book.pdf", 12)
+
+      for {archive, message} <- [
+            {"not a zip at all", "it is not a ZIP archive, or it is damaged"},
+            {encrypted, "book.pdf is password-protected"},
+            {bzip2, "book.pdf uses a compression method other than Deflate"}
+          ] do
+        {:ok, view, _html} = live(conn, ~p"/upload")
+
+        upload =
+          file_input(view, "#upload-form", :documents, [
+            %{name: "upload.zip", content: archive, type: "application/zip"}
+          ])
+
+        render_upload(upload, "upload.zip")
+        html = view |> element("#upload-form") |> render_submit()
+
+        assert html =~ "Failed to process upload.zip: " <> message
+      end
+    end
+  end
+
   describe "ZIP expansion limit" do
     test "rejects an archive whose PDFs declare more than the cap, naming the cap", %{
       conn: conn
@@ -171,6 +199,7 @@ defmodule CakeWeb.UploadLiveTest do
       processing_html = view |> element("#upload-form") |> render_submit()
 
       assert processing_html =~ "Processing documents"
+      assert has_element?(view, ~s(#rejected-archives[role="status"]), "bomb.zip")
       assert processing_html =~ "bomb.zip"
       assert processing_html =~ limit_text
 
