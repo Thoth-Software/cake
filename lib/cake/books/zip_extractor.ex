@@ -132,9 +132,11 @@ defmodule Cake.Books.ZipExtractor do
   end
 
   # The record sits in the last 22 bytes plus an archive comment of up to
-  # 64 KB. The comment may itself contain the signature, so candidates are
-  # tried right to left and only one whose comment length ends it exactly
-  # at the end of the binary is the record.
+  # 64 KB. The comment may itself contain the signature, or a whole
+  # record, so candidates are tried right to left: one counts only if its
+  # comment length ends it exactly at the end of the binary and its central
+  # directory ends exactly where it (or its ZIP64 record) starts. If none
+  # parses, the rightmost end-aligned candidate's error is returned.
   @spec find_end_of_central_dir(binary()) ::
           {:ok, %{entries: non_neg_integer(), cd_offset: non_neg_integer()}}
           | {:error, :not_a_zip | :bad_central_directory | :multiple_disks_not_supported}
@@ -143,17 +145,15 @@ defmodule Cake.Books.ZipExtractor do
     window_start = max(size - @eocd_size - @max_comment_size, 0)
     window = binary_part(zip_binary, window_start, size - window_start)
 
-    record_position =
+    results =
       window
       |> :binary.matches(<<@eocd_signature::little-32>>)
       |> Enum.map(fn {position, _length} -> window_start + position end)
       |> Enum.reverse()
-      |> Enum.find(&end_of_central_dir_at?(zip_binary, &1))
+      |> Enum.filter(&end_of_central_dir_at?(zip_binary, &1))
+      |> Enum.map(&parse_end_of_central_dir(zip_binary, &1))
 
-    case record_position do
-      nil -> {:error, :not_a_zip}
-      position -> parse_end_of_central_dir(zip_binary, position)
-    end
+    Enum.find(results, &match?({:ok, _}, &1)) || List.first(results, {:error, :not_a_zip})
   end
 
   @spec end_of_central_dir_at?(binary(), non_neg_integer()) :: boolean()
@@ -173,14 +173,18 @@ defmodule Cake.Books.ZipExtractor do
   defp parse_end_of_central_dir(zip_binary, position) do
     case zip_binary do
       <<_::binary-size(^position), @eocd_signature::little-32, disk::little-16,
-        cd_disk::little-16, _disk_entries::little-16, entries::little-16, _cd_size::little-32,
+        cd_disk::little-16, _disk_entries::little-16, entries::little-16, cd_size::little-32,
         cd_offset::little-32, _::binary>> ->
         cond do
+          @zip64_marker_16 in [disk, cd_disk, entries] or
+              @zip64_marker_32 in [cd_size, cd_offset] ->
+            parse_zip64_eocd(zip_binary, position)
+
           disk != 0 or cd_disk != 0 ->
             {:error, :multiple_disks_not_supported}
 
-          entries == @zip64_marker_16 or cd_offset == @zip64_marker_32 ->
-            parse_zip64_eocd(zip_binary, position)
+          cd_offset + cd_size != position ->
+            {:error, :bad_central_directory}
 
           true ->
             {:ok, %{entries: entries, cd_offset: cd_offset}}
@@ -195,18 +199,28 @@ defmodule Cake.Books.ZipExtractor do
   # classic record.
   @spec parse_zip64_eocd(binary(), non_neg_integer()) ::
           {:ok, %{entries: non_neg_integer(), cd_offset: non_neg_integer()}}
-          | {:error, :bad_central_directory}
+          | {:error, :bad_central_directory | :multiple_disks_not_supported}
   defp parse_zip64_eocd(zip_binary, eocd_position)
        when eocd_position >= @zip64_eocd_locator_size do
     locator_position = eocd_position - @zip64_eocd_locator_size
 
     with <<_::binary-size(^locator_position), @zip64_eocd_locator_signature::little-32,
-           _disk::little-32, record_position::little-64, _::binary>> <- zip_binary,
+           record_disk::little-32, record_position::little-64, total_disks::little-32,
+           _::binary>> <- zip_binary,
          <<_::binary-size(^record_position), @zip64_eocd_signature::little-32,
-           _record_size::little-64, _made_by::little-16, _needed::little-16, _disk::little-32,
-           _cd_disk::little-32, _disk_entries::little-64, entries::little-64, _cd_size::little-64,
+           _record_size::little-64, _made_by::little-16, _needed::little-16, disk::little-32,
+           cd_disk::little-32, _disk_entries::little-64, entries::little-64, cd_size::little-64,
            cd_offset::little-64, _::binary>> <- zip_binary do
-      {:ok, %{entries: entries, cd_offset: cd_offset}}
+      cond do
+        record_disk != 0 or total_disks > 1 or disk != 0 or cd_disk != 0 ->
+          {:error, :multiple_disks_not_supported}
+
+        cd_offset + cd_size != record_position ->
+          {:error, :bad_central_directory}
+
+        true ->
+          {:ok, %{entries: entries, cd_offset: cd_offset}}
+      end
     else
       _ -> {:error, :bad_central_directory}
     end

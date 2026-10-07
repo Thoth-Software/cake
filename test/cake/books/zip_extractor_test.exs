@@ -103,6 +103,27 @@ defmodule Cake.Books.ZipExtractorTest do
       assert {:ok, [{"a.pdf", "content-a"}]} = ZipExtractor.extract_pdfs(zip)
     end
 
+    test "skips a complete end record at the tail of the comment whose span does not fit" do
+      # The comment ends in a well-formed, end-aligned end record declaring
+      # zero entries; its central directory (offset 0, size 0) does not end
+      # where it starts, so the real record before it wins.
+      fake_record = <<0x06054B50::little-32, 0::size(16)-unit(8), 0::little-16>>
+      comment = ~c"note " ++ :binary.bin_to_list(fake_record)
+      zip = zip_binary([{"a.pdf", "content-a"}], comment: comment)
+
+      assert {:ok, [{"a.pdf", "content-a"}]} = ZipExtractor.extract_pdfs(zip)
+    end
+
+    test "rejects a ZIP64 archive whose ZIP64 end record names another disk" do
+      zip = streamed_zip_binary([{"a.pdf", "content-a"}], zip64: true)
+      {record, _length} = :binary.match(zip, <<0x06064B50::little-32>>)
+      # The ZIP64 end record's own disk number sits 16 bytes in.
+      <<before::binary-size(record + 16), _disk::little-32, rest::binary>> = zip
+      split = <<before::binary, 1::little-32, rest::binary>>
+
+      assert {:error, :multiple_disks_not_supported} = ZipExtractor.extract_pdfs(split)
+    end
+
     test "reads ZIP64 end records and ZIP64 extra fields" do
       entries = [{"a.pdf", "content-a"}, {"notes.txt", "text"}, {"b.pdf", "content-b"}]
       zip = streamed_zip_binary(entries, zip64: true)
