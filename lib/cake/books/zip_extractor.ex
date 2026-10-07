@@ -204,29 +204,39 @@ defmodule Cake.Books.ZipExtractor do
        when eocd_position >= @zip64_eocd_locator_size do
     locator_position = eocd_position - @zip64_eocd_locator_size
 
-    with <<_::binary-size(^locator_position), @zip64_eocd_locator_signature::little-32,
-           record_disk::little-32, record_position::little-64, total_disks::little-32,
-           _::binary>> <- zip_binary,
-         <<_::binary-size(^record_position), @zip64_eocd_signature::little-32,
-           _record_size::little-64, _made_by::little-16, _needed::little-16, disk::little-32,
-           cd_disk::little-32, _disk_entries::little-64, entries::little-64, cd_size::little-64,
-           cd_offset::little-64, _::binary>> <- zip_binary do
-      cond do
-        record_disk != 0 or total_disks > 1 or disk != 0 or cd_disk != 0 ->
-          {:error, :multiple_disks_not_supported}
+    case zip_binary do
+      <<_::binary-size(^locator_position), @zip64_eocd_locator_signature::little-32,
+        record_disk::little-32, record_position::little-64, total_disks::little-32, _::binary>> ->
+        if record_disk != 0 or total_disks > 1,
+          do: {:error, :multiple_disks_not_supported},
+          else: parse_zip64_record(zip_binary, record_position)
 
-        cd_offset + cd_size != record_position ->
-          {:error, :bad_central_directory}
-
-        true ->
-          {:ok, %{entries: entries, cd_offset: cd_offset}}
-      end
-    else
-      _ -> {:error, :bad_central_directory}
+      _ ->
+        {:error, :bad_central_directory}
     end
   end
 
   defp parse_zip64_eocd(_zip_binary, _eocd_position), do: {:error, :bad_central_directory}
+
+  @spec parse_zip64_record(binary(), non_neg_integer()) ::
+          {:ok, %{entries: non_neg_integer(), cd_offset: non_neg_integer()}}
+          | {:error, :bad_central_directory | :multiple_disks_not_supported}
+  defp parse_zip64_record(zip_binary, record_position) do
+    case zip_binary do
+      <<_::binary-size(^record_position), @zip64_eocd_signature::little-32,
+        _record_size::little-64, _made_by::little-16, _needed::little-16, disk::little-32,
+        cd_disk::little-32, _disk_entries::little-64, entries::little-64, cd_size::little-64,
+        cd_offset::little-64, _::binary>> ->
+        cond do
+          disk != 0 or cd_disk != 0 -> {:error, :multiple_disks_not_supported}
+          cd_offset + cd_size != record_position -> {:error, :bad_central_directory}
+          true -> {:ok, %{entries: entries, cd_offset: cd_offset}}
+        end
+
+      _ ->
+        {:error, :bad_central_directory}
+    end
+  end
 
   @spec check_entry_count(non_neg_integer(), non_neg_integer()) ::
           :ok | {:error, {:too_many_entries, non_neg_integer(), non_neg_integer()}}
