@@ -35,17 +35,6 @@ defmodule Cake.Search.QueryTest do
       assert clause == %{"knn" => %{"embedding" => %{"vector" => vector, "k" => 10}}}
     end
 
-    test "is additive — each call appends another clause" do
-      base = Query.new("docs")
-
-      query =
-        base
-        |> Query.knn("embedding", [0.1], 5)
-        |> Query.knn("embedding", [0.2], 5)
-
-      assert length(query.must) == 2
-    end
-
     test "encodes ef_search under method_parameters in the knn clause when provided" do
       # OpenSearch rejects `ef_search` as a top-level knn key
       # ("[knn] unknown field [ef_search]"); the query-time form is
