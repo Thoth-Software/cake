@@ -25,5 +25,14 @@ defmodule CakeWeb.ChatLive.SelectionFormTest do
     test "drops blank ids from the hidden input before validating" do
       assert SelectionForm.changeset(%{"selected_doc_ids" => ["", "doc-b"]}, @available).valid?
     end
+
+    test "an empty or all-blank selection is invalid (found by the property test)" do
+      for picks <- [[], [""], ["", ""]] do
+        changeset = SelectionForm.changeset(%{"selected_doc_ids" => picks}, @available)
+
+        refute changeset.valid?
+        assert Keyword.has_key?(changeset.errors, :selected_doc_ids)
+      end
+    end
   end
 end

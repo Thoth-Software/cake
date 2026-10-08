@@ -22,6 +22,11 @@ defmodule CakeWeb.ChatLive.SelectionForm do
   Casts and validates a manual document selection: blank ids are dropped
   first, then `:selected_doc_ids` must be a non-empty subset of
   `available_doc_ids`, the candidate document ids the UI offered.
+
+  The non-empty check reads the field, not the changes: an empty submission
+  (no ids, or only blank ones) is no change from the struct's `[]` default,
+  so `validate_length/3` would never see it and the form would pass as
+  "nothing changed".
   """
   @spec changeset(map(), [String.t()]) :: Ecto.Changeset.t()
   def changeset(attrs, available_doc_ids) do
@@ -29,9 +34,22 @@ defmodule CakeWeb.ChatLive.SelectionForm do
 
     %__MODULE__{}
     |> cast(attrs, [:selected_doc_ids])
-    |> validate_length(:selected_doc_ids, min: 1)
+    |> validate_non_empty_selection()
     |> validate_subset(:selected_doc_ids, available_doc_ids)
     |> sanitize_text_fields()
+  end
+
+  defp validate_non_empty_selection(changeset) do
+    if get_field(changeset, :selected_doc_ids) == [] do
+      add_error(changeset, :selected_doc_ids, "should have at least %{count} item(s)",
+        count: 1,
+        validation: :length,
+        kind: :min,
+        type: :list
+      )
+    else
+      changeset
+    end
   end
 
   defp filter_empty_doc_ids(%{"selected_doc_ids" => ids} = attrs) when is_list(ids) do
