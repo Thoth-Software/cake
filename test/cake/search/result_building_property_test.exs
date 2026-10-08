@@ -96,9 +96,13 @@ defmodule Cake.Search.ResultBuildingPropertyTest do
     hit_ordinals = for %Hit{id: "r" <> n} <- hits, do: String.to_integer(n)
 
     corpus
-    |> Enum.filter(fn record -> Enum.any?(hit_ordinals, &(abs(&1 - record.ordinal) <= offset)) end)
+    |> Enum.filter(&near_a_hit?(&1, hit_ordinals, offset))
     |> Enum.map(& &1.id)
     |> Enum.sort()
+  end
+
+  defp near_a_hit?(record, hit_ordinals, offset) do
+    Enum.any?(hit_ordinals, &(abs(&1 - record.ordinal) <= offset))
   end
 
   # ---------------------------------------------------------------------------
