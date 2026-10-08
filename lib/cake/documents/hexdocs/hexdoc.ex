@@ -169,14 +169,27 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
   defp head_arity({_name, _, args}) when is_list(args), do: length(args)
   defp head_arity({_name, _, _}), do: 0
 
+  # The @doc value as the AST carries it: a string (plain or heredoc), a
+  # `~S`/`~s` sigil with a literal body (an interpolated body cannot be read
+  # statically and renders no doc), a keyword list such as `since: "1.0"`
+  # (any length — a one-key list must not be taken for a wrapped string), or
+  # `false` and anything else, which render no doc.
   defp extract_doc(doc) when is_binary(doc), do: doc
-  defp extract_doc([doc]), do: extract_doc(doc)
+
+  defp extract_doc({sigil, _, [{:<<>>, _, [doc]}, _modifiers]})
+       when sigil in [:sigil_S, :sigil_s] and is_binary(doc),
+       do: doc
 
   defp extract_doc(doc) when is_list(doc) do
-    Enum.map_join(doc, fn {atom, string} ->
-      "#{atom}: #{string}\n"
-    end) <> "\n"
+    if Keyword.keyword?(doc) do
+      Enum.map_join(doc, fn {atom, string} -> "#{atom}: #{string}\n" end) <> "\n"
+    else
+      extract_single(doc)
+    end
   end
 
   defp extract_doc(_), do: nil
+
+  defp extract_single([doc]), do: extract_doc(doc)
+  defp extract_single(_), do: nil
 end

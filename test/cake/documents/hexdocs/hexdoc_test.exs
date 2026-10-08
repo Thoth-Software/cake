@@ -92,6 +92,15 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
   end
 
   describe "to_parsed_docs/1" do
+    defp hexdoc(content) do
+      %Hexdoc{
+        content: content,
+        url: "https://hexdocs.pm/elixir/Example.html",
+        module: "Example",
+        version: "1.0.0"
+      }
+    end
+
     test "extracts function docs and code from a simple module" do
       content = """
       defmodule Example do
@@ -297,6 +306,37 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       docs = Hexdoc.to_parsed_docs(hexdoc)
       assert length(docs) == 1
       assert hd(docs).text =~ "since"
+    end
+
+    test "handles a sigil @doc (found by the property test)" do
+      content = """
+      defmodule Example do
+        @doc ~S(Raw sigil doc with a \\ backslash.)
+        def raw, do: :ok
+
+        @doc ~s(Lowercase sigil doc.)
+        def lower, do: :ok
+      end
+      """
+
+      docs = Hexdoc.to_parsed_docs(hexdoc(content))
+
+      assert Enum.map(docs, &String.split(&1.text, "\n\n", parts: 2)) == [
+               ["Raw sigil doc with a \\ backslash.", "def raw do\n  :ok\nend"],
+               ["Lowercase sigil doc.", "def lower do\n  :ok\nend"]
+             ]
+    end
+
+    test "handles a single-key keyword @doc (found by the property test)" do
+      content = """
+      defmodule Example do
+        @doc since: "1.0"
+        def new_fn, do: :ok
+      end
+      """
+
+      assert [%{text: text}] = Hexdoc.to_parsed_docs(hexdoc(content))
+      assert text =~ "since: 1.0"
     end
 
     test "module with no functions returns empty list" do
