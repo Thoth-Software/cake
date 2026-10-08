@@ -52,17 +52,6 @@ defmodule Cake.HexdocGenerators do
     )
   end
 
-  @doc "Generates a module spec whose every definition carries a sigil `@doc`."
-  @spec sigil_doc_module_spec() :: StreamData.t(module_spec())
-  def sigil_doc_module_spec do
-    StreamData.map(module_spec(), fn spec ->
-      Enum.map(spec, fn
-        %{item: :definition} = definition -> %{definition | doc: {:sigil, "sigil doc text"}}
-        skipped -> skipped
-      end)
-    end)
-  end
-
   @doc "Renders a module spec as the source text of a single bare `defmodule`."
   @spec render(module_spec()) :: String.t()
   def render(spec) do

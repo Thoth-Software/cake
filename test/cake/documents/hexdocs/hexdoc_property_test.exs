@@ -85,6 +85,20 @@ defmodule Cake.Documents.Hexdocs.HexdocPropertyTest do
       end
     end
 
+    property "a sigil or keyword @doc is carried on the clause that follows it, like a string @doc" do
+      check all(spec <- HexdocGenerators.module_spec()) do
+        pairs = Enum.zip(HexdocGenerators.expected_entries(spec), parse(spec))
+
+        for {{_title, doc}, entry} <- pairs do
+          case doc do
+            {:sigil, text} -> assert String.starts_with?(entry.text, text)
+            {:keyword, keyword} -> for {k, v} <- keyword, do: assert(entry.text =~ "#{k}: #{v}")
+            _other -> :ok
+          end
+        end
+      end
+    end
+
     property "every entry's text ends in the clause's own code" do
       check all(spec <- HexdocGenerators.module_spec()) do
         definitions = Enum.filter(spec, &(&1.item == :definition))
