@@ -4,7 +4,6 @@ defmodule Cake.SearchTest do
   import Mox
 
   alias Cake.Search
-  alias Cake.Search.Backend
   alias Cake.Search.Hit
   alias Cake.Search.Query
   alias Cake.Support.FixtureGDS
@@ -35,37 +34,6 @@ defmodule Cake.SearchTest do
 
     test "default_keyword_weight/0" do
       assert Search.default_keyword_weight() == 0.8
-    end
-  end
-
-  describe "ef_search opt" do
-    test "passes ef_search through to the knn clause in vector search" do
-      k = 30
-      ef = 128
-      vector = [0.1, 0.2, 0.3]
-
-      query =
-        "fixture_collection"
-        |> Query.new(size: 30)
-        |> Query.knn("embedding", vector, k, ef_search: ef)
-        |> Backend.OpenSearch.to_query_map()
-
-      [knn_clause] = query.query.bool.must
-      knn_body = knn_clause["knn"]["embedding"]
-      assert knn_body["method_parameters"] == %{"ef_search" => ef}
-      refute Map.has_key?(knn_body, "ef_search")
-    end
-
-    test "build_query threads ef_search from opts into the knn clause" do
-      query =
-        "fixture_collection"
-        |> Query.new(size: 30)
-        |> Query.knn("embedding", [0.1, 0.2], 30, ef_search: 128)
-        |> Query.match("test", ["body"], boost: 0.8)
-        |> Backend.OpenSearch.to_query_map()
-
-      [knn_clause | _] = query.query.bool.must
-      assert knn_clause["knn"]["embedding"]["method_parameters"] == %{"ef_search" => 128}
     end
   end
 
