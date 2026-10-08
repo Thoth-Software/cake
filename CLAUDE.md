@@ -110,7 +110,7 @@ Stop and ask before proceeding when:
 
 ## Testing: Ordering and Failure Handling
 
-Tests are the contract; code satisfies it. (Mechanical conventions — fixtures/factory tracks, the no-`Process.sleep` rule — auto-load via `.claude/rules/test-conventions.md` when you touch `test/`.)
+Tests are the contract; code satisfies it. (Mechanical conventions — fixtures/factory tracks, the property-test preference, the no-`Process.sleep` rule — auto-load via `.claude/rules/test-conventions.md` when you touch `test/`.)
 
 **Ordering — for any behavior change:**
 1. **Spec.** User describes the change.
