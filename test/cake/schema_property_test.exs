@@ -61,7 +61,9 @@ defmodule Cake.SchemaPropertyTest do
   end
 
   defp castable_fields(schema) do
-    schema.__schema__(:fields)
+    fields = schema.__schema__(:fields)
+
+    fields
     |> Enum.map(&{&1, schema.__schema__(:type, &1)})
     |> Enum.filter(fn {_field, type} ->
       type in [:string, {:array, :string}, :integer, :boolean]
