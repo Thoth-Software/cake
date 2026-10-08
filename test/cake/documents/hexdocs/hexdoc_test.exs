@@ -36,19 +36,6 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       assert errors[:url]
       assert errors[:content]
     end
-
-    test "sanitizes NUL bytes in string fields" do
-      cs =
-        Hexdoc.changeset(%Hexdoc{}, %{
-          version: "1.0",
-          module: "Foo\0Bar",
-          core: true,
-          url: "https://example.com",
-          content: "some content"
-        })
-
-      assert Ecto.Changeset.get_change(cs, :module) == "FooBar"
-    end
   end
 
   describe "base_query/0 and by_version/2" do

@@ -1,7 +1,8 @@
 defmodule CakeWeb.ChatLive.QuestionFormTest do
   @moduledoc """
-  Unit coverage for the chat question form, including the `sanitize_text_fields/1`
-  hook gained by switching to `use Cake.Schema` (#165).
+  Unit coverage for the chat question form. The `sanitize_text_fields/1` hook
+  gained by switching to `use Cake.Schema` (#165) is pinned for every schema by
+  `Cake.SchemaPropertyTest`.
   """
 
   use ExUnit.Case, async: true
@@ -19,12 +20,6 @@ defmodule CakeWeb.ChatLive.QuestionFormTest do
       refute changeset.valid?
       assert Keyword.has_key?(changeset.errors, :question)
       assert Keyword.has_key?(changeset.errors, :mode)
-    end
-
-    test "strips NUL bytes from the question via sanitize_text_fields/1" do
-      changeset = QuestionForm.changeset(%{"question" => "a\0b", "mode" => "manual"})
-
-      assert Ecto.Changeset.get_change(changeset, :question) == "ab"
     end
   end
 end
