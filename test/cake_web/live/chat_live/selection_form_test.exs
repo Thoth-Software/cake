@@ -1,7 +1,8 @@
 defmodule CakeWeb.ChatLive.SelectionFormTest do
   @moduledoc """
-  Unit coverage for the document-selection form, pinning the subset validation
-  now provided by `Ecto.Changeset.validate_subset/3` (#165).
+  Readable anchors for the document-selection form. The predicate itself (a
+  non-empty subset of the offered ids, blanks dropped) is pinned by
+  `selection_form_property_test.exs`.
   """
 
   use ExUnit.Case, async: true
@@ -20,10 +21,6 @@ defmodule CakeWeb.ChatLive.SelectionFormTest do
 
       refute changeset.valid?
       assert Keyword.has_key?(changeset.errors, :selected_doc_ids)
-    end
-
-    test "drops blank ids from the hidden input before validating" do
-      assert SelectionForm.changeset(%{"selected_doc_ids" => ["", "doc-b"]}, @available).valid?
     end
 
     test "an empty or all-blank selection is invalid (found by the property test)" do
