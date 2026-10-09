@@ -32,10 +32,10 @@ defmodule Cake.Generation.OpenAILiveTest do
       assert {:ok, completion} = OpenAI.complete(@messages, model())
 
       assert completion |> Map.keys() |> Enum.sort() == [:finish_reason, :model, :text, :usage]
-      assert is_binary(completion.text)
+      # Both fields are binaries by construction (the parser guards them, and
+      # the compiler now checks that); the live test pins their content.
       assert String.trim(completion.text) != ""
       # The provider reports the resolved snapshot (e.g. "gpt-4o-mini-2024-07-18").
-      assert is_binary(completion.model)
       assert String.starts_with?(completion.model, model())
     end
 
