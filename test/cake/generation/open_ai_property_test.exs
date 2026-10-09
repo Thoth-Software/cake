@@ -168,7 +168,8 @@ defmodule Cake.Generation.OpenAIPropertyTest do
 
       case OpenAI.complete(@default_messages, @default_model) do
         {:ok, %{text: text, finish_reason: reason, usage: usage, model: model}} ->
-          assert is_binary(text) and text != ""
+          assert is_binary(text)
+          assert text != ""
           assert reason in [:stop, :length]
           assert Enum.sort(Map.keys(usage)) == [:input_tokens, :output_tokens, :total_tokens]
           assert Enum.all?(Map.values(usage), &(is_integer(&1) and &1 >= 0))

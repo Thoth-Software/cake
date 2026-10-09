@@ -32,9 +32,11 @@ defmodule Cake.Generation.OpenAILiveTest do
       assert {:ok, completion} = OpenAI.complete(@messages, model())
 
       assert completion |> Map.keys() |> Enum.sort() == [:finish_reason, :model, :text, :usage]
-      assert is_binary(completion.text) and String.trim(completion.text) != ""
+      assert is_binary(completion.text)
+      assert String.trim(completion.text) != ""
       # The provider reports the resolved snapshot (e.g. "gpt-4o-mini-2024-07-18").
-      assert is_binary(completion.model) and String.starts_with?(completion.model, model())
+      assert is_binary(completion.model)
+      assert String.starts_with?(completion.model, model())
     end
 
     test "maps a naturally finished reply to finish_reason :stop" do
@@ -46,8 +48,10 @@ defmodule Cake.Generation.OpenAILiveTest do
 
       assert %{input_tokens: input, output_tokens: output, total_tokens: total} = usage
       assert map_size(usage) == 3
-      assert is_integer(input) and input > 0
-      assert is_integer(output) and output > 0
+      assert is_integer(input)
+      assert is_integer(output)
+      assert input > 0
+      assert output > 0
       assert total == input + output
     end
 
