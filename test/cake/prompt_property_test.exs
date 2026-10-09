@@ -506,7 +506,7 @@ defmodule Cake.PromptPropertyTest do
             query <- one_of([constant(nil), string(:utf8, max_length: 40)])
           ) do
       parsed = %{"reasoning" => reasoning, "retrieval_query" => query}
-      assert {:ok, _} = {:ok, ExJsonSchema.Validator.validate(Prompt.ircot_schema(), parsed)}
+      assert :ok = ExJsonSchema.Validator.validate(Prompt.ircot_schema(), parsed)
 
       case Prompt.parse_ircot_response(parsed) do
         {:done, answer} ->
