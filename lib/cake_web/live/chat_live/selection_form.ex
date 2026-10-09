@@ -39,8 +39,10 @@ defmodule CakeWeb.ChatLive.SelectionForm do
     |> sanitize_text_fields()
   end
 
+  # nil counts as empty too: no form submits it, but a hand-crafted event or
+  # a programmatic caller can, and nil would otherwise slip past both checks.
   defp validate_non_empty_selection(changeset) do
-    if get_field(changeset, :selected_doc_ids) == [] do
+    if get_field(changeset, :selected_doc_ids) in [nil, []] do
       add_error(changeset, :selected_doc_ids, "should have at least %{count} item(s)",
         count: 1,
         validation: :length,
@@ -54,6 +56,10 @@ defmodule CakeWeb.ChatLive.SelectionForm do
 
   defp filter_empty_doc_ids(%{"selected_doc_ids" => ids} = attrs) when is_list(ids) do
     %{attrs | "selected_doc_ids" => Enum.reject(ids, &(&1 == ""))}
+  end
+
+  defp filter_empty_doc_ids(%{"selected_doc_ids" => nil} = attrs) do
+    %{attrs | "selected_doc_ids" => []}
   end
 
   defp filter_empty_doc_ids(attrs), do: attrs

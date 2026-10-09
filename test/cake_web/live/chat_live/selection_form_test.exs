@@ -23,8 +23,8 @@ defmodule CakeWeb.ChatLive.SelectionFormTest do
       assert Keyword.has_key?(changeset.errors, :selected_doc_ids)
     end
 
-    test "an empty or all-blank selection is invalid (found by the property test)" do
-      for picks <- [[], [""], ["", ""]] do
+    test "an empty, all-blank or nil selection is invalid (found by the property test and review)" do
+      for picks <- [[], [""], ["", ""], nil] do
         changeset = SelectionForm.changeset(%{"selected_doc_ids" => picks}, @available)
 
         refute changeset.valid?
