@@ -162,6 +162,18 @@ defmodule Cake.Generation.OpenAITest do
       end
     end
 
+    test "an explicit null usage is zero usage, unlike an absent key (review finding)" do
+      Req.Test.stub(OpenAI, fn conn ->
+        Req.Test.json(conn, %{
+          "output" => [%{"status" => "completed", "content" => [%{"text" => "Hi"}]}],
+          "usage" => nil
+        })
+      end)
+
+      assert {:ok, %{usage: %{input_tokens: 0, output_tokens: 0, total_tokens: 0}}} =
+               OpenAI.complete(@default_messages, @default_model)
+    end
+
     test "falls back to zero usage when the shape is unrecognized" do
       Req.Test.stub(OpenAI, fn conn ->
         Req.Test.json(conn, %{
@@ -267,6 +279,13 @@ defmodule Cake.Generation.OpenAITest do
   # ---------------------------------------------------------------------------
 
   describe "complete/3 errors — malformed 200 bodies" do
+    test "a body that is not a map returns {:malformed_response, _, body} (review finding)" do
+      Req.Test.stub(OpenAI, fn conn -> Req.Test.json(conn, ["not", "an", "object"]) end)
+
+      assert {:error, {:malformed_response, "missing output key", ["not", "an", "object"]}} =
+               OpenAI.complete(@default_messages, @default_model)
+    end
+
     test "missing output key returns {:malformed_response, _, body}" do
       Req.Test.stub(OpenAI, fn conn ->
         Req.Test.json(conn, %{"usage" => %{}, "model" => "gpt-4"})

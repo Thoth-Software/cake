@@ -106,12 +106,21 @@ defmodule Cake.Generation.OpenAIPropertyTest do
     end
   end
 
+  # Presence is drawn separately from the value, so an explicit JSON null is
+  # its own case, distinct from an absent key: `{"usage": null}` normalises
+  # to zero usage, while a body with no usage key is a malformed response.
+  defp field(value_gen), do: one_of([constant(:absent), map(value_gen, &{:present, &1})])
+
+  defp put_field(body, _key, :absent), do: body
+  defp put_field(body, key, {:present, value}), do: Map.put(body, key, value)
+
+  # `json_scalar/0` includes nil, so every field below can be an explicit null.
   defp loose_output do
-    maybe(one_of([list_of(output_item(), max_length: 3), json_scalar(), json_map()]))
+    field(one_of([list_of(output_item(), max_length: 3), json_scalar(), json_map()]))
   end
 
   defp loose_usage do
-    maybe(
+    field(
       one_of([
         responses_usage(loose_count()),
         legacy_usage(loose_count()),
@@ -121,19 +130,27 @@ defmodule Cake.Generation.OpenAIPropertyTest do
     )
   end
 
-  defp loose_model,
-    do: maybe(one_of([string(:alphanumeric, min_length: 1, max_length: 12), integer()]))
+  defp loose_model do
+    field(
+      one_of([string(:alphanumeric, min_length: 1, max_length: 12), integer(), constant(nil)])
+    )
+  end
 
-  # A 200 body of arbitrary shape: each of output, usage and model present or
-  # absent, and when present as a list or a scalar, a known usage shape with
-  # well- or wrong-typed counts or junk, a string or a number for the model.
-  defp arbitrary_body do
+  defp map_body do
     gen all(output <- loose_output(), usage <- loose_usage(), model <- loose_model()) do
       %{}
-      |> put_present("output", output)
-      |> put_present("usage", usage)
-      |> put_present("model", model)
+      |> put_field("output", output)
+      |> put_field("usage", usage)
+      |> put_field("model", model)
     end
+  end
+
+  # A 200 body of arbitrary shape: a map whose output, usage and model are
+  # each absent, null, well-typed or wrong-typed independently; or no map at
+  # all (a scalar, a list), which the provider never sends but the parser
+  # must still answer with an error tuple.
+  defp arbitrary_body do
+    one_of([map_body(), json_scalar(), list_of(json_scalar(), max_length: 3)])
   end
 
   # The header forms Req itself accepts. Req reads Retry-After for its own
