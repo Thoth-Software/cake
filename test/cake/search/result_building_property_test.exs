@@ -110,39 +110,39 @@ defmodule Cake.Search.ResultBuildingPropertyTest do
   # ---------------------------------------------------------------------------
 
   property "every hit's unit is a :search result carrying that hit's backend score" do
-    check all(case <- retrieval_case()) do
-      ExpandingGDS.put_corpus(case.corpus)
-      results = search!(ExpandingGDS, case)
+    check all(scenario <- retrieval_case()) do
+      ExpandingGDS.put_corpus(scenario.corpus)
+      results = search!(ExpandingGDS, scenario)
 
       direct = Enum.filter(results, &(&1.hit_source == :search))
 
-      assert ids(direct) == hit_ids(case.hits)
+      assert ids(direct) == hit_ids(scenario.hits)
 
       for %Result{retrieval_unit: unit, backend_score: score} <- direct do
-        assert score == Enum.find(case.hits, &(&1.id == unit.id)).score
+        assert score == Enum.find(scenario.hits, &(&1.id == unit.id)).score
       end
     end
   end
 
   property "every neighbour the expansion adds is an :expansion result with no backend score, and nothing else appears" do
-    check all(case <- retrieval_case()) do
-      ExpandingGDS.put_corpus(case.corpus)
-      results = search!(ExpandingGDS, case)
+    check all(scenario <- retrieval_case()) do
+      ExpandingGDS.put_corpus(scenario.corpus)
+      results = search!(ExpandingGDS, scenario)
 
       expansions = Enum.filter(results, &(&1.hit_source == :expansion))
 
-      assert ids(expansions) == neighbour_ids(case) -- hit_ids(case.hits)
+      assert ids(expansions) == neighbour_ids(scenario) -- hit_ids(scenario.hits)
       assert Enum.all?(expansions, &is_nil(&1.backend_score))
-      assert ids(results) == neighbour_ids(case)
+      assert ids(results) == neighbour_ids(scenario)
     end
   end
 
   property "every result names the GDS's collection and shares one provenance from the search type and query text" do
-    check all(case <- retrieval_case()) do
-      ExpandingGDS.put_corpus(case.corpus)
-      results = search!(ExpandingGDS, case)
+    check all(scenario <- retrieval_case()) do
+      ExpandingGDS.put_corpus(scenario.corpus)
+      results = search!(ExpandingGDS, scenario)
 
-      expected = %Provenance{search_type: case.type, query_text: case.query_text}
+      expected = %Provenance{search_type: scenario.type, query_text: scenario.query_text}
 
       for %Result{} = result <- results do
         assert result.index == ExpandingGDS.collection_name()
@@ -155,10 +155,10 @@ defmodule Cake.Search.ResultBuildingPropertyTest do
   end
 
   property "with an identity expansion (FixtureGDS) the results are exactly the hits and none is an :expansion" do
-    check all(case <- retrieval_case()) do
-      results = search!(FixtureGDS, case)
+    check all(scenario <- retrieval_case()) do
+      results = search!(FixtureGDS, scenario)
 
-      assert ids(results) == hit_ids(case.hits)
+      assert ids(results) == hit_ids(scenario.hits)
       assert Enum.all?(results, &(&1.hit_source == :search))
     end
   end
