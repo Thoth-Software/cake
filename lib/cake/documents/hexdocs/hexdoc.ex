@@ -182,7 +182,7 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
 
   defp extract_doc(doc) when is_list(doc) do
     if Keyword.keyword?(doc) do
-      Enum.map_join(doc, fn {atom, string} -> "#{atom}: #{string}\n" end) <> "\n"
+      Enum.map_join(doc, fn {key, value} -> "#{key}: #{render_doc_value(value)}\n" end) <> "\n"
     else
       extract_single(doc)
     end
@@ -192,4 +192,9 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
 
   defp extract_single([doc]), do: extract_doc(doc)
   defp extract_single(_), do: nil
+
+  # Keyword doc values are usually strings (`since: "1.0"`), but `@doc` metadata
+  # takes any term, and a list or map has no String.Chars implementation.
+  defp render_doc_value(value) when is_binary(value), do: value
+  defp render_doc_value(value), do: inspect(value)
 end

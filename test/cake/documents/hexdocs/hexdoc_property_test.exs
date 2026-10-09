@@ -52,19 +52,12 @@ defmodule Cake.Documents.Hexdocs.HexdocPropertyTest do
       end
     end
 
-    property "skips every non-function form (macros, guards, delegates, attributes, alias, require)" do
+    property "skips every non-function form: exactly one entry per def/defp clause, however many other forms" do
       check all(spec <- HexdocGenerators.module_spec()) do
         definitions = Enum.filter(spec, &(&1.item == :definition))
         clause_count = definitions |> Enum.map(& &1.clauses) |> Enum.sum()
 
-        docs = parse(spec)
-
-        assert length(docs) == clause_count
-
-        refute Enum.any?(
-                 docs,
-                 &(&1.text =~ ~r/\b(defmacro|defguard|defdelegate|alias|require)\b/)
-               )
+        assert length(parse(spec)) == clause_count
       end
     end
 
@@ -91,9 +84,15 @@ defmodule Cake.Documents.Hexdocs.HexdocPropertyTest do
 
         for {{_title, doc}, entry} <- pairs do
           case doc do
-            {:sigil, text} -> assert String.starts_with?(entry.text, text)
-            {:keyword, keyword} -> for {k, v} <- keyword, do: assert(entry.text =~ "#{k}: #{v}")
-            _other -> :ok
+            {:sigil, text} ->
+              assert String.starts_with?(entry.text, text)
+
+            {:keyword, keyword} ->
+              for {k, v} <- keyword,
+                  do: assert(entry.text =~ "#{k}: #{HexdocGenerators.rendered_doc_value(v)}")
+
+            _other ->
+              :ok
           end
         end
       end

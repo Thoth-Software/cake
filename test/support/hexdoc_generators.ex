@@ -147,10 +147,30 @@ defmodule Cake.HexdocGenerators do
       {2, StreamData.constant(nil)},
       {3, StreamData.map(doc_text(), &{:string, &1})},
       {2, StreamData.map(doc_text(), &{:sigil, &1})},
-      {1, StreamData.map(doc_text(), &{:keyword, [since: &1]})},
+      {1, StreamData.map(keyword_doc(), &{:keyword, &1})},
       {1, StreamData.constant(false)}
     ])
   end
+
+  # `@doc` metadata takes any term: a string value, a boolean, or a list.
+  defp keyword_doc do
+    value =
+      StreamData.one_of([
+        doc_text(),
+        StreamData.boolean(),
+        StreamData.list_of(StreamData.atom(:alphanumeric), max_length: 2)
+      ])
+
+    StreamData.map(
+      StreamData.tuple({StreamData.member_of([:since, :deprecated, :group]), value}),
+      fn {key, value} -> [{key, value}] end
+    )
+  end
+
+  @doc "How a keyword doc value appears in the parsed text: strings verbatim, other terms inspected."
+  @spec rendered_doc_value(term()) :: String.t()
+  def rendered_doc_value(value) when is_binary(value), do: value
+  def rendered_doc_value(value), do: inspect(value)
 
   # Alphanumerics and spaces only: safe inside `~S(...)` and `"..."` alike.
   defp doc_text do

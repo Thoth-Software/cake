@@ -162,6 +162,22 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       assert text =~ "since: 1.0"
     end
 
+    test "renders a non-string keyword @doc value with inspect/1 instead of raising (review finding)" do
+      content = """
+      defmodule Example do
+        @doc group: [:collections, :enumerables]
+        def grouped, do: :ok
+
+        @doc guard: true
+        def guarded, do: :ok
+      end
+      """
+
+      assert [%{text: grouped}, %{text: guarded}] = Hexdoc.to_parsed_docs(hexdoc(content))
+      assert grouped =~ "group: [:collections, :enumerables]"
+      assert guarded =~ "guard: true"
+    end
+
     test "module with no functions returns empty list" do
       content = """
       defmodule Empty do
