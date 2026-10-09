@@ -4,7 +4,9 @@ defmodule Cake.Books.PersistenceTest do
   stored order. Persistence is the single source of truth for ordering, so even
   if upstream parsing leaves gaps (a blank page rejected after indexing), the
   persisted chunks must be numbered 0..N-1 with no holes — `expand_with_neighbors`
-  and `within_pages` rely on contiguity.
+  and `within_pages` rely on contiguity. `persistence_property_test.exs` pins
+  the densification for arbitrary incoming indices; the example here is the
+  readable anchor.
   """
   use Cake.DataCase, async: true
 
@@ -46,15 +48,6 @@ defmodule Cake.Books.PersistenceTest do
 
     indices = persisted_chunks |> Enum.map(& &1.chunk_index) |> Enum.sort()
     assert indices == [0, 1, 2]
-  end
-
-  test "stored order matches the incoming chunk order" do
-    chunks = [chunk(0, 1), chunk(2, 3), chunk(5, 6)]
-
-    {:ok, {_book, persisted_chunks}} = Persistence.persist_books_and_chunks({book(), chunks})
-
-    by_index = Enum.sort_by(persisted_chunks, & &1.chunk_index)
-    assert Enum.map(by_index, & &1.page_number) == [1, 3, 6]
   end
 
   test "returns {:error, :invalid_input, _} for non-ParsedBook inputs" do

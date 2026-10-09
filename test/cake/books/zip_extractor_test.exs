@@ -1,4 +1,11 @@
 defmodule Cake.Books.ZipExtractorTest do
+  @moduledoc """
+  Readable anchors for `Cake.Books.ZipExtractor.extract_pdfs/1`. The filter
+  itself (nesting, non-PDF entries, the macOS resource fork, case-insensitive
+  extensions, empty results) is pinned by the round-trip property in
+  `zip_extractor_property_test.exs`.
+  """
+
   use ExUnit.Case, async: true
 
   import Cake.ZipFixtures
@@ -8,73 +15,21 @@ defmodule Cake.Books.ZipExtractorTest do
   defp make_zip(entries), do: zip_binary(entries)
 
   describe "extract_pdfs/1" do
-    test "extracts PDF files from a flat ZIP" do
-      zip = make_zip([{"doc.pdf", "pdf-content"}, {"other.pdf", "other-content"}])
-
-      assert {:ok, pdfs} = ZipExtractor.extract_pdfs(zip)
-      assert length(pdfs) == 2
-      assert {"doc.pdf", "pdf-content"} in pdfs
-      assert {"other.pdf", "other-content"} in pdfs
-    end
-
-    test "extracts PDF files from nested directories" do
+    test "extracts the PDF entries of a mixed archive as {name, bytes} pairs" do
       zip =
         make_zip([
-          {"level1/doc.pdf", "content-1"},
-          {"level1/level2/doc.pdf", "content-2"},
-          {"level1/level2/level3/deep.pdf", "content-3"}
-        ])
-
-      assert {:ok, pdfs} = ZipExtractor.extract_pdfs(zip)
-      assert length(pdfs) == 3
-      assert {"level1/doc.pdf", "content-1"} in pdfs
-      assert {"level1/level2/doc.pdf", "content-2"} in pdfs
-      assert {"level1/level2/level3/deep.pdf", "content-3"} in pdfs
-    end
-
-    test "ignores non-PDF files" do
-      zip =
-        make_zip([
-          {"document.pdf", "pdf-content"},
-          {"image.png", "png-content"},
+          {"doc.pdf", "pdf-content"},
+          {"nested/other.PDF", "other-content"},
           {"readme.txt", "text-content"},
-          {"data.csv", "csv-content"}
+          {"__MACOSX/._doc.pdf", "resource-fork"}
         ])
 
       assert {:ok, pdfs} = ZipExtractor.extract_pdfs(zip)
-      assert length(pdfs) == 1
-      assert {"document.pdf", "pdf-content"} in pdfs
-    end
 
-    test "ignores __MACOSX resource fork entries" do
-      zip =
-        make_zip([
-          {"document.pdf", "pdf-content"},
-          {"__MACOSX/._document.pdf", "resource-fork"},
-          {"__MACOSX/subdir/._other.pdf", "resource-fork-2"}
-        ])
-
-      assert {:ok, pdfs} = ZipExtractor.extract_pdfs(zip)
-      assert length(pdfs) == 1
-      assert {"document.pdf", "pdf-content"} in pdfs
-    end
-
-    test "handles case-insensitive .PDF extension" do
-      zip =
-        make_zip([
-          {"upper.PDF", "content-1"},
-          {"mixed.Pdf", "content-2"},
-          {"lower.pdf", "content-3"}
-        ])
-
-      assert {:ok, pdfs} = ZipExtractor.extract_pdfs(zip)
-      assert length(pdfs) == 3
-    end
-
-    test "returns empty list for ZIP with no PDFs" do
-      zip = make_zip([{"readme.txt", "text"}, {"image.jpg", "image"}])
-
-      assert {:ok, []} = ZipExtractor.extract_pdfs(zip)
+      assert Enum.sort(pdfs) == [
+               {"doc.pdf", "pdf-content"},
+               {"nested/other.PDF", "other-content"}
+             ]
     end
 
     test "returns error for corrupt binary" do

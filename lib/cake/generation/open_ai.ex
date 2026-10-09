@@ -217,7 +217,7 @@ defmodule Cake.Generation.OpenAI do
          text: text,
          finish_reason: finish_reason,
          usage: normalize_usage(usage),
-         model: Map.get(body, "model", "unknown")
+         model: model_name(body)
        }}
     end
   end
@@ -228,25 +228,15 @@ defmodule Cake.Generation.OpenAI do
   defp parse_success(body),
     do: {:error, {:malformed_response, "missing output key", body}}
 
+  # The completion's model is a string; a body with no model, or one that is
+  # not a string, reports "unknown" rather than leaking the odd value.
+  defp model_name(%{"model" => model}) when is_binary(model), do: model
+  defp model_name(_body), do: "unknown"
+
   defp extract_content(output) when is_list(output) do
     case Enum.find(output, &content_item?/1) do
-      nil ->
-        {:error, {:malformed_response, "no content block in output", output}}
-
-      %{"content" => [%{"text" => ""} | _]} = block ->
-        {:error, {:empty_response, block}}
-
-      %{"content" => [%{"text" => text} | _], "status" => "completed"} ->
-        {:ok, text, :stop}
-
-      %{"content" => [%{"text" => text} | _], "status" => "incomplete"} ->
-        {:ok, text, :length}
-
-      %{"content" => [%{"text" => text} | _]} ->
-        {:ok, text, :stop}
-
-      other ->
-        {:error, {:malformed_response, "unexpected content structure", other}}
+      nil -> {:error, {:malformed_response, "no content block in output", output}}
+      block -> classify_block(block)
     end
   end
 
@@ -256,15 +246,38 @@ defmodule Cake.Generation.OpenAI do
   defp content_item?(item) when is_map(item), do: Map.has_key?(item, "content")
   defp content_item?(_), do: false
 
+  # The first content block decides the outcome: empty text is an empty
+  # response, string text a completion whose finish reason follows the
+  # block's status, and anything else (a number, nil, a map) malformed.
+  defp classify_block(%{"content" => [%{"text" => ""} | _]} = block),
+    do: {:error, {:empty_response, block}}
+
+  defp classify_block(%{"content" => [%{"text" => text} | _]} = block) when is_binary(text),
+    do: {:ok, text, finish_reason(block)}
+
+  defp classify_block(other),
+    do: {:error, {:malformed_response, "unexpected content structure", other}}
+
+  defp finish_reason(%{"status" => "incomplete"}), do: :length
+  defp finish_reason(_block), do: :stop
+
   # ---------------------------------------------------------------------------
-  # Usage normalization — handles Responses API and legacy Chat Completions shapes
+  # Usage normalization — handles Responses API and legacy Chat Completions
+  # shapes. Counts that are not non-negative integers fall back to zero usage,
+  # like an unrecognised shape, so the completion's usage type always holds.
   # ---------------------------------------------------------------------------
 
-  defp normalize_usage(%{"input_tokens" => i, "output_tokens" => o, "total_tokens" => t}),
-    do: %{input_tokens: i, output_tokens: o, total_tokens: t}
+  defguardp token_counts?(i, o, t)
+            when is_integer(i) and i >= 0 and is_integer(o) and o >= 0 and is_integer(t) and
+                   t >= 0
 
-  defp normalize_usage(%{"prompt_tokens" => i, "completion_tokens" => o, "total_tokens" => t}),
-    do: %{input_tokens: i, output_tokens: o, total_tokens: t}
+  defp normalize_usage(%{"input_tokens" => i, "output_tokens" => o, "total_tokens" => t})
+       when token_counts?(i, o, t),
+       do: %{input_tokens: i, output_tokens: o, total_tokens: t}
+
+  defp normalize_usage(%{"prompt_tokens" => i, "completion_tokens" => o, "total_tokens" => t})
+       when token_counts?(i, o, t),
+       do: %{input_tokens: i, output_tokens: o, total_tokens: t}
 
   defp normalize_usage(_),
     do: %{input_tokens: 0, output_tokens: 0, total_tokens: 0}

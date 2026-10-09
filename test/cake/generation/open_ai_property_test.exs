@@ -1,16 +1,22 @@
 defmodule Cake.Generation.OpenAIPropertyTest do
   @moduledoc """
-  Property tests for `Cake.Generation.OpenAI.complete_json/3`.
+  Property tests for `Cake.Generation.OpenAI`.
 
-  The core invariant: no matter what the model emits as its output text —
-  valid JSON, malformed JSON, or arbitrary noise — `complete_json/3` always
-  returns a well-formed result tuple and never crashes.
+  The core invariant: whatever the provider sends back — a well-formed
+  Responses API body, a body of arbitrary shape, arbitrary model output text,
+  a 429 with any `Retry-After` header — `complete/3` and `complete_json/3`
+  return a well-formed result tuple from the documented taxonomy and never
+  crash. Usage normalisation is pinned for both shapes the provider has used.
+  Example tests live in `open_ai_test.exs`.
   """
 
   use ExUnit.Case, async: true
   use ExUnitProperties
 
   alias Cake.Generation.OpenAI
+
+  # Every error outcome logs a warning; hundreds of them per property.
+  @moduletag capture_log: true
 
   @default_messages [%{role: "user", content: "hello"}]
   @default_model "gpt-4o"
@@ -20,24 +26,236 @@ defmodule Cake.Generation.OpenAIPropertyTest do
     "properties" => %{"atomic" => %{"type" => "boolean"}}
   }
 
-  property "never crashes on arbitrary model output text" do
+  @error_tags [
+    :transport,
+    :timeout,
+    :rate_limited,
+    :auth,
+    :http,
+    :malformed_response,
+    :malformed_json,
+    :empty_response,
+    :content_filtered,
+    :provider_error
+  ]
+
+  # ---------------------------------------------------------------------------
+  # Generators
+  # ---------------------------------------------------------------------------
+
+  defp json_scalar,
+    do: one_of([string(:printable, max_length: 12), integer(), boolean(), constant(nil)])
+
+  # A JSON-shaped map of up to three arbitrary keys.
+  defp json_map,
+    do: map_of(string(:alphanumeric, min_length: 1, max_length: 6), json_scalar(), max_length: 3)
+
+  defp maybe(gen), do: one_of([constant(nil), gen])
+
+  # A content block in the shape the parser reads, with each status it knows
+  # (and one it does not, and none).
+  # The text is usually a string; a number, nil or a map in its place must
+  # not come out as a completion.
+  defp content_block do
+    gen all(
+          text <-
+            one_of([string(:printable, max_length: 20), integer(), constant(nil), json_map()]),
+          status <- maybe(member_of(["completed", "incomplete", "other"]))
+        ) do
+      put_present(%{"content" => [%{"text" => text}]}, "status", status)
+    end
+  end
+
+  # One item of the output list: a content block, a map with a content key of
+  # the wrong shape, an arbitrary map, or a scalar.
+  defp output_item do
+    one_of([
+      content_block(),
+      map(json_map(), &Map.put(&1, "content", "not a list")),
+      map(json_map(), &Map.put(&1, "content", [])),
+      json_map(),
+      json_scalar()
+    ])
+  end
+
+  defp put_present(map, _key, nil), do: map
+  defp put_present(map, key, value), do: Map.put(map, key, value)
+
+  defp valid_count, do: integer(0..20_000)
+
+  # A count as the provider should send it, or wrong-typed in its place: a
+  # numeric string, a negative number, nil.
+  defp loose_count do
+    one_of([
+      valid_count(),
+      map(valid_count(), &Integer.to_string/1),
+      integer(-100..-1),
+      constant(nil)
+    ])
+  end
+
+  defp responses_usage(count \\ valid_count()) do
+    gen all(i <- count, o <- count, t <- count) do
+      %{"input_tokens" => i, "output_tokens" => o, "total_tokens" => t}
+    end
+  end
+
+  defp legacy_usage(count \\ valid_count()) do
+    gen all(i <- count, o <- count, t <- count) do
+      %{"prompt_tokens" => i, "completion_tokens" => o, "total_tokens" => t}
+    end
+  end
+
+  # Presence is drawn separately from the value, so an explicit JSON null is
+  # its own case, distinct from an absent key: `{"usage": null}` normalises
+  # to zero usage, while a body with no usage key is a malformed response.
+  defp field(value_gen), do: one_of([constant(:absent), map(value_gen, &{:present, &1})])
+
+  defp put_field(body, _key, :absent), do: body
+  defp put_field(body, key, {:present, value}), do: Map.put(body, key, value)
+
+  # `json_scalar/0` includes nil, so every field below can be an explicit null.
+  defp loose_output do
+    field(one_of([list_of(output_item(), max_length: 3), json_scalar(), json_map()]))
+  end
+
+  defp loose_usage do
+    field(
+      one_of([
+        responses_usage(loose_count()),
+        legacy_usage(loose_count()),
+        json_map(),
+        json_scalar()
+      ])
+    )
+  end
+
+  defp loose_model do
+    field(
+      one_of([string(:alphanumeric, min_length: 1, max_length: 12), integer(), constant(nil)])
+    )
+  end
+
+  defp map_body do
+    gen all(output <- loose_output(), usage <- loose_usage(), model <- loose_model()) do
+      %{}
+      |> put_field("output", output)
+      |> put_field("usage", usage)
+      |> put_field("model", model)
+    end
+  end
+
+  # A 200 body of arbitrary shape: a map whose output, usage and model are
+  # each absent, null, well-typed or wrong-typed independently; or no map at
+  # all (a scalar, a list), which the provider never sends but the parser
+  # must still answer with an error tuple.
+  defp arbitrary_body do
+    one_of([map_body(), json_scalar(), list_of(json_scalar(), max_length: 3)])
+  end
+
+  # The header forms Req itself accepts. Req reads Retry-After for its own
+  # retry schedule before this module sees the response, and raises on
+  # anything but a bare integer or an HTTP date, so other shapes are Req's
+  # contract, not this module's. `nil` means no header at all.
+  defp retry_after_header do
+    one_of([
+      map(integer(0..100_000), &Integer.to_string/1),
+      map(
+        integer(0..3_600),
+        &Req.Utils.format_http_date(DateTime.add(~U[2030-01-01 00:00:00Z], &1))
+      ),
+      constant(nil)
+    ])
+  end
+
+  defp put_retry_after(conn, nil), do: conn
+  defp put_retry_after(conn, header), do: Plug.Conn.put_resp_header(conn, "retry-after", header)
+
+  defp stub_200(body), do: Req.Test.stub(OpenAI, &Req.Test.json(&1, body))
+
+  defp taxonomy_tag({:error, reason}) when is_tuple(reason), do: elem(reason, 0)
+
+  # ---------------------------------------------------------------------------
+  # Properties
+  # ---------------------------------------------------------------------------
+
+  property "complete/3 never crashes on a 200 body of arbitrary shape, and a success satisfies completion()" do
+    check all(body <- arbitrary_body()) do
+      stub_200(body)
+
+      case OpenAI.complete(@default_messages, @default_model) do
+        {:ok, %{text: text, finish_reason: reason, usage: usage, model: model}} ->
+          assert is_binary(text)
+          assert text != ""
+          assert reason in [:stop, :length]
+          assert Enum.sort(Map.keys(usage)) == [:input_tokens, :output_tokens, :total_tokens]
+          assert Enum.all?(Map.values(usage), &(is_integer(&1) and &1 >= 0))
+          assert is_binary(model)
+
+        {:error, _reason} = error ->
+          assert taxonomy_tag(error) in @error_tags
+      end
+    end
+  end
+
+  property "complete_json/3 never crashes on arbitrary model output text" do
     check all(text <- StreamData.string(:printable)) do
-      Req.Test.stub(OpenAI, fn conn ->
-        Req.Test.json(conn, %{
-          "output" => [%{"status" => "completed", "content" => [%{"text" => text}]}],
-          "usage" => %{"input_tokens" => 1, "output_tokens" => 1, "total_tokens" => 2},
-          "model" => "gpt-4o"
-        })
-      end)
+      stub_200(%{
+        "output" => [%{"status" => "completed", "content" => [%{"text" => text}]}],
+        "usage" => %{"input_tokens" => 1, "output_tokens" => 1, "total_tokens" => 2},
+        "model" => "gpt-4o"
+      })
 
       result = OpenAI.complete_json(@default_messages, @default_model, schema: @object_schema)
 
-      # The invariant is no-crash: always a well-formed result tuple. Decodable,
-      # schema-valid output yields {:ok, %{parsed}}; everything else is an
-      # {:error, reason} from the taxonomy (:malformed_json for bad/invalid
-      # JSON, :empty_response for empty model output, etc.).
+      # Decodable, schema-valid output yields {:ok, %{parsed}}; everything
+      # else an {:error, reason} from the taxonomy (:malformed_json for bad or
+      # invalid JSON, :empty_response for empty model output, and so on).
       assert match?({:ok, %{parsed: parsed}} when is_map(parsed), result) or
-               match?({:error, _reason}, result)
+               taxonomy_tag(result) in @error_tags
+    end
+  end
+
+  property "a 429 yields {:rate_limited, seconds | nil}: seconds from an integer Retry-After, nil from a date or none" do
+    check all(header <- retry_after_header()) do
+      Req.Test.stub(OpenAI, fn conn ->
+        conn
+        |> put_retry_after(header)
+        |> Plug.Conn.put_status(429)
+        |> Req.Test.json(%{"error" => %{"message" => "rate limit"}})
+      end)
+
+      assert {:error, {:rate_limited, retry_after}} =
+               OpenAI.complete(@default_messages, @default_model, max_retries: 0)
+
+      # An integer header is surfaced as seconds; a date header (or none) as nil.
+      case header && Integer.parse(header) do
+        {seconds, ""} -> assert retry_after == seconds
+        _date_or_absent -> assert retry_after == nil
+      end
+    end
+  end
+
+  property "usage is normalised to the three atom keys from either provider shape, values intact" do
+    check all(usage <- one_of([responses_usage(), legacy_usage()])) do
+      stub_200(%{
+        "output" => [%{"status" => "completed", "content" => [%{"text" => "ok"}]}],
+        "usage" => usage
+      })
+
+      assert {:ok, %{usage: normalised}} = OpenAI.complete(@default_messages, @default_model)
+
+      [input, output] =
+        case usage do
+          %{"input_tokens" => i, "output_tokens" => o} -> [i, o]
+          %{"prompt_tokens" => i, "completion_tokens" => o} -> [i, o]
+        end
+
+      assert normalised == %{
+               input_tokens: input,
+               output_tokens: output,
+               total_tokens: usage["total_tokens"]
+             }
     end
   end
 end

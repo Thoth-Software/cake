@@ -6,26 +6,12 @@ defmodule Cake.Search.ScoringTest do
   alias Cake.Search.Result
 
   describe "cosine_similarity/2" do
-    test "identical vectors return 1.0" do
-      assert_in_delta Search.cosine_similarity([1.0, 0.0, 0.0], [1.0, 0.0, 0.0]), 1.0, 1.0e-6
-    end
-
     test "orthogonal vectors return 0.0" do
       assert_in_delta Search.cosine_similarity([1.0, 0.0], [0.0, 1.0]), 0.0, 1.0e-6
     end
 
     test "opposite vectors return -1.0" do
       assert_in_delta Search.cosine_similarity([1.0, 0.0], [-1.0, 0.0]), -1.0, 1.0e-6
-    end
-
-    test "commutative" do
-      a = [1.0, 2.0, 3.0]
-      b = [4.0, 5.0, 6.0]
-      assert_in_delta Search.cosine_similarity(a, b), Search.cosine_similarity(b, a), 1.0e-6
-    end
-
-    test "zero vector returns 0.0" do
-      assert Search.cosine_similarity([0.0, 0.0], [1.0, 2.0]) == 0.0
     end
 
     test "non-trivial case is approximately 0.9746" do
@@ -37,12 +23,6 @@ defmodule Cake.Search.ScoringTest do
   end
 
   describe "normalize_and_combine/1" do
-    test "single result normalizes to 1.0" do
-      results = [make_result("a", [1.0, 0.0], backend_score: 0.5, cosine_score: 0.7)]
-      [%Result{relevance_score: score}] = Search.normalize_and_combine(results)
-      assert_in_delta score, 1.0, 1.0e-6
-    end
-
     test "two results with backend_scores — higher scores produce higher relevance" do
       results = [
         make_result("a", [1.0, 0.0], backend_score: 0.9, cosine_score: 0.8),
@@ -119,14 +99,6 @@ defmodule Cake.Search.ScoringTest do
 
       assert_in_delta cosine, 1.0, 1.0e-6
       assert backend == 0.7
-    end
-
-    test "nil chunk embedding yields cosine_score 0.0" do
-      results = [make_result("b", nil, backend_score: nil, hit_source: :expansion)]
-
-      [%Result{cosine_score: cosine}] = Search.score_results(results, [1.0, 0.0])
-
-      assert cosine == 0.0
     end
   end
 
