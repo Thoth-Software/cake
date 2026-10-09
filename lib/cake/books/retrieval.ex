@@ -42,12 +42,18 @@ defmodule Cake.Books.Retrieval do
   2. For each book, computes the union of chunk index ranges [index - offset, index + offset]
   3. Merges overlapping ranges to avoid redundant queries
   4. Fetches all chunks in those ranges from Postgres
-  5. Returns a deduplicated, ordered list with `:parsed_book` preloaded
+  5. Returns a deduplicated list with `:parsed_book` preloaded, ordered by
+     `chunk_index` within each book
 
   The offset controls how many chunks on each side of a hit are included.
   An offset of 2 means each hit brings in up to 4 neighbors (2 before, 2 after),
   though in practice overlapping hits within the same book will merge into
   contiguous windows.
+
+  The within-book ordering is a guarantee, not a side effect of the range
+  queries: a caller reading the expansion knows which chunks precede and
+  which follow a hit. The order of the books relative to each other is not
+  specified.
 
   ## Examples
 
@@ -67,6 +73,10 @@ defmodule Cake.Books.Retrieval do
     |> Enum.uniq_by(& &1.id)
   end
 
+  # The merged ranges are sorted and disjoint and each range query is ordered,
+  # so the concatenation is already ascending; the final sort makes the
+  # within-book ordering the function's contract rather than an accident of
+  # merge_ranges/1.
   defp fetch_neighbor_ranges(book_id, book_chunks, offset) do
     book_chunks
     |> Enum.map(fn c -> {max(c.chunk_index - offset, 0), c.chunk_index + offset} end)
@@ -80,6 +90,7 @@ defmodule Cake.Books.Retrieval do
       |> Repo.all()
       |> Repo.preload(:parsed_book)
     end)
+    |> Enum.sort_by(& &1.chunk_index)
   end
 
   defp merge_ranges([]), do: []

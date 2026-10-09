@@ -419,4 +419,105 @@ defmodule Cake.PromptPropertyTest do
       assert parse_self_ask("#{prefix}\nSo the final answer is: #{answer}") == {:final, answer}
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # estimate_tokens/1, the IRCoT step budget, parse_ircot_response/1
+  # ---------------------------------------------------------------------------
+
+  property "estimate_tokens/1 is the character count over four, rounded up, and zero only for the empty string" do
+    check all(text <- string(:utf8, max_length: 200)) do
+      length = String.length(text)
+      estimate = Prompt.estimate_tokens(text)
+
+      assert estimate == div(length + 3, 4)
+      assert estimate == 0 == (text == "")
+      assert estimate >= Prompt.estimate_tokens(String.slice(text, 0, div(length, 2)))
+    end
+  end
+
+  defp ircot_step do
+    gen all(
+          reasoning <- string(:alphanumeric, min_length: 1, max_length: 40),
+          context <- one_of([constant([]), indexed_chunks()])
+        ) do
+      {reasoning, context}
+    end
+  end
+
+  defp ircot_steps, do: list_of(ircot_step(), max_length: 6)
+
+  # Mirrors the step-cost model ircot_prompt/3 budgets by: the reasoning plus
+  # every retrieved chunk's prompt context.
+  defp ircot_step_cost({reasoning, context}) do
+    context_cost =
+      context
+      |> Enum.map(fn {_index, %Result{retrieval_unit: unit}} ->
+        Prompt.estimate_tokens(Cake.Promptable.prompt_context(unit))
+      end)
+      |> Enum.sum()
+
+    Prompt.estimate_tokens(reasoning) + context_cost
+  end
+
+  property "ircot_prompt/3 is [system, user] with the question verbatim, and a zero budget folds nothing in" do
+    check all(q <- question(), steps <- ircot_steps()) do
+      assert [%{role: "system", content: system}, %{role: "user", content: ^q}] =
+               Prompt.ircot_prompt(q, steps, max_context_tokens: 0)
+
+      assert system == Prompt.ircot_system_message()
+    end
+  end
+
+  property "ircot_prompt/3 keeps the newest suffix of steps whose summed cost fits the budget" do
+    check all(q <- question(), steps <- ircot_steps(), budget <- integer(1..400)) do
+      [%{role: "system", content: system} | _] =
+        Prompt.ircot_prompt(q, steps, max_context_tokens: budget)
+
+      # The kept steps are the longest suffix that fits.
+      kept =
+        steps
+        |> Enum.reverse()
+        |> Enum.reduce_while({[], 0}, fn step, {acc, total} ->
+          cost = ircot_step_cost(step)
+
+          if total + cost <= budget,
+            do: {:cont, {[step | acc], total + cost}},
+            else: {:halt, {acc, total}}
+        end)
+        |> elem(0)
+
+      # The kept steps are rendered in order as "Step 1: ..." through
+      # "Step N: ..." and no "Step N+1:" follows. Reasoning text is
+      # alphanumeric and the markers carry a colon, so the markers count
+      # exactly even when an evicted step's reasoning equals a kept one's.
+      for {{reasoning, _context}, index} <- Enum.with_index(kept, 1) do
+        assert String.contains?(system, "Step #{index}: #{reasoning}")
+      end
+
+      refute String.contains?(system, "Step #{length(kept) + 1}:")
+      if kept == [], do: assert(system == Prompt.ircot_system_message())
+      assert kept |> Enum.map(&ircot_step_cost/1) |> Enum.sum() <= budget
+    end
+  end
+
+  property "parse_ircot_response/1 is total over schema-valid replies: a blank or null query is :done, anything else :continue" do
+    check all(
+            reasoning <- string(:utf8, max_length: 40),
+            query <- one_of([constant(nil), string(:utf8, max_length: 40)])
+          ) do
+      parsed = %{"reasoning" => reasoning, "retrieval_query" => query}
+      assert :ok = ExJsonSchema.Validator.validate(Prompt.ircot_schema(), parsed)
+
+      case Prompt.parse_ircot_response(parsed) do
+        {:done, answer} ->
+          assert answer == String.trim(reasoning)
+          assert is_nil(query) or String.trim(query) == ""
+
+        {:continue, step, next_query} ->
+          assert step == String.trim(reasoning)
+          assert next_query == String.trim(query)
+          assert next_query != ""
+      end
+    end
+  end
 end

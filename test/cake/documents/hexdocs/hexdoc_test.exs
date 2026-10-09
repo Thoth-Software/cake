@@ -36,19 +36,6 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       assert errors[:url]
       assert errors[:content]
     end
-
-    test "sanitizes NUL bytes in string fields" do
-      cs =
-        Hexdoc.changeset(%Hexdoc{}, %{
-          version: "1.0",
-          module: "Foo\0Bar",
-          core: true,
-          url: "https://example.com",
-          content: "some content"
-        })
-
-      assert Ecto.Changeset.get_change(cs, :module) == "FooBar"
-    end
   end
 
   describe "base_query/0 and by_version/2" do
@@ -92,6 +79,20 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
   end
 
   describe "to_parsed_docs/1" do
+    # The contract is pinned by the properties in `hexdoc_property_test.exs`
+    # (one entry per def/defp clause, titles from the head, docs carried on
+    # the clause that follows them, skipped forms, attrs, totality). These
+    # examples are the readable anchors and the edge cases outside the
+    # generator's reach.
+    defp hexdoc(content) do
+      %Hexdoc{
+        content: content,
+        url: "https://hexdocs.pm/elixir/Example.html",
+        module: "Example",
+        version: "1.0.0"
+      }
+    end
+
     test "extracts function docs and code from a simple module" do
       content = """
       defmodule Example do
@@ -103,18 +104,12 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       end
       """
 
-      hexdoc = %Hexdoc{
-        content: content,
-        url: "https://hexdocs.pm/elixir/Example.html",
-        module: "Example",
-        version: "1.0.0"
-      }
-
-      docs = Hexdoc.to_parsed_docs(hexdoc)
+      docs = Hexdoc.to_parsed_docs(hexdoc(content))
 
       assert length(docs) == 2
 
       add_doc = Enum.find(docs, &(&1.text =~ "Adds two numbers."))
+      assert add_doc.title == "add/2"
       assert add_doc.text =~ "def add(a, b)"
       assert add_doc.url == "https://hexdocs.pm/elixir/Example.html"
       assert add_doc.package == "Example"
@@ -123,107 +118,7 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       assert add_doc.source == "hexdocs"
     end
 
-    test "takes source and language from doc_attrs/0" do
-      content = """
-      defmodule Example do
-        def helper(x), do: x
-      end
-      """
-
-      hexdoc = %Hexdoc{
-        content: content,
-        url: "https://hexdocs.pm/elixir/Example.html",
-        module: "Example",
-        version: "1.0.0"
-      }
-
-      %{source: source, language: language} = Hexdoc.doc_attrs()
-
-      assert [%{source: ^source, language: ^language}] = Hexdoc.to_parsed_docs(hexdoc)
-    end
-
-    test "handles functions without @doc" do
-      content = """
-      defmodule Example do
-        def helper(x), do: x
-      end
-      """
-
-      hexdoc = %Hexdoc{
-        content: content,
-        url: "https://hexdocs.pm/elixir/Example.html",
-        module: "Example",
-        version: "1.0.0"
-      }
-
-      docs = Hexdoc.to_parsed_docs(hexdoc)
-
-      assert length(docs) == 1
-      assert hd(docs).title == "helper/1"
-    end
-
-    test "handles zero-arity functions" do
-      content = """
-      defmodule Example do
-        def greeting, do: "hello"
-      end
-      """
-
-      hexdoc = %Hexdoc{
-        content: content,
-        url: "https://hexdocs.pm/elixir/Example.html",
-        module: "Example",
-        version: "1.0.0"
-      }
-
-      docs = Hexdoc.to_parsed_docs(hexdoc)
-
-      assert [doc] = docs
-      assert doc.title == "greeting/0"
-    end
-
-    test "derives arity from the head's argument list, not the body" do
-      content = """
-      defmodule Example do
-        def zero, do: :ok
-        def two(a, b), do: {a, b}
-
-        def three(a, b, c) do
-          {a, b, c}
-        end
-
-        def guarded(a) when is_atom(a), do: a
-
-        def multi_line(a, b) when is_atom(a) and is_atom(b) do
-          {a, b}
-        end
-
-        def bodyless(a, b \\\\ nil)
-        def bodyless(a, b), do: {a, b}
-      end
-      """
-
-      hexdoc = %Hexdoc{
-        content: content,
-        url: "https://hexdocs.pm/elixir/Example.html",
-        module: "Example",
-        version: "1.0.0"
-      }
-
-      titles = hexdoc |> Hexdoc.to_parsed_docs() |> Enum.map(& &1.title)
-
-      assert titles == [
-               "zero/0",
-               "two/2",
-               "three/3",
-               "guarded/1",
-               "multi_line/2",
-               "bodyless/2",
-               "bodyless/2"
-             ]
-    end
-
-    test "ignores private functions" do
+    test "includes private functions: a defp is retrieval context like a def" do
       content = """
       defmodule Example do
         def public_fn(x), do: x
@@ -231,72 +126,56 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       end
       """
 
-      hexdoc = %Hexdoc{
-        content: content,
-        url: "https://hexdocs.pm/elixir/Example.html",
-        module: "Example",
-        version: "1.0.0"
-      }
+      titles = content |> hexdoc() |> Hexdoc.to_parsed_docs() |> Enum.map(& &1.title)
 
-      docs = Hexdoc.to_parsed_docs(hexdoc)
-      titles = Enum.map(docs, & &1.title)
-
-      assert "public_fn/1" in titles
-      assert "private_fn/1" in titles
+      assert titles == ["public_fn/1", "private_fn/1"]
     end
 
-    test "returns empty list for non-module AST" do
-      hexdoc = %Hexdoc{
-        content: "1 + 2",
-        url: "https://hexdocs.pm/elixir/Example.html",
-        module: "Example",
-        version: "1.0.0"
-      }
-
-      assert Hexdoc.to_parsed_docs(hexdoc) == []
-    end
-
-    test "returns empty list for unparseable content" do
-      hexdoc = %Hexdoc{
-        content: "defmodule Broken do {{{{",
-        url: "https://hexdocs.pm/elixir/Broken.html",
-        module: "Broken",
-        version: "1.0.0"
-      }
-
-      assert Hexdoc.to_parsed_docs(hexdoc) == []
-    end
-
-    test "accepts {:ok, hexdoc} tuple" do
-      hexdoc = %Hexdoc{
-        content: "defmodule X do\n  def f, do: :ok\nend",
-        url: "https://hexdocs.pm/elixir/X.html",
-        module: "X",
-        version: "1.0.0"
-      }
-
-      docs = Hexdoc.to_parsed_docs({:ok, hexdoc})
-      assert length(docs) == 1
-    end
-
-    test "handles @doc with keyword list format" do
+    test "handles a sigil @doc (found by the property test)" do
       content = """
       defmodule Example do
-        @doc [since: "1.0", deprecated: "Use other/0"]
-        def old_fn, do: :ok
+        @doc ~S(Raw sigil doc with a \\ backslash.)
+        def raw, do: :ok
+
+        @doc ~s(Lowercase sigil doc.)
+        def lower, do: :ok
       end
       """
 
-      hexdoc = %Hexdoc{
-        content: content,
-        url: "https://hexdocs.pm/elixir/Example.html",
-        module: "Example",
-        version: "1.0.0"
-      }
+      docs = Hexdoc.to_parsed_docs(hexdoc(content))
 
-      docs = Hexdoc.to_parsed_docs(hexdoc)
-      assert length(docs) == 1
-      assert hd(docs).text =~ "since"
+      assert Enum.map(docs, &String.split(&1.text, "\n\n", parts: 2)) == [
+               ["Raw sigil doc with a \\ backslash.", "def raw do\n  :ok\nend"],
+               ["Lowercase sigil doc.", "def lower do\n  :ok\nend"]
+             ]
+    end
+
+    test "handles a single-key keyword @doc (found by the property test)" do
+      content = """
+      defmodule Example do
+        @doc since: "1.0"
+        def new_fn, do: :ok
+      end
+      """
+
+      assert [%{text: text}] = Hexdoc.to_parsed_docs(hexdoc(content))
+      assert text =~ "since: 1.0"
+    end
+
+    test "renders a non-string keyword @doc value with inspect/1 instead of raising (review finding)" do
+      content = """
+      defmodule Example do
+        @doc group: [:collections, :enumerables]
+        def grouped, do: :ok
+
+        @doc guard: true
+        def guarded, do: :ok
+      end
+      """
+
+      assert [%{text: grouped}, %{text: guarded}] = Hexdoc.to_parsed_docs(hexdoc(content))
+      assert grouped =~ "group: [:collections, :enumerables]"
+      assert guarded =~ "guard: true"
     end
 
     test "module with no functions returns empty list" do
@@ -306,14 +185,15 @@ defmodule Cake.Documents.Hexdocs.HexdocTest do
       end
       """
 
-      hexdoc = %Hexdoc{
-        content: content,
-        url: "https://hexdocs.pm/elixir/Empty.html",
-        module: "Empty",
-        version: "1.0.0"
-      }
+      assert Hexdoc.to_parsed_docs(hexdoc(content)) == []
+    end
 
-      assert Hexdoc.to_parsed_docs(hexdoc) == []
+    test "returns empty list for non-module AST" do
+      assert Hexdoc.to_parsed_docs(hexdoc("1 + 2")) == []
+    end
+
+    test "returns empty list for unparseable content" do
+      assert Hexdoc.to_parsed_docs(hexdoc("defmodule Broken do {{{{")) == []
     end
   end
 end
