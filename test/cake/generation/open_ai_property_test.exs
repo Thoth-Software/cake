@@ -106,25 +106,29 @@ defmodule Cake.Generation.OpenAIPropertyTest do
     end
   end
 
+  defp loose_output do
+    maybe(one_of([list_of(output_item(), max_length: 3), json_scalar(), json_map()]))
+  end
+
+  defp loose_usage do
+    maybe(
+      one_of([
+        responses_usage(loose_count()),
+        legacy_usage(loose_count()),
+        json_map(),
+        json_scalar()
+      ])
+    )
+  end
+
+  defp loose_model,
+    do: maybe(one_of([string(:alphanumeric, min_length: 1, max_length: 12), integer()]))
+
   # A 200 body of arbitrary shape: each of output, usage and model present or
   # absent, and when present as a list or a scalar, a known usage shape with
   # well- or wrong-typed counts or junk, a string or a number for the model.
   defp arbitrary_body do
-    gen all(
-          output <-
-            maybe(one_of([list_of(output_item(), max_length: 3), json_scalar(), json_map()])),
-          usage <-
-            maybe(
-              one_of([
-                responses_usage(loose_count()),
-                legacy_usage(loose_count()),
-                json_map(),
-                json_scalar()
-              ])
-            ),
-          model <-
-            maybe(one_of([string(:alphanumeric, min_length: 1, max_length: 12), integer()]))
-        ) do
+    gen all(output <- loose_output(), usage <- loose_usage(), model <- loose_model()) do
       %{}
       |> put_present("output", output)
       |> put_present("usage", usage)

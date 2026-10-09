@@ -235,23 +235,8 @@ defmodule Cake.Generation.OpenAI do
 
   defp extract_content(output) when is_list(output) do
     case Enum.find(output, &content_item?/1) do
-      nil ->
-        {:error, {:malformed_response, "no content block in output", output}}
-
-      %{"content" => [%{"text" => ""} | _]} = block ->
-        {:error, {:empty_response, block}}
-
-      %{"content" => [%{"text" => text} | _], "status" => "completed"} when is_binary(text) ->
-        {:ok, text, :stop}
-
-      %{"content" => [%{"text" => text} | _], "status" => "incomplete"} when is_binary(text) ->
-        {:ok, text, :length}
-
-      %{"content" => [%{"text" => text} | _]} when is_binary(text) ->
-        {:ok, text, :stop}
-
-      other ->
-        {:error, {:malformed_response, "unexpected content structure", other}}
+      nil -> {:error, {:malformed_response, "no content block in output", output}}
+      block -> classify_block(block)
     end
   end
 
@@ -260,6 +245,21 @@ defmodule Cake.Generation.OpenAI do
 
   defp content_item?(item) when is_map(item), do: Map.has_key?(item, "content")
   defp content_item?(_), do: false
+
+  # The first content block decides the outcome: empty text is an empty
+  # response, string text a completion whose finish reason follows the
+  # block's status, and anything else (a number, nil, a map) malformed.
+  defp classify_block(%{"content" => [%{"text" => ""} | _]} = block),
+    do: {:error, {:empty_response, block}}
+
+  defp classify_block(%{"content" => [%{"text" => text} | _]} = block) when is_binary(text),
+    do: {:ok, text, finish_reason(block)}
+
+  defp classify_block(other),
+    do: {:error, {:malformed_response, "unexpected content structure", other}}
+
+  defp finish_reason(%{"status" => "incomplete"}), do: :length
+  defp finish_reason(_block), do: :stop
 
   # ---------------------------------------------------------------------------
   # Usage normalization — handles Responses API and legacy Chat Completions
