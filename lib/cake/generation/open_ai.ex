@@ -222,16 +222,16 @@ defmodule Cake.Generation.OpenAI do
     end
   end
 
-  # The completion's model is a string; a body with no model, or one that is
-  # not a string, reports "unknown" rather than leaking the odd value.
-  defp model_name(%{"model" => model}) when is_binary(model), do: model
-  defp model_name(_body), do: "unknown"
-
   defp parse_success(body) when is_map(body) and is_map_key(body, "output"),
     do: {:error, {:malformed_response, "missing usage key", body}}
 
   defp parse_success(body),
     do: {:error, {:malformed_response, "missing output key", body}}
+
+  # The completion's model is a string; a body with no model, or one that is
+  # not a string, reports "unknown" rather than leaking the odd value.
+  defp model_name(%{"model" => model}) when is_binary(model), do: model
+  defp model_name(_body), do: "unknown"
 
   defp extract_content(output) when is_list(output) do
     case Enum.find(output, &content_item?/1) do
