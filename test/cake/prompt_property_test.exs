@@ -486,20 +486,17 @@ defmodule Cake.PromptPropertyTest do
         end)
         |> elem(0)
 
-      # A total over budget evicts from the oldest end, so what survives is
-      # the suffix the greedy walk above computes.
-      for {reasoning, _context} <- kept, do: assert(String.contains?(system, reasoning))
-
-      if kept == [] do
-        assert system == Prompt.ircot_system_message()
-      else
-        evicted = Enum.take(steps, length(steps) - length(kept))
-
-        for {reasoning, _context} <- evicted,
-            do: refute(String.contains?(system, "Step 1: " <> reasoning))
-
-        assert kept |> Enum.map(&ircot_step_cost/1) |> Enum.sum() <= budget
+      # The kept steps are rendered in order as "Step 1: ..." through
+      # "Step N: ..." and no "Step N+1:" follows. Reasoning text is
+      # alphanumeric and the markers carry a colon, so the markers count
+      # exactly even when an evicted step's reasoning equals a kept one's.
+      for {{reasoning, _context}, index} <- Enum.with_index(kept, 1) do
+        assert String.contains?(system, "Step #{index}: #{reasoning}")
       end
+
+      refute String.contains?(system, "Step #{length(kept) + 1}:")
+      if kept == [], do: assert(system == Prompt.ircot_system_message())
+      assert kept |> Enum.map(&ircot_step_cost/1) |> Enum.sum() <= budget
     end
   end
 
