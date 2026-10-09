@@ -217,10 +217,15 @@ defmodule Cake.Generation.OpenAI do
          text: text,
          finish_reason: finish_reason,
          usage: normalize_usage(usage),
-         model: Map.get(body, "model", "unknown")
+         model: model_name(body)
        }}
     end
   end
+
+  # The completion's model is a string; a body with no model, or one that is
+  # not a string, reports "unknown" rather than leaking the odd value.
+  defp model_name(%{"model" => model}) when is_binary(model), do: model
+  defp model_name(_body), do: "unknown"
 
   defp parse_success(body) when is_map(body) and is_map_key(body, "output"),
     do: {:error, {:malformed_response, "missing usage key", body}}
@@ -236,13 +241,13 @@ defmodule Cake.Generation.OpenAI do
       %{"content" => [%{"text" => ""} | _]} = block ->
         {:error, {:empty_response, block}}
 
-      %{"content" => [%{"text" => text} | _], "status" => "completed"} ->
+      %{"content" => [%{"text" => text} | _], "status" => "completed"} when is_binary(text) ->
         {:ok, text, :stop}
 
-      %{"content" => [%{"text" => text} | _], "status" => "incomplete"} ->
+      %{"content" => [%{"text" => text} | _], "status" => "incomplete"} when is_binary(text) ->
         {:ok, text, :length}
 
-      %{"content" => [%{"text" => text} | _]} ->
+      %{"content" => [%{"text" => text} | _]} when is_binary(text) ->
         {:ok, text, :stop}
 
       other ->
@@ -257,14 +262,22 @@ defmodule Cake.Generation.OpenAI do
   defp content_item?(_), do: false
 
   # ---------------------------------------------------------------------------
-  # Usage normalization — handles Responses API and legacy Chat Completions shapes
+  # Usage normalization — handles Responses API and legacy Chat Completions
+  # shapes. Counts that are not non-negative integers fall back to zero usage,
+  # like an unrecognised shape, so the completion's usage type always holds.
   # ---------------------------------------------------------------------------
 
-  defp normalize_usage(%{"input_tokens" => i, "output_tokens" => o, "total_tokens" => t}),
-    do: %{input_tokens: i, output_tokens: o, total_tokens: t}
+  defguardp token_counts?(i, o, t)
+            when is_integer(i) and i >= 0 and is_integer(o) and o >= 0 and is_integer(t) and
+                   t >= 0
 
-  defp normalize_usage(%{"prompt_tokens" => i, "completion_tokens" => o, "total_tokens" => t}),
-    do: %{input_tokens: i, output_tokens: o, total_tokens: t}
+  defp normalize_usage(%{"input_tokens" => i, "output_tokens" => o, "total_tokens" => t})
+       when token_counts?(i, o, t),
+       do: %{input_tokens: i, output_tokens: o, total_tokens: t}
+
+  defp normalize_usage(%{"prompt_tokens" => i, "completion_tokens" => o, "total_tokens" => t})
+       when token_counts?(i, o, t),
+       do: %{input_tokens: i, output_tokens: o, total_tokens: t}
 
   defp normalize_usage(_),
     do: %{input_tokens: 0, output_tokens: 0, total_tokens: 0}

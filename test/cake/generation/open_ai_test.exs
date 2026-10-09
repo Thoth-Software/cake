@@ -101,6 +101,18 @@ defmodule Cake.Generation.OpenAITest do
                OpenAI.complete(@default_messages, @default_model)
     end
 
+    test "defaults model to \"unknown\" when the body's model is not a string (review finding)" do
+      Req.Test.stub(OpenAI, fn conn ->
+        Req.Test.json(conn, %{
+          "output" => [%{"status" => "completed", "content" => [%{"text" => "Hi"}]}],
+          "usage" => %{"input_tokens" => 1, "output_tokens" => 1, "total_tokens" => 2},
+          "model" => 123
+        })
+      end)
+
+      assert {:ok, %{model: "unknown"}} = OpenAI.complete(@default_messages, @default_model)
+    end
+
     test "defaults model to \"unknown\" when body omits it" do
       Req.Test.stub(OpenAI, fn conn ->
         Req.Test.json(conn, %{
@@ -130,6 +142,24 @@ defmodule Cake.Generation.OpenAITest do
 
       assert {:ok, %{usage: usage}} = OpenAI.complete(@default_messages, @default_model)
       assert usage == %{input_tokens: 20, output_tokens: 30, total_tokens: 50}
+    end
+
+    test "falls back to zero usage when the counts are not non-negative integers (review finding)" do
+      for usage <- [
+            %{"input_tokens" => "50", "output_tokens" => "5", "total_tokens" => "55"},
+            %{"prompt_tokens" => -1, "completion_tokens" => 5, "total_tokens" => 4},
+            %{"input_tokens" => nil, "output_tokens" => 5, "total_tokens" => 5}
+          ] do
+        Req.Test.stub(OpenAI, fn conn ->
+          Req.Test.json(conn, %{
+            "output" => [%{"status" => "completed", "content" => [%{"text" => "Hi"}]}],
+            "usage" => usage
+          })
+        end)
+
+        assert {:ok, %{usage: %{input_tokens: 0, output_tokens: 0, total_tokens: 0}}} =
+                 OpenAI.complete(@default_messages, @default_model)
+      end
     end
 
     test "falls back to zero usage when the shape is unrecognized" do
@@ -284,6 +314,18 @@ defmodule Cake.Generation.OpenAITest do
       end)
 
       assert {:error, {:empty_response, _block}} =
+               OpenAI.complete(@default_messages, @default_model)
+    end
+
+    test "non-string text in the content block returns {:malformed_response, _, _} (review finding)" do
+      Req.Test.stub(OpenAI, fn conn ->
+        Req.Test.json(conn, %{
+          "output" => [%{"status" => "completed", "content" => [%{"text" => 42}]}],
+          "usage" => %{"input_tokens" => 1, "output_tokens" => 1, "total_tokens" => 2}
+        })
+      end)
+
+      assert {:error, {:malformed_response, "unexpected content structure", _}} =
                OpenAI.complete(@default_messages, @default_model)
     end
 
