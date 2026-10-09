@@ -23,6 +23,7 @@ defmodule Cake.Support.ExpandingGDS do
     @moduledoc false
     defstruct [:id, :ordinal, :body, :embedding, metadata: %{}]
 
+    @typedoc "One corpus record: `ordinal` is its position in the corpus, `metadata` its Citable map."
     @type t :: %__MODULE__{
             id: String.t(),
             ordinal: non_neg_integer(),
