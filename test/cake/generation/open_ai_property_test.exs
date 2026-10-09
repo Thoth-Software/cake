@@ -54,9 +54,12 @@ defmodule Cake.Generation.OpenAIPropertyTest do
 
   # A content block in the shape the parser reads, with each status it knows
   # (and one it does not, and none).
+  # The text is usually a string; a number, nil or a map in its place must
+  # not come out as a completion.
   defp content_block do
     gen all(
-          text <- string(:printable, max_length: 20),
+          text <-
+            one_of([string(:printable, max_length: 20), integer(), constant(nil), json_map()]),
           status <- maybe(member_of(["completed", "incomplete", "other"]))
         ) do
       put_present(%{"content" => [%{"text" => text}]}, "status", status)
@@ -78,26 +81,49 @@ defmodule Cake.Generation.OpenAIPropertyTest do
   defp put_present(map, _key, nil), do: map
   defp put_present(map, key, value), do: Map.put(map, key, value)
 
-  defp responses_usage do
-    gen all(i <- integer(0..10_000), o <- integer(0..10_000), t <- integer(0..20_000)) do
+  defp valid_count, do: integer(0..20_000)
+
+  # A count as the provider should send it, or wrong-typed in its place: a
+  # numeric string, a negative number, nil.
+  defp loose_count do
+    one_of([
+      valid_count(),
+      map(valid_count(), &Integer.to_string/1),
+      integer(-100..-1),
+      constant(nil)
+    ])
+  end
+
+  defp responses_usage(count \\ valid_count()) do
+    gen all(i <- count, o <- count, t <- count) do
       %{"input_tokens" => i, "output_tokens" => o, "total_tokens" => t}
     end
   end
 
-  defp legacy_usage do
-    gen all(i <- integer(0..10_000), o <- integer(0..10_000), t <- integer(0..20_000)) do
+  defp legacy_usage(count \\ valid_count()) do
+    gen all(i <- count, o <- count, t <- count) do
       %{"prompt_tokens" => i, "completion_tokens" => o, "total_tokens" => t}
     end
   end
 
   # A 200 body of arbitrary shape: each of output, usage and model present or
-  # absent, and when present as a list or a scalar, a known usage shape or junk.
+  # absent, and when present as a list or a scalar, a known usage shape with
+  # well- or wrong-typed counts or junk, a string or a number for the model.
   defp arbitrary_body do
     gen all(
           output <-
             maybe(one_of([list_of(output_item(), max_length: 3), json_scalar(), json_map()])),
-          usage <- maybe(one_of([responses_usage(), legacy_usage(), json_map(), json_scalar()])),
-          model <- maybe(string(:alphanumeric, min_length: 1, max_length: 12))
+          usage <-
+            maybe(
+              one_of([
+                responses_usage(loose_count()),
+                legacy_usage(loose_count()),
+                json_map(),
+                json_scalar()
+              ])
+            ),
+          model <-
+            maybe(one_of([string(:alphanumeric, min_length: 1, max_length: 12), integer()]))
         ) do
       %{}
       |> put_present("output", output)
@@ -132,7 +158,7 @@ defmodule Cake.Generation.OpenAIPropertyTest do
   # Properties
   # ---------------------------------------------------------------------------
 
-  property "complete/3 never crashes on a 200 body of arbitrary shape" do
+  property "complete/3 never crashes on a 200 body of arbitrary shape, and a success satisfies completion()" do
     check all(body <- arbitrary_body()) do
       stub_200(body)
 
@@ -141,6 +167,7 @@ defmodule Cake.Generation.OpenAIPropertyTest do
           assert is_binary(text) and text != ""
           assert reason in [:stop, :length]
           assert Enum.sort(Map.keys(usage)) == [:input_tokens, :output_tokens, :total_tokens]
+          assert Enum.all?(Map.values(usage), &(is_integer(&1) and &1 >= 0))
           assert is_binary(model)
 
         {:error, _reason} = error ->
