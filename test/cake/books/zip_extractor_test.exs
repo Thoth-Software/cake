@@ -79,6 +79,17 @@ defmodule Cake.Books.ZipExtractorTest do
       assert {:error, :multiple_disks_not_supported} = ZipExtractor.extract_pdfs(split)
     end
 
+    test "decodes an entry name by its UTF-8 flag, as OTP's :zip does" do
+      # :zip.create sets general-purpose bit 11 for a non-ASCII name.
+      flagged = zip_binary([{"é.pdf", "content"}])
+      assert {:ok, [{"é.pdf", "content"}]} = ZipExtractor.extract_pdfs(flagged)
+
+      # The same bytes with bit 11 clear are one code point per byte
+      # (Latin-1), even though they also happen to be valid UTF-8.
+      unflagged = forge_flags(flagged, "é.pdf", 0)
+      assert {:ok, [{"Ã©.pdf", "content"}]} = ZipExtractor.extract_pdfs(unflagged)
+    end
+
     test "reads a classic end record counting exactly 65 535 entries as that count" do
       # 0xFFFF is both a real classic count and the ZIP64 marker; with no
       # ZIP64 locator before the end record it is the count, and is checked

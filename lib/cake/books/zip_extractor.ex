@@ -51,6 +51,7 @@ defmodule Cake.Books.ZipExtractor do
   @zip64_marker_16 0xFFFF
   @zip64_marker_32 0xFFFFFFFF
   @encrypted_flag 0x0001
+  @utf8_name_flag 0x0800
   @stored 0
   @deflated 8
   @raw_deflate_window_bits -15
@@ -282,7 +283,7 @@ defmodule Cake.Books.ZipExtractor do
         offset::little-32, name::binary-size(name_length), extra::binary-size(extra_length),
         _comment::binary-size(comment_length), _::binary>> ->
         entry = %{
-          name: decode_name(name),
+          name: decode_name(name, flags),
           flags: flags,
           method: method,
           crc: crc,
@@ -302,14 +303,20 @@ defmodule Cake.Books.ZipExtractor do
     end
   end
 
-  # A name that is valid UTF-8 is kept as UTF-8 whether or not the entry
-  # sets the UTF-8 flag (bit 11): macOS Archive Utility and Info-ZIP write
-  # UTF-8 names without it, and OTP's :zip applies the same heuristic. Any
-  # other name is read as Latin-1, so a name is always a valid string.
-  @spec decode_name(binary()) :: String.t()
-  defp decode_name(name) do
-    if String.valid?(name), do: name, else: :unicode.characters_to_binary(name, :latin1)
+  # Decoded by the UTF-8 flag (general-purpose bit 11), as OTP's :zip
+  # decodes entry names (zip:binary_to_chars/2): flagged names are UTF-8,
+  # unflagged names one code point per byte (Latin-1). A flagged name that
+  # is not valid UTF-8 also falls back to Latin-1, so a name is always a
+  # valid string where :zip would fail the archive.
+  @spec decode_name(binary(), non_neg_integer()) :: String.t()
+  defp decode_name(name, flags) when (flags &&& @utf8_name_flag) != 0 do
+    if String.valid?(name), do: name, else: latin1_to_string(name)
   end
+
+  defp decode_name(name, _flags), do: latin1_to_string(name)
+
+  @spec latin1_to_string(binary()) :: String.t()
+  defp latin1_to_string(name), do: :unicode.characters_to_binary(name, :latin1)
 
   # A size or offset too large for its 32-bit field is 0xFFFFFFFF there,
   # with the real value in the ZIP64 extra field, in this order.
