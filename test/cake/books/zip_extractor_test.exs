@@ -115,7 +115,7 @@ defmodule Cake.Books.ZipExtractorTest do
     end
 
     test "rejects an end record that counts more entries than its directory holds" do
-      zip = [{"a.pdf", "content-a"}, {"b.pdf", "content-b"}] |> zip_binary()
+      zip = zip_binary([{"a.pdf", "content-a"}, {"b.pdf", "content-b"}])
 
       assert {:error, :bad_central_directory} =
                zip |> forge_entry_count(3) |> ZipExtractor.extract_pdfs()

@@ -94,6 +94,14 @@ defmodule Cake.Books.ZipExtractor do
            disk: non_neg_integer()
          }
 
+  # Where the central directory starts and ends, and how many entries the
+  # end record says it holds.
+  @typep central_dir :: %{
+           entries: non_neg_integer(),
+           cd_offset: non_neg_integer(),
+           cd_end: non_neg_integer()
+         }
+
   @doc """
   Extracts every PDF entry from a ZIP binary in memory, returning
   `{filename, binary}` pairs in archive order. macOS resource-fork and
@@ -121,7 +129,8 @@ defmodule Cake.Books.ZipExtractor do
 
     with {:ok, eocd} <- find_end_of_central_dir(zip_binary),
          :ok <- check_entry_count(eocd.entries, max_entries),
-         {:ok, entries} <- read_central_dir(zip_binary, eocd.cd_offset, eocd.entries, []),
+         {:ok, entries} <-
+           read_central_dir(zip_binary, eocd.cd_offset, eocd.cd_end, eocd.entries, []),
          pdf_entries = Enum.filter(entries, &pdf_file?(&1.name)),
          :ok <- check_declared_size(pdf_entries, max_bytes) do
       extract_entries(zip_binary, pdf_entries)
@@ -140,7 +149,7 @@ defmodule Cake.Books.ZipExtractor do
   # directory ends exactly where it (or its ZIP64 record) starts. If none
   # parses, the rightmost end-aligned candidate's error is returned.
   @spec find_end_of_central_dir(binary()) ::
-          {:ok, %{entries: non_neg_integer(), cd_offset: non_neg_integer()}}
+          {:ok, central_dir()}
           | {:error, :not_a_zip | :bad_central_directory | :multiple_disks_not_supported}
   defp find_end_of_central_dir(zip_binary) do
     size = byte_size(zip_binary)
@@ -170,7 +179,7 @@ defmodule Cake.Books.ZipExtractor do
   end
 
   @spec parse_end_of_central_dir(binary(), non_neg_integer()) ::
-          {:ok, %{entries: non_neg_integer(), cd_offset: non_neg_integer()}}
+          {:ok, central_dir()}
           | {:error, :not_a_zip | :bad_central_directory | :multiple_disks_not_supported}
   defp parse_end_of_central_dir(zip_binary, position) do
     case zip_binary do
@@ -189,7 +198,7 @@ defmodule Cake.Books.ZipExtractor do
             {:error, :bad_central_directory}
 
           true ->
-            {:ok, %{entries: entries, cd_offset: cd_offset}}
+            {:ok, %{entries: entries, cd_offset: cd_offset, cd_end: position}}
         end
 
       _ ->
@@ -222,7 +231,7 @@ defmodule Cake.Books.ZipExtractor do
   # A ZIP64 end record is found through the locator just before the
   # classic record.
   @spec parse_zip64_eocd(binary(), non_neg_integer()) ::
-          {:ok, %{entries: non_neg_integer(), cd_offset: non_neg_integer()}}
+          {:ok, central_dir()}
           | {:error, :bad_central_directory | :multiple_disks_not_supported}
   defp parse_zip64_eocd(zip_binary, eocd_position)
        when eocd_position >= @zip64_eocd_locator_size do
@@ -243,7 +252,7 @@ defmodule Cake.Books.ZipExtractor do
   defp parse_zip64_eocd(_zip_binary, _eocd_position), do: {:error, :bad_central_directory}
 
   @spec parse_zip64_record(binary(), non_neg_integer()) ::
-          {:ok, %{entries: non_neg_integer(), cd_offset: non_neg_integer()}}
+          {:ok, central_dir()}
           | {:error, :bad_central_directory | :multiple_disks_not_supported}
   defp parse_zip64_record(zip_binary, record_position) do
     case zip_binary do
@@ -254,7 +263,7 @@ defmodule Cake.Books.ZipExtractor do
         cond do
           disk != 0 or cd_disk != 0 -> {:error, :multiple_disks_not_supported}
           cd_offset + cd_size != record_position -> {:error, :bad_central_directory}
-          true -> {:ok, %{entries: entries, cd_offset: cd_offset}}
+          true -> {:ok, %{entries: entries, cd_offset: cd_offset, cd_end: record_position}}
         end
 
       _ ->
@@ -269,13 +278,24 @@ defmodule Cake.Books.ZipExtractor do
 
   defp check_entry_count(_count, _max_entries), do: :ok
 
-  # Runs only after check_entry_count/2, so `remaining` is bounded.
-  @spec read_central_dir(binary(), non_neg_integer(), non_neg_integer(), [central_entry()]) ::
+  # Runs only after check_entry_count/2, so `remaining` is bounded. The
+  # declared count must use up the directory exactly: stopping short of
+  # `cd_end` would silently drop the entries after it.
+  @spec read_central_dir(
+          binary(),
+          non_neg_integer(),
+          non_neg_integer(),
+          non_neg_integer(),
+          [central_entry()]
+        ) ::
           {:ok, [central_entry()]}
           | {:error, :bad_central_directory | :multiple_disks_not_supported}
-  defp read_central_dir(_zip_binary, _position, 0, acc), do: {:ok, Enum.reverse(acc)}
+  defp read_central_dir(_zip_binary, cd_end, cd_end, 0, acc), do: {:ok, Enum.reverse(acc)}
 
-  defp read_central_dir(zip_binary, position, remaining, acc) do
+  defp read_central_dir(_zip_binary, _position, _cd_end, 0, _acc),
+    do: {:error, :bad_central_directory}
+
+  defp read_central_dir(zip_binary, position, cd_end, remaining, acc) do
     case zip_binary do
       <<_::binary-size(^position), @central_header_signature::little-32, _made_by::little-16,
         _needed::little-16, flags::little-16, method::little-16, _mod_time::little-16,
@@ -299,7 +319,7 @@ defmodule Cake.Books.ZipExtractor do
 
         with {:ok, entry} <- apply_zip64_extra(entry, extra),
              :ok <- check_single_disk(entry) do
-          read_central_dir(zip_binary, next, remaining - 1, [entry | acc])
+          read_central_dir(zip_binary, next, cd_end, remaining - 1, [entry | acc])
         end
 
       _ ->
