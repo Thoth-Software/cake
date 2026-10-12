@@ -176,8 +176,8 @@ defmodule Cake.Books.ZipExtractor do
         cd_disk::little-16, _disk_entries::little-16, entries::little-16, cd_size::little-32,
         cd_offset::little-32, _::binary>> ->
         cond do
-          @zip64_marker_16 in [disk, cd_disk, entries] or
-              @zip64_marker_32 in [cd_size, cd_offset] ->
+          zip64_markers?([disk, cd_disk, entries], [cd_size, cd_offset]) and
+              zip64_locator_at?(zip_binary, position) ->
             parse_zip64_eocd(zip_binary, position)
 
           disk != 0 or cd_disk != 0 ->
@@ -194,6 +194,28 @@ defmodule Cake.Books.ZipExtractor do
         {:error, :not_a_zip}
     end
   end
+
+  # 0xFFFF / 0xFFFFFFFF in a classic field means "see the ZIP64 record",
+  # but 0xFFFF is also a real count (an archive of exactly 65 535 entries).
+  # So a marker defers to ZIP64 only when a ZIP64 locator precedes the
+  # record; without one the field is read as its literal value.
+  @spec zip64_markers?([non_neg_integer()], [non_neg_integer()]) :: boolean()
+  defp zip64_markers?(short_fields, long_fields) do
+    @zip64_marker_16 in short_fields or @zip64_marker_32 in long_fields
+  end
+
+  @spec zip64_locator_at?(binary(), non_neg_integer()) :: boolean()
+  defp zip64_locator_at?(zip_binary, eocd_position)
+       when eocd_position >= @zip64_eocd_locator_size do
+    locator_position = eocd_position - @zip64_eocd_locator_size
+
+    match?(
+      <<_::binary-size(^locator_position), @zip64_eocd_locator_signature::little-32, _::binary>>,
+      zip_binary
+    )
+  end
+
+  defp zip64_locator_at?(_zip_binary, _eocd_position), do: false
 
   # A ZIP64 end record is found through the locator just before the
   # classic record.
@@ -280,8 +302,10 @@ defmodule Cake.Books.ZipExtractor do
     end
   end
 
-  # Names flagged UTF-8 (and plain ASCII) pass through; anything else is
-  # read as Latin-1, so a name is always a valid string.
+  # A name that is valid UTF-8 is kept as UTF-8 whether or not the entry
+  # sets the UTF-8 flag (bit 11): macOS Archive Utility and Info-ZIP write
+  # UTF-8 names without it, and OTP's :zip applies the same heuristic. Any
+  # other name is read as Latin-1, so a name is always a valid string.
   @spec decode_name(binary()) :: String.t()
   defp decode_name(name) do
     if String.valid?(name), do: name, else: :unicode.characters_to_binary(name, :latin1)

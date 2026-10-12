@@ -79,6 +79,19 @@ defmodule Cake.Books.ZipExtractorTest do
       assert {:error, :multiple_disks_not_supported} = ZipExtractor.extract_pdfs(split)
     end
 
+    test "reads a classic end record counting exactly 65 535 entries as that count" do
+      # 0xFFFF is both a real classic count and the ZIP64 marker; with no
+      # ZIP64 locator before the end record it is the count, and is checked
+      # against the limit before any entry is read.
+      zip = zip_binary([{"a.pdf", "content-a"}])
+      eocd = byte_size(zip) - 22
+      <<before::binary-size(^eocd + 8), _counts::binary-size(4), rest::binary>> = zip
+      counted = <<before::binary, 0xFFFF::little-16, 0xFFFF::little-16, rest::binary>>
+
+      assert {:error, {:too_many_entries, 65_535, 10_000}} =
+               ZipExtractor.extract_pdfs(counted, max_entries: 10_000)
+    end
+
     test "reads ZIP64 end records and ZIP64 extra fields" do
       entries = [{"a.pdf", "content-a"}, {"notes.txt", "text"}, {"b.pdf", "content-b"}]
       zip = streamed_zip_binary(entries, zip64: true)
