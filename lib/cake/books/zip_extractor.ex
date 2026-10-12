@@ -194,11 +194,17 @@ defmodule Cake.Books.ZipExtractor do
           disk != 0 or cd_disk != 0 ->
             {:error, :multiple_disks_not_supported}
 
-          cd_offset + cd_size != position ->
-            {:error, :bad_central_directory}
+          cd_offset + cd_size == position ->
+            {:ok, %{entries: entries, cd_offset: cd_offset, cd_end: position}}
+
+          # Info-ZIP writes a ZIP64 record for stdin input but keeps real
+          # values in the classic record, so the classic directory ends at
+          # the ZIP64 record rather than here.
+          zip64_locator_at?(zip_binary, position) ->
+            parse_zip64_eocd(zip_binary, position)
 
           true ->
-            {:ok, %{entries: entries, cd_offset: cd_offset, cd_end: position}}
+            {:error, :bad_central_directory}
         end
 
       _ ->
