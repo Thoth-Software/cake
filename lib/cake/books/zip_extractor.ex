@@ -90,7 +90,8 @@ defmodule Cake.Books.ZipExtractor do
            crc: non_neg_integer(),
            comp_size: non_neg_integer(),
            uncomp_size: non_neg_integer(),
-           offset: non_neg_integer()
+           offset: non_neg_integer(),
+           disk: non_neg_integer()
          }
 
   @doc """
@@ -270,7 +271,8 @@ defmodule Cake.Books.ZipExtractor do
 
   # Runs only after check_entry_count/2, so `remaining` is bounded.
   @spec read_central_dir(binary(), non_neg_integer(), non_neg_integer(), [central_entry()]) ::
-          {:ok, [central_entry()]} | {:error, :bad_central_directory}
+          {:ok, [central_entry()]}
+          | {:error, :bad_central_directory | :multiple_disks_not_supported}
   defp read_central_dir(_zip_binary, _position, 0, acc), do: {:ok, Enum.reverse(acc)}
 
   defp read_central_dir(zip_binary, position, remaining, acc) do
@@ -279,7 +281,7 @@ defmodule Cake.Books.ZipExtractor do
         _needed::little-16, flags::little-16, method::little-16, _mod_time::little-16,
         _mod_date::little-16, crc::little-32, comp_size::little-32, uncomp_size::little-32,
         name_length::little-16, extra_length::little-16, comment_length::little-16,
-        _disk::little-16, _internal_attrs::little-16, _external_attrs::little-32,
+        disk::little-16, _internal_attrs::little-16, _external_attrs::little-32,
         offset::little-32, name::binary-size(name_length), extra::binary-size(extra_length),
         _comment::binary-size(comment_length), _::binary>> ->
         entry = %{
@@ -289,12 +291,14 @@ defmodule Cake.Books.ZipExtractor do
           crc: crc,
           comp_size: comp_size,
           uncomp_size: uncomp_size,
-          offset: offset
+          offset: offset,
+          disk: disk
         }
 
         next = position + @central_header_size + name_length + extra_length + comment_length
 
-        with {:ok, entry} <- apply_zip64_extra(entry, extra) do
+        with {:ok, entry} <- apply_zip64_extra(entry, extra),
+             :ok <- check_single_disk(entry) do
           read_central_dir(zip_binary, next, remaining - 1, [entry | acc])
         end
 
@@ -319,26 +323,51 @@ defmodule Cake.Books.ZipExtractor do
   defp latin1_to_string(name), do: :unicode.characters_to_binary(name, :latin1)
 
   # A size or offset too large for its 32-bit field is 0xFFFFFFFF there,
-  # with the real value in the ZIP64 extra field, in this order.
+  # and a disk number too large for its 16-bit field is 0xFFFF; the real
+  # values follow in the ZIP64 extra field in this order, the sizes and
+  # offset as 8-byte values and the disk number as a 4-byte one.
   @spec apply_zip64_extra(central_entry(), binary()) ::
           {:ok, central_entry()} | {:error, :bad_central_directory}
   defp apply_zip64_extra(entry, extra) do
-    case Enum.filter([:uncomp_size, :comp_size, :offset], &(entry[&1] == @zip64_marker_32)) do
+    long_fields =
+      Enum.filter([:uncomp_size, :comp_size, :offset], &(entry[&1] == @zip64_marker_32))
+
+    disk_field = if entry.disk == @zip64_marker_16, do: [:disk], else: []
+
+    case long_fields ++ disk_field do
       [] ->
         {:ok, entry}
 
       fields ->
-        value_bytes = length(fields) * 8
-
         with {:ok, data} <- find_extra_block(extra, @zip64_extra_id),
-             <<values::binary-size(^value_bytes), _::binary>> <- data do
-          {:ok,
-           Map.merge(entry, Map.new(Enum.zip(fields, for(<<v::little-64 <- values>>, do: v))))}
+             {:ok, values} <- zip64_values(data, length(long_fields), disk_field != []) do
+          {:ok, Map.merge(entry, Map.new(Enum.zip(fields, values)))}
         else
           _ -> {:error, :bad_central_directory}
         end
     end
   end
+
+  @spec zip64_values(binary(), non_neg_integer(), boolean()) ::
+          {:ok, [non_neg_integer()]} | :error
+  defp zip64_values(data, long_count, disk?) do
+    long_bytes = long_count * 8
+    disk_bytes = if disk?, do: 4, else: 0
+
+    case data do
+      <<longs::binary-size(^long_bytes), disk::binary-size(^disk_bytes), _::binary>> ->
+        {:ok, for(<<v::little-64 <- longs>>, do: v) ++ for(<<v::little-32 <- disk>>, do: v)}
+
+      _ ->
+        :error
+    end
+  end
+
+  # Split archives are rejected by their end record; an entry that still
+  # names another disk contradicts it and is rejected the same way.
+  @spec check_single_disk(central_entry()) :: :ok | {:error, :multiple_disks_not_supported}
+  defp check_single_disk(%{disk: 0}), do: :ok
+  defp check_single_disk(_entry), do: {:error, :multiple_disks_not_supported}
 
   @spec find_extra_block(binary(), non_neg_integer()) :: {:ok, binary()} | :error
   defp find_extra_block(

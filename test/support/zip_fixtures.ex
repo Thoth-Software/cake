@@ -44,38 +44,47 @@ defmodule Cake.ZipFixtures do
   With `zip64: true`, every central-directory header marks its sizes and
   offset `0xFFFFFFFF` and carries them in a ZIP64 extra field, and the
   end of the archive is a ZIP64 end record and locator ahead of a classic
-  end record whose count and offset are marked likewise.
+  end record whose count and offset are marked likewise. With
+  `zip64: true, entry_disk: n` as well, every central-directory header also
+  marks its "disk number start" `0xFFFF` and carries `n` as the 4-byte
+  value that follows the three 8-byte ones in the ZIP64 extra field.
   """
-  @spec streamed_zip_binary([{String.t(), binary()}], zip64: boolean()) :: binary()
+  @spec streamed_zip_binary([{String.t(), binary()}],
+          zip64: boolean(),
+          entry_disk: non_neg_integer()
+        ) :: binary()
   def streamed_zip_binary(entries, opts \\ []) when is_list(entries) do
     zip64? = Keyword.get(opts, :zip64, false)
+    zip64 = if zip64?, do: {:zip64, Keyword.get(opts, :entry_disk)}, else: :classic
 
-    {locals, centrals, cd_offset} = streamed_entries(entries, zip64?)
+    {locals, centrals, cd_offset} = streamed_entries(entries, zip64)
     central_dir = IO.iodata_to_binary(centrals)
     end_records = end_records(length(entries), byte_size(central_dir), cd_offset, zip64?)
 
     IO.iodata_to_binary([locals, central_dir, end_records])
   end
 
-  @spec streamed_entries([{String.t(), binary()}], boolean()) ::
+  @typep layout :: :classic | {:zip64, non_neg_integer() | nil}
+
+  @spec streamed_entries([{String.t(), binary()}], layout()) ::
           {[binary()], [binary()], non_neg_integer()}
-  defp streamed_entries(entries, zip64?) do
+  defp streamed_entries(entries, layout) do
     {locals, centrals, cd_offset} =
       Enum.reduce(entries, {[], [], 0}, fn {name, content}, {locals, centrals, offset} ->
-        {local, central} = streamed_entry(name, content, offset, zip64?)
+        {local, central} = streamed_entry(name, content, offset, layout)
         {[local | locals], [central | centrals], offset + byte_size(local)}
       end)
 
     {Enum.reverse(locals), Enum.reverse(centrals), cd_offset}
   end
 
-  @spec streamed_entry(binary(), binary(), non_neg_integer(), boolean()) :: {binary(), binary()}
-  defp streamed_entry(name, content, offset, zip64?) do
+  @spec streamed_entry(binary(), binary(), non_neg_integer(), layout()) :: {binary(), binary()}
+  defp streamed_entry(name, content, offset, layout) do
     compressed = :zlib.zip(content)
     crc = :erlang.crc32(content)
 
     {streamed_local_entry(name, content, compressed, crc),
-     central_header(name, crc, byte_size(compressed), byte_size(content), offset, zip64?)}
+     central_header(name, crc, byte_size(compressed), byte_size(content), offset, layout)}
   end
 
   @spec streamed_local_entry(binary(), binary(), binary(), non_neg_integer()) :: binary()
@@ -93,23 +102,31 @@ defmodule Cake.ZipFixtures do
           non_neg_integer(),
           non_neg_integer(),
           non_neg_integer(),
-          boolean()
+          layout()
         ) :: binary()
-  defp central_header(name, crc, comp_size, uncomp_size, offset, zip64?) do
-    {comp_field, uncomp_field, offset_field, extra} =
-      if zip64? do
-        {@zip64_marker_32, @zip64_marker_32, @zip64_marker_32,
-         <<@zip64_extra_id::little-16, 24::little-16, uncomp_size::little-64,
-           comp_size::little-64, offset::little-64>>}
-      else
-        {comp_size, uncomp_size, offset, <<>>}
+  defp central_header(name, crc, comp_size, uncomp_size, offset, layout) do
+    {comp_field, uncomp_field, offset_field, disk_field, extra} =
+      case layout do
+        :classic ->
+          {comp_size, uncomp_size, offset, 0, <<>>}
+
+        {:zip64, entry_disk} ->
+          {disk_field, disk_value} =
+            if entry_disk, do: {@zip64_marker_16, <<entry_disk::little-32>>}, else: {0, <<>>}
+
+          values =
+            <<uncomp_size::little-64, comp_size::little-64, offset::little-64,
+              disk_value::binary>>
+
+          {@zip64_marker_32, @zip64_marker_32, @zip64_marker_32, disk_field,
+           <<@zip64_extra_id::little-16, byte_size(values)::little-16, values::binary>>}
       end
 
     <<@central_header_signature::little-32, 45::little-16, 45::little-16,
       @data_descriptor_flag::little-16, @deflated::little-16, 0::little-16, @dos_date::little-16,
       crc::little-32, comp_field::little-32, uncomp_field::little-32, byte_size(name)::little-16,
-      byte_size(extra)::little-16, 0::little-16, 0::little-16, 0::little-16, 0::little-32,
-      offset_field::little-32, name::binary, extra::binary>>
+      byte_size(extra)::little-16, 0::little-16, disk_field::little-16, 0::little-16,
+      0::little-32, offset_field::little-32, name::binary, extra::binary>>
   end
 
   @spec end_records(non_neg_integer(), non_neg_integer(), non_neg_integer(), boolean()) ::
@@ -159,6 +176,12 @@ defmodule Cake.ZipFixtures do
   @spec forge_compression_method(binary(), String.t(), non_neg_integer()) :: binary()
   def forge_compression_method(zip, name, method) do
     patch(zip, central_header_position(zip, name) + 10, <<method::little-16>>)
+  end
+
+  @doc "Rewrites the \"disk number start\" the central directory records for `name`."
+  @spec forge_disk_number(binary(), String.t(), non_neg_integer()) :: binary()
+  def forge_disk_number(zip, name, disk) do
+    patch(zip, central_header_position(zip, name) + 34, <<disk::little-16>>)
   end
 
   @doc "Rewrites the general-purpose flags the central directory records for `name`."

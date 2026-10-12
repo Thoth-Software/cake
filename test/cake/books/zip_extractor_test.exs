@@ -103,6 +103,23 @@ defmodule Cake.Books.ZipExtractorTest do
                ZipExtractor.extract_pdfs(counted, max_entries: 10_000)
     end
 
+    test "rejects an entry whose central record places it on another disk" do
+      zip = [{"a.pdf", "content-a"}] |> zip_binary() |> forge_disk_number("a.pdf", 1)
+
+      assert {:error, :multiple_disks_not_supported} = ZipExtractor.extract_pdfs(zip)
+    end
+
+    test "reads an entry's disk number from the ZIP64 extra field when marked 0xFFFF" do
+      on_disk_0 = streamed_zip_binary([{"a.pdf", "content-a"}], zip64: true, entry_disk: 0)
+
+      # The fixture is a valid ZIP64 archive by OTP's reading too.
+      assert {:ok, [_comment, _entry]} = :zip.list_dir(on_disk_0)
+      assert {:ok, [{"a.pdf", "content-a"}]} = ZipExtractor.extract_pdfs(on_disk_0)
+
+      on_disk_1 = streamed_zip_binary([{"a.pdf", "content-a"}], zip64: true, entry_disk: 1)
+      assert {:error, :multiple_disks_not_supported} = ZipExtractor.extract_pdfs(on_disk_1)
+    end
+
     test "reads ZIP64 end records and ZIP64 extra fields" do
       entries = [{"a.pdf", "content-a"}, {"notes.txt", "text"}, {"b.pdf", "content-b"}]
       zip = streamed_zip_binary(entries, zip64: true)
