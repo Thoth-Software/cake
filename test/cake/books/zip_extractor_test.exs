@@ -154,6 +154,18 @@ defmodule Cake.Books.ZipExtractorTest do
       assert {:error, {:too_large, 18, 10}} =
                ZipExtractor.extract_pdfs(zip, max_expanded_bytes: 10)
     end
+
+    # Info-ZIP's `printf ... | zip out.zip -` writes a ZIP64 end record and
+    # locator but real values, not markers, in the classic end record.
+    test "reads a ZIP64 end record behind a classic end record without markers" do
+      entries = [{"a.pdf", "content-a"}, {"notes.txt", "text"}]
+      zip = streamed_zip_binary(entries, zip64: true, marked: false)
+
+      assert {:ok, [_comment | listed]} = :zip.list_dir(zip)
+      assert length(listed) == 2
+
+      assert {:ok, [{"a.pdf", "content-a"}]} = ZipExtractor.extract_pdfs(zip)
+    end
   end
 
   describe "extract_pdfs/2 expansion limits" do

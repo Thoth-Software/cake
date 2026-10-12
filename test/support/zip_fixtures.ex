@@ -48,10 +48,14 @@ defmodule Cake.ZipFixtures do
   `zip64: true, entry_disk: n` as well, every central-directory header also
   marks its "disk number start" `0xFFFF` and carries `n` as the 4-byte
   value that follows the three 8-byte ones in the ZIP64 extra field.
+  With `zip64: true, marked: false`, the classic end record carries the
+  real count, size and offset instead of the markers, as Info-ZIP's `zip`
+  writes it for input streamed from stdin.
   """
   @spec streamed_zip_binary([{String.t(), binary()}],
           zip64: boolean(),
-          entry_disk: non_neg_integer()
+          entry_disk: non_neg_integer(),
+          marked: boolean()
         ) :: binary()
   def streamed_zip_binary(entries, opts \\ []) when is_list(entries) do
     zip64? = Keyword.get(opts, :zip64, false)
@@ -59,7 +63,8 @@ defmodule Cake.ZipFixtures do
 
     {locals, centrals, cd_offset} = streamed_entries(entries, zip64)
     central_dir = IO.iodata_to_binary(centrals)
-    end_records = end_records(length(entries), byte_size(central_dir), cd_offset, zip64?)
+    end_layout = if zip64?, do: {:zip64, Keyword.get(opts, :marked, true)}, else: :classic
+    end_records = end_records(length(entries), byte_size(central_dir), cd_offset, end_layout)
 
     IO.iodata_to_binary([locals, central_dir, end_records])
   end
@@ -129,14 +134,16 @@ defmodule Cake.ZipFixtures do
       0::little-32, offset_field::little-32, name::binary, extra::binary>>
   end
 
-  @spec end_records(non_neg_integer(), non_neg_integer(), non_neg_integer(), boolean()) ::
-          binary()
-  defp end_records(count, cd_size, cd_offset, false) do
-    <<@end_of_central_dir_signature::little-32, 0::little-16, 0::little-16, count::little-16,
-      count::little-16, cd_size::little-32, cd_offset::little-32, 0::little-16>>
-  end
+  @spec end_records(
+          non_neg_integer(),
+          non_neg_integer(),
+          non_neg_integer(),
+          :classic | {:zip64, marked :: boolean()}
+        ) :: binary()
+  defp end_records(count, cd_size, cd_offset, :classic),
+    do: classic_end(count, cd_size, cd_offset)
 
-  defp end_records(count, cd_size, cd_offset, true) do
+  defp end_records(count, cd_size, cd_offset, {:zip64, marked?}) do
     zip64_record_offset = cd_offset + cd_size
 
     zip64_record =
@@ -149,11 +156,17 @@ defmodule Cake.ZipFixtures do
         zip64_record_offset::little-64, 1::little-32>>
 
     classic =
-      <<@end_of_central_dir_signature::little-32, 0::little-16, 0::little-16,
-        @zip64_marker_16::little-16, @zip64_marker_16::little-16, @zip64_marker_32::little-32,
-        @zip64_marker_32::little-32, 0::little-16>>
+      if marked?,
+        do: classic_end(@zip64_marker_16, @zip64_marker_32, @zip64_marker_32),
+        else: classic_end(count, cd_size, cd_offset)
 
     zip64_record <> locator <> classic
+  end
+
+  @spec classic_end(non_neg_integer(), non_neg_integer(), non_neg_integer()) :: binary()
+  defp classic_end(count, cd_size, cd_offset) do
+    <<@end_of_central_dir_signature::little-32, 0::little-16, 0::little-16, count::little-16,
+      count::little-16, cd_size::little-32, cd_offset::little-32, 0::little-16>>
   end
 
   @doc """
