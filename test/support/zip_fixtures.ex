@@ -191,6 +191,16 @@ defmodule Cake.ZipFixtures do
   end
 
   @doc """
+  Rewrites both entry counts the end-of-central-directory record declares
+  (this disk's and the total), leaving the directory itself untouched.
+  Expects a classic archive with no comment.
+  """
+  @spec forge_entry_count(binary(), non_neg_integer()) :: binary()
+  def forge_entry_count(zip, count) do
+    patch(zip, byte_size(zip) - 22 + 8, <<count::little-16, count::little-16>>)
+  end
+
+  @doc """
   Zeroes the signature of the first central-directory header, so any
   reader that walks the central directory fails on its first entry.
   """
