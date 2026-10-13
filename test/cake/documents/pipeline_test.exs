@@ -120,7 +120,8 @@ defmodule Cake.Documents.PipelineTest do
     end
 
     test "rejects a docs.embed_persist row with an error tuple instead of crashing" do
-      # A killed embed-persistence task is recorded as {nil, reason} too.
+      # The stage records every row with the document's id today; a row
+      # without one (recorded before it did) still gets an answer.
       failure = insert_failure(build_ctx(), "docs.embed_persist", %{input_identifier: nil})
 
       assert {:error, {:no_input_identifier, failure.id}} == retry(failure)
