@@ -11,7 +11,7 @@ defmodule Cake.Pipelines do
     * `add_to_search_backend/3` — indexes embedded records into a search
       collection.
     * `sweep/3` — retry loop over the item-level failures one run persisted.
-    * `build_context/3` and `Context` — pipeline identity threaded through
+    * `build_context/4` and `Context` — pipeline identity threaded through
       a run for error provenance.
     * `count_failures/1`, `summarize_ingest/3`, `finalize_ingest/3`, and
       `handle_ingest_error/2` — honest run accounting.
@@ -35,6 +35,12 @@ defmodule Cake.Pipelines do
     implementation, and version say *what* a run ingested; `run_id` says
     *which* run, so concurrent runs of the same source never count or
     sweep each other's failures.
+
+    `step_prefix` is the pipeline's step-name prefix (`"docs"`, `"books"`),
+    set by each orchestrator, under which `handle_ingest_error/2` persists a
+    pipeline-fatal step as `"<prefix>.<step>"`, the same `"pipeline.step"`
+    convention the item-level steps follow. `nil` (a context built outside
+    an orchestrator) persists the bare step name.
     """
 
     @typedoc "A run's identity and options; the moduledoc describes each field."
@@ -43,9 +49,10 @@ defmodule Cake.Pipelines do
             behaviour: String.t(),
             implementation: String.t(),
             version: String.t(),
+            step_prefix: String.t() | nil,
             opts: keyword()
           }
-    defstruct [:run_id, :behaviour, :implementation, :version, :opts]
+    defstruct [:run_id, :behaviour, :implementation, :version, :step_prefix, :opts]
   end
 
   @typedoc "Shorthand for `t:Cake.Pipelines.Context.t/0`."
@@ -341,35 +348,30 @@ defmodule Cake.Pipelines do
 
   `behaviour_module` and `source_pipeline` are stored inspected, as the error
   provenance every `FailedIngest` row of the run carries; `version` is either a
-  string or a `{major, minor, patch}` tuple, joined with dots; `opts` is kept on
-  the context (`:search_backend_timeout` is the one key read today). Each call
-  generates a fresh `run_id`, which is what scopes `count_failures/1`,
-  `finalize_ingest/3` and `sweep/3` to this run.
+  string or a `{major, minor, patch}` tuple, joined with dots. `:step_prefix`
+  is lifted out of `opts` onto the context's `step_prefix` field (the
+  orchestrators pass `"docs"` and `"books"`; absent, it is `nil`); the rest of
+  `opts` is kept on the context (`:search_backend_timeout` is the one key read
+  today). Each call generates a fresh `run_id`, which is what scopes
+  `count_failures/1`, `finalize_ingest/3` and `sweep/3` to this run.
   """
   @spec build_context(atom(), atom(), String.t() | {integer(), integer(), integer()}, keyword()) ::
           context()
   def build_context(behaviour_module, source_pipeline, version, opts \\ [])
 
-  @spec build_context(atom(), atom(), {integer(), integer(), integer()}) :: context()
   def build_context(behaviour_module, source_pipeline, {major, minor, patch}, opts) do
-    version = Enum.join([major, minor, patch], ".")
-
-    %Pipelines.Context{
-      run_id: Ecto.UUID.generate(),
-      behaviour: inspect(behaviour_module),
-      implementation: inspect(source_pipeline),
-      version: version,
-      opts: opts
-    }
+    build_context(behaviour_module, source_pipeline, Enum.join([major, minor, patch], "."), opts)
   end
 
-  @spec build_context(atom(), atom(), String.t()) :: context()
-  def build_context(behaviour_module, source_pipeline, version, opts) do
+  def build_context(behaviour_module, source_pipeline, version, opts) when is_binary(version) do
+    {step_prefix, opts} = Keyword.pop(opts, :step_prefix)
+
     %Pipelines.Context{
       run_id: Ecto.UUID.generate(),
       behaviour: inspect(behaviour_module),
       implementation: inspect(source_pipeline),
       version: version,
+      step_prefix: step_prefix,
       opts: opts
     }
   end
@@ -379,52 +381,47 @@ defmodule Cake.Pipelines do
 
   A tagged `{:error, step, reason}` (from an eager run-level step such as
   `download/1` or `validate_paths/1`) is logged with the run's context,
-  persisted as a `FailedIngest` row with `pipeline_fatal: true`,
-  `step: Atom.to_string(step)` and an empty `input_identifier`, and returned as
-  `{:error, {step, reason}}`. An untagged `{:error, reason}` is persisted the
-  same way under `step: "ingest"` and returned unchanged. Item-level failures
-  never come here; they go through `detuple_with_logging/3` or
-  `log_and_persist_failure/3` as the stream runs.
+  persisted as a `FailedIngest` row with `pipeline_fatal: true`, the step
+  under the context's `step_prefix` (`"docs.download"`,
+  `"books.validate_paths"`; the bare `Atom.to_string(step)` when the prefix
+  is `nil`) and an empty `input_identifier`, and returned as
+  `{:error, {step, reason}}` — the bare atom, which is what callers match
+  on. An untagged `{:error, reason}` is persisted the same way under the
+  `"ingest"` step (`"docs.ingest"`, `"books.ingest"`) and returned unchanged.
+  Item-level failures never come here; they go through
+  `detuple_with_logging/3` or `log_and_persist_failure/3` as the stream runs.
   """
   @spec handle_ingest_error({:error, any()} | {:error, atom(), any()}, context()) ::
           {:error, {atom(), any()}} | {:error, any()}
   def handle_ingest_error({:error, step, error}, ctx) when is_atom(step) do
     Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error at #{step}: #{inspect(error)}")
-
-    _ =
-      %{
-        run_id: ctx.run_id,
-        pipeline_behaviour: ctx.behaviour,
-        pipeline_implementation: ctx.implementation,
-        step: Atom.to_string(step),
-        version: ctx.version,
-        error_text: inspect(error),
-        input_identifier: "",
-        pipeline_fatal: true
-      }
-      |> Cake.FailedIngests.create_failed_ingest()
-      |> log_rejected_failure(Atom.to_string(step), nil)
-
+    _ = persist_fatal_failure(ctx, Atom.to_string(step), error)
     {:error, {step, error}}
   end
 
   def handle_ingest_error({:error, error}, ctx) do
     Logger.warning("[#{ctx.behaviour}] Pipeline-fatal error: #{inspect(error)}")
-
-    _ =
-      %{
-        run_id: ctx.run_id,
-        pipeline_behaviour: ctx.behaviour,
-        pipeline_implementation: ctx.implementation,
-        step: "ingest",
-        version: ctx.version,
-        error_text: inspect(error),
-        input_identifier: "",
-        pipeline_fatal: true
-      }
-      |> Cake.FailedIngests.create_failed_ingest()
-      |> log_rejected_failure("ingest", nil)
-
+    _ = persist_fatal_failure(ctx, "ingest", error)
     {:error, error}
   end
+
+  defp persist_fatal_failure(%Context{} = ctx, step, error) do
+    step_name = prefixed_step(ctx, step)
+
+    %{
+      run_id: ctx.run_id,
+      pipeline_behaviour: ctx.behaviour,
+      pipeline_implementation: ctx.implementation,
+      step: step_name,
+      version: ctx.version,
+      error_text: inspect(error),
+      input_identifier: "",
+      pipeline_fatal: true
+    }
+    |> Cake.FailedIngests.create_failed_ingest()
+    |> log_rejected_failure(step_name, nil)
+  end
+
+  defp prefixed_step(%Context{step_prefix: nil}, step), do: step
+  defp prefixed_step(%Context{step_prefix: prefix}, step), do: "#{prefix}.#{step}"
 end

@@ -130,7 +130,9 @@ defmodule Cake.Books.Pipeline do
           | {:error, {:no_items_ingested, Pipelines.ingest_summary()}}
           | {:error, {:validate_paths, path_error()}}
   def ingest(embedding_service, format_pipeline, embedding_model, paths) do
-    ctx = Pipelines.build_context(__MODULE__, format_pipeline, embedding_model)
+    ctx =
+      Pipelines.build_context(__MODULE__, format_pipeline, embedding_model, step_prefix: "books")
+
     do_ingest(ctx, embedding_service, format_pipeline, embedding_model, paths)
   end
 
@@ -164,7 +166,9 @@ defmodule Cake.Books.Pipeline do
           | {:error, {:no_items_ingested, Pipelines.ingest_summary()}}
           | {:error, {:validate_paths, path_error()}}
   def ingest_with_sweep(embedding_service, format_pipeline, embedding_model, paths, opts \\ []) do
-    ctx = Pipelines.build_context(__MODULE__, format_pipeline, embedding_model)
+    ctx =
+      Pipelines.build_context(__MODULE__, format_pipeline, embedding_model, step_prefix: "books")
+
     result = do_ingest(ctx, embedding_service, format_pipeline, embedding_model, paths)
 
     retry_fn = fn failure ->

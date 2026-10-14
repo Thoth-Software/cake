@@ -118,7 +118,7 @@ defmodule Cake.Documents.Pipeline do
   @spec ingest(atom(), atom(), version(), String.t()) ::
           {:ok, Pipelines.ingest_summary()} | {:error, any()}
   def ingest(embedding_service, source_pipeline, version_tuple, embedding_model) do
-    ctx = Pipelines.build_context(__MODULE__, source_pipeline, version_tuple)
+    ctx = Pipelines.build_context(__MODULE__, source_pipeline, version_tuple, step_prefix: "docs")
     do_ingest(ctx, embedding_service, source_pipeline, embedding_model)
   end
 
@@ -165,7 +165,7 @@ defmodule Cake.Documents.Pipeline do
         embedding_model,
         opts \\ []
       ) do
-    ctx = Pipelines.build_context(__MODULE__, source_pipeline, version_tuple)
+    ctx = Pipelines.build_context(__MODULE__, source_pipeline, version_tuple, step_prefix: "docs")
     result = do_ingest(ctx, embedding_service, source_pipeline, embedding_model)
 
     retry_fn = fn failure ->
