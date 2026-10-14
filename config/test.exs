@@ -58,6 +58,12 @@ config :cake, Cake.Generation.OpenAI,
 
 config :cake, book_storage_adapter: Cake.Books.Adapters.Mock
 
+# No decomposition under test: the web app opts in to Cake.Decomposition.LLM
+# in config.exs, which would put a real LLM call in front of every
+# ChatLive-driven turn. Tests that exercise decomposition start their
+# conversations with Cake.Decomposition.Mock explicitly.
+config :cake, Cake.Conversation, decomposition: nil
+
 # Route the OpenSearch backend's Snap requests to the in-process stub so
 # backend tests exercise Snap's real request/response path without a cluster.
 config :cake, Cake.Search.Deployment, http_client_adapter: Cake.Search.HTTPClientStub

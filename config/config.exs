@@ -53,13 +53,18 @@ config :cake, :search_collections, [
 
 # Default parameters for starting a Cake.Conversation from a web entry point.
 # The :id is generated per session; everything else comes from here so the
-# search backend, GDS, embedder, provider, and response model stay consistent
-# across the app and configurable per environment.
+# search backend, GDS, embedder, provider, response model and decomposition
+# strategy stay consistent across the app and configurable per environment.
+# :decomposition is the Cake.Decomposition implementation the web app opts
+# in to: every conversation's first auto-mode turn makes one extra
+# structured LLM call to decompose its question (config/test.exs sets it to
+# nil so the suite stays hermetic).
 config :cake, Cake.Conversation,
   gds: Cake.Books.ParsedBook,
   embedder: "text-embedding-ada-002",
   response_model: "gpt-4o-mini",
-  provider: :openai
+  provider: :openai,
+  decomposition: Cake.Decomposition.LLM
 
 # Token ceiling for the accumulated sub-question answers carried between
 # steps of a sequential (least-to-most) decomposition turn. When the
