@@ -844,20 +844,12 @@ defmodule Cake.ConversationTest do
       {:ok, pid} = Conversation.start(valid_opts(%{owner: owner}))
       ref = Process.monitor(pid)
 
-      # CI once saw this monitor report :noproc: the conversation was already
-      # gone before :stop was sent, and the assert_receive below could only
-      # report a timeout. A :noproc DOWN is enqueued by Process.monitor/1
-      # itself, so checking the mailbox here is deterministic. Fail with the
-      # state of both processes so the next occurrence explains itself.
-      receive do
-        {:DOWN, ^ref, :process, ^pid, reason} ->
-          flunk("""
-          conversation #{inspect(pid)} exited (#{inspect(reason)}) before its owner was stopped
-          owner #{inspect(owner)}: #{inspect(Process.info(owner, [:status, :messages, :monitored_by]))}
-          """)
-      after
-        0 -> :ok
-      end
+      # A monitor request is an asynchronous signal (OTP's "Signals" guide),
+      # so the round trip below makes sure the conversation has processed
+      # it before its owner is stopped: without it, the owner's exit could
+      # take the conversation down before the monitor was in place, and
+      # the assert_receive on its :DOWN could only report a timeout (#299).
+      _ = :sys.get_state(pid)
 
       send(owner, :stop)
 
