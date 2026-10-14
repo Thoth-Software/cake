@@ -63,7 +63,6 @@ defmodule CakeWeb.SearchLive do
            Cake.Embeddings.embed(provider, %{input: query}, embedding_model),
          {:ok, search_results} <-
            Cake.Search.search_chunks_with_context(
-             :hybrid,
              query,
              embedding,
              Cake.Search.default_expand_offset(),

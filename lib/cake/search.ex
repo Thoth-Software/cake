@@ -29,15 +29,19 @@ defmodule Cake.Search do
 
   @typedoc """
   The query mode: BM25 `:keyword`, k-NN `:vector`, or `:hybrid` (vector clause
-  in `must`, boosted keyword clause in `should`).
+  in `must`, boosted keyword clause in `should`). Passed as the `:search_type`
+  opt; `:hybrid` when absent.
   """
   @type search_type :: :keyword | :vector | :hybrid
 
   @typedoc """
-  Per-call options: `:gds` (required, the GDS module to search) plus the
-  overrides `:size`, `:k`, `:ef_search`, `:keyword_weight` and `:fields`.
+  Per-call options: `:gds` (required, the GDS module to search), `:search_type`
+  (`t:search_type/0`, default `:hybrid`) plus the overrides `:size`, `:k`,
+  `:ef_search`, `:keyword_weight` and `:fields`.
   """
   @type search_opts :: keyword()
+
+  @default_search_type :hybrid
 
   @typedoc "The backend's raw hits, or its error."
   @type search_result :: {:ok, [Hit.t()]} | {:error, Backend.search_error()}
@@ -69,16 +73,19 @@ defmodule Cake.Search do
   @doc """
   Run a keyword/vector/hybrid search against the GDS's collection.
 
-  Required opt: `:gds` — a module implementing `Cake.GDS`. Other opts:
-  `:size`, `:k`, `:keyword_weight`, `:fields`. `embedding` may be
-  nil for keyword-only search.
+  Required opt: `:gds` — a module implementing `Cake.GDS`. The mode is the
+  `:search_type` opt, `:hybrid` unless given. Other opts: `:size`, `:k`,
+  `:ef_search`, `:keyword_weight`, `:fields`. `embedding` may be nil only for
+  a `:keyword` search; the two other modes build a knn clause from it.
   """
-  @spec search_chunks(search_type(), String.t(), [float()] | nil, search_opts()) ::
-          search_result()
-  def search_chunks(search_type, keywords, embedding \\ nil, opts \\ []) do
+  @spec search_chunks(String.t(), [float()] | nil, search_opts()) :: search_result()
+  def search_chunks(keywords, embedding, opts) when is_list(opts) do
     gds = Keyword.fetch!(opts, :gds)
     collection = gds.collection_name()
-    query = build_query(search_type, collection, keywords, embedding, opts, gds.search_fields())
+
+    query =
+      build_query(search_type(opts), collection, keywords, embedding, opts, gds.search_fields())
+
     Backend.backend().search(query)
   end
 
@@ -90,36 +97,30 @@ defmodule Cake.Search do
   and the backend `_score`; expanded neighbors carry `hit_source: :expansion`
   and `backend_score: nil`.
 
-  `expand` is the neighbor offset. Accepts all the same opts as
-  `search_chunks/4`, including the required `:gds` opt.
+  `expand` is the neighbor offset (default `default_expand_offset/0`).
+  Accepts all the same opts as `search_chunks/3`, including the required
+  `:gds` opt and the `:search_type` mode, `:hybrid` unless given.
   """
   @spec search_chunks_with_context(
-          search_type(),
           String.t(),
           [float()] | nil,
           non_neg_integer(),
           search_opts()
         ) :: {:ok, result_list()} | {:error, Backend.search_error()}
-  def search_chunks_with_context(
-        search_type,
-        keywords,
-        embedding \\ nil,
-        expand \\ @default_expand_offset,
-        opts \\ []
-      ) do
+  def search_chunks_with_context(keywords, embedding, expand \\ @default_expand_offset, opts)
+      when is_list(opts) do
     gds = Keyword.fetch!(opts, :gds)
-    provenance = %Provenance{search_type: search_type, query_text: keywords}
+    provenance = %Provenance{search_type: search_type(opts), query_text: keywords}
 
-    with {:ok, hits} <- search_chunks(search_type, keywords, embedding, opts) do
+    with {:ok, hits} <- search_chunks(keywords, embedding, opts) do
       {:ok, build_results(hits, gds, gds.collection_name(), provenance, expand)}
     end
   end
 
-  @doc "Alias of `search_chunks/4` retained for call-site clarity. Same signature."
-  @spec search_docs(search_type(), String.t(), [float()] | nil, search_opts()) ::
-          search_result()
-  def search_docs(search_type, keywords, embedding \\ nil, opts \\ []) do
-    search_chunks(search_type, keywords, embedding, opts)
+  @doc "Alias of `search_chunks/3` retained for call-site clarity. Same signature."
+  @spec search_docs(String.t(), [float()] | nil, search_opts()) :: search_result()
+  def search_docs(keywords, embedding, opts) when is_list(opts) do
+    search_chunks(keywords, embedding, opts)
   end
 
   # --- Scoring utilities ---
@@ -197,6 +198,8 @@ defmodule Cake.Search do
   end
 
   # --- Private ---
+
+  defp search_type(opts), do: Keyword.get(opts, :search_type, @default_search_type)
 
   @spec build_results([Hit.t()], module(), String.t(), Provenance.t(), non_neg_integer()) ::
           [Result.t()]

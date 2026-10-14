@@ -973,7 +973,6 @@ defmodule Cake.Conversation do
            s.embeddings.embed(s.provider, %{input: question}, s.embedder),
          {:ok, raw_results} <-
            Cake.Search.search_chunks_with_context(
-             :hybrid,
              question,
              embedding,
              Cake.Search.default_expand_offset(),
