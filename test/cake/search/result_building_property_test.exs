@@ -1,6 +1,6 @@
 defmodule Cake.Search.ResultBuildingPropertyTest do
   @moduledoc """
-  Property tests for how `Cake.Search.search_chunks_with_context/5` turns
+  Property tests for how `Cake.Search.search_chunks_with_context/4` turns
   backend hits into `Cake.Search.Result` structs.
 
   With `Cake.Support.ExpandingGDS` (a corpus of ordered records and a real
@@ -83,7 +83,10 @@ defmodule Cake.Search.ResultBuildingPropertyTest do
     expect(Backend.Mock, :search, fn _query -> {:ok, hits} end)
 
     {:ok, results} =
-      Search.search_chunks_with_context(type, query_text, [0.5, 0.5], offset, gds: gds)
+      Search.search_chunks_with_context(query_text, [0.5, 0.5], offset,
+        gds: gds,
+        search_type: type
+      )
 
     results
   end

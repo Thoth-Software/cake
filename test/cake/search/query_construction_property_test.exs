@@ -1,9 +1,10 @@
 defmodule Cake.Search.QueryConstructionPropertyTest do
   @moduledoc """
-  Property tests for the query `Cake.Search.search_chunks/4` hands the
+  Property tests for the query `Cake.Search.search_chunks/3` hands the
   backend, by search type.
 
   The backend is `Cake.Search.Backend.Mock`, which captures the `%Query{}`.
+  The type is the `:search_type` opt, and an absent opt means `:hybrid`.
   For any type and option set: `size` follows the option; a knn clause is in
   `must` exactly when the type is not `:keyword`, carrying `k` and `ef_search`
   from the options; a multi_match clause is in `should` exactly when the type
@@ -37,7 +38,14 @@ defmodule Cake.Search.QueryConstructionPropertyTest do
   # Generators
   # ---------------------------------------------------------------------------
 
-  defp search_type, do: member_of([:keyword, :vector, :hybrid])
+  # nil stands for an absent :search_type opt, which must mean :hybrid.
+  defp search_type, do: one_of([constant(nil), member_of([:keyword, :vector, :hybrid])])
+
+  defp effective_type(nil), do: :hybrid
+  defp effective_type(type), do: type
+
+  defp type_opts(nil), do: []
+  defp type_opts(type), do: [search_type: type]
 
   defp keywords, do: string(:alphanumeric, min_length: 1, max_length: 20)
 
@@ -70,7 +78,9 @@ defmodule Cake.Search.QueryConstructionPropertyTest do
       {:ok, []}
     end)
 
-    {:ok, []} = Search.search_chunks(type, keywords, embedding, [gds: FixtureGDS] ++ opts)
+    {:ok, []} =
+      Search.search_chunks(keywords, embedding, [gds: FixtureGDS] ++ type_opts(type) ++ opts)
+
     assert_received {:query, %Query{} = query}
     query
   end
@@ -99,7 +109,7 @@ defmodule Cake.Search.QueryConstructionPropertyTest do
     check all(type <- search_type(), kw <- keywords(), emb <- embedding(), opts <- opts()) do
       query = capture_query(type, kw, emb, opts)
 
-      case type do
+      case effective_type(type) do
         :keyword ->
           assert query.must == []
 
@@ -118,7 +128,7 @@ defmodule Cake.Search.QueryConstructionPropertyTest do
     check all(type <- search_type(), kw <- keywords(), emb <- embedding(), opts <- opts()) do
       query = capture_query(type, kw, emb, opts)
 
-      case type do
+      case effective_type(type) do
         :vector ->
           assert query.should == []
 

@@ -125,8 +125,9 @@ defmodule Cake.Documents.Hexdocs.PipelineIntegrationTest do
       absname_id = absname.id
 
       assert {:ok, hits} =
-               Search.search_chunks(:vector, "", deterministic_embedding(embed_input(absname)),
-                 gds: ParsedDocument
+               Search.search_chunks("", deterministic_embedding(embed_input(absname)),
+                 gds: ParsedDocument,
+                 search_type: :vector
                )
 
       assert %Hit{score: 1.0} = Enum.find(hits, &(&1.id == absname_id))

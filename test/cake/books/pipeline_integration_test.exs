@@ -4,7 +4,7 @@ defmodule Cake.Books.PipelineIntegrationTest do
   through the Disk storage adapter, `Cake.Books.Pipeline.ingest/4` over the
   real Rustler NIF, real `ParsedBook` and `Chunk` rows in Postgres, real
   documents in the `chunks_of_books` collection of a real OpenSearch node,
-  and `Cake.Search.search_chunks/4` finding the chunk again.
+  and `Cake.Search.search_chunks/3` finding the chunk again.
 
   Only the embedding provider is substituted: `Cake.Embeddings.Mock` hands
   out `deterministic_embedding/1` vectors, so a query embedded the same way
@@ -84,21 +84,22 @@ defmodule Cake.Books.PipelineIntegrationTest do
       second_id = second.id
 
       assert {:ok, [%Hit{id: ^second_id} | _] = hits} =
-               Search.search_chunks(:keyword, "second page continues", nil, gds: ParsedBook)
+               Search.search_chunks("second page continues", nil,
+                 gds: ParsedBook,
+                 search_type: :keyword
+               )
 
       assert MapSet.subset?(MapSet.new(ids(hits)), MapSet.new(ids(chunks)))
 
       query_vector = deterministic_embedding(embed_input(second))
 
       assert {:ok, [%Hit{id: ^second_id, score: 1.0} | _]} =
-               Search.search_chunks(:vector, "", query_vector, gds: ParsedBook)
+               Search.search_chunks("", query_vector, gds: ParsedBook, search_type: :vector)
 
       # Results come back in chunk order (neighbor expansion re-sorts them;
       # ranking is the conversation layer's job), so find the hit by id.
       assert {:ok, results} =
-               Search.search_chunks_with_context(:hybrid, "second page", query_vector, 0,
-                 gds: ParsedBook
-               )
+               Search.search_chunks_with_context("second page", query_vector, 0, gds: ParsedBook)
 
       assert %Result{retrieval_unit: %Chunk{} = unit, hit_source: :search, backend_score: score} =
                Enum.find(results, &(&1.retrieval_unit.id == second_id))
@@ -384,7 +385,7 @@ defmodule Cake.Books.PipelineIntegrationTest do
       query_vector = deterministic_embedding(embed_input(persisted_second))
 
       assert {:ok, [%Hit{id: ^second_id, score: 1.0} | _]} =
-               Search.search_chunks(:vector, "", query_vector, gds: ParsedBook)
+               Search.search_chunks("", query_vector, gds: ParsedBook, search_type: :vector)
 
       # Deliberately unpinned: the book's embedding_status is still :failed
       # here — the run set it, and retry_from_chunk never revisits it after
