@@ -208,7 +208,10 @@ defmodule Cake.Pipelines do
   never touched, so concurrent sweeps cannot retry the same row.
 
   The `retry_fn` argument is a 1-arity function that accepts a %FailedIngest{}
-  and returns {:ok, :retried} | {:error, any()}.
+  and returns {:ok, :retried} | {:error, any()}. A retry that raises or
+  exits is that row's failure, not the sweep's: the exception or exit
+  reason is logged against the row's id, the row stays remaining, and the
+  other rows are still retried.
 
   Returns {resolved_count, remaining_count}.
   """
@@ -230,17 +233,7 @@ defmodule Cake.Pipelines do
     if failures == [] do
       {total_resolved, 0}
     else
-      resolved_this_sweep =
-        Enum.count(failures, fn failure ->
-          case retry_fn.(failure) do
-            {:ok, :retried} ->
-              true
-
-            {:error, reason} ->
-              Logger.warning("[sweep] Retry failed for #{failure.id}: #{inspect(reason)}")
-              false
-          end
-        end)
+      resolved_this_sweep = Enum.count(failures, &retry_resolved?(retry_fn, &1))
 
       if resolved_this_sweep == 0 do
         {total_resolved, length(failures)}
@@ -248,6 +241,27 @@ defmodule Cake.Pipelines do
         do_sweep(ctx, retry_fn, sweeps_left - 1, total_resolved + resolved_this_sweep)
       end
     end
+  end
+
+  # One row's retry, contained: a result tuple is classified, and a raise
+  # or an exit becomes an unresolved row rather than an aborted sweep.
+  defp retry_resolved?(retry_fn, failure) do
+    case safe_retry(retry_fn, failure) do
+      {:ok, :retried} ->
+        true
+
+      {:error, reason} ->
+        Logger.warning("[sweep] Retry failed for #{failure.id}: #{inspect(reason)}")
+        false
+    end
+  end
+
+  defp safe_retry(retry_fn, failure) do
+    retry_fn.(failure)
+  rescue
+    exception -> {:error, {:retry_raised, Exception.message(exception)}}
+  catch
+    :exit, reason -> {:error, {:retry_exited, reason}}
   end
 
   @doc """
