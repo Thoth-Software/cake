@@ -1853,6 +1853,51 @@ defmodule Cake.ConversationTest do
       assert %{decomposition: Cake.Decomposition.Mock} = :sys.get_state(decomposing_pid)
     end
 
+    test "decompose/2 receives the conversation's generation module and response model as opts" do
+      question = "what is the flow rate of the RO-400?"
+      test_pid = self()
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, opts ->
+        send(test_pid, {:decompose_opts, opts})
+        {:ok, Cake.Decomposition.Result.new(question)}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, _params, _model ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query -> {:ok, []} end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      pid =
+        start_subscribed(%{
+          decomposition: Cake.Decomposition.Mock,
+          response_model: "gpt-4.1-mini"
+        })
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+      assert_receive {:response_ready, _}
+
+      # The strategy generates with the conversation's collaborator and
+      # model, not its own compile-time defaults.
+      assert_receive {:decompose_opts, opts}
+      assert Keyword.fetch!(opts, :generation) == Cake.Generation.Mock
+      assert Keyword.fetch!(opts, :model) == "gpt-4.1-mini"
+    end
+
     test "without :decomposition the original question is searched once (backward compat)" do
       question = "what is the flow rate of the RO-400?"
       test_pid = self()
