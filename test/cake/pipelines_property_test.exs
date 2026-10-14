@@ -16,6 +16,8 @@ defmodule Cake.PipelinesPropertyTest do
   use Cake.DataCase, async: true
   use ExUnitProperties
 
+  import ExUnit.CaptureLog, only: [with_log: 1]
+
   alias Cake.FailedIngests.FailedIngest
   alias Cake.Pipelines
   alias Cake.Repo
@@ -191,6 +193,81 @@ defmodule Cake.PipelinesPropertyTest do
 
         assert output == Enum.map(oks, fn {:ok, v} -> v end)
         assert count_matching(filters) == before_count + length(errs)
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # sweep/3 — retry bookkeeping
+  # ---------------------------------------------------------------------------
+
+  defp insert_row(ctx, identifier) do
+    {:ok, row} =
+      Cake.FailedIngests.create_failed_ingest(%{
+        run_id: ctx.run_id,
+        pipeline_behaviour: ctx.behaviour,
+        pipeline_implementation: ctx.implementation,
+        step: "docs.embed",
+        version: ctx.version,
+        error_text: "boom",
+        input_identifier: identifier,
+        pipeline_fatal: false
+      })
+
+    row
+  end
+
+  describe "sweep/3" do
+    property "every unresolved row records one attempt per pass; resolved rows are deleted" do
+      check all(
+              failing <- integer(0..3),
+              crashing <- integer(0..2),
+              resolving <- integer(0..3),
+              max_sweeps <- integer(1..3)
+            ) do
+        # Built per execution rather than generated: shrinking holds a
+        # generated value fixed while it varies the others, and a run whose
+        # unresolved rows persist across executions would be swept again.
+        ctx = Pipelines.build_context(Cake.Documents.Pipeline, Cake.TestPipeline, {0, 0, 0})
+
+        failing_rows = for i <- 1..failing//1, do: insert_row(ctx, "fail-#{i}")
+        crashing_rows = for i <- 1..crashing//1, do: insert_row(ctx, "crash-#{i}")
+        resolving_rows = for i <- 1..resolving//1, do: insert_row(ctx, "ok-#{i}")
+
+        retry_fn = fn
+          %FailedIngest{input_identifier: "ok-" <> _} = row ->
+            {:ok, _} = Cake.FailedIngests.delete_failed_ingest(row)
+            {:ok, :retried}
+
+          %FailedIngest{input_identifier: "crash-" <> _} ->
+            raise "retry crashed"
+
+          %FailedIngest{} ->
+            {:error, :permanent}
+        end
+
+        started_at = DateTime.truncate(DateTime.utc_now(), :second)
+
+        {result, _log} =
+          with_log(fn -> Pipelines.sweep(ctx, retry_fn, max_sweeps: max_sweeps) end)
+
+        unresolved = failing + crashing
+        assert result == {resolving, unresolved}
+
+        # The first pass always runs; a second runs only when the first made
+        # progress and the budget allows; a third never, since the second
+        # pass resolves nothing. So an unresolved row is attempted once or
+        # twice, and every attempt is recorded, crash or error alike.
+        attempts = if unresolved > 0 and resolving > 0 and max_sweeps >= 2, do: 2, else: 1
+
+        for row <- failing_rows ++ crashing_rows do
+          reloaded = Repo.get!(FailedIngest, row.id)
+          assert reloaded.retry_count == attempts
+          assert %DateTime{} = reloaded.last_retried_at
+          assert DateTime.compare(reloaded.last_retried_at, started_at) in [:gt, :eq]
+        end
+
+        for row <- resolving_rows, do: refute(Repo.get(FailedIngest, row.id))
       end
     end
   end

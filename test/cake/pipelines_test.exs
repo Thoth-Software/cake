@@ -458,6 +458,34 @@ defmodule Cake.PipelinesTest do
       assert remaining == 1
     end
 
+    test "records one attempt per pass on an unresolved row and deletes resolved rows" do
+      ctx = build_ctx(version: {9, 2, 2})
+      resolving = insert_failure(ctx, pipeline_fatal: false, input_identifier: "resolves")
+      stuck = insert_failure(ctx, pipeline_fatal: false, input_identifier: "stuck")
+      assert %FailedIngest{retry_count: 0, last_retried_at: nil} = stuck
+
+      retry_fn = fn
+        %FailedIngest{input_identifier: "resolves"} = failure ->
+          {:ok, _} = Cake.FailedIngests.delete_failed_ingest(failure)
+          {:ok, :retried}
+
+        %FailedIngest{input_identifier: "stuck"} ->
+          {:error, :permanent}
+      end
+
+      # Pass 1 resolves one row and fails the other; that progress earns a
+      # pass 2, which fails the stuck row again and stops the sweep.
+      {result, _log} =
+        ExUnit.CaptureLog.with_log(fn -> Pipelines.sweep(ctx, retry_fn, max_sweeps: 2) end)
+
+      assert {1, 1} = result
+
+      assert %FailedIngest{retry_count: 2, last_retried_at: %DateTime{}} =
+               Repo.get!(FailedIngest, stuck.id)
+
+      refute Repo.get(FailedIngest, resolving.id)
+    end
+
     test "a retry_fn that raises or exits for a row leaves that row remaining and retries the rest" do
       ctx = build_ctx(version: {9, 1, 1})
       raising = insert_failure(ctx, pipeline_fatal: false, input_identifier: "raises")
