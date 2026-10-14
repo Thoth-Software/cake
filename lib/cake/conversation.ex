@@ -659,7 +659,8 @@ defmodule Cake.Conversation do
 
   # An intermediate answer's [N] markers cite that step's local chunk
   # numbering; threaded forward verbatim they would collide with later
-  # prompts' numbering and could leak into final citation resolution.
+  # prompts' numbering. Final answers are never stripped: they are
+  # processed over the merged context and keep their citations.
   defp strip_citation_markers(answer) do
     String.replace(answer, ~r/\s*\[\d+\]/, "")
   end
@@ -753,10 +754,11 @@ defmodule Cake.Conversation do
     end
   end
 
-  # One driver generation, classified. A final answer's [N] markers are
-  # stale references to intermediate steps' local numbering, so they are
-  # stripped here — citation resolution over the merged numbering must
-  # find none rather than false matches.
+  # One driver generation, classified. A final answer keeps its [N]
+  # markers: it is processed over the merged context, so they resolve
+  # there (a marker nothing in the merged numbering covers is reported
+  # as hallucinated by Responses, like any other). Only intermediate
+  # answers, folded into later prompts, are stripped.
   defp self_ask_drive(question, prior_answers, %State{} = s) do
     messages =
       Cake.Prompt.self_ask_prompt(question, prior_answers,
@@ -764,17 +766,13 @@ defmodule Cake.Conversation do
       )
 
     with {:ok, driver_response} <- generate(messages, s) do
-      case Cake.Prompt.parse_self_ask_response(driver_response) do
-        {:final, answer} -> {:ok, {:final, strip_citation_markers(answer)}}
-        {:follow_up, follow_up} -> {:ok, {:follow_up, follow_up}}
-      end
+      {:ok, Cake.Prompt.parse_self_ask_response(driver_response)}
     end
   end
 
-  # Marker path: the extracted answer (markers already stripped in
-  # self_ask_drive/3) is the final text. Cap path: one last generation
-  # over the merged context plus the accumulated pairs, whose markers do
-  # cite the merged numbering.
+  # Marker path: the extracted answer, markers and all, is the final
+  # text. Cap path: one last generation over the merged context plus the
+  # accumulated pairs.
   defp conclude_self_ask({:final, answer}, _indexed_chunks, _question, _answer_pairs, %State{}) do
     {:ok, answer}
   end
@@ -827,7 +825,7 @@ defmodule Cake.Conversation do
   defp ircot_round(question, decomposition, %State{} = s, {steps_rev, groups_rev} = acc, round) do
     case ircot_reason(question, Enum.reverse(steps_rev), s) do
       {:ok, {:done, reasoning}} ->
-        {:ok, {{:final, strip_citation_markers(reasoning)}, Enum.reverse(groups_rev)}}
+        {:ok, {{:final, reasoning}, Enum.reverse(groups_rev)}}
 
       {:ok, {:continue, reasoning, query}} ->
         retrieve_for_step(question, decomposition, s, acc, round, {reasoning, query})
@@ -873,11 +871,10 @@ defmodule Cake.Conversation do
     end
   end
 
-  # Completion path: the terminating step's reasoning (stale [N] markers
-  # already stripped in ircot_round/5 — driver context is unnumbered, so
-  # any marker is hallucinated) is the final text. Cap path: one plain
-  # synthesis generation over the merged context, whose markers do cite
-  # the merged numbering.
+  # Completion path: the terminating step's reasoning, markers and all,
+  # is the final text; it is processed over the merged context, where its
+  # [N] markers resolve. Cap path: one plain synthesis generation over
+  # the merged context.
   defp conclude_ircot({:final, answer}, _indexed_chunks, _question, %State{}) do
     {:ok, answer}
   end

@@ -2950,7 +2950,7 @@ defmodule Cake.ConversationTest do
       assert_receive {:response_ready, %{response: ^synthesis_answer}}
     end
 
-    test "strips stale citation markers from the extracted final answer" do
+    test "an immediate final answer keeps its markers for resolution against the merged context" do
       question = "What is the warranty on the pump used in the RO-400?"
       test_pid = self()
 
@@ -2985,13 +2985,13 @@ defmodule Cake.ConversationTest do
 
       assert :ok = Conversation.autoask(pid, question)
 
-      # The [N] markers referred to intermediate steps' local numbering
-      # (here, to nothing at all) — they must not survive into citation
-      # resolution against the merged numbering.
-      assert_receive {:processed, "The warranty is 5 years.", indexed}
+      # The markers reach response processing intact, over the (here,
+      # empty) merged context: resolving them, and reporting any that
+      # cite nothing as hallucinated, is Responses' job, not the loop's.
+      assert_receive {:processed, "The warranty is 5 years [1][2].", indexed}
       assert indexed == []
 
-      assert_receive {:response_ready, %{response: "The warranty is 5 years."}}
+      assert_receive {:response_ready, %{response: "The warranty is 5 years [1][2]."}}
     end
 
     test "a response without markers is the final answer" do
@@ -3334,7 +3334,7 @@ defmodule Cake.ConversationTest do
       assert_receive {:response_ready, %{response: "final synthesis [1]"}}
     end
 
-    test "strips stale citation markers from the terminating reasoning step" do
+    test "an immediate terminating step keeps its markers for resolution against the merged context" do
       question = "What is the warranty on the pump used in the RO-400?"
       test_pid = self()
 
@@ -3376,13 +3376,13 @@ defmodule Cake.ConversationTest do
 
       assert :ok = Conversation.autoask(pid, question)
 
-      # The [N] markers referred to intermediate steps' local numbering
-      # (here, to nothing at all) — they must not survive into citation
-      # resolution against the merged numbering.
-      assert_receive {:processed, "The warranty is 5 years.", indexed}
+      # The markers reach response processing intact, over the (here,
+      # empty) merged context: resolving them, and reporting any that
+      # cite nothing as hallucinated, is Responses' job, not the loop's.
+      assert_receive {:processed, "The warranty is 5 years [1][2].", indexed}
       assert indexed == []
 
-      assert_receive {:response_ready, %{response: "The warranty is 5 years."}}
+      assert_receive {:response_ready, %{response: "The warranty is 5 years [1][2]."}}
     end
 
     test "a blank retrieval query terminates the loop without searching" do
