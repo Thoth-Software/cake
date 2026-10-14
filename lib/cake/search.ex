@@ -117,12 +117,6 @@ defmodule Cake.Search do
     end
   end
 
-  @doc "Alias of `search_chunks/3` retained for call-site clarity. Same signature."
-  @spec search_docs(String.t(), [float()] | nil, search_opts()) :: search_result()
-  def search_docs(keywords, embedding, opts) when is_list(opts) do
-    search_chunks(keywords, embedding, opts)
-  end
-
   # --- Scoring utilities ---
 
   @doc """
