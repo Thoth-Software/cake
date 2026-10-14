@@ -53,6 +53,8 @@ defmodule Cake.PipelinesPropertyTest do
   defp context do
     gen all(
           version_seed <- string(:alphanumeric, min_length: 1, max_length: 8),
+          step_prefix <-
+            one_of([constant(nil), string(:alphanumeric, min_length: 1, max_length: 8)]),
           opts <- list_of(tuple({atom(:alphanumeric), binary()}), max_length: 3)
         ) do
       version =
@@ -64,10 +66,15 @@ defmodule Cake.PipelinesPropertyTest do
         Cake.Documents.Pipeline,
         Cake.TestPipeline,
         version,
-        opts
+        [step_prefix: step_prefix] ++ opts
       )
     end
   end
+
+  # The step name a fatal row persists: the context's prefix, when it has
+  # one, joined to the bare step with a dot.
+  defp persisted_step(%{step_prefix: nil}, step), do: step
+  defp persisted_step(%{step_prefix: prefix}, step), do: "#{prefix}.#{step}"
 
   defp count_matching(filters) do
     base = from(f in FailedIngest, select: count(f.id))
@@ -95,7 +102,7 @@ defmodule Cake.PipelinesPropertyTest do
           run_id: ctx.run_id,
           pipeline_implementation: ctx.implementation,
           version: ctx.version,
-          step: Atom.to_string(step),
+          step: persisted_step(ctx, Atom.to_string(step)),
           error_text: inspect(reason),
           pipeline_fatal: true
         ]
@@ -115,7 +122,7 @@ defmodule Cake.PipelinesPropertyTest do
   # ---------------------------------------------------------------------------
 
   describe "handle_ingest_error/2 with {:error, reason}" do
-    property "persists exactly one matching fatal row tagged step \"ingest\"" do
+    property "persists exactly one matching fatal row tagged step \"ingest\" under the prefix" do
       check all(
               ctx <- context(),
               reason <- reason_term()
@@ -124,7 +131,7 @@ defmodule Cake.PipelinesPropertyTest do
           run_id: ctx.run_id,
           pipeline_implementation: ctx.implementation,
           version: ctx.version,
-          step: "ingest",
+          step: persisted_step(ctx, "ingest"),
           error_text: inspect(reason),
           pipeline_fatal: true
         ]

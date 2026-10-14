@@ -280,7 +280,7 @@ defmodule Cake.Books.PipelineTest do
       end)
 
       assert [failure] = Repo.all(FailedIngest)
-      assert failure.step == "validate_paths"
+      assert failure.step == "books.validate_paths"
       assert failure.pipeline_fatal == true
       assert failure.error_text == inspect({:invalid_paths, [invalid_key]})
     end
@@ -294,7 +294,7 @@ defmodule Cake.Books.PipelineTest do
       end)
 
       assert [failure] = Repo.all(FailedIngest)
-      assert failure.step == "validate_paths"
+      assert failure.step == "books.validate_paths"
       assert failure.pipeline_fatal == true
       # inspect/1 escapes the NUL as `\0`, so sanitize_text_fields/1 has
       # nothing to strip and the persisted error names the key exactly.
@@ -315,7 +315,7 @@ defmodule Cake.Books.PipelineTest do
       assert failure.pipeline_behaviour == "Cake.Books.Pipeline"
       assert failure.pipeline_implementation == "Cake.TestBooksPipeline"
       assert failure.pipeline_fatal == true
-      assert failure.step == "validate_paths"
+      assert failure.step == "books.validate_paths"
       # Books has no source version, so its failures record the embedding
       # model as their version for provenance.
       assert failure.version == "test-model"

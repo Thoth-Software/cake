@@ -330,7 +330,7 @@ defmodule Cake.Books.PipelineIntegrationTest do
       assert {:error, {:validate_paths, :no_paths}} = ingest([])
 
       assert [%FailedIngest{pipeline_fatal: true} = failure] = Repo.all(FailedIngest)
-      assert failure.step == "validate_paths"
+      assert failure.step == "books.validate_paths"
       assert failure.pipeline_behaviour == "Cake.Books.Pipeline"
       assert failure.pipeline_implementation == "Cake.Books.Pdf.Pipeline"
       assert failure.version == embedding_model()
@@ -350,7 +350,7 @@ defmodule Cake.Books.PipelineIntegrationTest do
 
       assert {:error, {:validate_paths, {:invalid_paths, ["   "]}}} = ingest([good, "   "])
 
-      assert [%FailedIngest{pipeline_fatal: true, step: "validate_paths"}] =
+      assert [%FailedIngest{pipeline_fatal: true, step: "books.validate_paths"}] =
                Repo.all(FailedIngest)
 
       assert Books.list_parsed_books() == []

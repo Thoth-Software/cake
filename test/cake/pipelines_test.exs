@@ -89,6 +89,20 @@ defmodule Cake.PipelinesTest do
       assert ctx.version == "2.0.0"
       assert ctx.opts == [foo: :bar]
     end
+
+    test "build_context/4 lifts :step_prefix out of opts onto the context" do
+      ctx =
+        Pipelines.build_context(Cake.Documents.Pipeline, TestPipeline, "2.0.0",
+          step_prefix: "docs",
+          foo: :bar
+        )
+
+      assert ctx.step_prefix == "docs"
+      assert ctx.opts == [foo: :bar]
+
+      bare = Pipelines.build_context(Cake.Documents.Pipeline, TestPipeline, "2.0.0")
+      assert bare.step_prefix == nil
+    end
   end
 
   describe "Cake.TestPipeline.success_message/1" do
@@ -300,7 +314,7 @@ defmodule Cake.PipelinesTest do
       assert failure.pipeline_behaviour == "Cake.Documents.Pipeline"
       assert failure.pipeline_implementation == "Cake.FailingTestPipeline"
       assert failure.pipeline_fatal == true
-      assert failure.step == "download"
+      assert failure.step == "docs.download"
       assert failure.version == "1.18.3"
     end
   end
@@ -371,16 +385,17 @@ defmodule Cake.PipelinesTest do
   end
 
   describe "handle_ingest_error/2" do
-    test "handles {:error, step, error} with atom step" do
-      ctx = build_ctx(version: {5, 5, 5})
+    test "handles {:error, step, error} with atom step: the return keeps the bare atom, the row is prefixed" do
+      ctx = build_ctx(version: {5, 5, 5}, opts: [step_prefix: "docs"])
 
       result = Pipelines.handle_ingest_error({:error, :download, "git failed"}, ctx)
 
       assert {:error, {:download, "git failed"}} = result
+      assert [%FailedIngest{pipeline_fatal: true, step: "docs.download"}] = Repo.all(FailedIngest)
     end
 
-    test "handles {:error, error} without step" do
-      ctx = build_ctx(version: {5, 5, 5})
+    test "handles {:error, error} without step under the prefixed \"ingest\" step" do
+      ctx = build_ctx(version: {5, 5, 5}, opts: [step_prefix: "docs"])
 
       assert {:error, "network timeout"} =
                Pipelines.handle_ingest_error({:error, "network timeout"}, ctx)
@@ -393,7 +408,17 @@ defmodule Cake.PipelinesTest do
             where: f.pipeline_fatal == true
         )
 
-      assert failure.step == "ingest"
+      assert failure.step == "docs.ingest"
+    end
+
+    test "a context with no step_prefix persists the bare step name" do
+      ctx = build_ctx(version: {5, 5, 5})
+
+      _ = Pipelines.handle_ingest_error({:error, :download, "git failed"}, ctx)
+      _ = Pipelines.handle_ingest_error({:error, "network timeout"}, ctx)
+
+      assert ["download", "ingest"] =
+               FailedIngest |> Repo.all() |> Enum.map(& &1.step) |> Enum.sort()
     end
   end
 

@@ -94,7 +94,7 @@ defmodule Cake.Jobs.DocumentIngestionJobIntegrationTest do
 
     assert error["error"] =~ "git clone failed"
 
-    assert [%FailedIngest{pipeline_fatal: true, step: "download"} = failure] =
+    assert [%FailedIngest{pipeline_fatal: true, step: "docs.download"} = failure] =
              Repo.all(FailedIngest)
 
     assert failure.pipeline_behaviour == "Cake.Documents.Pipeline"
