@@ -43,7 +43,7 @@ defmodule Cake.PipelinesTest do
         step: "docs.embed",
         version: ctx.version,
         error_text: "boom",
-        input_identifier: "x",
+        input_identifier: Keyword.get(opts, :input_identifier, "x"),
         pipeline_fatal: Keyword.fetch!(opts, :pipeline_fatal)
       })
 
@@ -456,6 +456,40 @@ defmodule Cake.PipelinesTest do
 
       assert resolved == 0
       assert remaining == 1
+    end
+
+    test "a retry_fn that raises or exits for a row leaves that row remaining and retries the rest" do
+      ctx = build_ctx(version: {9, 1, 1})
+      raising = insert_failure(ctx, pipeline_fatal: false, input_identifier: "raises")
+      exiting = insert_failure(ctx, pipeline_fatal: false, input_identifier: "exits")
+      resolving = insert_failure(ctx, pipeline_fatal: false, input_identifier: "resolves")
+
+      retry_fn = fn
+        %FailedIngest{input_identifier: "raises"} ->
+          raise "retry blew up"
+
+        %FailedIngest{input_identifier: "exits"} ->
+          exit(:retry_exited)
+
+        %FailedIngest{input_identifier: "resolves"} = failure ->
+          {:ok, _} = Cake.FailedIngests.delete_failed_ingest(failure)
+          {:ok, :retried}
+      end
+
+      {result, log} =
+        ExUnit.CaptureLog.with_log(fn -> Pipelines.sweep(ctx, retry_fn, max_sweeps: 1) end)
+
+      # The crash of one row is that row's failure, not the sweep's: the
+      # row stays remaining and the other rows are still retried.
+      assert {1, 2} = result
+      assert log =~ raising.id
+      assert log =~ "retry blew up"
+      assert log =~ exiting.id
+      assert log =~ "retry_exited"
+
+      remaining_ids = FailedIngest |> Repo.all() |> Enum.map(& &1.id) |> Enum.sort()
+      assert remaining_ids == Enum.sort([raising.id, exiting.id])
+      refute resolving.id in remaining_ids
     end
   end
 end
