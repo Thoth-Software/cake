@@ -211,7 +211,10 @@ defmodule Cake.Pipelines do
   and returns {:ok, :retried} | {:error, any()}. A retry that raises or
   exits is that row's failure, not the sweep's: the exception or exit
   reason is logged against the row's id, the row stays remaining, and the
-  other rows are still retried.
+  other rows are still retried. Every failed attempt, error or crash, is
+  recorded on the row: `retry_count` goes up by one and `last_retried_at`
+  is set to the attempt's time, so a row that survives a sweep says how
+  often it has been tried.
 
   Returns {resolved_count, remaining_count}.
   """
@@ -245,6 +248,7 @@ defmodule Cake.Pipelines do
 
   # One row's retry, contained: a result tuple is classified, and a raise
   # or an exit becomes an unresolved row rather than an aborted sweep.
+  # A failed attempt is recorded on the row before moving on.
   defp retry_resolved?(retry_fn, failure) do
     case safe_retry(retry_fn, failure) do
       {:ok, :retried} ->
@@ -252,8 +256,20 @@ defmodule Cake.Pipelines do
 
       {:error, reason} ->
         Logger.warning("[sweep] Retry failed for #{failure.id}: #{inspect(reason)}")
+        _ = record_attempt(failure)
         false
     end
+  end
+
+  defp record_attempt(%Cake.FailedIngests.FailedIngest{} = failure) do
+    attrs = %{
+      retry_count: (failure.retry_count || 0) + 1,
+      last_retried_at: DateTime.truncate(DateTime.utc_now(), :second)
+    }
+
+    failure
+    |> Cake.FailedIngests.update_failed_ingest(attrs)
+    |> log_rejected_failure("sweep", failure.id)
   end
 
   defp safe_retry(retry_fn, failure) do
