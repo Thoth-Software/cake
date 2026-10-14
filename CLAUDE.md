@@ -133,7 +133,8 @@ If you're loosening an assertion to make a test pass, you're almost certainly in
 
 ## Typespecs, DI, Result Tuples
 
-- **Every public function has a `@spec`.** No exceptions — including `@impl` callback implementations, which must redundantly spec the callback signature. This ensures specs appear in LLM context and that dialyzer catches impl/callback mismatches.
+- **Every public function has a `@spec`.** No exceptions — including `@impl` callback implementations, so specs appear in LLM context. An `@impl` spec's return type is a subset of the callback's. Its argument types narrow the callback's only for values the implementing module itself produces (its state, a `start_async` result, a name it chose); arguments the framework or other processes produce (messages, requests, exit reasons, `from`) keep the callback's type, usually `term()`. Dialyzer flags only an argument or return with *nothing in common* with the callback's, so this rule is enforced in review, not by the gate.
+- **`term()` is for values whose shape the module genuinely cannot know**, never a stand-in for a type another spec already names. If the value comes from one call with a typed result, the spec names that type.
 - **Every custom struct defines `@type t :: %__MODULE__{}`** with all fields typed. Use `MyStruct.t()` in specs, never `%MyStruct{}`.
 - **Every `@type` has a `@typedoc`**, struct `t/0` included. `@typep` is exempt.
 - Behaviour callbacks (`@callback`) and protocol functions (`@spec`) get full typespecs.

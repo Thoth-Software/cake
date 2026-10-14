@@ -5,6 +5,14 @@ defmodule CakeWeb.UploadLive do
   `Cake.Books.Adapters` adapter, and runs Books ingestion
   (`Cake.Books.Pipeline.ingest/4` with `Cake.Books.Pdf.Pipeline`) as an
   async task.
+
+  The upload limits (20 archives of up to 100 MB each) bound compressed
+  bytes only; how far an archive may expand is bounded by
+  `Cake.Books.ZipExtractor` (`config :cake, :max_zip_expanded_bytes` and
+  `:max_zip_entries`), and an archive it rejects is reported with the
+  limit it broke: as the page's error when nothing else in the batch can be
+  ingested, otherwise in a warning listing each rejected archive beside the
+  ingestion of the rest.
   """
 
   use CakeWeb, :live_view
@@ -34,7 +42,8 @@ defmodule CakeWeb.UploadLive do
        status: :idle,
        results: nil,
        error: nil,
-       skipped_count: 0
+       skipped_count: 0,
+       rejected_archives: []
      )}
   end
 
@@ -55,11 +64,31 @@ defmodule CakeWeb.UploadLive do
   end
 
   def handle_event("reset", _params, socket) do
-    {:noreply, assign(socket, status: :idle, results: nil, error: nil, skipped_count: 0)}
+    {:noreply,
+     assign(socket,
+       status: :idle,
+       results: nil,
+       error: nil,
+       skipped_count: 0,
+       rejected_archives: []
+     )}
   end
 
+  # What the function given to `start_async` in dispatch_ingestion/2 returns,
+  # which is `Cake.Books.Pipeline.ingest/4`'s result. The `:ok` payload is ours
+  # to narrow because this module produced it; the `:exit` reason comes from
+  # the runtime and stays `term()`.
+  @typep ingest_result ::
+           {:ok, Cake.Pipelines.ingest_summary()}
+           | {:error, {:no_items_ingested, Cake.Pipelines.ingest_summary()}}
+           | {:error, {:validate_paths, Cake.Books.Pipeline.path_error()}}
+
   @impl Phoenix.LiveView
-  @spec handle_async(atom(), {:ok, term()} | {:exit, term()}, Phoenix.LiveView.Socket.t()) ::
+  @spec handle_async(
+          :ingest,
+          {:ok, ingest_result()} | {:exit, term()},
+          Phoenix.LiveView.Socket.t()
+        ) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_async(:ingest, {:ok, {:ok, summary}}, socket) do
     {:noreply, assign(socket, status: :done, results: summary)}
@@ -90,8 +119,12 @@ defmodule CakeWeb.UploadLive do
   @typep upload_result ::
            {:pdf, [String.t()]}
            | {:zip_empty, String.t()}
-           | {:zip_error, {String.t(), term()}}
+           | {:zip_error, {String.t(), ZipExtractor.error()}}
            | {:skipped, String.t()}
+
+  # An archive the batch could not use, with why: the extractor's error, or
+  # the one sentence collect_zip_errors/1 writes for an archive with no PDFs.
+  @typep archive_rejection :: {String.t(), ZipExtractor.error() | String.t()}
 
   @spec consume_all_uploads(Phoenix.LiveView.Socket.t()) :: [upload_result()]
   # sobelow_skip ["Traversal.FileModule"]
@@ -129,7 +162,7 @@ defmodule CakeWeb.UploadLive do
         {:noreply,
          assign(socket,
            status: :error,
-           error: "Failed to process #{name}: #{inspect(reason)}"
+           error: "Failed to process #{name}: #{describe_zip_error(reason)}"
          )}
 
       all_keys == [] ->
@@ -139,7 +172,11 @@ defmodule CakeWeb.UploadLive do
       true ->
         socket =
           socket
-          |> assign(status: :processing, skipped_count: skipped)
+          |> assign(
+            status: :processing,
+            skipped_count: skipped,
+            rejected_archives: Enum.map(zip_errors, &describe_rejected_archive/1)
+          )
           |> start_async(:ingest, fn ->
             provider = Application.fetch_env!(:cake, :default_provider)
             model = Application.fetch_env!(:cake, :default_embedding_model)
@@ -158,7 +195,7 @@ defmodule CakeWeb.UploadLive do
     end)
   end
 
-  @spec collect_zip_errors([upload_result()]) :: [{String.t(), term()}]
+  @spec collect_zip_errors([upload_result()]) :: [archive_rejection()]
   defp collect_zip_errors(results) do
     Enum.flat_map(results, fn
       {:zip_error, info} -> [info]
@@ -167,10 +204,48 @@ defmodule CakeWeb.UploadLive do
     end)
   end
 
+  # Archives rejected in a batch whose other files still go on to ingestion.
+  @spec describe_rejected_archive(archive_rejection()) :: String.t()
+  defp describe_rejected_archive({name, reason}), do: "#{name}: #{describe_zip_error(reason)}"
+
+  @spec describe_zip_error(ZipExtractor.error() | String.t()) :: String.t()
+  defp describe_zip_error({:too_large, declared, max_bytes}) do
+    "its PDFs would expand to #{format_size(declared)}, " <>
+      "over the #{format_size(max_bytes)} limit for one archive"
+  end
+
+  defp describe_zip_error({:too_many_entries, count, max_entries}) do
+    "it holds #{count} entries, over the limit of #{max_entries}"
+  end
+
+  defp describe_zip_error({:size_mismatch, entry_name}) do
+    "#{entry_name} does not expand to the size the archive declares for it"
+  end
+
+  defp describe_zip_error(:not_a_zip), do: "it is not a ZIP archive, or it is damaged"
+  defp describe_zip_error(:bad_central_directory), do: "its file index is damaged"
+
+  defp describe_zip_error(:multiple_disks_not_supported) do
+    "it is one part of a split archive; upload a single-file ZIP"
+  end
+
+  defp describe_zip_error({:encrypted, entry_name}), do: "#{entry_name} is password-protected"
+
+  defp describe_zip_error({:unsupported_compression, entry_name}) do
+    "#{entry_name} uses a compression method other than Deflate or Store"
+  end
+
+  defp describe_zip_error({reason, entry_name})
+       when reason in [:bad_crc, :corrupt_entry, :truncated, :bad_local_header] do
+    "#{entry_name} is damaged inside the archive"
+  end
+
+  defp describe_zip_error(reason) when is_binary(reason), do: reason
+
   @spec process_document_entry(String.t(), binary(), module()) ::
           {:pdf, [String.t()]}
           | {:zip_empty, String.t()}
-          | {:zip_error, {String.t(), term()}}
+          | {:zip_error, {String.t(), ZipExtractor.error()}}
           | {:skipped, String.t()}
   defp process_document_entry(client_name, binary, adapter) do
     downcased = String.downcase(client_name)
@@ -239,6 +314,8 @@ defmodule CakeWeb.UploadLive do
     ~H"""
     <div class="max-w-2xl mx-auto p-4">
       <h1 class="text-2xl font-bold mb-4">Upload Documents</h1>
+
+      <.rejected_archives :if={@rejected_archives != []} archives={@rejected_archives} />
 
       <%= case @status do %>
         <% :idle -> %>
@@ -326,6 +403,21 @@ defmodule CakeWeb.UploadLive do
     >
       <span>{entry.client_name}:</span>
       <span :for={msg <- upload_errors(@upload, entry)}>{upload_error_to_string(msg)}</span>
+    </div>
+    """
+  end
+
+  defp rejected_archives(assigns) do
+    ~H"""
+    <div
+      id="rejected-archives"
+      role="status"
+      class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded text-sm"
+    >
+      <p class="font-medium">These archives were not ingested:</p>
+      <ul class="list-disc ml-5">
+        <li :for={archive <- @archives}>{archive}</li>
+      </ul>
     </div>
     """
   end
