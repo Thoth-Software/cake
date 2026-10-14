@@ -10,7 +10,7 @@ defmodule Cake.Search.Deployment do
 
   use Snap.Cluster, otp_app: :cake
 
-  alias Cake.Search.Backend.OpenSearch
+  alias Cake.Search.Backend
 
   require Logger
 
@@ -45,18 +45,28 @@ defmodule Cake.Search.Deployment do
 
   @doc """
   Creates every collection in `collections` that the deployment does not
-  have yet, leaving existing ones untouched. Each entry is
-  `{name_module, mapping_schema}` as in `collections/0`, which is what the
-  boot path passes; callers with their own list (integration tests, for
-  one) pass it here and never touch the `:search_collections` config.
+  have yet, leaving existing ones untouched, through the configured
+  `Cake.Search.Backend` (`Backend.backend/0`): its `list_collections/0`,
+  then `build_mapping/1` and `create_collection/2` for each missing one.
+  Each entry is `{name_module, mapping_schema}` as in `collections/0`, which
+  is what the boot path passes; callers with their own list (integration
+  tests, for one) pass it here and never touch the `:search_collections`
+  config. `pid` is the running cluster process: the caller shows the
+  deployment is up before asking it for collections.
   """
   @spec create_collections_unless_exist(pid(), [{module(), module()}]) :: :ok
   def create_collections_unless_exist(pid, collections)
       when is_pid(pid) and is_list(collections) do
-    {:ok, existing} = OpenSearch.list_collections()
+    backend = Backend.backend()
+    {:ok, existing} = backend.list_collections()
 
     Enum.each(collections, fn {name_module, mapping_schema} ->
-      create_collection_if_missing(existing, name_module.collection_name(), mapping_schema)
+      create_collection_if_missing(
+        backend,
+        existing,
+        name_module.collection_name(),
+        mapping_schema
+      )
     end)
   end
 
@@ -73,14 +83,14 @@ defmodule Cake.Search.Deployment do
     Application.get_env(:cake, :search_collections, [])
   end
 
-  defp create_collection_if_missing(existing, name, schema) do
+  defp create_collection_if_missing(backend, existing, name, schema) do
     if name in existing do
       Logger.info("Collection '#{name}' already exists")
       {:ok, "Collection already exists"}
     else
       Logger.info("Creating collection '#{name}'...")
-      mapping = OpenSearch.build_mapping(schema)
-      result = OpenSearch.create_collection(name, mapping)
+      mapping = backend.build_mapping(schema)
+      result = backend.create_collection(name, mapping)
       handle_create_result(result, name)
     end
   end

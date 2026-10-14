@@ -34,6 +34,16 @@ defmodule Cake.Search.Backend do
   @callback list_collections() :: {:ok, [String.t()]} | {:error, search_error()}
 
   @doc """
+  Build the backend-native mapping (index schema) for a collection from the
+  Ecto schema of the Cake retrieval unit it will hold: a document with an
+  `id`, a `text` field and an `embedding` vector of the configured
+  dimension. The map returned is what `create_collection/2` accepts.
+  `Cake.Search.Deployment` calls it at boot for every `:search_collections`
+  entry, so a backend's mapping needs no hand-written copy anywhere.
+  """
+  @callback build_mapping(schema :: module()) :: map()
+
+  @doc """
   The configured `Cake.Search.Backend` implementation.
 
   Reads `config :cake, :search_backend`, defaulting to

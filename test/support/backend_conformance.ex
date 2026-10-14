@@ -64,6 +64,8 @@ defmodule Cake.Search.BackendConformance do
   end
 
   @lifecycle_tests [
+    {"build_mapping/1 derives a mapping create_collection/2 accepts for a Cake retrieval unit",
+     :builds_accepted_mapping},
     {"create_collection/2 creates a collection that list_collections/0 reports",
      :creates_collection},
     {"create_collection/2 on an existing collection is an error that leaves it in place",
@@ -76,9 +78,11 @@ defmodule Cake.Search.BackendConformance do
   ]
 
   @doc """
-  Collection lifecycle: `create_collection/2` (including the already-exists
-  case), `list_collections/0`, `index_document/3` upsert semantics and
-  `delete_document/2`.
+  Collection lifecycle: `build_mapping/1` (the boot path's schema-derived
+  mapping, accepted by `create_collection/2` and usable for a retrieval
+  unit's `text` and `embedding`), `create_collection/2` (including the
+  already-exists case), `list_collections/0`, `index_document/3` upsert
+  semantics and `delete_document/2`.
   """
   defmacro lifecycle_group do
     register_group("conformance — collection lifecycle", @lifecycle_tests)
@@ -134,6 +138,33 @@ defmodule Cake.Search.BackendConformance do
   end
 
   # -- lifecycle group bodies -----------------------------------------------
+
+  @doc false
+  @spec builds_accepted_mapping(wiring(), map()) :: :ok
+  def builds_accepted_mapping(%{backend: backend}, %{collection: collection}) do
+    # The schema Cake.Search.Deployment maps the Books collection from; the
+    # mapping must be what the backend's own create_collection/2 accepts,
+    # since that is the boot path, and must hold a retrieval unit's text and
+    # embedding so that both search modes work on it.
+    mapping = backend.build_mapping(Cake.Books.Chunk)
+    assert is_map(mapping)
+
+    :ok = backend.create_collection(collection, mapping)
+    {:ok, listed} = backend.list_collections()
+    assert collection in listed
+
+    doc = %{id: "d1", text: "mapped document", embedding: SearchIntegrationCase.unit_vector(0)}
+    :ok = backend.index_document(collection, doc, "d1")
+    SearchIntegrationCase.refresh!(collection)
+
+    keyword = Query.match(Query.new(collection), "mapped", ["text"])
+    {:ok, [%Hit{id: "d1"}]} = backend.search(keyword)
+
+    vector = Query.knn(Query.new(collection), "embedding", doc.embedding, 1)
+    {:ok, [%Hit{id: "d1"}]} = backend.search(vector)
+
+    :ok
+  end
 
   @doc false
   @spec creates_collection(wiring(), map()) :: :ok

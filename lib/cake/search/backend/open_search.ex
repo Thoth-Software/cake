@@ -93,8 +93,13 @@ defmodule Cake.Search.Backend.OpenSearch do
   end
 
   @doc """
-  Builds the OpenSearch mapping for a collection based on an Ecto schema.
+  Builds the OpenSearch mapping for a collection based on an Ecto schema:
+  `:text` → `text`, `:embedding` → an HNSW `knn_vector` on the `faiss`
+  engine with cosine similarity sized by `:default_embedding_dimension`,
+  everything else `keyword`, plus the `index.knn` and refresh-interval
+  settings.
   """
+  @impl Cake.Search.Backend
   @spec build_mapping(module()) :: map()
   def build_mapping(schema) do
     embedding = %{
