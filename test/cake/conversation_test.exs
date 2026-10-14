@@ -2809,6 +2809,53 @@ defmodule Cake.ConversationTest do
       assert_receive {:response_ready, %{response: ^final_answer}}
     end
 
+    test "a final answer's [N] markers survive and resolve against the merged context" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      follow_up = "Which pump does the RO-400 use?"
+      intermediate_answer = "The RO-400 uses the P-100 pump. [1]"
+      final_answer = "The warranty is 5 years. [1]"
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, self_ask_result(question)}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, _params, _model ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-pump", body: "pump spec chunk")]}
+      end)
+
+      expect(Cake.Generation.Mock, :complete, 3, fn messages, _model, _opts ->
+        [%{content: system} | _] = messages
+
+        text =
+          cond do
+            List.last(messages).content == follow_up -> intermediate_answer
+            String.contains?(system, "P-100") -> "So the final answer is: #{final_answer}"
+            true -> "Follow up: #{follow_up}"
+          end
+
+        {:ok, %{text: text, usage: %{}}}
+      end)
+
+      # The real Responses, so citation resolution is part of the pin: the
+      # final answer's marker cites the one unit the merged context holds.
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock, responses: Cake.Responses})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:response_ready, %{response: response, citations: citations}}
+      assert response =~ "[1]"
+      assert [%{id: "unit-pump", new_index: 1}] = citations
+    end
+
     test "terminates at the iteration cap and synthesizes over accumulated context" do
       question = "What is the warranty on the pump used in the RO-400?"
       follow_up = "Which pump does the RO-400 use?"
@@ -3144,6 +3191,54 @@ defmodule Cake.ConversationTest do
       end)
 
       assert_receive {:response_ready, %{response: ^final_reasoning}}
+    end
+
+    test "a terminating step's [N] markers survive and resolve against the merged context" do
+      question = "What is the warranty on the pump used in the RO-400?"
+      reasoning_one = "I need to identify which pump the RO-400 uses."
+      retrieval_query = "Which pump does the RO-400 use?"
+      final_reasoning = "The P-100 pump carries a 5-year warranty. [1]"
+
+      expect(Cake.Decomposition.Mock, :decompose, fn ^question, _opts ->
+        {:ok, ircot_result(question)}
+      end)
+
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, _params, _model ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "unit-pump", body: "pump spec chunk")]}
+      end)
+
+      expect(Cake.Generation.Mock, :complete_json, 2, fn messages, _model, _opts ->
+        [%{content: system} | _] = messages
+
+        parsed =
+          if String.contains?(system, reasoning_one) do
+            %{"reasoning" => final_reasoning, "retrieval_query" => nil}
+          else
+            %{"reasoning" => reasoning_one, "retrieval_query" => retrieval_query}
+          end
+
+        {:ok, %{parsed: parsed}}
+      end)
+
+      # The real Responses, so citation resolution is part of the pin: the
+      # terminating reasoning's marker cites the one unit the merged
+      # context holds.
+      pid = start_subscribed(%{decomposition: Cake.Decomposition.Mock, responses: Cake.Responses})
+
+      allow(Cake.Decomposition.Mock, self(), pid)
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.autoask(pid, question)
+
+      assert_receive {:response_ready, %{response: response, citations: citations}}
+      assert response =~ "[1]"
+      assert [%{id: "unit-pump", new_index: 1}] = citations
     end
 
     test "terminates at the iteration cap and synthesizes over the accumulated context" do
