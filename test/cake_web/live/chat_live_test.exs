@@ -44,6 +44,23 @@ defmodule CakeWeb.ChatLiveTest do
       assert_receive {:DOWN, ^ref, :process, ^convo_pid, :normal}
     end
 
+    test "starts its Conversation with the :decomposition strategy the app config names",
+         %{conn: conn} do
+      # The web app opts in to decomposition through `config :cake,
+      # Cake.Conversation`: the key must be set in every env (config/test.exs
+      # keeps the suite hermetic with nil), and the conversation ChatLive
+      # starts must carry exactly that value.
+      configured =
+        :cake
+        |> Application.fetch_env!(Cake.Conversation)
+        |> Keyword.fetch!(:decomposition)
+
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      convo_pid = :sys.get_state(view.pid).socket.assigns.convo_pid
+
+      assert %{decomposition: ^configured} = :sys.get_state(convo_pid)
+    end
+
     test "spawns exactly one Conversation process per live mount", %{conn: conn} do
       children_before = DynamicSupervisor.which_children(Cake.ConversationSupervisor)
 
