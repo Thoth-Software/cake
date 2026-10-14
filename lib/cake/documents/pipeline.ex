@@ -87,8 +87,9 @@ defmodule Cake.Documents.Pipeline do
   re-parsing, `embed_index_error()` for the embed-and-index tail, and
   `{String.t(), String.t()}` for persistence failures in `safe_create_parsed_docs`.
   `{:unsupported_step, step}` is the answer for a row recorded under a step
-  `retry/4` has no strategy for (a source pipeline's own `"docs.persist_raw"`
-  or `"docs.parse"`): the sweep logs it and counts the row as remaining.
+  `retry/4` has no strategy for (a source pipeline's own `"docs.persist_raw"`:
+  its source files live in a checkout that may be gone): the sweep logs it
+  and counts the row as remaining.
   `{:no_input_identifier, failure_id}` is the answer for any row with no
   `input_identifier` to resume from — a `"docs.persist"` row recorded from
   a task exit, or a `"docs.embed"`/`"docs.embed_persist"` row recorded from
@@ -182,12 +183,15 @@ defmodule Cake.Documents.Pipeline do
 
   @doc """
   Retries a single failed ingest item. Dispatches based on the step that failed:
-  persist failures re-run from the raw source doc; embed/index failures resume
-  from the existing ParsedDocument. A row with no `input_identifier` is
-  answered with `{:error, {:no_input_identifier, failure_id}}` before any
-  dispatch, whatever its step. Any other step — the ones a source pipeline
-  records inside its own `persist_raw_docs/2` and `parse/2` — is answered
-  with `{:error, {:unsupported_step, step}}`. Neither crashes, so
+  parse and persist failures (`"docs.parse"`, `"docs.persist"`) re-run from
+  the raw source doc through the source pipeline's `retry_from_raw/2` — a
+  parse failure records the raw row's module as its `input_identifier`, which
+  is what that callback looks up — and embed/index failures resume from the
+  existing ParsedDocument. A row with no `input_identifier` is answered with
+  `{:error, {:no_input_identifier, failure_id}}` before any dispatch,
+  whatever its step. Any other step — the one a source pipeline records
+  inside its own `persist_raw_docs/2` — is answered with
+  `{:error, {:unsupported_step, step}}`. Neither crashes, so
   `Pipelines.sweep/3` counts the row as remaining and moves on.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
@@ -202,11 +206,12 @@ defmodule Cake.Documents.Pipeline do
   end
 
   def retry(
-        %Cake.FailedIngests.FailedIngest{step: "docs.persist"} = failure,
+        %Cake.FailedIngests.FailedIngest{step: step} = failure,
         source_pipeline,
         embedding_service,
         embedding_model
-      ) do
+      )
+      when step in ["docs.parse", "docs.persist"] do
     retry_persist_failure(failure, source_pipeline, embedding_service, embedding_model)
   end
 
