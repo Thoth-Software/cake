@@ -74,8 +74,21 @@ defmodule CakeWeb.UploadLive do
      )}
   end
 
+  # What the function given to `start_async` in dispatch_ingestion/2 returns,
+  # which is `Cake.Books.Pipeline.ingest/4`'s result. The `:ok` payload is ours
+  # to narrow because this module produced it; the `:exit` reason comes from
+  # the runtime and stays `term()`.
+  @typep ingest_result ::
+           {:ok, Cake.Pipelines.ingest_summary()}
+           | {:error, {:no_items_ingested, Cake.Pipelines.ingest_summary()}}
+           | {:error, {:validate_paths, Cake.Books.Pipeline.path_error()}}
+
   @impl Phoenix.LiveView
-  @spec handle_async(atom(), {:ok, term()} | {:exit, term()}, Phoenix.LiveView.Socket.t()) ::
+  @spec handle_async(
+          :ingest,
+          {:ok, ingest_result()} | {:exit, term()},
+          Phoenix.LiveView.Socket.t()
+        ) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_async(:ingest, {:ok, {:ok, summary}}, socket) do
     {:noreply, assign(socket, status: :done, results: summary)}
@@ -106,8 +119,12 @@ defmodule CakeWeb.UploadLive do
   @typep upload_result ::
            {:pdf, [String.t()]}
            | {:zip_empty, String.t()}
-           | {:zip_error, {String.t(), term()}}
+           | {:zip_error, {String.t(), ZipExtractor.error()}}
            | {:skipped, String.t()}
+
+  # An archive the batch could not use, with why: the extractor's error, or
+  # the one sentence collect_zip_errors/1 writes for an archive with no PDFs.
+  @typep archive_rejection :: {String.t(), ZipExtractor.error() | String.t()}
 
   @spec consume_all_uploads(Phoenix.LiveView.Socket.t()) :: [upload_result()]
   # sobelow_skip ["Traversal.FileModule"]
@@ -178,7 +195,7 @@ defmodule CakeWeb.UploadLive do
     end)
   end
 
-  @spec collect_zip_errors([upload_result()]) :: [{String.t(), term()}]
+  @spec collect_zip_errors([upload_result()]) :: [archive_rejection()]
   defp collect_zip_errors(results) do
     Enum.flat_map(results, fn
       {:zip_error, info} -> [info]
@@ -188,10 +205,10 @@ defmodule CakeWeb.UploadLive do
   end
 
   # Archives rejected in a batch whose other files still go on to ingestion.
-  @spec describe_rejected_archive({String.t(), term()}) :: String.t()
+  @spec describe_rejected_archive(archive_rejection()) :: String.t()
   defp describe_rejected_archive({name, reason}), do: "#{name}: #{describe_zip_error(reason)}"
 
-  @spec describe_zip_error(term()) :: String.t()
+  @spec describe_zip_error(ZipExtractor.error() | String.t()) :: String.t()
   defp describe_zip_error({:too_large, declared, max_bytes}) do
     "its PDFs would expand to #{format_size(declared)}, " <>
       "over the #{format_size(max_bytes)} limit for one archive"
@@ -224,12 +241,11 @@ defmodule CakeWeb.UploadLive do
   end
 
   defp describe_zip_error(reason) when is_binary(reason), do: reason
-  defp describe_zip_error(reason), do: inspect(reason)
 
   @spec process_document_entry(String.t(), binary(), module()) ::
           {:pdf, [String.t()]}
           | {:zip_empty, String.t()}
-          | {:zip_error, {String.t(), term()}}
+          | {:zip_error, {String.t(), ZipExtractor.error()}}
           | {:skipped, String.t()}
   defp process_document_entry(client_name, binary, adapter) do
     downcased = String.downcase(client_name)
