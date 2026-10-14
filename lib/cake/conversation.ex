@@ -49,7 +49,8 @@ defmodule Cake.Conversation do
   ## Query decomposition
 
   Opt-in via the `:decomposition` opt (a module implementing
-  `Cake.Decomposition`; default `nil` — no decomposition). When set, an
+  `Cake.Decomposition`; default `nil` — no decomposition; the web app
+  passes the one `config :cake, Cake.Conversation` names). When set, an
   autoask turn that begins before any retrieval has completed
   (`search_results` still `nil`) has its question decomposed before
   searching — the first auto-mode turn; a completed retrieval that found
@@ -57,7 +58,9 @@ defmodule Cake.Conversation do
   cached result. An atomic result
   searches the original question exactly as before, while a decomposed one
   runs one embed+search per sub-question and merges the deduplicated
-  results into a single context. Each merged result's
+  results into a single context. The strategy is called with the
+  conversation's `:generation` collaborator and `response_model` as its
+  `:generation` and `:model` opts. Each merged result's
   `Cake.Search.Provenance` is stamped with `decomposed: true`, the
   `original_query`, and its `sub_question_index`.
 
@@ -429,7 +432,13 @@ defmodule Cake.Conversation do
 
   defp maybe_decompose(_question, %State{decomposition: nil}), do: {:ok, nil}
 
-  defp maybe_decompose(question, %State{} = s), do: s.decomposition.decompose(question, [])
+  # The strategy generates with the conversation's own collaborator and
+  # model, so a test's Generation.Mock and a deployment's response model
+  # both reach it (Decomposition.LLM reads both opts and keeps its
+  # defaults for direct callers).
+  defp maybe_decompose(question, %State{} = s) do
+    s.decomposition.decompose(question, generation: s.generation, model: s.response_model)
+  end
 
   defp run_turn_for(
          %Cake.Decomposition.Result{strategy: :sequential} = decomposition,
