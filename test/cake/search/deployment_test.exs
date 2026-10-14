@@ -1,8 +1,41 @@
 defmodule Cake.Search.DeploymentTest do
-  use ExUnit.Case, async: true
+  # The backend module is application config, so this module is not async.
+  use ExUnit.Case, async: false
+
+  import Mox
 
   alias Cake.Search.Backend.OpenSearch
   alias Cake.Search.Deployment
+
+  setup :verify_on_exit!
+
+  describe "create_collections_unless_exist/2" do
+    setup do
+      original = Application.get_env(:cake, :search_backend)
+      Application.put_env(:cake, :search_backend, Cake.Search.Backend.Mock)
+      on_exit(fn -> Application.put_env(:cake, :search_backend, original) end)
+      :ok
+    end
+
+    test "lists, maps and creates through the configured backend" do
+      mapping = %{mappings: %{properties: %{text: %{type: "text"}}}}
+
+      expect(Cake.Search.Backend.Mock, :list_collections, fn -> {:ok, ["docs"]} end)
+      expect(Cake.Search.Backend.Mock, :build_mapping, fn Cake.Books.Chunk -> mapping end)
+
+      expect(Cake.Search.Backend.Mock, :create_collection, fn "chunks_of_books", ^mapping ->
+        :ok
+      end)
+
+      collections = [
+        {Cake.Documents.ParsedDocument, Cake.Documents.ParsedDocument},
+        {Cake.Books.ParsedBook, Cake.Books.Chunk}
+      ]
+
+      # "docs" already exists, so only chunks_of_books is mapped and created.
+      assert :ok = Deployment.create_collections_unless_exist(self(), collections)
+    end
+  end
 
   describe "collections/0" do
     test "reads the collection list from :search_collections config" do
