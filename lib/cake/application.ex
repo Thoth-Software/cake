@@ -18,6 +18,13 @@ defmodule Cake.Application do
       # Start the Finch HTTP client for sending emails
       {Finch, name: Cake.Finch},
       {Cake.Search.Deployment, name: Cake.Search.Deployment},
+      # One-shot: creates the configured search collections once the cluster
+      # above is up (children start in order), then exits. A Task child is
+      # :temporary, so a failure (an unreachable node) is logged by the
+      # supervisor and never restarted or counted against the app.
+      Supervisor.child_spec({Task, &Cake.Search.Deployment.create_configured_collections/0},
+        id: :search_collections_bootstrap
+      ),
       {Task.Supervisor, name: Cake.TaskSupervisor},
       {DynamicSupervisor, name: Cake.ConversationSupervisor, strategy: :one_for_one},
       # Start to serve requests, typically the last entry

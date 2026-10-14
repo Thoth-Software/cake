@@ -23,7 +23,9 @@ Ecto.Adapters.SQL.Sandbox.mode(Cake.Repo, :manual)
 # turns the flag off, in its own setup, for the tests that use it; every other
 # test — including pre-existing :integration-tagged ones such as the Oban job
 # tests — keeps skipping. Tests that need search behaviour mock the backend
-# via Mox or the HTTPClientStub adapter.
+# via Mox or the HTTPClientStub adapter. config/test.exs sets the same flag
+# at boot, for Cake.Application's collection bootstrap task; this line keeps
+# the run-mode guarantee explicit here.
 Application.put_env(:cake, :skip_search_backend, true)
 
 # An integration run (`mix test --only integration`) additionally repoints

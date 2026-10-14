@@ -68,6 +68,12 @@ config :cake, Cake.Conversation, decomposition: nil
 # backend tests exercise Snap's real request/response path without a cluster.
 config :cake, Cake.Search.Deployment, http_client_adapter: Cake.Search.HTTPClientStub
 
+# Set here as well as in test_helper.exs so it already holds when
+# Cake.Application's one-shot bootstrap task runs at boot, before
+# test_helper.exs: Cake.Search.Deployment.create_configured_collections/0
+# then skips the cluster instead of asking the stub for its collections.
+config :cake, :skip_search_backend, true
+
 # Resolve the embeddings collaborator to the Mox mock for the whole test run.
 # The ingestion pipelines read `Application.get_env(:cake, :embeddings_module,
 # Cake.Embeddings)` at call time; setting it here once (immutably) — rather than

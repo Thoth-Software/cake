@@ -2,10 +2,12 @@ defmodule Cake.Search.Deployment do
   @moduledoc """
   Search deployment process — the Snap cluster that connects to OpenSearch.
 
-  Manages lifecycle: starts the connection, creates collections on init
-  if they don't exist. Named `Deployment` because it represents the running
-  search engine instance, regardless of backend (OpenSearch cluster,
-  Qdrant instance, etc.).
+  Manages lifecycle: starts the connection, and owns the boot-time creation
+  of the configured collections (`create_configured_collections/0`), which
+  Cake.Application runs in a one-shot task right after this cluster starts.
+  Named `Deployment` because it represents the running search engine
+  instance, regardless of backend (OpenSearch cluster, Qdrant instance,
+  etc.).
   """
 
   use Snap.Cluster, otp_app: :cake
@@ -15,32 +17,23 @@ defmodule Cake.Search.Deployment do
   require Logger
 
   @doc """
-  `Snap.Cluster` init hook: starts a linked task that creates the configured
-  collections once the cluster process is registered (see
-  `create_collections_unless_exist/1`) and returns the config unchanged.
+  Boot-time collection creation: one `create_collections_unless_exist/2`
+  pass over the `collections/0` list against the running cluster process.
+  Cake.Application runs it in a one-shot `Task` child started right after
+  this cluster, and children start in order, so the cluster is registered by
+  the time it runs; no polling. Skipped, with a debug log, when
+  `config :cake, :skip_search_backend` is set — the flag that keeps
+  `Cake.Pipelines.add_to_search_backend/3` off the network, which the test
+  env sets at boot.
   """
-  @spec init(keyword()) :: {:ok, keyword()}
-  def init(config) do
-    _ = Task.start_link(fn -> create_collections_unless_exist(nil) end)
-    {:ok, config}
-  end
-
-  @doc """
-  Boot-time collection creation. Called with `nil` from `init/1`, it sleeps
-  10 s and checks `Process.whereis/1` for the cluster process, re-entering the
-  same clause until it is registered; then it calls itself with the pid for
-  one `create_collections_unless_exist/2` pass over the `collections/0` list.
-  """
-  @spec create_collections_unless_exist(nil | pid()) :: :ok
-  def create_collections_unless_exist(nil) do
-    Logger.debug("Deployment not running yet.\n\nWaiting to create collections...")
-    Process.sleep(10_000)
-
-    create_collections_unless_exist(Process.whereis(__MODULE__))
-  end
-
-  def create_collections_unless_exist(pid) when is_pid(pid) do
-    create_collections_unless_exist(pid, collections())
+  @spec create_configured_collections() :: :ok
+  def create_configured_collections do
+    if Application.get_env(:cake, :skip_search_backend, false) do
+      Logger.debug("Skipping boot-time collection creation (:skip_search_backend is set)")
+      :ok
+    else
+      create_collections_unless_exist(Process.whereis(__MODULE__), collections())
+    end
   end
 
   @doc """

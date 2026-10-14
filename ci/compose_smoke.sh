@@ -19,7 +19,7 @@
 #      without waiting, so starting everything at once would race a cold
 #      runner's Postgres.
 #   2. The app answers HTTP 200 through the published port.
-#   3. Both search collections exist in OpenSearch (Deployment boot ran).
+#   3. Both search collections exist in OpenSearch (the bootstrap task ran).
 #   4. Every migration under priv/repo/migrations is in schema_migrations.
 #   5. The parsebooks NIF loads inside the app container: a one-shot
 #      `mix cake.nif.check` there extracts a fixture PDF through
@@ -57,8 +57,9 @@
 #                              (default 1500: entrypoint.sh recompiles the app
 #                              and the NIF before starting Phoenix).
 #   SMOKE_COLLECTIONS_TIMEOUT  seconds to wait for the collections after the app
-#                              answers (default 120: Deployment creates them 10s
-#                              after boot).
+#                              answers (default 120: the bootstrap task creates
+#                              them right after the Deployment starts, before
+#                              the endpoint is up; the budget covers a slow node).
 
 set -euo pipefail
 

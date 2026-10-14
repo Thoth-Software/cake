@@ -3,9 +3,9 @@ defmodule Cake.Search.DeploymentIntegrationTest do
   `Cake.Search.Deployment.create_collections_unless_exist/2` against a real
   node (#245): the boot path that creates every configured collection. The
   tests hand the function an explicit collection list naming the test's own
-  collection, so they never touch `:search_collections` and the 10s boot
-  task `init/1` spawns (which reads that config) can neither observe nor
-  race them.
+  collection, so they never touch `:search_collections`, which only the
+  application's boot-time bootstrap task reads (and that task skips the
+  cluster under test, where `:skip_search_backend` is set at boot).
 
   `async: false`: the stand-in name module reads its name from application
   config.
