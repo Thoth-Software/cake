@@ -64,20 +64,31 @@ defmodule Cake.Documents.ParsedDocuments do
   @doc """
   Inserts a batch of parsed-doc attrs concurrently (unlinked tasks under
   `Cake.TaskSupervisor`, ten at a time, 5 s each) through
-  `create_parsed_doc!/1`, returning a stream of the inserted rows; an insert
-  that crashes or times out raises in the caller as the stream is consumed.
-  Accepts the list wrapped as `{:ok, list}`. Nothing in `lib/` or `test/`
-  calls it today: the parse stage emits bare attrs, and the pipeline
-  persists them one at a time.
+  `create_parsed_doc!/1`, returning a stream of the inserted rows. An insert
+  that crashes or times out raises a `RuntimeError` in the caller as the
+  stream is consumed, naming the doc as `package@version` and carrying the
+  exit reason; the inserts already streamed stay committed. Accepts the list
+  wrapped as `{:ok, list}`. Nothing in `lib/` or `test/` calls it today: the
+  parse stage emits bare attrs, and the pipeline persists them one at a
+  time.
   """
   @spec create_parsed_docs!({:ok, [map()]}) :: Enumerable.t()
   def create_parsed_docs!({:ok, parsed_docs_list}) do
     Cake.TaskSupervisor
     |> Task.Supervisor.async_stream_nolink(parsed_docs_list, &create_parsed_doc!/1,
       max_concurrency: 10,
-      timeout: 5_000
+      timeout: 5_000,
+      on_timeout: :kill_task,
+      zip_input_on_exit: true
     )
-    |> Stream.map(fn {:ok, doc} -> doc end)
+    |> Stream.map(fn
+      {:ok, doc} ->
+        doc
+
+      {:exit, {attrs, reason}} ->
+        raise "create_parsed_doc!/1 did not finish for " <>
+                "#{attrs[:package]}@#{attrs[:version]}: " <> Exception.format_exit(reason)
+    end)
   end
 
   @doc """

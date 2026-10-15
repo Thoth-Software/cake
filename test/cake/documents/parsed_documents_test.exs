@@ -9,6 +9,8 @@ defmodule Cake.Documents.ParsedDocumentsTest do
 
   use Cake.DataCase, async: true
 
+  import ExUnit.CaptureLog
+
   alias Cake.Documents.ParsedDocument
   alias Cake.Documents.ParsedDocuments
 
@@ -33,7 +35,7 @@ defmodule Cake.Documents.ParsedDocumentsTest do
       crashing = attrs(%{package: "crashing", title: "Crashing", text: nil})
       stream = ParsedDocuments.create_parsed_docs!({:ok, [attrs(%{}), crashing]})
 
-      error = assert_raise RuntimeError, fn -> Enum.to_list(stream) end
+      error = assert_raise RuntimeError, fn -> capture_log(fn -> Enum.to_list(stream) end) end
 
       assert error.message =~ "crashing@1.0.0"
       assert error.message =~ "Ecto.InvalidChangesetError"

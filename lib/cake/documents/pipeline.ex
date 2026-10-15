@@ -317,18 +317,33 @@ defmodule Cake.Documents.Pipeline do
         try do
           {:ok, ParsedDocuments.create_parsed_doc!(attrs)}
         rescue
-          e -> {:error, {"#{attrs[:package]}@#{attrs[:version]}", Exception.message(e)}}
+          e -> {:error, {parsed_doc_identifier(attrs), Exception.message(e)}}
         end
       end,
       max_concurrency: 5,
-      timeout: :infinity
+      timeout: :infinity,
+      zip_input_on_exit: true
     )
-    |> Stream.map(fn
-      {:ok, result} -> result
-      {:exit, reason} -> {:error, {:task_exit, reason}}
-    end)
+    |> Stream.map(&unwrap_persisted_doc_result/1)
     |> Pipelines.detuple_with_logging("docs.persist", ctx)
   end
+
+  # The identifier a docs.persist failure is recorded under, and the one
+  # retry_persist_failure/4 hands back to the source pipeline's retry_from_raw/2.
+  defp parsed_doc_identifier(attrs), do: "#{attrs[:package]}@#{attrs[:version]}"
+
+  @doc false
+  @spec unwrap_persisted_doc_result(
+          {:ok, {:ok, ParsedDocument.t()} | {:error, {String.t(), String.t()}}}
+          | {:exit, {map(), term()}}
+        ) :: {:ok, ParsedDocument.t()} | {:error, {String.t(), String.t()}}
+  def unwrap_persisted_doc_result({:ok, result}), do: result
+
+  # A persist task that exited without an exception (the task body rescues
+  # those itself); zip_input_on_exit pairs the exit with the attrs it was
+  # inserting, so the row carries the same identifier the rescue path writes.
+  def unwrap_persisted_doc_result({:exit, {attrs, reason}}),
+    do: {:error, {parsed_doc_identifier(attrs), inspect(reason)}}
 
   defp retry_persist_failure(failure, source_pipeline, embedding_service, embedding_model) do
     if function_exported?(source_pipeline, :retry_from_raw, 2) do

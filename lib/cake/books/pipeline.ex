@@ -286,6 +286,7 @@ defmodule Cake.Books.Pipeline do
         &Persistence.persist_books_and_chunks/1,
         max_concurrency: max_concurrency,
         timeout: timeout,
+        on_timeout: :kill_task,
         ordered: false,
         zip_input_on_exit: true
       )
