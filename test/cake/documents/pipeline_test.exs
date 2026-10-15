@@ -1,22 +1,30 @@
 defmodule Cake.Documents.PipelineTest do
   @moduledoc """
-  Pins the retry contract of the documents orchestrator: `retry/4` answers
-  every `FailedIngest` row a run can record with a result tuple, so
+  Pins two contracts of the documents orchestrator. `retry/4` answers every
+  `FailedIngest` row a run can record with a result tuple, so
   `Pipelines.sweep/3` (which calls it with no rescue) never crashes on a row
-  it cannot retry (#301).
+  it cannot retry (#301). And a crash inside a `batch_embed/5` task is an
+  item-level failure, recorded with the document's id, never the end of the
+  run, as is a persist task that exits, recorded under the doc's
+  `package@version` (#273).
   """
 
   use Cake.DataCase, async: true
 
+  import Cake.ParsedDocumentFixtures
   import ExUnit.CaptureLog
+  import Mox
 
   alias Cake.Documents.Hexdocs
+  alias Cake.Documents.ParsedDocument
   alias Cake.Documents.Pipeline
   alias Cake.FailedIngests.FailedIngest
   alias Cake.Pipelines
   alias Cake.Pipelines.Context
 
   @embedding_model "text-embedding-ada-002"
+
+  setup :verify_on_exit!
 
   defp build_ctx do
     Pipelines.build_context(Pipeline, Hexdocs.Pipeline, {1, 0, 0})
@@ -42,6 +50,73 @@ defmodule Cake.Documents.PipelineTest do
 
   defp retry(failure), do: Pipeline.retry(failure, Hexdocs.Pipeline, :openai, @embedding_model)
 
+  defp batch_embed(docs, ctx),
+    do: Pipeline.batch_embed(docs, :openai, Hexdocs.Pipeline, @embedding_model, ctx)
+
+  describe "batch_embed/5 when a task crashes" do
+    test "records a document whose embed task crashes under docs.embed and embeds the rest" do
+      crashing = parsed_documents_fixture(%{title: "Crashing"})
+      fine = parsed_documents_fixture(%{title: "Fine"})
+      fine_id = fine.id
+      ctx = build_ctx()
+
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai,
+                                                 %{input: input, struct: doc},
+                                                 @embedding_model ->
+        if input =~ "Crashing" do
+          raise "malformed embeddings body"
+        else
+          {:ok, %{struct: doc, attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+        end
+      end)
+
+      capture_log(fn ->
+        assert [%ParsedDocument{id: ^fine_id, embedding: [0.1, 0.2, 0.3]}] =
+                 Enum.to_list(batch_embed([crashing, fine], ctx))
+      end)
+
+      assert [%FailedIngest{} = failure] = Repo.all(FailedIngest)
+      assert failure.step == "docs.embed"
+      assert failure.input_identifier == crashing.id
+      assert failure.error_text =~ "RuntimeError"
+      assert failure.error_text =~ "malformed embeddings body"
+    end
+
+    test "records a document whose embedding-persist task crashes under docs.embed_persist" do
+      doc = parsed_documents_fixture(%{title: "Bad attrs"})
+      ctx = build_ctx()
+
+      # A provider answer the persist step cannot cast: the changeset raises
+      # inside the persist task rather than returning an error tuple.
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, %{struct: struct}, @embedding_model ->
+        {:ok, %{struct: struct, attrs: :not_a_map}}
+      end)
+
+      capture_log(fn -> assert [] = Enum.to_list(batch_embed([doc], ctx)) end)
+
+      assert [%FailedIngest{} = failure] = Repo.all(FailedIngest)
+      assert failure.step == "docs.embed_persist"
+      assert failure.input_identifier == doc.id
+      assert failure.error_text =~ "Ecto.CastError"
+    end
+  end
+
+  describe "unwrap_persisted_doc_result/1" do
+    test "passes a persist task's own result through" do
+      assert {:ok, :doc} = Pipeline.unwrap_persisted_doc_result({:ok, {:ok, :doc}})
+
+      assert {:error, {"Kernel.ex@1.0.0", "boom"}} =
+               Pipeline.unwrap_persisted_doc_result({:ok, {:error, {"Kernel.ex@1.0.0", "boom"}}})
+    end
+
+    test "records a persist task that exited under the doc's package@version" do
+      attrs = %{package: "Kernel.ex", version: "1.0.0", title: "Kernel", text: "docs"}
+
+      assert {:error, {"Kernel.ex@1.0.0", ":killed"}} =
+               Pipeline.unwrap_persisted_doc_result({:exit, {attrs, :killed}})
+    end
+  end
+
   describe "retry/4 on a row with no input_identifier" do
     test "rejects a docs.persist row with an error tuple instead of crashing" do
       # A "docs.persist" row recorded from {:error, {:task_exit, _}} carries no
@@ -62,7 +137,8 @@ defmodule Cake.Documents.PipelineTest do
     end
 
     test "rejects a docs.embed_persist row with an error tuple instead of crashing" do
-      # A killed embed-persistence task is recorded as {nil, reason} too.
+      # The stage records every row with the document's id today; a row
+      # without one (recorded before it did) still gets an answer.
       failure = insert_failure(build_ctx(), "docs.embed_persist", %{input_identifier: nil})
 
       assert {:error, {:no_input_identifier, failure.id}} == retry(failure)

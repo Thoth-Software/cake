@@ -66,20 +66,29 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   @impl Cake.Documents.Pipeline
   @spec persist_raw_docs([String.t()], Context.t()) :: Enumerable.t()
   def persist_raw_docs(file_paths, %Context{version: version} = ctx) do
-    file_paths
-    |> Task.async_stream(fn path -> safe_to_hexdoc_attrs(path, version) end,
-      max_concurrency: 4,
-      timeout: :infinity
-    )
-    |> Stream.map(&unwrap_result/1)
-    |> Pipelines.detuple_with_logging("docs.persist_raw", ctx)
-    |> Stream.reject(fn %{module: m, version: v} ->
-      Cake.Documents.Hexdocs.hexdoc_exists?(m, v)
-    end)
-    |> Task.async_stream(&insert_hexdoc/1,
+    new_hexdoc_attrs_stream =
+      Cake.TaskSupervisor
+      |> Task.Supervisor.async_stream_nolink(
+        file_paths,
+        fn path -> safe_to_hexdoc_attrs(path, version) end,
+        max_concurrency: 4,
+        timeout: :infinity,
+        zip_input_on_exit: true
+      )
+      |> Stream.map(&unwrap_result/1)
+      |> Pipelines.detuple_with_logging("docs.persist_raw", ctx)
+      |> Stream.reject(fn %{module: m, version: v} ->
+        Cake.Documents.Hexdocs.hexdoc_exists?(m, v)
+      end)
+
+    Cake.TaskSupervisor
+    |> Task.Supervisor.async_stream_nolink(
+      new_hexdoc_attrs_stream,
+      &insert_hexdoc/1,
       max_concurrency: 4,
       timeout: 30_000,
-      on_timeout: :kill_task
+      on_timeout: :kill_task,
+      zip_input_on_exit: true
     )
     |> Stream.map(&unwrap_result/1)
     |> Pipelines.detuple_with_logging("docs.persist_raw", ctx)
@@ -88,24 +97,38 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   @impl Cake.Documents.Pipeline
   @spec parse(Enumerable.t(), Context.t()) :: Enumerable.t()
   def parse(raw_docs_stream, %Context{} = ctx) do
-    raw_docs_stream
-    |> Task.async_stream(&safe_to_parsed_docs/1,
+    Cake.TaskSupervisor
+    |> Task.Supervisor.async_stream_nolink(
+      raw_docs_stream,
+      &safe_to_parsed_docs/1,
       max_concurrency: 4,
       timeout: 30_000,
-      on_timeout: :kill_task
+      on_timeout: :kill_task,
+      zip_input_on_exit: true
     )
     |> Stream.map(&unwrap_result/1)
     |> Pipelines.detuple_with_logging("docs.parse", ctx)
     |> Stream.flat_map(fn parsed_docs -> parsed_docs end)
   end
 
-  # Each task closure returns {:ok, value} | {:error, {identifier, message}} and
-  # never raises (a plain Task.async_stream would otherwise crash the caller on a
-  # raised exception). A failed item becomes a persisted FailedIngest via
-  # detuple_with_logging; a killed task (timeout) surfaces as {:exit, reason}.
+  # Each task returns {:ok, value} | {:error, {identifier, message}}; the two
+  # that only compute (safe_to_hexdoc_attrs/2, safe_to_parsed_docs/1) rescue
+  # their own exceptions into that shape. A failed item becomes a persisted
+  # FailedIngest via detuple_with_logging. A task the stream killed on timeout,
+  # or one that crashed (insert_hexdoc/1 on a Postgres error, say), surfaces
+  # as {:exit, {input, reason}}: the tasks run unlinked under
+  # Cake.TaskSupervisor, so a crash never reaches the consumer, and
+  # zip_input_on_exit names the input it died on.
   defp unwrap_result({:ok, {:ok, value}}), do: {:ok, value}
   defp unwrap_result({:ok, {:error, reason}}), do: {:error, reason}
-  defp unwrap_result({:exit, reason}), do: {:error, {nil, inspect(reason)}}
+
+  defp unwrap_result({:exit, {input, reason}}),
+    do: {:error, {exit_identifier(input), inspect(reason)}}
+
+  # The input a task died on: a file path (the first persist_raw_docs/2
+  # stage), a hexdoc attrs map (the second), or a %Hexdoc{} (parse/2).
+  defp exit_identifier(path) when is_binary(path), do: path
+  defp exit_identifier(input), do: hexdoc_identifier(input)
 
   defp safe_to_hexdoc_attrs(path, version) do
     {:ok, to_hexdoc_attrs(path, version)}
@@ -126,7 +149,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     e -> {:error, {hexdoc_identifier(hexdoc), Exception.message(e)}}
   end
 
-  defp hexdoc_identifier(%Hexdoc{module: module}), do: to_string(module || "unknown")
+  defp hexdoc_identifier(%{module: module}), do: to_string(module || "unknown")
   defp hexdoc_identifier(_other), do: "unknown"
 
   defp changeset_module(changeset),

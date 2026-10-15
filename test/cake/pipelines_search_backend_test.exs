@@ -7,6 +7,7 @@ defmodule Cake.PipelinesSearchBackendTest do
 
   use Cake.DataCase, async: false
 
+  import ExUnit.CaptureLog
   import Mox
 
   alias Cake.FailedIngests.FailedIngest
@@ -104,6 +105,35 @@ defmodule Cake.PipelinesSearchBackendTest do
       assert failure.input_identifier == slow_id
       assert failure.error_text =~ "search_backend_exit"
       assert failure.error_text =~ "timeout"
+    end
+
+    test "records a crashed index task under the failing document's id and keeps indexing" do
+      crashing_id = Ecto.UUID.generate()
+      ok_id = Ecto.UUID.generate()
+
+      # The backend raises for one document (a malformed response tripping a
+      # bad match, say). The run must carry on to the next document and leave
+      # a row naming the one that crashed, with the exception (#273).
+      expect(Cake.Search.Backend.Mock, :index_document, 2, fn
+        "books", _doc, ^crashing_id -> raise "malformed index response"
+        "books", _doc, ^ok_id -> :ok
+      end)
+
+      capture_log(fn ->
+        indexed =
+          [doc(crashing_id), doc(ok_id)]
+          |> Pipelines.add_to_search_backend("books", ctx())
+          |> Enum.to_list()
+
+        assert length(indexed) == 1
+      end)
+
+      assert [%FailedIngest{} = failure] = Repo.all(FailedIngest)
+      assert failure.step == "search_backend.index"
+      assert failure.input_identifier == crashing_id
+      assert failure.error_text =~ "search_backend_exit"
+      assert failure.error_text =~ "RuntimeError"
+      assert failure.error_text =~ "malformed index response"
     end
   end
 end

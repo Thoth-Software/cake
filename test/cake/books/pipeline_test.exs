@@ -9,6 +9,7 @@ defmodule Cake.Books.PipelineTest do
   alias Cake.Books.ParsedBook
   alias Cake.Books.Pipeline
   alias Cake.FailedIngests.FailedIngest
+  alias Cake.Pipelines
 
   setup :verify_on_exit!
 
@@ -211,6 +212,100 @@ defmodule Cake.Books.PipelineTest do
       assert [persisted_a, persisted_b] = all_books
       assert reload_book(persisted_a.id).embedding_status == :completed
       assert reload_book(persisted_b.id).embedding_status == :failed
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Task crashes inside a fan-out stage (#273): the run continues, the
+  # crashed item is recorded with its identifier and the exception.
+  # -------------------------------------------------------------------
+
+  describe "ingest/4 when an embed task crashes" do
+    test "records the chunk under books.embed, keeps the rest, and marks the book :failed" do
+      book = make_book("Crash Book", "hash_crash_#{System.unique_integer([:positive])}")
+      chunk1 = make_chunk("This chunk will embed fine")
+      chunk2 = make_chunk("This chunk will crash")
+      path = book.source_file_path
+
+      register_test_books([{path, {book, [chunk1, chunk2]}}])
+
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, "test-model" ->
+        if input =~ "will crash" do
+          raise "malformed embeddings body"
+        else
+          successful_embed_response()
+        end
+      end)
+
+      capture_log(fn ->
+        assert {:ok, %{indexed: 1, failed: 1}} = run_ingest([path])
+      end)
+
+      [persisted] = persisted_books()
+      assert reload_book(persisted.id).embedding_status == :failed
+
+      crashed_chunk = Repo.get_by!(Chunk, text: "This chunk will crash")
+      assert [%FailedIngest{} = failure] = Repo.all(FailedIngest)
+      assert failure.step == "books.embed"
+      assert failure.input_identifier == crashed_chunk.id
+      assert failure.error_text =~ "RuntimeError"
+      assert failure.error_text =~ "malformed embeddings body"
+    end
+  end
+
+  describe "persist_books_and_chunks/3 when a persist task crashes" do
+    test "records the book under books.persist and keeps persisting the rest" do
+      # A parse callback that hands back a book with no file_hash trips the
+      # dedup query's nil comparison: a crash inside the persist task, not
+      # an error tuple.
+      crashing = %ParsedBook{make_book("Crashing Book", "unhashed") | file_hash: nil}
+      fine = make_book("Fine Book", "hash_fine_#{System.unique_integer([:positive])}")
+      ctx = Pipelines.build_context(Pipeline, Cake.TestBooksPipeline, "test-model")
+
+      {:ok, persisted_stream} =
+        Pipeline.persist_books_and_chunks(
+          [{crashing, [make_chunk("Crashing chunk")]}, {fine, [make_chunk("Fine chunk")]}],
+          ctx
+        )
+
+      capture_log(fn ->
+        assert [{%ParsedBook{title: "Fine Book"}, [%Chunk{}]}] = Enum.to_list(persisted_stream)
+      end)
+
+      assert [%FailedIngest{} = failure] = Repo.all(FailedIngest)
+      assert failure.step == "books.persist"
+      assert failure.input_identifier == crashing.source_file_path
+      assert failure.error_text =~ "ArgumentError"
+      assert failure.error_text =~ "file_hash"
+    end
+  end
+
+  describe "persist_books_and_chunks/3 when a persist task times out" do
+    test "records the book under books.persist instead of exiting the consumer" do
+      book = make_book("Slow Book", "hash_slow_#{System.unique_integer([:positive])}")
+      ctx = Pipelines.build_context(Pipeline, Cake.TestBooksPipeline, "test-model")
+
+      # The persist task's first query needs the sandbox connection, which
+      # this process holds for as long as the transaction below is open. The
+      # task therefore cannot finish before its timeout, with no sleep anywhere.
+      capture_log(fn ->
+        {:ok, persisted} =
+          Repo.transaction(fn ->
+            {:ok, persisted_stream} =
+              Pipeline.persist_books_and_chunks([{book, [make_chunk("Slow chunk")]}], ctx,
+                timeout: 50
+              )
+
+            Enum.to_list(persisted_stream)
+          end)
+
+        assert persisted == []
+      end)
+
+      assert [%FailedIngest{} = failure] = Repo.all(FailedIngest)
+      assert failure.step == "books.persist"
+      assert failure.input_identifier == book.source_file_path
+      assert failure.error_text =~ "timeout"
     end
   end
 
