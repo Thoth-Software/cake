@@ -280,6 +280,35 @@ defmodule Cake.Books.PipelineTest do
     end
   end
 
+  describe "persist_books_and_chunks/3 when a persist task times out" do
+    test "records the book under books.persist instead of exiting the consumer" do
+      book = make_book("Slow Book", "hash_slow_#{System.unique_integer([:positive])}")
+      ctx = Pipelines.build_context(Pipeline, Cake.TestBooksPipeline, "test-model")
+
+      # The persist task's first query needs the sandbox connection, which
+      # this process holds for as long as the transaction below is open. The
+      # task therefore cannot finish before its timeout, with no sleep anywhere.
+      capture_log(fn ->
+        {:ok, persisted} =
+          Repo.transaction(fn ->
+            {:ok, persisted_stream} =
+              Pipeline.persist_books_and_chunks([{book, [make_chunk("Slow chunk")]}], ctx,
+                timeout: 50
+              )
+
+            Enum.to_list(persisted_stream)
+          end)
+
+        assert persisted == []
+      end)
+
+      assert [%FailedIngest{} = failure] = Repo.all(FailedIngest)
+      assert failure.step == "books.persist"
+      assert failure.input_identifier == book.source_file_path
+      assert failure.error_text =~ "timeout"
+    end
+  end
+
   # -------------------------------------------------------------------
   # validate_paths/1 — the eager, run-level fallible step
   # -------------------------------------------------------------------

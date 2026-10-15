@@ -5,7 +5,8 @@ defmodule Cake.Documents.PipelineTest do
   `Pipelines.sweep/3` (which calls it with no rescue) never crashes on a row
   it cannot retry (#301). And a crash inside a `batch_embed/5` task is an
   item-level failure, recorded with the document's id, never the end of the
-  run (#273).
+  run, as is a persist task that exits, recorded under the doc's
+  `package@version` (#273).
   """
 
   use Cake.DataCase, async: true
@@ -97,6 +98,22 @@ defmodule Cake.Documents.PipelineTest do
       assert failure.step == "docs.embed_persist"
       assert failure.input_identifier == doc.id
       assert failure.error_text =~ "Ecto.CastError"
+    end
+  end
+
+  describe "unwrap_persisted_doc_result/1" do
+    test "passes a persist task's own result through" do
+      assert {:ok, :doc} = Pipeline.unwrap_persisted_doc_result({:ok, {:ok, :doc}})
+
+      assert {:error, {"Kernel.ex@1.0.0", "boom"}} =
+               Pipeline.unwrap_persisted_doc_result({:ok, {:error, {"Kernel.ex@1.0.0", "boom"}}})
+    end
+
+    test "records a persist task that exited under the doc's package@version" do
+      attrs = %{package: "Kernel.ex", version: "1.0.0", title: "Kernel", text: "docs"}
+
+      assert {:error, {"Kernel.ex@1.0.0", ":killed"}} =
+               Pipeline.unwrap_persisted_doc_result({:exit, {attrs, :killed}})
     end
   end
 
