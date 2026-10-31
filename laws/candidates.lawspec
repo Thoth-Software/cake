@@ -1,0 +1,330 @@
+-- Characterization of Cake.Candidates: grouping search results by document
+-- and expanding a document selection back into chunk ids.
+--
+-- A Cake.Search.Result is reduced to the two facts these functions read from
+-- Cake.Citable.metadata/1: the chunk id (:id) and the optional :source_ref.
+-- An Elixir adapter turns each record into a real Result (via a Citable struct
+-- such as Cake.Test.ConvoChunk), calls Cake.Candidates, and maps the
+-- {doc_id, results} tuples back into Group records.
+--
+-- document_metadata/1 is out of scope here.
+unit cake.candidates
+
+-- One small key pool for chunk ids, source_refs and document ids, so
+-- generated inputs share documents and collide on purpose. A single named
+-- refinement lets the checker prove documentOf returns a valid document id.
+refinement Key is
+  (key of type Text where key matches regex "[abc][12]?")
+end refinement
+
+-- A result's :source_ref, which is nil for some GDS types. A dedicated sum
+-- rather than Maybe Key: the checker keeps the payload's refinement through a
+-- match on this type's field, which it does not yet do for a Maybe field.
+type SourceRef is one of
+  | Ref of type Key
+  | NoRef
+end type
+
+type Candidate is a record
+{
+  chunkId of type Key
+  sourceRef of type SourceRef
+}
+end type
+
+type Group is a record
+{
+  docId of type Key
+  members of type List Candidate
+}
+end type
+
+-- Adapters: implemented in Elixir by wrapping Cake.Candidates.
+groupByDocument of type List Candidate -> List Group
+expandToChunkIds of type List Text -> List Group -> List Text
+allChunkIds of type List Group -> List Text
+
+-- ---------------------------------------------------------------------------
+-- Reference model: checked, total definitions the adapters must agree with.
+-- ---------------------------------------------------------------------------
+
+function documentOf (c of type Candidate) -> Key is
+  first matching case of c.sourceRef:
+    when Ref ref then ref
+    when NoRef then c.chunkId
+  end case
+end function
+
+function append (xs of type List a) (ys of type List a) -> List a is
+  first matching case of xs:
+    when Nil then ys
+    when Cons x rest then Cons x (append rest ys)
+  end case
+end function
+
+function addToGroups (c of type Candidate) (groups of type List Group) -> List
+  Group is
+  first matching case of groups:
+    when Nil then [Group record{docId = documentOf c, members = [c]}]
+    when Cons g rest then
+      if g.docId = documentOf c then
+        Cons (g with members = append g.members [c]) rest
+      else
+        Cons g (addToGroups c rest)
+      end if
+  end case
+end function
+
+function groupFrom (cs of type List Candidate) (acc of type List Group) -> List
+  Group is
+  first matching case of cs:
+    when Nil then acc
+    when Cons c rest then groupFrom rest (addToGroups c acc)
+  end case
+end function
+
+function flatten (groups of type List Group) -> List Candidate is
+  first matching case of groups:
+    when Nil then []
+    when Cons g rest then append g.members (flatten rest)
+  end case
+end function
+
+function chunkIdsOf (cs of type List Candidate) -> List Text is
+  first matching case of cs:
+    when Nil then []
+    when Cons c rest then Cons c.chunkId (chunkIdsOf rest)
+  end case
+end function
+
+function docIds (groups of type List Group) -> List Text is
+  first matching case of groups:
+    when Nil then []
+    when Cons g rest then Cons g.docId (docIds rest)
+  end case
+end function
+
+function contains (x of type Text) (xs of type List Text) -> Bool is
+  first matching case of xs:
+    when Nil then false
+    when Cons y rest then y = x || contains x rest
+  end case
+end function
+
+function distinct (xs of type List Text) -> Bool is
+  first matching case of xs:
+    when Nil then true
+    when Cons x rest then !(contains x rest) && distinct rest
+  end case
+end function
+
+function allBelongTo (doc of type Text) (cs of type List Candidate) -> Bool is
+  first matching case of cs:
+    when Nil then true
+    when Cons c rest then documentOf c = doc && allBelongTo doc rest
+  end case
+end function
+
+function coherent (groups of type List Group) -> Bool is
+  first matching case of groups:
+    when Nil then true
+    when Cons g rest then
+      prelude.length g.members > 0 && allBelongTo g.docId g.members && coherent
+        rest
+  end case
+end function
+
+-- Map.new/1 keeps the last entry for a repeated key, so lookup is last-wins.
+function membersOf (doc of type Text) (groups of type List Group) -> List
+  Candidate is
+  first matching case of groups:
+    when Nil then []
+    when Cons g rest then
+      if contains doc (docIds rest) then
+        membersOf doc rest
+      else
+        if g.docId = doc then g.members else [] end if
+      end if
+  end case
+end function
+
+function expandFrom (selected of type List Text) (groups of type List Group) ->
+  List Text is
+  first matching case of selected:
+    when Nil then []
+    when Cons doc rest then
+      append (chunkIdsOf (membersOf doc groups)) (expandFrom rest groups)
+  end case
+end function
+
+-- ---------------------------------------------------------------------------
+-- group_by_document/1
+-- ---------------------------------------------------------------------------
+
+law "|grouping agrees with the reference model| is
+  description:
+    "{groupByDocument} keys each result by its source_ref, or its own id when
+    it has none, keeps documents in first-seen order and keeps each
+    document's results in input order."
+  end description
+
+  definition:
+    for all (cs of type List Candidate) =>
+      groupByDocument cs must be groupFrom cs []
+    end for all
+  end definition
+
+  example "|no results, no groups|:
+    cs = []
+    expect groupByDocument cs = []
+  end example
+
+  example "|interleaved documents are gathered in first-seen order|:
+    cs = [Candidate record{chunkId = "a1", sourceRef = Ref "b"},
+    Candidate record{chunkId = "c1", sourceRef = Ref "a"},
+    Candidate record{chunkId = "a2", sourceRef = Ref "b"}]
+    expect groupByDocument cs =
+      [Group record{docId = "b", members =
+          [Candidate record{chunkId = "a1", sourceRef = Ref "b"},
+        Candidate record{chunkId = "a2", sourceRef = Ref "b"}]},
+      Group record{docId = "a", members =
+          [Candidate record{chunkId = "c1", sourceRef = Ref "a"}]}]
+  end example
+
+  example "|a result without a source_ref is its own document|:
+    cs = [Candidate record{chunkId = "b2", sourceRef = NoRef}]
+    expect groupByDocument cs =
+      [Group record{docId = "b2", members =
+          [Candidate record{chunkId = "b2", sourceRef = NoRef}]}]
+  end example
+
+  example "|a chunk id that equals another result's source_ref merges the two|:
+    cs = [Candidate record{chunkId = "a", sourceRef = NoRef},
+    Candidate record{chunkId = "c1", sourceRef = Ref "a"}]
+    expect groupByDocument cs =
+      [Group record{docId = "a", members =
+          [Candidate record{chunkId = "a", sourceRef = NoRef},
+        Candidate record{chunkId = "c1", sourceRef = Ref "a"}]}]
+  end example
+
+  example "|duplicate hits are kept, not collapsed|:
+    cs = [Candidate record{chunkId = "a1", sourceRef = Ref "a"},
+    Candidate record{chunkId = "a1", sourceRef = Ref "a"}]
+    expect groupByDocument cs =
+      [Group record{docId = "a", members =
+          [Candidate record{chunkId = "a1", sourceRef = Ref "a"},
+        Candidate record{chunkId = "a1", sourceRef = Ref "a"}]}]
+  end example
+end law
+
+law "|grouping is idempotent| is
+  description:
+    "Regrouping the flattened output of {groupByDocument} changes nothing."
+  end description
+
+  definition:
+    for all (cs of type List Candidate) =>
+      groupByDocument (flatten (groupByDocument cs)) must be groupByDocument cs
+    end for all
+  end definition
+end law
+
+law "|groups are non-empty, consistent and uniquely keyed| is
+  description:
+    "Every group from {groupByDocument} holds at least one result, every
+    result in it belongs to that group's document, and no document appears
+    twice."
+  end description
+
+  definition:
+    for all (cs of type List Candidate) =>
+      coherent (groupByDocument cs) and distinct (docIds (groupByDocument cs))
+    end for all
+  end definition
+end law
+
+-- ---------------------------------------------------------------------------
+-- expand_to_chunk_ids/2 and all_chunk_ids/1
+-- ---------------------------------------------------------------------------
+
+law "|expansion agrees with the reference model| is
+  description:
+    "{expandToChunkIds} emits each selected document's chunk ids, in
+    selection order, once per time it is selected. Unknown documents
+    contribute nothing. When the groups repeat a document, the last one wins."
+  end description
+
+  definition:
+    for all (selected of type List Key) (groups of type List Group) =>
+      expandToChunkIds selected groups must be expandFrom selected groups
+    end for all
+  end definition
+
+  example "|selecting a document twice repeats its chunk ids|:
+    selected = ["a", "a"]
+    groups = [Group record{docId = "a", members =
+        [Candidate record{chunkId = "a1", sourceRef = Ref "a"}]}]
+    expect expandToChunkIds selected groups = ["a1", "a1"]
+  end example
+
+  example "|an unknown document selects nothing|:
+    selected = ["c"]
+    groups = [Group record{docId = "a", members =
+        [Candidate record{chunkId = "a1", sourceRef = Ref "a"}]}]
+    expect expandToChunkIds selected groups = []
+  end example
+
+  example "|a repeated document key resolves to the last group|:
+    selected = ["a"]
+    groups = [Group record{docId = "a", members =
+        [Candidate record{chunkId = "a1", sourceRef = Ref "a"}]},
+    Group record{docId = "a", members =
+        [Candidate record{chunkId = "a2", sourceRef = Ref "a"}]}]
+    expect expandToChunkIds selected groups = ["a2"]
+  end example
+end law
+
+law "|expansion distributes over joined selections| is
+  description:
+    "Expanding two selections joined end to end gives the two expansions
+    joined end to end."
+  end description
+
+  definition:
+    for all
+      (first of type List Key)
+      (second of type List Key)
+      (groups of type List Group)
+    =>
+      expandToChunkIds (append first second) groups must be append
+        (expandToChunkIds first groups) (expandToChunkIds second groups)
+    end for all
+  end definition
+end law
+
+law "|all chunk ids agrees with the reference model| is
+  description:
+    "{allChunkIds} lists every chunk id, group by group, in group order."
+  end description
+
+  definition:
+    for all (groups of type List Group) =>
+      allChunkIds groups must be chunkIdsOf (flatten groups)
+    end for all
+  end definition
+end law
+
+law "|selecting every document selects every chunk| is
+  description:
+    "Expanding the full list of document ids from {groupByDocument} gives the
+    same chunk ids as {allChunkIds}."
+  end description
+
+  definition:
+    for all (cs of type List Candidate) =>
+      expandToChunkIds (docIds (groupByDocument cs)) (groupByDocument cs)
+        must be allChunkIds (groupByDocument cs)
+    end for all
+  end definition
+end law
+end unit
