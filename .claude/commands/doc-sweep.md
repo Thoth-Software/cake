@@ -55,7 +55,7 @@ generated =
 
 src_defines? = fn source, name ->
   n = Regex.escape(Atom.to_string(name))
-  Regex.match?(~r/^\s*(def|defmacro|defdelegate|defguard)\s+#{n}(\s*\(|\s|$)/m, source)
+  Regex.match?(~r/^\s*(def|defmacro|defdelegate|defguard)\s+#{n}(\s*\(|\s*,|\s|$)/m, source)
 end
 
 for mod <- mods, Code.ensure_loaded?(mod) do
