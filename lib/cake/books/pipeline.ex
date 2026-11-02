@@ -280,10 +280,13 @@ defmodule Cake.Books.Pipeline do
     timeout = Keyword.get(opts, :timeout, :infinity)
 
     persisted_stream =
-      books_and_chunks_stream
-      |> Task.async_stream(&Persistence.persist_books_and_chunks/1,
+      Cake.TaskSupervisor
+      |> Task.Supervisor.async_stream_nolink(
+        books_and_chunks_stream,
+        &Persistence.persist_books_and_chunks/1,
         max_concurrency: max_concurrency,
         timeout: timeout,
+        on_timeout: :kill_task,
         ordered: false,
         zip_input_on_exit: true
       )
@@ -343,8 +346,9 @@ defmodule Cake.Books.Pipeline do
         {:ok, book} = Books.update_parsed_book(book, %{embedding_status: :processing})
 
         embedded_chunks =
-          chunks
-          |> Task.async_stream(
+          Cake.TaskSupervisor
+          |> Task.Supervisor.async_stream_nolink(
+            chunks,
             fn %Chunk{text: text, section_title: section_title} = chunk ->
               result =
                 embeddings_module.embed(
@@ -413,6 +417,8 @@ defmodule Cake.Books.Pipeline do
     []
   end
 
+  # A task the stream killed on timeout, or one that crashed: the chunk it
+  # was embedding is recorded either way (zip_input_on_exit).
   defp handle_embed_result({:exit, {%Chunk{} = chunk, reason}}, ctx) do
     _ = Pipelines.log_and_persist_failure(ctx, "books.embed", {chunk.id, inspect(reason)})
     []

@@ -1,6 +1,7 @@
 defmodule Cake.Jobs.DocumentIngestionJobTest do
   # async: false — the perform/logging tests run the real ingest pipeline,
-  # whose Task.async_stream stages do DB work. A shared sandbox (async: false)
+  # whose fan-out stages (tasks under Cake.TaskSupervisor) do DB work. A
+  # shared sandbox (async: false)
   # gives those child processes a stable connection and avoids the
   # under-load task-timeout flakiness seen with the async sandbox.
   use Cake.ObanCase, async: false

@@ -6,11 +6,16 @@ defmodule Cake.Books.ZipExtractorPropertyTest do
   extracted pairs are exactly the entries the module's own filter admits,
   stated here as a one-line model (not under the macOS resource-fork prefix,
   not a directory, named `.pdf` in any case), with each entry's bytes intact.
+  The expansion bound is pinned the same way: the declared-size cap is
+  compared with a total computed from the generated contents, and an entry
+  whose declared size is forged must fail rather than yield bytes.
   Example tests live in `zip_extractor_test.exs`.
   """
 
   use ExUnit.Case, async: true
   use ExUnitProperties
+
+  import Cake.ZipFixtures, only: [forge_declared_size: 3]
 
   alias Cake.Books.ZipExtractor
 
@@ -93,4 +98,64 @@ defmodule Cake.Books.ZipExtractorPropertyTest do
       assert {:error, _reason} = ZipExtractor.extract_pdfs(bytes)
     end
   end
+
+  # Contents that deflate well (a run of one byte) as well as arbitrary
+  # bytes, so the cap is exercised on archives far smaller than their
+  # expansion.
+  defp pdf_content do
+    one_of([
+      binary(min_length: 1, max_length: 64),
+      gen all(byte <- integer(0..255), length <- integer(1..4_096)) do
+        :binary.copy(<<byte>>, length)
+      end
+    ])
+  end
+
+  defp pdf_entries do
+    gen all(contents <- list_of(pdf_content(), min_length: 1, max_length: 5)) do
+      contents |> Enum.with_index() |> Enum.map(fn {content, i} -> {"doc#{i}.pdf", content} end)
+    end
+  end
+
+  property "under any cap, yields the exact bytes or rejects the archive as too large" do
+    # The cap is drawn around the archive's own total, so the boundary
+    # (one byte under, at, one byte over) is hit as often as the far cases.
+    check all(
+            entries <- pdf_entries(),
+            total =
+              entries |> Enum.map(fn {_name, content} -> byte_size(content) end) |> Enum.sum(),
+            offset <- one_of([integer(-2..2), integer(-12_000..12_000)]),
+            max_bytes = max(total + offset, 0),
+            compress <- member_of([:deflate, :store])
+          ) do
+      opts = if compress == :store, do: [compress: []], else: []
+      {:ok, {_name, zip}} = :zip.create(~c"a.zip", charlist(entries), [:memory | opts])
+
+      if total <= max_bytes do
+        assert {:ok, pdfs} = ZipExtractor.extract_pdfs(zip, max_expanded_bytes: max_bytes)
+        assert pdfs == entries
+      else
+        assert {:error, {:too_large, ^total, ^max_bytes}} =
+                 ZipExtractor.extract_pdfs(zip, max_expanded_bytes: max_bytes)
+      end
+    end
+  end
+
+  property "an entry whose declared size is forged fails instead of yielding bytes" do
+    check all(
+            content <- pdf_content(),
+            forged <- integer(0..8_192),
+            forged != byte_size(content),
+            compress <- member_of([:deflate, :store])
+          ) do
+      opts = if compress == :store, do: [compress: []], else: []
+      {:ok, {_name, zip}} = :zip.create(~c"a.zip", [{~c"doc.pdf", content}], [:memory | opts])
+
+      assert {:error, {:size_mismatch, "doc.pdf"}} =
+               zip |> forge_declared_size("doc.pdf", forged) |> ZipExtractor.extract_pdfs()
+    end
+  end
+
+  defp charlist(entries),
+    do: Enum.map(entries, fn {name, content} -> {String.to_charlist(name), content} end)
 end

@@ -67,10 +67,12 @@ defmodule Cake.Pipelines do
 
   @doc """
   Indexes a stream of embedded records into `collection` on the configured
-  search backend, fanning out up to five concurrent `index_document` calls.
-  Per-item failures (including timeouts) are logged and persisted via
+  search backend, fanning out up to five concurrent `index_document` calls
+  under `Cake.TaskSupervisor`. Per-item failures — a backend error, a
+  timeout, or a crash inside the call — are logged and persisted via
   `detuple_with_logging/3` under the `"search_backend.index"` step name,
-  keyed on the failing record's `id` so `sweep/3` can retry it. Each call
+  keyed on the failing record's `id` so `sweep/3` can retry it; the tasks
+  are not linked to the caller, so a crash never ends the run. Each call
   must finish within the context's `:search_backend_timeout` opt (default
   5000 ms). Skipped entirely when `config :cake, :skip_search_backend` is
   true (the test helper sets it).
@@ -85,8 +87,9 @@ defmodule Cake.Pipelines do
     else
       backend = Backend.backend()
 
-      docs_with_embeddings_stream
-      |> Task.async_stream(
+      Cake.TaskSupervisor
+      |> Task.Supervisor.async_stream_nolink(
+        docs_with_embeddings_stream,
         &{&1.id, backend.index_document(collection, &1, &1.id)},
         max_concurrency: 5,
         timeout: search_backend_timeout(ctx),
@@ -107,7 +110,9 @@ defmodule Cake.Pipelines do
   end
 
   # Every shape carries the document id first so extract_error_info/1 records
-  # it as the failure's input_identifier.
+  # it as the failure's input_identifier. The {:exit, _} shape is a task the
+  # stream killed on timeout or one that crashed; zip_input_on_exit pairs
+  # either with the document it was indexing.
   defp handle_backend_response({:ok, {_id, :ok}}),
     do: {:ok, :indexed}
 

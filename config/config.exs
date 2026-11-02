@@ -91,6 +91,15 @@ config :cake, :max_sub_search_concurrency, 4
 # when any sub-search exceeds it.
 config :cake, :sub_search_timeout, 30_000
 
+# Expansion limits for ZIP uploads (Cake.Books.ZipExtractor). An upload's
+# size limit bounds only the compressed bytes, so before inflating anything
+# the extractor rejects an archive with more than :max_zip_entries entries
+# (PDF or not), or whose PDF entries declare more than
+# :max_zip_expanded_bytes uncompressed in total; it then stops inflating
+# any entry that expands past the size it declares.
+config :cake, :max_zip_expanded_bytes, 268_435_456
+config :cake, :max_zip_entries, 10_000
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails

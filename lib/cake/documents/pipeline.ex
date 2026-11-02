@@ -91,9 +91,8 @@ defmodule Cake.Documents.Pipeline do
   or `"docs.parse"`): the sweep logs it and counts the row as remaining.
   `{:no_input_identifier, failure_id}` is the answer for any row with no
   `input_identifier` to resume from — a `"docs.persist"` row recorded from
-  a task exit, or a `"docs.embed"`/`"docs.embed_persist"` row recorded from
-  a provider error or a killed task — likewise left for the sweep to count
-  as remaining.
+  a task exit, or a `"docs.embed"` row recorded from a provider error —
+  likewise left for the sweep to count as remaining.
   """
   @type retry_error ::
           {:retry_not_implemented, module()}
@@ -240,24 +239,32 @@ defmodule Cake.Documents.Pipeline do
       ) do
     embeddings_module = embeddings_module()
 
-    persisted_parsed_docs_stream
-    |> Stream.map(fn %ParsedDocument{text: text, title: title} = doc ->
-      %{input: "#{title}\n\n#{text}", struct: doc}
-    end)
-    |> Task.async_stream(
-      &embeddings_module.embed(embedding_service, &1, embedding_model),
+    embed_inputs_stream =
+      Stream.map(persisted_parsed_docs_stream, fn %ParsedDocument{text: text, title: title} = doc ->
+        %{input: "#{title}\n\n#{text}", struct: doc}
+      end)
+
+    embeddings_stream =
+      Cake.TaskSupervisor
+      |> Task.Supervisor.async_stream_nolink(
+        embed_inputs_stream,
+        &embeddings_module.embed(embedding_service, &1, embedding_model),
+        max_concurrency: 5,
+        timeout: 5_000,
+        on_timeout: :kill_task,
+        zip_input_on_exit: true
+      )
+      |> Stream.map(&unwrap_embed_result/1)
+      |> Pipelines.detuple_with_logging("docs.embed", ctx)
+
+    Cake.TaskSupervisor
+    |> Task.Supervisor.async_stream_nolink(
+      embeddings_stream,
+      &persist_embedding/1,
       max_concurrency: 5,
       timeout: 5_000,
       on_timeout: :kill_task,
       zip_input_on_exit: true
-    )
-    |> Stream.map(&unwrap_embed_result/1)
-    |> Pipelines.detuple_with_logging("docs.embed", ctx)
-    |> Task.async_stream(
-      &persist_embedding/1,
-      max_concurrency: 5,
-      timeout: 5_000,
-      on_timeout: :kill_task
     )
     |> Stream.map(&unwrap_persist_result/1)
     |> Pipelines.detuple_with_logging("docs.embed_persist", ctx)
@@ -267,9 +274,11 @@ defmodule Cake.Documents.Pipeline do
     Application.get_env(:cake, :embeddings_module, Cake.Embeddings)
   end
 
-  # Collapses the Task.async_stream wrapper into a single {:ok, _} | {:error, _}
+  # Collapses the async_stream_nolink wrapper into a single {:ok, _} | {:error, _}
   # result so detuple_with_logging can actually filter embed failures (an inner
-  # {:error, _} would otherwise match the outer {:ok, _} and leak through).
+  # {:error, _} would otherwise match the outer {:ok, _} and leak through). The
+  # {:exit, _} shape is a task the stream killed on timeout or one that crashed;
+  # zip_input_on_exit pairs either with the document it was embedding.
   defp unwrap_embed_result({:ok, {:ok, %{struct: _, attrs: _} = embedding}}), do: {:ok, embedding}
   defp unwrap_embed_result({:ok, {:error, reason}}), do: {:error, {nil, inspect(reason)}}
 
@@ -286,35 +295,55 @@ defmodule Cake.Documents.Pipeline do
   end
 
   defp unwrap_persist_result({:ok, result}), do: result
-  defp unwrap_persist_result({:exit, reason}), do: {:error, {nil, inspect(reason)}}
+
+  defp unwrap_persist_result({:exit, {%{struct: %ParsedDocument{id: id}}, reason}}),
+    do: {:error, {id, inspect(reason)}}
 
   defp persist_parsed_docs(parsed_doc_stream, ctx) do
-    parsed_doc_stream
-    |> Stream.reject(fn attrs ->
-      ParsedDocuments.parsed_doc_exists?(
-        attrs[:source],
-        attrs[:version],
-        attrs[:package],
-        attrs[:title]
-      )
-    end)
-    |> Task.async_stream(
+    new_parsed_doc_stream =
+      Stream.reject(parsed_doc_stream, fn attrs ->
+        ParsedDocuments.parsed_doc_exists?(
+          attrs[:source],
+          attrs[:version],
+          attrs[:package],
+          attrs[:title]
+        )
+      end)
+
+    Cake.TaskSupervisor
+    |> Task.Supervisor.async_stream_nolink(
+      new_parsed_doc_stream,
       fn attrs ->
         try do
           {:ok, ParsedDocuments.create_parsed_doc!(attrs)}
         rescue
-          e -> {:error, {"#{attrs[:package]}@#{attrs[:version]}", Exception.message(e)}}
+          e -> {:error, {parsed_doc_identifier(attrs), Exception.message(e)}}
         end
       end,
       max_concurrency: 5,
-      timeout: :infinity
+      timeout: :infinity,
+      zip_input_on_exit: true
     )
-    |> Stream.map(fn
-      {:ok, result} -> result
-      {:exit, reason} -> {:error, {:task_exit, reason}}
-    end)
+    |> Stream.map(&unwrap_persisted_doc_result/1)
     |> Pipelines.detuple_with_logging("docs.persist", ctx)
   end
+
+  # The identifier a docs.persist failure is recorded under, and the one
+  # retry_persist_failure/4 hands back to the source pipeline's retry_from_raw/2.
+  defp parsed_doc_identifier(attrs), do: "#{attrs[:package]}@#{attrs[:version]}"
+
+  @doc false
+  @spec unwrap_persisted_doc_result(
+          {:ok, {:ok, ParsedDocument.t()} | {:error, {String.t(), String.t()}}}
+          | {:exit, {map(), term()}}
+        ) :: {:ok, ParsedDocument.t()} | {:error, {String.t(), String.t()}}
+  def unwrap_persisted_doc_result({:ok, result}), do: result
+
+  # A persist task that exited without an exception (the task body rescues
+  # those itself); zip_input_on_exit pairs the exit with the attrs it was
+  # inserting, so the row carries the same identifier the rescue path writes.
+  def unwrap_persisted_doc_result({:exit, {attrs, reason}}),
+    do: {:error, {parsed_doc_identifier(attrs), inspect(reason)}}
 
   defp retry_persist_failure(failure, source_pipeline, embedding_service, embedding_model) do
     if function_exported?(source_pipeline, :retry_from_raw, 2) do
