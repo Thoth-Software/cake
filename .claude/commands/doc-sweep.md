@@ -60,7 +60,7 @@ end
 
 for mod <- mods, Code.ensure_loaded?(mod) do
   attrs = mod.module_info(:attributes)
-  protocol_impl? = Keyword.has_key?(attrs, :protocol_impl)
+  protocol_impl? = Keyword.has_key?(attrs, :__impl__)
   source = mod.module_info(:compile)[:source] |> to_string() |> File.read!()
   behaviours = attrs |> Keyword.get_values(:behaviour) |> List.flatten()
 
