@@ -1,6 +1,7 @@
 defmodule Cake.Books.PipelineTest do
   use Cake.DataCase, async: true
 
+  import Ecto.Query
   import ExUnit.CaptureLog
   import Mox
 
@@ -595,6 +596,207 @@ defmodule Cake.Books.PipelineTest do
                Pipeline.retry(failure, Cake.TestBooksPipeline, :openai, "test-model")
 
       assert [%FailedIngest{input_identifier: nil}] = Repo.all(FailedIngest)
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Embedding model on every embedded chunk (#284)
+  # -------------------------------------------------------------------
+
+  # Ingests one book of two chunks under "test-model", the second chunk's
+  # embed failing; returns the book, the embedded sibling, the unembedded
+  # chunk and the books.embed failure recorded for it.
+  defp ingest_with_one_failed_chunk do
+    book = make_book("Model Book", "model_#{System.unique_integer([:positive])}")
+    path = book.source_file_path
+
+    register_test_books([
+      {path, {book, [make_chunk("Embeds fine"), make_chunk("This one will fail")]}}
+    ])
+
+    expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, %{input: input}, "test-model" ->
+      if input =~ "will fail", do: {:error, "rate limited"}, else: successful_embed_response()
+    end)
+
+    capture_log(fn -> assert {:ok, %{indexed: 1, failed: 1}} = run_ingest([path]) end)
+
+    [persisted] = persisted_books()
+    [sibling, failed] = book_chunks_failing_last(persisted)
+    [%FailedIngest{step: "books.embed"} = failure] = Repo.all(FailedIngest)
+    assert failure.input_identifier == failed.id
+
+    {persisted, sibling, failed, failure}
+  end
+
+  defp book_chunks_failing_last(%ParsedBook{id: book_id}) do
+    chunks = Repo.all(from c in Chunk, where: c.parsed_book_id == ^book_id)
+    Enum.sort_by(chunks, &(&1.text =~ "will fail"))
+  end
+
+  # Rewrites a chunk's stored model, as if an earlier run under that model
+  # had embedded it.
+  defp set_stored_model!(%Chunk{id: id}, model) do
+    {1, _} = Repo.update_all(from(c in Chunk, where: c.id == ^id), set: [embedding_model: model])
+    :ok
+  end
+
+  describe "embedding_model on every embedded chunk (#284)" do
+    test "ingest/4 records the run's model on each chunk, with its vector" do
+      book = make_book("Recorded Model", "recorded_#{System.unique_integer([:positive])}")
+      path = book.source_file_path
+      register_test_books([{path, {book, [make_chunk("One"), make_chunk("Two")]}}])
+
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, _input, "test-model" ->
+        successful_embed_response()
+      end)
+
+      assert {:ok, %{indexed: 2}} = run_ingest([path])
+
+      assert [{@fake_embedding, "test-model"}, {@fake_embedding, "test-model"}] =
+               Enum.map(Repo.all(Chunk), &{&1.embedding, &1.embedding_model})
+    end
+
+    test "a chunk that failed to embed records no model" do
+      {_book, sibling, failed, _failure} = ingest_with_one_failed_chunk()
+
+      assert sibling.embedding_model == "test-model"
+      assert {failed.embedding, failed.embedding_model} == {nil, nil}
+    end
+
+    test "retry/4 from a chunk re-embeds under the siblings' model and records it" do
+      {_book, _sibling, failed, failure} = ingest_with_one_failed_chunk()
+
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, _input, "test-model" ->
+        successful_embed_response()
+      end)
+
+      assert {:ok, :retried} =
+               Pipeline.retry(failure, Cake.TestBooksPipeline, :openai, "test-model")
+
+      retried = Repo.get!(Chunk, failed.id)
+      assert {retried.embedding, retried.embedding_model} == {@fake_embedding, "test-model"}
+      assert Repo.all(FailedIngest) == []
+    end
+
+    test "retry/4 from a chunk refuses a model other than its siblings', embedding nothing" do
+      # The sweep after a config change: the book's other chunks were
+      # embedded under "old-model", the retry is asked for "test-model".
+      # Writing that vector would mix two models within one book, so the
+      # retry refuses (no Mox expectation: any embed call fails the test),
+      # and the failure row stays for a re-ingest of the book to settle.
+      {_book, sibling, failed, failure} = ingest_with_one_failed_chunk()
+      :ok = set_stored_model!(sibling, "old-model")
+
+      assert {:error, {:embedding_model_mismatch, failed_id, ["old-model"], "test-model"}} =
+               Pipeline.retry(failure, Cake.TestBooksPipeline, :openai, "test-model")
+
+      assert failed_id == failed.id
+      unchanged = Repo.get!(Chunk, failed.id)
+      assert {unchanged.embedding, unchanged.embedding_model} == {nil, nil}
+      assert [%FailedIngest{id: id}] = Repo.all(FailedIngest)
+      assert id == failure.id
+    end
+
+    test "retry/4 from a chunk refuses a model other than the chunk's own stored one" do
+      # A search_backend.index row: the chunk itself was embedded (under
+      # "old-model") and the index refused it. Re-embedding it under
+      # "test-model" would leave it the odd one out among its siblings.
+      {_book, sibling, failed, failure} = ingest_with_one_failed_chunk()
+      :ok = set_stored_model!(sibling, "old-model")
+
+      {:ok, _} =
+        Books.update_chunk(Repo.get!(Chunk, failed.id), %{
+          embedding: @fake_embedding,
+          embedding_model: "old-model"
+        })
+
+      {:ok, index_failure} =
+        Cake.FailedIngests.create_failed_ingest(%{
+          run_id: failure.run_id,
+          pipeline_behaviour: failure.pipeline_behaviour,
+          pipeline_implementation: failure.pipeline_implementation,
+          step: "search_backend.index",
+          version: failure.version,
+          error_text: "rejected",
+          input_identifier: failed.id,
+          pipeline_fatal: false
+        })
+
+      assert {:error, {:embedding_model_mismatch, _id, ["old-model"], "test-model"}} =
+               Pipeline.retry(index_failure, Cake.TestBooksPipeline, :openai, "test-model")
+
+      assert Repo.get!(Chunk, failed.id).embedding_model == "old-model"
+    end
+
+    test "ingest_with_sweep/5 never writes a vector under a model different from its siblings'" do
+      # Within one run the sweep's model is the run's own, so the failed
+      # chunk is resolved under the same model its siblings carry.
+      book = make_book("Sweep Model", "sweep_model_#{System.unique_integer([:positive])}")
+      path = book.source_file_path
+      register_test_books([{path, {book, [make_chunk("Steady"), make_chunk("Flaky")]}}])
+
+      # The embed calls run in supervised tasks, so the "failed once" flag
+      # lives in a counter they all share.
+      flaked = :counters.new(1, [])
+
+      stub(Cake.Embeddings.Mock, :embed, fn :openai, %{input: input}, "test-model" ->
+        if input =~ "Flaky" and :counters.get(flaked, 1) == 0 do
+          :counters.add(flaked, 1, 1)
+          {:error, "transient"}
+        else
+          successful_embed_response()
+        end
+      end)
+
+      capture_log(fn ->
+        Pipeline.ingest_with_sweep(:openai, Cake.TestBooksPipeline, "test-model", [path])
+      end)
+
+      assert Repo.all(FailedIngest) == []
+      assert ["test-model", "test-model"] = Enum.map(Repo.all(Chunk), & &1.embedding_model)
+    end
+
+    test "retry/4 from a file whose book is :completed under another model re-embeds it under the requested one" do
+      # Same bytes, other model: not a duplicate (#284), so the retry resumes
+      # the book and every chunk ends up under the requested model.
+      book = make_book("Migrating Book", "migrating_#{System.unique_integer([:positive])}")
+      first_path = book.source_file_path
+      second_path = "/test/other-copy-of-#{book.file_hash}.pdf"
+      chunks = [make_chunk("Alpha"), make_chunk("Beta")]
+      register_test_books([{first_path, {book, chunks}}, {second_path, {book, chunks}}])
+
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, _input, "old-model" ->
+        successful_embed_response()
+      end)
+
+      capture_log(fn ->
+        assert {:ok, %{indexed: 2}} =
+                 Pipeline.ingest(:openai, Cake.TestBooksPipeline, "old-model", [first_path])
+      end)
+
+      {:ok, failure} =
+        Cake.FailedIngests.create_failed_ingest(%{
+          run_id: Ecto.UUID.generate(),
+          pipeline_behaviour: "Cake.Books.Pipeline",
+          pipeline_implementation: "Cake.TestBooksPipeline",
+          step: "books.parse",
+          version: "test-model",
+          error_text: "boom",
+          input_identifier: second_path,
+          pipeline_fatal: false
+        })
+
+      expect(Cake.Embeddings.Mock, :embed, 2, fn :openai, _input, "test-model" ->
+        successful_embed_response()
+      end)
+
+      capture_log(fn ->
+        assert {:ok, :retried} =
+                 Pipeline.retry(failure, Cake.TestBooksPipeline, :openai, "test-model")
+      end)
+
+      assert ["test-model", "test-model"] = Enum.map(Repo.all(Chunk), & &1.embedding_model)
+      assert [%ParsedBook{}] = persisted_books()
     end
   end
 end
