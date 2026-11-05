@@ -30,6 +30,8 @@ defmodule Cake.Books.Pipeline do
   part of the API, and free to change with `ingest/4`.
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias Cake.Books
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
@@ -37,6 +39,7 @@ defmodule Cake.Books.Pipeline do
   alias Cake.Pipelines
   alias Cake.Repo
   alias Cake.Search.Backend
+
   require Logger
 
   @doc "Loads the file binary for a storage key, returning the key paired with the binary."
@@ -72,9 +75,13 @@ defmodule Cake.Books.Pipeline do
   Errors from single-chunk embedding, persistence, or indexing during retry.
 
   Each variant tags the failing chunk's ID so the error is traceable.
+  `{:embedding_model_mismatch, chunk_id, stored_models, requested}` is a
+  retry refused because the chunk or a sibling in its book carries a vector
+  from a model other than the requested one (see `retry/4`).
   """
   @type embed_index_error ::
           {:embed_failed, String.t(), String.t()}
+          | {:embedding_model_mismatch, String.t(), [String.t()], String.t()}
           | {:chunk_update_failed, String.t(), Ecto.Changeset.t()}
           | {:search_backend_index, String.t(), term()}
 
@@ -108,14 +115,17 @@ defmodule Cake.Books.Pipeline do
   through both the embed stage and the index stage: `:completed` when
   every chunk was embedded *and* accepted by the index, `:failed`
   otherwise. So `:completed` means ingested, and it is the one status that
-  makes a later `file_hash` hit a duplicate: such a book is logged and
+  makes a later `file_hash` hit a duplicate, and only when every chunk was
+  embedded under this run's `embedding_model` (each chunk records the model
+  beside its vector): such a book is logged and
   dropped after the persist step, never re-embedded or re-indexed, and
-  counted in neither `indexed` nor `failed`. A book in any other status —
-  `:pending`, `:processing` (an interrupted run leaves it there; nothing
-  proves another run still owns it), `:failed` — is resumed instead: its
-  existing chunks are embedded and indexed again and its final status is
+  counted in neither `indexed` nor `failed`. Any other book behind the hash
+  — `:pending`, `:processing` (an interrupted run leaves it there; nothing
+  proves another run still owns it), `:failed`, or `:completed` under
+  another model — is resumed instead: vectors from other models are
+  cleared, its existing chunks are embedded and indexed again and its final status is
   rewritten from the result, so re-ingesting the same bytes repairs a book
-  whose earlier run did not finish.
+  whose earlier run did not finish, or moves a book to a new model.
 
   `validate_paths/1` runs first, eagerly: an invalid key list is
   pipeline-fatal and short-circuits to `Pipelines.handle_ingest_error/2`,
@@ -185,6 +195,20 @@ defmodule Cake.Books.Pipeline do
   early failures re-run from the file, embed/index failures resume from the
   persisted chunk. A file that turns out to be a duplicate of an already
   ingested book resolves the failure without embedding or indexing anything.
+
+  A retry never writes a vector under a model other than the one its book
+  already carries: before embedding a chunk it reads the `embedding_model`
+  of that chunk and its siblings, and if any is set to another model it
+  refuses with `{:error, {:embedding_model_mismatch, chunk_id,
+  stored_models, embedding_model}}`, embedding nothing and leaving the
+  failure row in place. Refusing rather than re-embedding is deliberate: a
+  retry repairs one item of a run, and re-embedding that item under a new
+  model is exactly how a book ends up half one model and half another.
+  Moving a book to a new model is a re-ingest of its bytes, which
+  `Persistence` resumes as a whole (clearing the old vectors first).
+  Within `ingest_with_sweep/5` the sweep's model is the run's own, so the
+  check only refuses a retry called with a model the book was not
+  embedded under.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, retry_error()}
@@ -283,7 +307,8 @@ defmodule Cake.Books.Pipeline do
       Cake.TaskSupervisor
       |> Task.Supervisor.async_stream_nolink(
         books_and_chunks_stream,
-        &Persistence.persist_books_and_chunks/1,
+        # A Books run's context version is its embedding model (ingest/4).
+        &Persistence.persist_books_and_chunks(&1, ctx.version),
         max_concurrency: max_concurrency,
         timeout: timeout,
         on_timeout: :kill_task,
@@ -364,7 +389,7 @@ defmodule Cake.Books.Pipeline do
             on_timeout: :kill_task,
             zip_input_on_exit: true
           )
-          |> Stream.flat_map(&handle_embed_result(&1, ctx))
+          |> Stream.flat_map(&handle_embed_result(&1, embedding_model, ctx))
           |> Enum.to_list()
 
         {book, length(chunks), embedded_chunks}
@@ -401,8 +426,9 @@ defmodule Cake.Books.Pipeline do
     end)
   end
 
-  defp handle_embed_result({:ok, {chunk, {:ok, %{attrs: attrs}}}}, ctx) do
-    case Books.update_chunk(chunk, attrs) do
+  # The model is written in the same update as the vector it produced.
+  defp handle_embed_result({:ok, {chunk, {:ok, %{attrs: attrs}}}}, embedding_model, ctx) do
+    case Books.update_chunk(chunk, Map.put(attrs, :embedding_model, embedding_model)) do
       {:ok, updated_chunk} ->
         [updated_chunk]
 
@@ -412,19 +438,19 @@ defmodule Cake.Books.Pipeline do
     end
   end
 
-  defp handle_embed_result({:ok, {chunk, {:error, error}}}, ctx) do
+  defp handle_embed_result({:ok, {chunk, {:error, error}}}, _embedding_model, ctx) do
     _ = Pipelines.log_and_persist_failure(ctx, "books.embed", {chunk.id, inspect(error)})
     []
   end
 
   # A task the stream killed on timeout, or one that crashed: the chunk it
   # was embedding is recorded either way (zip_input_on_exit).
-  defp handle_embed_result({:exit, {%Chunk{} = chunk, reason}}, ctx) do
+  defp handle_embed_result({:exit, {%Chunk{} = chunk, reason}}, _embedding_model, ctx) do
     _ = Pipelines.log_and_persist_failure(ctx, "books.embed", {chunk.id, inspect(reason)})
     []
   end
 
-  defp handle_embed_result({:exit, reason}, ctx) do
+  defp handle_embed_result({:exit, reason}, _embedding_model, ctx) do
     _ = Pipelines.log_and_persist_failure(ctx, "books.embed", {nil, inspect(reason)})
     []
   end
@@ -438,7 +464,7 @@ defmodule Cake.Books.Pipeline do
       with {:ok, binary} <- format_pipeline.load_binary(path),
            {parsed_book, chunks} <- try_parse(format_pipeline, binary),
            {:ok, {_persisted_book, persisted_chunks}} <-
-             persist_unless_duplicate({parsed_book, chunks}),
+             persist_unless_duplicate({parsed_book, chunks}, embedding_model),
            :ok <- embed_and_index_chunks(persisted_chunks, embedding_service, embedding_model) do
         _ = Cake.FailedIngests.delete_failed_ingest(failure)
         {:ok, :retried}
@@ -448,8 +474,8 @@ defmodule Cake.Books.Pipeline do
 
   # A retried file whose bytes are already ingested has nothing left to do:
   # the existing book stands, with no chunks to embed or index.
-  defp persist_unless_duplicate(book_and_chunks) do
-    case Persistence.persist_books_and_chunks(book_and_chunks) do
+  defp persist_unless_duplicate(book_and_chunks, embedding_model) do
+    case Persistence.persist_books_and_chunks(book_and_chunks, embedding_model) do
       {:duplicate, %ParsedBook{} = existing} ->
         Logger.info(
           "[books.retry] Duplicate of already-ingested book #{existing.title} " <>
@@ -498,17 +524,43 @@ defmodule Cake.Books.Pipeline do
   end
 
   defp embed_single_chunk(chunk, embeddings_module, embedding_service, embedding_model) do
+    case same_model_as_book(chunk, embedding_model) do
+      :ok -> embed_and_update_chunk(chunk, embeddings_module, embedding_service, embedding_model)
+      {:error, _mismatch} = refused -> refused
+    end
+  end
+
+  defp embed_and_update_chunk(chunk, embeddings_module, embedding_service, embedding_model) do
     input = %{input: "#{chunk.section_title}\n\n#{chunk.text}"}
 
     case embeddings_module.embed(embedding_service, input, embedding_model) do
       {:ok, %{attrs: attrs}} ->
-        case Books.update_chunk(chunk, attrs) do
+        case Books.update_chunk(chunk, Map.put(attrs, :embedding_model, embedding_model)) do
           {:ok, updated} -> index_single_chunk(updated)
           {:error, reason} -> {:error, {:chunk_update_failed, chunk.id, reason}}
         end
 
       {:error, reason} ->
         {:error, {:embed_failed, chunk.id, reason}}
+    end
+  end
+
+  # The retry refusal (see retry/4): the models, other than the requested
+  # one, that this chunk or any sibling in its book was embedded under.
+  defp same_model_as_book(%Chunk{id: chunk_id, parsed_book_id: book_id}, embedding_model) do
+    other_models =
+      Repo.all(
+        from c in Chunk,
+          where: c.parsed_book_id == ^book_id,
+          where: not is_nil(c.embedding_model) and c.embedding_model != ^embedding_model,
+          distinct: true,
+          order_by: c.embedding_model,
+          select: c.embedding_model
+      )
+
+    case other_models do
+      [] -> :ok
+      models -> {:error, {:embedding_model_mismatch, chunk_id, models, embedding_model}}
     end
   end
 

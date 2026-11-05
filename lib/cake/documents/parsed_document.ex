@@ -10,7 +10,10 @@ defmodule Cake.Documents.ParsedDocument do
 
   `:embedding` contains the vector generated from the title-prepended `:text`
   value used by the ingestion pipeline. It is a semantic representation and
-  is not expected to decode back to the original text.
+  is not expected to decode back to the original text. `:embedding_model`
+  names the model that produced it, written in the same update as the
+  vector (#284); `nil` means unembedded, or embedded before the column
+  existed.
 
   Query helpers (`base_query/0`, `by_language/2`, `by_source/2`,
   `by_version/2`) are `@doc false`: building blocks for
@@ -70,6 +73,9 @@ defmodule Cake.Documents.ParsedDocument do
     # vector representation of the text
     field :embedding, {:array, :float}
 
+    # the model that produced :embedding (nil until embedded)
+    field :embedding_model, :string
+
     # text
     # the actual text
     field :text, :string
@@ -83,8 +89,8 @@ defmodule Cake.Documents.ParsedDocument do
 
   @typedoc """
   A persisted documentation entry: its `title` and `text`, its provenance
-  (`source`, `version`, `package`, `language`), and its embedding, which is
-  `nil` until the embed stage writes it.
+  (`source`, `version`, `package`, `language`), and its embedding and the
+  model that produced it, both `nil` until the embed stage writes them.
   """
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
@@ -96,6 +102,7 @@ defmodule Cake.Documents.ParsedDocument do
           title: String.t() | nil,
           url: String.t(),
           embedding: [float()] | nil,
+          embedding_model: String.t() | nil,
           text: String.t(),
           core: boolean(),
           inserted_at: NaiveDateTime.t() | nil,
@@ -114,6 +121,7 @@ defmodule Cake.Documents.ParsedDocument do
       :title,
       :url,
       :embedding,
+      :embedding_model,
       :text,
       :core
     ])

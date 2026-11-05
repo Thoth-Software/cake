@@ -1,16 +1,24 @@
 defmodule Cake.Books.Persistence do
   @moduledoc """
   Write-path for the Books GDS: persists a parsed book and its chunks in a
-  single transaction, deduplicating by `file_hash`. A book whose bytes are
-  already persisted *and ingested* — `embedding_status` `:completed`, which
-  `Cake.Books.Pipeline` writes only after every chunk is embedded and
-  accepted by the index — is reported as `{:duplicate, existing}` rather
-  than inserted, so the pipeline skips it. A book in any other status
-  (`:pending`, `:processing`, `:failed`) is one an earlier run did not
-  finish: its existing rows come back as `{:ok, {existing, chunks}}` so the
-  pipeline resumes it. The row is committed before any chunk is embedded,
-  which is why the status, not the row's existence, decides; and nothing
-  records who owns a `:processing` book, which is why it is resumable.
+  single transaction, deduplicating by `file_hash` and embedding model. A
+  book whose bytes are already persisted *and ingested under the requested
+  model* — `embedding_status` `:completed`, which `Cake.Books.Pipeline`
+  writes only after every chunk is embedded and accepted by the index, and
+  every chunk's `embedding_model` equal to the model the caller is
+  ingesting with — is reported as `{:duplicate, existing}` rather than
+  inserted, so the pipeline skips it. Any other book behind the hash is one
+  the requested model has not finished: a status of `:pending`,
+  `:processing` or `:failed` (an earlier run did not finish), or a
+  `:completed` book whose chunks carry another model or none (`nil`: rows
+  embedded before the column existed, #284). Its existing rows come back as
+  `{:ok, {existing, chunks}}` so the pipeline resumes it, and resuming
+  first clears every vector not produced by the requested model, so a
+  chunk whose re-embed then fails cannot keep a stale vector beside
+  siblings embedded under the new one. The row is committed before any
+  chunk is embedded, which is why the status, not the row's existence,
+  decides; and nothing records who owns a `:processing` book, which is why
+  it is resumable.
 
   Separated from the `Cake.Books` CRUD context because this is bespoke ingest
   logic (hash dedup, `Ecto.Multi`, bulk `insert_all` with a count check) used
@@ -49,37 +57,73 @@ defmodule Cake.Books.Persistence do
 
   @doc """
   Persists a `{book, chunks}` pair in one transaction, unless a book with
-  the same `file_hash` already exists. Then nothing is written, and the
-  answer depends on that book's `embedding_status`: `:completed` is
-  `{:duplicate, existing}`, never `{:ok, _}`, so a caller cannot mistake it
-  for rows to embed; anything else is `{:ok, {existing, existing_chunks}}`,
-  the rows to resume, in `chunk_index` order.
+  the same `file_hash` already exists. Then no book or chunk is inserted,
+  and the answer depends on that book: `:completed` with every chunk
+  embedded under `embedding_model` is `{:duplicate, existing}`, never
+  `{:ok, _}`, so a caller cannot mistake it for rows to embed; anything
+  else is `{:ok, {existing, existing_chunks}}`, the rows to resume, in
+  `chunk_index` order, with every vector not produced by `embedding_model`
+  cleared (on the returned rows and the stored ones).
   """
-  @spec persist_books_and_chunks({ParsedBook.t(), [Chunk.t()]} | {term(), term()}) ::
+  @spec persist_books_and_chunks(
+          {ParsedBook.t(), [Chunk.t()]} | {term(), term()},
+          String.t()
+        ) ::
           {:ok, {ParsedBook.t(), [Chunk.t()]}}
           | {:duplicate, ParsedBook.t()}
           | {:error, persist_error()}
-  def persist_books_and_chunks({%ParsedBook{file_hash: hash} = book, chunks})
-      when is_list(chunks) do
+  def persist_books_and_chunks({%ParsedBook{file_hash: hash} = book, chunks}, embedding_model)
+      when is_list(chunks) and is_binary(embedding_model) do
     case Repo.one(from b in ParsedBook, where: b.file_hash == ^hash) do
-      %ParsedBook{embedding_status: :completed} = existing ->
-        Logger.debug("Skipping already-ingested book #{existing.title} (#{hash})")
-        {:duplicate, existing}
-
-      %ParsedBook{embedding_status: status} = existing ->
-        Logger.info(
-          "Resuming #{status} book #{existing.title} (#{hash}): persisted by an earlier run, never finished"
-        )
-
-        {:ok, {existing, existing_chunks(existing)}}
-
-      nil ->
-        persist_books_and_chunks(book, chunks)
+      nil -> insert_books_and_chunks(book, chunks)
+      %ParsedBook{} = existing -> duplicate_or_resume(existing, embedding_model)
     end
   end
 
-  def persist_books_and_chunks({book, chunks}) do
+  def persist_books_and_chunks({book, chunks}, _embedding_model) do
     {:error, {:invalid_input, %{book: book, chunks: chunks}}}
+  end
+
+  defp duplicate_or_resume(%ParsedBook{} = existing, embedding_model) do
+    chunks = existing_chunks(existing)
+
+    if ingested_under?(existing, chunks, embedding_model) do
+      Logger.debug(
+        "Skipping already-ingested book #{existing.title} (#{existing.file_hash}) under #{embedding_model}"
+      )
+
+      {:duplicate, existing}
+    else
+      Logger.info(
+        "Resuming #{existing.embedding_status} book #{existing.title} (#{existing.file_hash}) " <>
+          "under #{embedding_model}: persisted by an earlier run, not finished under this model"
+      )
+
+      {:ok, {existing, clear_other_models(existing, embedding_model)}}
+    end
+  end
+
+  defp ingested_under?(%ParsedBook{embedding_status: :completed}, chunks, embedding_model) do
+    Enum.all?(chunks, &(&1.embedding_model == embedding_model))
+  end
+
+  defp ingested_under?(%ParsedBook{}, _chunks, _embedding_model), do: false
+
+  # A resumed book's chunks are re-embedded under embedding_model; any vector
+  # another model (or an unknown one) produced is cleared first, so a chunk
+  # whose re-embed fails is left unembedded rather than holding a vector the
+  # rest of the book no longer shares.
+  defp clear_other_models(%ParsedBook{id: book_id} = book, embedding_model) do
+    {_count, _} =
+      Repo.update_all(
+        from(c in Chunk,
+          where: c.parsed_book_id == ^book_id,
+          where: is_nil(c.embedding_model) or c.embedding_model != ^embedding_model
+        ),
+        set: [embedding: nil, embedding_model: nil]
+      )
+
+    existing_chunks(book)
   end
 
   defp existing_chunks(%ParsedBook{id: book_id}) do
@@ -92,11 +136,11 @@ defmodule Cake.Books.Persistence do
   and the winner's row comes back as `{:duplicate, existing}`: losing that
   check-then-insert race is a duplicate, not a persist error.
   """
-  @spec persist_books_and_chunks(ParsedBook.t(), [Chunk.t()]) ::
+  @spec insert_books_and_chunks(ParsedBook.t(), [Chunk.t()]) ::
           {:ok, {ParsedBook.t(), [Chunk.t()]}}
           | {:duplicate, ParsedBook.t()}
           | {:error, {String.t(), Ecto.Changeset.t() | chunk_error()}}
-  def persist_books_and_chunks(%ParsedBook{} = book, chunks) when is_list(chunks) do
+  def insert_books_and_chunks(%ParsedBook{} = book, chunks) when is_list(chunks) do
     book
     |> build_multi(chunks)
     |> run_transaction(book)

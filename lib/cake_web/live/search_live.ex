@@ -67,7 +67,8 @@ defmodule CakeWeb.SearchLive do
              query,
              embedding,
              Cake.Search.default_expand_offset(),
-             gds: Cake.Books.ParsedBook
+             gds: Cake.Books.ParsedBook,
+             embedding_model: embedding_model
            ) do
       results =
         search_results

@@ -35,7 +35,10 @@ defmodule Cake.Search do
 
   @typedoc """
   Per-call options: `:gds` (required, the GDS module to search) plus the
-  overrides `:size`, `:k`, `:ef_search`, `:keyword_weight` and `:fields`.
+  overrides `:size`, `:k`, `:ef_search`, `:keyword_weight` and `:fields`,
+  and `:embedding_model`, the model the query vector was embedded under,
+  which `search_chunks_with_context/5` stamps on each result's
+  `Cake.Search.Provenance`.
   """
   @type search_opts :: keyword()
 
@@ -91,7 +94,13 @@ defmodule Cake.Search do
   and `backend_score: nil`.
 
   `expand` is the neighbor offset. Accepts all the same opts as
-  `search_chunks/4`, including the required `:gds` opt.
+  `search_chunks/4`, including the required `:gds` opt. Every result shares
+  one `Cake.Search.Provenance`, whose `embedding_model` is the
+  `:embedding_model` opt: the model the caller embedded the query under
+  (`nil` when none is given, as for a keyword search). The model each
+  stored vector came from is a fact about the record, not the call, and
+  stays on the retrieval unit (`Chunk` and `ParsedDocument` carry their own
+  `embedding_model`).
   """
   @spec search_chunks_with_context(
           search_type(),
@@ -108,7 +117,12 @@ defmodule Cake.Search do
         opts \\ []
       ) do
     gds = Keyword.fetch!(opts, :gds)
-    provenance = %Provenance{search_type: search_type, query_text: keywords}
+
+    provenance = %Provenance{
+      search_type: search_type,
+      query_text: keywords,
+      embedding_model: Keyword.get(opts, :embedding_model)
+    }
 
     with {:ok, hits} <- search_chunks(search_type, keywords, embedding, opts) do
       {:ok, build_results(hits, gds, gds.collection_name(), provenance, expand)}
