@@ -697,6 +697,21 @@ defmodule Cake.Books.PipelineTest do
       assert id == failure.id
     end
 
+    test "retry/4 from a chunk refuses when a sibling holds a vector of unknown model (pre-#284 row)" do
+      # A sibling embedded before the column existed: its vector is real but
+      # its model is nil. Nothing says it is the requested model, so writing
+      # beside it could mix two models; the refusal names it as nil.
+      {_book, sibling, failed, failure} = ingest_with_one_failed_chunk()
+      :ok = set_stored_model!(sibling, nil)
+      assert Repo.get!(Chunk, sibling.id).embedding == @fake_embedding
+
+      assert {:error, {:embedding_model_mismatch, failed_id, [nil], "test-model"}} =
+               Pipeline.retry(failure, Cake.TestBooksPipeline, :openai, "test-model")
+
+      assert failed_id == failed.id
+      assert Repo.get!(Chunk, failed.id).embedding == nil
+    end
+
     test "retry/4 from a chunk refuses a model other than the chunk's own stored one" do
       # A search_backend.index row: the chunk itself was embedded (under
       # "old-model") and the index refused it. Re-embedding it under

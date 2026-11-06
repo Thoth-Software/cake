@@ -15,6 +15,7 @@ defmodule Cake.Documents.PipelineTest do
   use Cake.DataCase, async: true
 
   import Cake.ParsedDocumentFixtures
+  import Ecto.Query
   import ExUnit.CaptureLog
   import Mox
 
@@ -26,6 +27,26 @@ defmodule Cake.Documents.PipelineTest do
   alias Cake.Pipelines.Context
 
   @embedding_model "text-embedding-ada-002"
+
+  # A source pipeline whose retry_from_raw/2 re-parses one document into the
+  # hexdocs 1.0.0 corpus, for the docs.persist retry path.
+  defmodule RawRetryPipeline do
+    @moduledoc false
+    @spec retry_from_raw(String.t(), String.t()) :: {:ok, [map()]}
+    def retry_from_raw(_input_identifier, _version) do
+      {:ok,
+       [
+         %{
+           source: "hexdocs",
+           version: "1.0.0",
+           package: "Kernel.ex",
+           title: "Kernel.raw/1",
+           url: "https://hexdocs.pm/elixir/Kernel.html",
+           text: "re-parsed"
+         }
+       ]}
+    end
+  end
 
   setup :verify_on_exit!
 
@@ -236,6 +257,57 @@ defmodule Cake.Documents.PipelineTest do
       assert doc_id == doc.id
       assert Repo.get!(ParsedDocument, doc.id).embedding_model == nil
       assert [%FailedIngest{}] = Repo.all(FailedIngest)
+    end
+
+    test "retry/4 refuses when a corpus document holds a vector of unknown model (pre-#284 row)" do
+      {:ok, _historical} =
+        "Map"
+        |> corpus_doc()
+        |> Cake.Documents.ParsedDocuments.update_parsed_document(%{embedding: [0.4, 0.5, 0.6]})
+
+      doc = corpus_doc("Enum")
+      failure = insert_failure(build_ctx(), "docs.embed", %{input_identifier: doc.id})
+
+      assert {:error, {:embedding_model_mismatch, doc_id, [nil], @embedding_model}} =
+               retry(failure)
+
+      assert doc_id == doc.id
+      assert Repo.get!(ParsedDocument, doc.id).embedding == nil
+    end
+
+    test "a docs.persist retry refused for the corpus's model inserts no documents" do
+      # The check runs before the re-parsed attrs are inserted: a refusal
+      # that left rows behind would add another unembedded copy on every
+      # sweep pass.
+      _sibling = "Map" |> corpus_doc() |> embedded_under!("old-model")
+      before = Repo.aggregate(ParsedDocument, :count)
+
+      failure =
+        insert_failure(build_ctx(), "docs.persist", %{input_identifier: "Kernel.ex@1.0.0"})
+
+      assert {:error,
+              {:embedding_model_mismatch, "Kernel.ex@1.0.0", ["old-model"], @embedding_model}} =
+               Pipeline.retry(failure, RawRetryPipeline, :openai, @embedding_model)
+
+      assert Repo.aggregate(ParsedDocument, :count) == before
+      assert [%FailedIngest{step: "docs.persist"}] = Repo.all(FailedIngest)
+    end
+
+    test "a docs.persist retry under the corpus's model inserts, embeds and records the model" do
+      _sibling = "Map" |> corpus_doc() |> embedded_under!(@embedding_model)
+
+      failure =
+        insert_failure(build_ctx(), "docs.persist", %{input_identifier: "Kernel.ex@1.0.0"})
+
+      embed_ok()
+
+      assert {:ok, :retried} =
+               Pipeline.retry(failure, RawRetryPipeline, :openai, @embedding_model)
+
+      assert [%{embedding_model: @embedding_model}] =
+               Repo.all(from d in ParsedDocument, where: d.title == "Kernel.raw/1")
+
+      assert Repo.all(FailedIngest) == []
     end
 
     test "retry/4 refuses a model other than the document's own stored one" do

@@ -77,11 +77,12 @@ defmodule Cake.Books.Pipeline do
   Each variant tags the failing chunk's ID so the error is traceable.
   `{:embedding_model_mismatch, chunk_id, stored_models, requested}` is a
   retry refused because the chunk or a sibling in its book carries a vector
-  from a model other than the requested one (see `retry/4`).
+  from a model other than the requested one (see `retry/4`); `nil` among
+  `stored_models` is a vector whose model was never recorded.
   """
   @type embed_index_error ::
           {:embed_failed, String.t(), String.t()}
-          | {:embedding_model_mismatch, String.t(), [String.t()], String.t()}
+          | {:embedding_model_mismatch, String.t(), [String.t() | nil], String.t()}
           | {:chunk_update_failed, String.t(), Ecto.Changeset.t()}
           | {:search_backend_index, String.t(), term()}
 
@@ -198,8 +199,9 @@ defmodule Cake.Books.Pipeline do
 
   A retry never writes a vector under a model other than the one its book
   already carries: before embedding a chunk it reads the `embedding_model`
-  of that chunk and its siblings, and if any is set to another model it
-  refuses with `{:error, {:embedding_model_mismatch, chunk_id,
+  of that chunk and its siblings, and if any is set to another model, or
+  holds a vector with no recorded model (a row embedded before the column
+  existed), it refuses with `{:error, {:embedding_model_mismatch, chunk_id,
   stored_models, embedding_model}}`, embedding nothing and leaving the
   failure row in place. Refusing rather than re-embedding is deliberate: a
   retry repairs one item of a run, and re-embedding that item under a new
@@ -546,13 +548,18 @@ defmodule Cake.Books.Pipeline do
   end
 
   # The retry refusal (see retry/4): the models, other than the requested
-  # one, that this chunk or any sibling in its book was embedded under.
+  # one, that this chunk or any sibling in its book was embedded under. A
+  # vector with no recorded model (a row embedded before #284) counts as
+  # another model, reported as nil: nothing says it is the requested one.
+  # Only a chunk with neither vector nor model is no evidence either way.
   defp same_model_as_book(%Chunk{id: chunk_id, parsed_book_id: book_id}, embedding_model) do
     other_models =
       Repo.all(
         from c in Chunk,
           where: c.parsed_book_id == ^book_id,
-          where: not is_nil(c.embedding_model) and c.embedding_model != ^embedding_model,
+          where:
+            (not is_nil(c.embedding_model) and c.embedding_model != ^embedding_model) or
+              (is_nil(c.embedding_model) and not is_nil(c.embedding)),
           distinct: true,
           order_by: c.embedding_model,
           select: c.embedding_model

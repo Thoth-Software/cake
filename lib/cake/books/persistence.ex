@@ -85,9 +85,7 @@ defmodule Cake.Books.Persistence do
   end
 
   defp duplicate_or_resume(%ParsedBook{} = existing, embedding_model) do
-    chunks = existing_chunks(existing)
-
-    if ingested_under?(existing, chunks, embedding_model) do
+    if ingested_under?(existing, embedding_model) do
       Logger.debug(
         "Skipping already-ingested book #{existing.title} (#{existing.file_hash}) under #{embedding_model}"
       )
@@ -103,11 +101,18 @@ defmodule Cake.Books.Persistence do
     end
   end
 
-  defp ingested_under?(%ParsedBook{embedding_status: :completed}, chunks, embedding_model) do
-    Enum.all?(chunks, &(&1.embedding_model == embedding_model))
+  # Asks the database whether any chunk is off the requested model, so the
+  # duplicate fast path never loads chunk text or vectors; the full rows are
+  # read only on the resume path.
+  defp ingested_under?(%ParsedBook{embedding_status: :completed, id: book_id}, embedding_model) do
+    not Repo.exists?(
+      from c in Chunk,
+        where: c.parsed_book_id == ^book_id,
+        where: is_nil(c.embedding_model) or c.embedding_model != ^embedding_model
+    )
   end
 
-  defp ingested_under?(%ParsedBook{}, _chunks, _embedding_model), do: false
+  defp ingested_under?(%ParsedBook{}, _embedding_model), do: false
 
   # A resumed book's chunks are re-embedded under embedding_model; any vector
   # another model (or an unknown one) produced is cleared first, so a chunk
