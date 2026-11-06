@@ -37,6 +37,41 @@ defmodule Cake.SearchTest do
     end
   end
 
+  describe "provenance names the query's embedding model (#284)" do
+    # The model the query vector was embedded under is a fact about the
+    # search call, so it is stamped on the call's shared Provenance; the
+    # model each stored vector came from rides on the retrieval unit itself.
+    test "search_chunks_with_context/5 stamps the :embedding_model opt on every result's provenance" do
+      expect(Cake.Search.Backend.Mock, :search, fn %Query{} ->
+        {:ok,
+         [
+           %Hit{id: "a", score: 1.0, source: %{"id" => "a", "body" => "one"}},
+           %Hit{id: "b", score: 0.5, source: %{"id" => "b", "body" => "two"}}
+         ]}
+      end)
+
+      {:ok, results} =
+        Search.search_chunks_with_context(:hybrid, "anything", [0.1, 0.2], 0,
+          gds: FixtureGDS,
+          embedding_model: "query-model"
+        )
+
+      assert length(results) == 2
+      assert Enum.all?(results, &(&1.provenance.embedding_model == "query-model"))
+    end
+
+    test "without an :embedding_model opt (a keyword search embeds nothing) it stays nil" do
+      expect(Cake.Search.Backend.Mock, :search, fn %Query{} ->
+        {:ok, [%Hit{id: "a", score: 1.0, source: %{"id" => "a", "body" => "one"}}]}
+      end)
+
+      {:ok, [result]} =
+        Search.search_chunks_with_context(:keyword, "anything", nil, 0, gds: FixtureGDS)
+
+      assert result.provenance.embedding_model == nil
+    end
+  end
+
   describe "dispatch is parameterized on :gds" do
     test "routes collection_name/0 through the :gds module" do
       expect(Cake.Search.Backend.Mock, :search, fn %Query{} -> {:ok, []} end)

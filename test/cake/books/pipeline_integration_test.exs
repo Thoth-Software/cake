@@ -154,6 +154,61 @@ defmodule Cake.Books.PipelineIntegrationTest do
     end
   end
 
+  describe "contracts: dedup on file_hash is model-aware (#284)" do
+    test "the same bytes under another model are not a duplicate: every chunk is re-embedded and re-indexed under it" do
+      stub_embeddings()
+      first_key = stage_fixture!(:multi_page)
+      second_key = stage_fixture!(:multi_page)
+
+      assert {:ok, %{indexed: 3, failed: 0}} = ingest([first_key])
+      assert [%ParsedBook{id: book_id} = book] = Books.list_parsed_books()
+      assert Enum.all?(chunks_in_order(book), &(&1.embedding_model == embedding_model()))
+
+      # A different model embeds the same text to a different vector, which
+      # is what the stored rows and the index must end up holding.
+      other_model = "other-" <> embedding_model()
+
+      stub_embeddings(fn input -> deterministic_embedding("other model: " <> input) end)
+
+      assert {:ok, %{indexed: 3, failed: 0}} =
+               Pipeline.ingest(:openai, Pdf.Pipeline, other_model, [second_key])
+
+      assert [
+               %ParsedBook{
+                 id: ^book_id,
+                 source_file_path: ^first_key,
+                 embedding_status: :completed
+               }
+             ] =
+               Books.list_parsed_books()
+
+      chunks = chunks_in_order(book)
+      assert length(chunks) == 3
+      assert Enum.all?(chunks, &(&1.embedding_model == other_model))
+
+      assert Enum.all?(
+               chunks,
+               &(&1.embedding == deterministic_embedding("other model: " <> embed_input(&1)))
+             )
+
+      assert Enum.sort(indexed_ids!(ParsedBook)) == Enum.sort(ids(chunks))
+      assert Repo.all(FailedIngest) == []
+
+      # And a third run under that same other model is now the duplicate.
+      test_pid = self()
+
+      stub_embeddings(fn input ->
+        send(test_pid, {:embedded, input})
+        deterministic_embedding(input)
+      end)
+
+      assert {:ok, %{indexed: 0, failed: 0}} =
+               Pipeline.ingest(:openai, Pdf.Pipeline, other_model, [stage_fixture!(:multi_page)])
+
+      refute_received {:embedded, _input}
+    end
+  end
+
   describe "contracts: resuming an incomplete book" do
     test "re-ingesting the bytes of a book left :failed embeds and indexes it again, to :completed" do
       key = stage_fixture!(:multi_page)

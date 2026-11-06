@@ -6,6 +6,9 @@ defmodule Cake.Books.Chunk do
     :page_number is nullable since some formats lack pages.
     :chunk_index provides ordering for unpaginated formats and cases lacking a page <-> chunk bijection.
     :word_count and :char_count allow for token count estimation that we can relate to LLM context windows
+    :embedding_model names the model that produced :embedding, written in the same update as the
+      vector. It is what makes the duplicate skip and the retry paths model-aware (#284); `nil`
+      means the chunk is unembedded, or was embedded before the column existed.
 
   Justifications for validate_required:
     :parsed_book_id,     # Every chunk must belong to a book
@@ -32,6 +35,7 @@ defmodule Cake.Books.Chunk do
     field :word_count, :integer
     field :char_count, :integer
     field :embedding, {:array, :float}
+    field :embedding_model, :string
 
     belongs_to :parsed_book, Cake.Books.ParsedBook
 
@@ -40,7 +44,8 @@ defmodule Cake.Books.Chunk do
 
   @typedoc """
   A persisted chunk row (see the moduledoc for the non-obvious fields).
-  `embedding` is `nil` until the embed stage writes it.
+  `embedding` and `embedding_model` are `nil` until the embed stage writes
+  them, together.
   """
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
@@ -52,6 +57,7 @@ defmodule Cake.Books.Chunk do
           word_count: integer(),
           char_count: integer(),
           embedding: [float()] | nil,
+          embedding_model: String.t() | nil,
           parsed_book_id: Ecto.UUID.t(),
           parsed_book: Cake.Books.ParsedBook.t() | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t() | nil,
@@ -65,6 +71,7 @@ defmodule Cake.Books.Chunk do
     |> cast(attrs, [
       :parsed_book_id,
       :embedding,
+      :embedding_model,
       :page_number,
       :chunk_index,
       :section_title,

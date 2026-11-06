@@ -24,12 +24,15 @@ defmodule Cake.Documents.Pipeline do
       Cake.Documents.Pipeline.ingest(:openai, Cake.Documents.Hexdocs.Pipeline, {1, 18, 3}, "text-embedding-ada-002")
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias Cake.Documents.ParsedDocument
   alias Cake.Documents.ParsedDocuments
   alias Cake.Pipelines
   alias Cake.Pipelines.Context
   alias Cake.Repo
   alias Cake.Search.Backend
+
   require Logger
 
   @typedoc """
@@ -73,10 +76,17 @@ defmodule Cake.Documents.Pipeline do
   Errors from single-document embedding, persistence, or indexing during retry.
 
   Unlike `t:Cake.Books.Pipeline.embed_index_error/0`, document errors are not
-  tagged with a chunk ID — each document is its own unit.
+  tagged with a chunk ID — each document is its own unit. The exception is
+  `{:embedding_model_mismatch, id, stored_models, requested}`, a retry
+  refused because the document or another in its corpus carries a vector
+  from a model other than the requested one (see `retry/4`); `nil` among
+  `stored_models` is a vector whose model was never recorded. `id` is the
+  document's id, or for a `"docs.persist"` row (refused before any
+  document is created) the row's `input_identifier`.
   """
   @type embed_index_error ::
           String.t()
+          | {:embedding_model_mismatch, String.t(), [String.t() | nil], String.t()}
           | Ecto.Changeset.t()
           | {:search_backend_index, Backend.search_error()}
 
@@ -188,6 +198,20 @@ defmodule Cake.Documents.Pipeline do
   records inside its own `persist_raw_docs/2` and `parse/2` — is answered
   with `{:error, {:unsupported_step, step}}`. Neither crashes, so
   `Pipelines.sweep/3` counts the row as remaining and moves on.
+
+  A retry never writes a vector under a model other than its corpus's (the
+  documents sharing its `source` and `version`): before embedding a
+  document it reads the `embedding_model` of that document and the rest of
+  its corpus, and if any is set to another model, or holds a vector with no
+  recorded model (a row embedded before the column existed), it refuses with
+  `{:error, {:embedding_model_mismatch, doc_id, stored_models,
+  embedding_model}}`, embedding nothing and leaving the failure row for
+  the sweep to count as remaining. It refuses rather than re-embedding
+  because a retry repairs one item of a run, and re-embedding that item
+  under a new model is exactly how a corpus ends up split between two
+  models; moving a corpus to a new model is a re-ingest, not a retry. A
+  `"docs.persist"` retry checks every corpus its re-parsed attrs belong to
+  before inserting any of them, so a refusal leaves no rows behind.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, retry_error()}
@@ -260,7 +284,7 @@ defmodule Cake.Documents.Pipeline do
     Cake.TaskSupervisor
     |> Task.Supervisor.async_stream_nolink(
       embeddings_stream,
-      &persist_embedding/1,
+      &persist_embedding(&1, embedding_model),
       max_concurrency: 5,
       timeout: 5_000,
       on_timeout: :kill_task,
@@ -287,8 +311,9 @@ defmodule Cake.Documents.Pipeline do
 
   defp unwrap_embed_result({:exit, reason}), do: {:error, {nil, inspect(reason)}}
 
-  defp persist_embedding(%{struct: struct, attrs: attrs}) do
-    case ParsedDocuments.update_parsed_document(struct, attrs) do
+  # The model is written in the same update as the vector it produced.
+  defp persist_embedding(%{struct: struct, attrs: attrs}, embedding_model) do
+    case ParsedDocuments.update_parsed_document(struct, with_model(attrs, embedding_model)) do
       {:ok, updated} -> {:ok, updated}
       {:error, reason} -> {:error, {struct.id, inspect(reason)}}
     end
@@ -349,6 +374,8 @@ defmodule Cake.Documents.Pipeline do
     if function_exported?(source_pipeline, :retry_from_raw, 2) do
       with {:ok, parsed_attrs_list} <-
              source_pipeline.retry_from_raw(failure.input_identifier, failure.version),
+           :ok <-
+             same_model_as_corpora(parsed_attrs_list, failure.input_identifier, embedding_model),
            {:ok, persisted_docs} <-
              safe_create_parsed_docs(parsed_attrs_list, failure.input_identifier),
            :ok <- embed_and_index(persisted_docs, embedding_service, embedding_model) do
@@ -385,15 +412,71 @@ defmodule Cake.Documents.Pipeline do
     Enum.reduce_while(docs, :ok, fn doc, :ok ->
       embed_input = %{input: "#{doc.title}\n\n#{doc.text}", struct: doc}
 
-      with {:ok, %{struct: struct, attrs: attrs}} <-
+      with :ok <- same_model_as_corpus(doc, embedding_model),
+           {:ok, %{struct: struct, attrs: attrs}} <-
              embeddings_module.embed(embedding_service, embed_input, embedding_model),
-           {:ok, updated} <- ParsedDocuments.update_parsed_document(struct, attrs),
+           {:ok, updated} <-
+             ParsedDocuments.update_parsed_document(struct, with_model(attrs, embedding_model)),
            :ok <- index_single(updated) do
         {:cont, :ok}
       else
         error -> {:halt, error}
       end
     end)
+  end
+
+  # A provider answer that is not a map is passed through untouched, so the
+  # changeset rejects it as it did before the model was recorded.
+  defp with_model(attrs, embedding_model) when is_map(attrs),
+    do: Map.put(attrs, :embedding_model, embedding_model)
+
+  defp with_model(attrs, _embedding_model), do: attrs
+
+  # The retry refusal (see retry/4): the models, other than the requested
+  # one, that this document or any other in its corpus was embedded under.
+  # A vector with no recorded model (a row embedded before #284) counts as
+  # another model, reported as nil; a document with neither is no evidence.
+  defp same_model_as_corpus(%ParsedDocument{} = doc, embedding_model) do
+    check_corpus_model(doc.source, doc.version, doc.id, embedding_model)
+  end
+
+  # The same check for a docs.persist retry, before its attrs are inserted:
+  # every corpus the re-parsed attrs belong to must be free of other models.
+  defp same_model_as_corpora(attrs_list, identifier, embedding_model) do
+    attrs_list
+    |> Enum.map(&{&1[:source], &1[:version]})
+    |> Enum.uniq()
+    |> Enum.reduce_while(:ok, fn {source, version}, :ok ->
+      case check_corpus_model(source, version, identifier, embedding_model) do
+        :ok -> {:cont, :ok}
+        refused -> {:halt, refused}
+      end
+    end)
+  end
+
+  # Attrs missing a source or version name no corpus; the insert's changeset
+  # rejects them, as it did before this check.
+  defp check_corpus_model(source, version, _id, _embedding_model)
+       when is_nil(source) or is_nil(version),
+       do: :ok
+
+  defp check_corpus_model(source, version, id, embedding_model) do
+    other_models =
+      Repo.all(
+        from d in ParsedDocument,
+          where: d.source == ^source and d.version == ^version,
+          where:
+            (not is_nil(d.embedding_model) and d.embedding_model != ^embedding_model) or
+              (is_nil(d.embedding_model) and not is_nil(d.embedding)),
+          distinct: true,
+          order_by: d.embedding_model,
+          select: d.embedding_model
+      )
+
+    case other_models do
+      [] -> :ok
+      models -> {:error, {:embedding_model_mismatch, id, models, embedding_model}}
+    end
   end
 
   defp index_single(doc) do
