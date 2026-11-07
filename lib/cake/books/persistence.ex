@@ -53,7 +53,7 @@ defmodule Cake.Books.Persistence do
   """
   @type persist_error ::
           {:invalid_input, map()}
-          | {String.t(), Ecto.Changeset.t() | chunk_error()}
+          | {String.t(), Ecto.Changeset.t() | chunk_error() | {:concurrent_ingest, Ecto.UUID.t()}}
 
   @doc """
   Persists a `{book, chunks}` pair in one transaction, unless a book with
@@ -75,7 +75,7 @@ defmodule Cake.Books.Persistence do
   def persist_books_and_chunks({%ParsedBook{file_hash: hash} = book, chunks}, embedding_model)
       when is_list(chunks) and is_binary(embedding_model) do
     case Repo.one(from b in ParsedBook, where: b.file_hash == ^hash) do
-      nil -> insert_books_and_chunks(book, chunks)
+      nil -> insert_books_and_chunks(book, chunks, embedding_model)
       %ParsedBook{} = existing -> duplicate_or_resume(existing, embedding_model)
     end
   end
@@ -137,18 +137,27 @@ defmodule Cake.Books.Persistence do
 
   @doc """
   Persists the pair without the `file_hash` lookup. If another run inserted
-  the same bytes first, the unique index on `file_hash` refuses the insert
-  and the winner's row comes back as `{:duplicate, existing}`: losing that
-  check-then-insert race is a duplicate, not a persist error.
+  the same bytes first, the unique index on `file_hash` refuses the insert:
+  this run lost a check-then-insert race. The loser cannot tell which model
+  the winner is embedding under while the winner is still in flight (its
+  chunks carry no model yet), so it answers `{:duplicate, winner}` only when
+  the winner is already `:completed` under `embedding_model`, and otherwise
+  `{:error, {source_file_path, {:concurrent_ingest, winner_id}}}`. The
+  pipeline records that as a `"books.persist"` failure, which its sweep
+  retries from the file through the model-aware lookup once the winner has
+  settled, rather than silently skipping a run under another model (#284).
   """
-  @spec insert_books_and_chunks(ParsedBook.t(), [Chunk.t()]) ::
+  @spec insert_books_and_chunks(ParsedBook.t(), [Chunk.t()], String.t()) ::
           {:ok, {ParsedBook.t(), [Chunk.t()]}}
           | {:duplicate, ParsedBook.t()}
-          | {:error, {String.t(), Ecto.Changeset.t() | chunk_error()}}
-  def insert_books_and_chunks(%ParsedBook{} = book, chunks) when is_list(chunks) do
+          | {:error,
+             {String.t(),
+              Ecto.Changeset.t() | chunk_error() | {:concurrent_ingest, Ecto.UUID.t()}}}
+  def insert_books_and_chunks(%ParsedBook{} = book, chunks, embedding_model)
+      when is_list(chunks) and is_binary(embedding_model) do
     book
     |> build_multi(chunks)
-    |> run_transaction(book)
+    |> run_transaction(book, embedding_model)
   end
 
   defp build_multi(book, chunks) do
@@ -227,13 +236,13 @@ defmodule Cake.Books.Persistence do
     end
   end
 
-  defp run_transaction(multi, book) do
+  defp run_transaction(multi, book, embedding_model) do
     case Repo.transaction(multi) do
       {:ok, %{book: persisted_book, chunks: persisted_chunks}} ->
         {:ok, {persisted_book, persisted_chunks}}
 
       {:error, :book, %Ecto.Changeset{} = changeset, _changes_so_far} ->
-        duplicate_or_error(changeset, book)
+        race_loss_or_error(changeset, book, embedding_model)
 
       {:error, _step, reason, _changes_so_far} ->
         {:error, {book.source_file_path, reason}}
@@ -242,13 +251,18 @@ defmodule Cake.Books.Persistence do
 
   # The book insert failed. If it was the unique index on file_hash, another
   # run inserted the same bytes between our lookup and our insert (or the
-  # caller skipped the lookup): that is the duplicate case, answered with
-  # the row that won. Any other changeset error is a genuine persist error.
-  defp duplicate_or_error(changeset, book) do
+  # caller skipped the lookup): a race this run lost, answered from the
+  # winner's state (see insert_books_and_chunks/3). Any other changeset
+  # error is a genuine persist error.
+  defp race_loss_or_error(changeset, book, embedding_model) do
     with true <- unique_file_hash_violation?(changeset),
-         %ParsedBook{} = existing <-
+         %ParsedBook{} = winner <-
            Repo.one(from b in ParsedBook, where: b.file_hash == ^book.file_hash) do
-      {:duplicate, existing}
+      if ingested_under?(winner, embedding_model) do
+        {:duplicate, winner}
+      else
+        {:error, {book.source_file_path, {:concurrent_ingest, winner.id}}}
+      end
     else
       _no_winner_or_other_error -> {:error, {book.source_file_path, changeset}}
     end

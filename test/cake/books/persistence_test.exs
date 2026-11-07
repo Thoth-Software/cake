@@ -171,24 +171,57 @@ defmodule Cake.Books.PersistenceTest do
     assert length(Repo.all(ParsedBook)) == 1
   end
 
-  test "losing a check-then-insert race on file_hash is a duplicate, not a failure" do
-    # Two runs of the same bytes can both find no row and both insert; the
-    # unique index refuses the second. insert_books_and_chunks/2 skips the
-    # lookup, which is exactly the loser's position, so it reproduces the
-    # race deterministically: the answer must be the winner's row, as
-    # {:duplicate, existing}, never a persist error.
-    b = book()
-    chunks = [chunk(0, 1)]
+  # Two runs of the same bytes can both find no row and both insert; the
+  # unique index refuses the second. insert_books_and_chunks/3 skips the
+  # lookup, which is exactly the loser's position, so it reproduces the race
+  # deterministically. The loser cannot know which model the in-flight winner
+  # is embedding under (its chunks carry none yet), so it answers a duplicate
+  # only when the winner is already :completed under the requested model, and
+  # otherwise a persist error naming the winner: recorded as a books.persist
+  # failure, which the sweep retries through the model-aware lookup (#284).
+  describe "losing a check-then-insert race on file_hash" do
+    test "to a winner still in flight is a {:concurrent_ingest, winner_id} persist error, never a silent duplicate" do
+      b = book()
+      chunks = [chunk(0, 1)]
 
-    {:ok, {winner, _chunks}} = Persistence.persist_books_and_chunks({b, chunks}, @model)
+      {:ok, {winner, _chunks}} = Persistence.persist_books_and_chunks({b, chunks}, @model)
+      loser = %ParsedBook{b | source_file_path: "/tmp/racer.pdf"}
 
-    loser = %ParsedBook{b | source_file_path: "/tmp/racer.pdf"}
+      assert {:error, {"/tmp/racer.pdf", {:concurrent_ingest, winner_id}}} =
+               Persistence.insert_books_and_chunks(loser, chunks, @model)
 
-    assert {:duplicate, %ParsedBook{} = existing} =
-             Persistence.insert_books_and_chunks(loser, chunks)
+      assert winner_id == winner.id
+      assert length(Repo.all(ParsedBook)) == 1
+      assert length(Repo.all(Chunk)) == 1
+    end
 
-    assert existing.id == winner.id
-    assert length(Repo.all(ParsedBook)) == 1
+    test "to a winner :completed under the requested model is a duplicate" do
+      b = book()
+      chunks = [chunk(0, 1)]
+
+      {:ok, {winner, _chunks}} = Persistence.persist_books_and_chunks({b, chunks}, @model)
+      complete_under!(winner, @model)
+      loser = %ParsedBook{b | source_file_path: "/tmp/racer.pdf"}
+
+      assert {:duplicate, %ParsedBook{id: id}} =
+               Persistence.insert_books_and_chunks(loser, chunks, @model)
+
+      assert id == winner.id
+    end
+
+    test "to a winner :completed under another model is a {:concurrent_ingest, winner_id} persist error" do
+      b = book()
+      chunks = [chunk(0, 1)]
+
+      {:ok, {winner, _chunks}} = Persistence.persist_books_and_chunks({b, chunks}, @other_model)
+      complete_under!(winner, @other_model)
+      loser = %ParsedBook{b | source_file_path: "/tmp/racer.pdf"}
+
+      assert {:error, {"/tmp/racer.pdf", {:concurrent_ingest, winner_id}}} =
+               Persistence.insert_books_and_chunks(loser, chunks, @model)
+
+      assert winner_id == winner.id
+    end
   end
 
   test "returns error for chunks missing required fields" do
