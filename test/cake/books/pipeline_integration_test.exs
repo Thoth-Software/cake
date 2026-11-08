@@ -191,7 +191,16 @@ defmodule Cake.Books.PipelineIntegrationTest do
                &(&1.embedding == deterministic_embedding("other model: " <> embed_input(&1)))
              )
 
-      assert Enum.sort(indexed_ids!(ParsedBook)) == Enum.sort(ids(chunks))
+      # The ids were already indexed by the first run, so the ids alone
+      # prove nothing: the index itself must hold the new vectors and model.
+      indexed = indexed_sources!(ParsedBook)
+      assert Enum.sort(Map.keys(indexed)) == Enum.sort(ids(chunks))
+
+      for chunk <- chunks do
+        assert %{"embedding" => embedding, "embedding_model" => ^other_model} = indexed[chunk.id]
+        assert embedding == deterministic_embedding("other model: " <> embed_input(chunk))
+      end
+
       assert Repo.all(FailedIngest) == []
 
       # And a third run under that same other model is now the duplicate.
