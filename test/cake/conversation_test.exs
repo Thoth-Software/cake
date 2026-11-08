@@ -758,6 +758,39 @@ defmodule Cake.ConversationTest do
     end
   end
 
+  describe "provenance (#284)" do
+    test "every search result's provenance names the embedder the question was embedded with" do
+      expect(Cake.Embeddings.Mock, :embed, fn :openai, _input, "text-embedding-ada-002" ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(), build_search_hit()]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _, _, _ ->
+        %Cake.Responses.Result{raw_text: "x", final_text: "x", citations: [], warnings: []}
+      end)
+
+      pid = start_subscribed()
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "x", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      Conversation.autoask(pid, "q")
+      assert_receive {:response_ready, _}
+
+      assert [_, _] = results = GenServer.call(pid, :search_results)
+      assert Enum.all?(results, &(&1.provenance.embedding_model == "text-embedding-ada-002"))
+    end
+  end
+
   describe "public API contract" do
     test "child_spec/1 returns a supervisor child spec with restart: :temporary" do
       opts = valid_opts()

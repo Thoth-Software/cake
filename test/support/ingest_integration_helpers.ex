@@ -209,6 +209,22 @@ defmodule Cake.IngestIntegrationHelpers do
   end
 
   @doc """
+  Every document in the GDS's fixed collection on the real node, after a
+  refresh, as a map of id to the stored `_source` (string keys, as the node
+  returns them). For asserting what the index holds, not only which ids.
+  """
+  @spec indexed_sources!(module()) :: %{String.t() => map()}
+  def indexed_sources!(gds) when is_atom(gds) do
+    collection = gds.collection_name()
+    SearchIntegrationCase.refresh!(collection)
+
+    case OpenSearch.search(Cake.Search.Query.new(collection, size: @max_result_window)) do
+      {:ok, hits} -> Map.new(hits, &{&1.id, &1.source})
+      {:error, error} -> raise "could not list #{collection}: #{inspect(error)}"
+    end
+  end
+
+  @doc """
   How many indexing operations the real node has received for the GDS's
   fixed collection since it was created: every upsert, whether it changed
   the document (`index_total`) or found it unchanged (`noop_update_total`).

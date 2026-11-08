@@ -111,7 +111,8 @@ defmodule Cake.ConversationIntegrationHelpers do
 
   @doc """
   Creates `collection` with the Books mapping, inserts one `ParsedBook`
-  with one `Chunk` per spec (in order, so chunk `i` has `chunk_index: i`),
+  with one `Chunk` per spec (in order, so chunk `i` has `chunk_index: i`,
+  its vector recorded under the configured `:default_embedding_model`),
   indexes every chunk through `Cake.Pipelines.add_to_search_backend/3`
   and refreshes the collection. Raises if the server rejected any chunk.
   Returns the book, the chunks with `:parsed_book` preloaded, and the
@@ -137,14 +138,23 @@ defmodule Cake.ConversationIntegrationHelpers do
     %{book: book, chunks: Repo.preload(chunks, :parsed_book), gds: collection_gds(collection)}
   end
 
+  # Seeded vectors are recorded under the configured model, as the ingest
+  # pipelines record theirs (#284): the model conversations embed with.
   defp chunk_attrs(%{text: text, axis: axis}) when is_binary(text) do
-    %{text: text, embedding: SearchIntegrationCase.unit_vector(axis)}
+    %{
+      text: text,
+      embedding: SearchIntegrationCase.unit_vector(axis),
+      embedding_model: seeded_embedding_model()
+    }
   end
 
   defp chunk_attrs(%{text: text, embedding: embedding})
        when is_binary(text) and is_list(embedding) do
-    %{text: text, embedding: embedding}
+    %{text: text, embedding: embedding, embedding_model: seeded_embedding_model()}
   end
+
+  defp seeded_embedding_model,
+    do: Application.get_env(:cake, :default_embedding_model, "text-embedding-ada-002")
 
   defp pipeline_context do
     Pipelines.build_context(Cake.Books.Pipeline, Cake.Books.Pdf.Pipeline, "conversation-it")

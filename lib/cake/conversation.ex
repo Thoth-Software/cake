@@ -977,7 +977,8 @@ defmodule Cake.Conversation do
              question,
              embedding,
              Cake.Search.default_expand_offset(),
-             gds: s.gds
+             gds: s.gds,
+             embedding_model: s.embedder
            ) do
       scored_results =
         raw_results

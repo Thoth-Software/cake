@@ -15,6 +15,14 @@ defmodule Cake.Search.Provenance do
   discovers its questions at run time — `question_index` is empty — so
   the index instead counts rounds in discovery order, zero-based:
   follow-up rounds for self-ask, reasoning/retrieval rounds for IRCoT.
+
+  `embedding_model` is the model the query vector was embedded under, as
+  the caller passed it to `Cake.Search.search_chunks_with_context/5`
+  (`nil` for a search that embedded nothing). The model a *stored* vector
+  came from is per record, so it lives on the retrieval unit
+  (`Cake.Books.Chunk` and `Cake.Documents.ParsedDocument` both carry
+  `embedding_model`); comparing the two says whether a result's vector
+  score compared like with like.
   """
 
   @typedoc """
