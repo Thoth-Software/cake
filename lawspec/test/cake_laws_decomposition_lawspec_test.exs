@@ -3,7 +3,7 @@ defmodule Cake.Laws.Decomposition.LawSpecTest do
   use ExUnit.Case, async: false
   import LawSpec.Beam.ExUnitCases
 
-  # |plain sub-questions become dependency-free entries| — laws/decomposition.lawspec:181
+  # |plain sub-questions become dependency-free entries| — laws/decomposition.lawspec:201
   law(
     :cake_laws_decomposition_lawspec_cases,
     :law_plain_sub_questions_become_dependency_free,
@@ -11,7 +11,7 @@ defmodule Cake.Laws.Decomposition.LawSpecTest do
     600_000
   )
 
-  # |the question index is dense and positional| — laws/decomposition.lawspec:209
+  # |the question index is dense and positional| — laws/decomposition.lawspec:229
   law(
     :cake_laws_decomposition_lawspec_cases,
     :law_the_question_index_is_dense_and_positional,
@@ -19,7 +19,7 @@ defmodule Cake.Laws.Decomposition.LawSpecTest do
     600_000
   )
 
-  # |the strategy is sequential exactly when a dependency exists| — laws/decomposition.lawspec:224
+  # |the strategy is sequential exactly when a dependency exists| — laws/decomposition.lawspec:243
   law(
     :cake_laws_decomposition_lawspec_cases,
     :law_the_strategy_is_sequential_exactly_when_a,
@@ -27,7 +27,7 @@ defmodule Cake.Laws.Decomposition.LawSpecTest do
     600_000
   )
 
-  # |dependency cycles are rejected| — laws/decomposition.lawspec:254
+  # |dependency cycles are rejected| — laws/decomposition.lawspec:274
   law(
     :cake_laws_decomposition_lawspec_cases,
     :law_dependency_cycles_are_rejected,
@@ -35,7 +35,7 @@ defmodule Cake.Laws.Decomposition.LawSpecTest do
     600_000
   )
 
-  # |dependencies outside the sub-questions are rejected| — laws/decomposition.lawspec:273
+  # |dependencies outside the sub-questions are rejected| — laws/decomposition.lawspec:293
   law(
     :cake_laws_decomposition_lawspec_cases,
     :law_dependencies_outside_the_sub_questions_are,
@@ -43,7 +43,7 @@ defmodule Cake.Laws.Decomposition.LawSpecTest do
     600_000
   )
 
-  # |a sub-question cannot depend on itself| — laws/decomposition.lawspec:296
+  # |a sub-question cannot depend on itself| — laws/decomposition.lawspec:322
   law(
     :cake_laws_decomposition_lawspec_cases,
     :law_a_sub_question_cannot_depend_on_itself,
@@ -51,7 +51,7 @@ defmodule Cake.Laws.Decomposition.LawSpecTest do
     600_000
   )
 
-  # |every sub-question resolves exactly once| — laws/decomposition.lawspec:309
+  # |every sub-question resolves exactly once| — laws/decomposition.lawspec:336
   law(
     :cake_laws_decomposition_lawspec_cases,
     :law_every_sub_question_resolves_exactly_once,
@@ -59,7 +59,7 @@ defmodule Cake.Laws.Decomposition.LawSpecTest do
     600_000
   )
 
-  # |dependencies resolve first| — laws/decomposition.lawspec:320
+  # |dependencies resolve first| — laws/decomposition.lawspec:348
   law(
     :cake_laws_decomposition_lawspec_cases,
     :law_dependencies_resolve_first,
@@ -67,7 +67,7 @@ defmodule Cake.Laws.Decomposition.LawSpecTest do
     600_000
   )
 
-  # |the smallest ready sub-question resolves next| — laws/decomposition.lawspec:331
+  # |the smallest ready sub-question resolves next| — laws/decomposition.lawspec:359
   law(
     :cake_laws_decomposition_lawspec_cases,
     :law_the_smallest_ready_sub_question_resolves_next,
@@ -75,7 +75,7 @@ defmodule Cake.Laws.Decomposition.LawSpecTest do
     600_000
   )
 
-  # |flat decompositions resolve in positional order| — laws/decomposition.lawspec:361
+  # |flat decompositions resolve in positional order| — laws/decomposition.lawspec:389
   law(
     :cake_laws_decomposition_lawspec_cases,
     :law_flat_decompositions_resolve_in_positional_order,

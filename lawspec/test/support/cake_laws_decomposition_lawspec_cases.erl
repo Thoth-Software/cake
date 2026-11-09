@@ -27,7 +27,7 @@
     <<"cake.laws.decomposition::|plain sub-questions become dependency-free entries|">>
 ).
 
-%% |plain sub-questions become dependency-free entries| — laws/decomposition.lawspec:181
+%% |plain sub-questions become dependency-free entries| — laws/decomposition.lawspec:201
 %% Sub-questions given as strings normalize to entries with no dependencies;
 %%     no sub-questions is atomic, and one or more is flat.
 %% for all (q :: Text) (questions :: List (Text)) => match (decomposeQuestions q questions) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldsubQuestions } = plainEntries questions and match (decomposeQuestions q questions) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldstrategy } = (if match (questions) { List::Nil  -> true; List::Cons head tail -> false } then cake.laws.decomposition::type::Strategy::Atomic() else cake.laws.decomposition::type::Strategy::Flat()) end for all
@@ -361,7 +361,7 @@ law_plain_sub_questions_become_dependency_free_test_() ->
 law_plain_sub_questions_become_dependency_free_case_at(Index) ->
     lawspec_beam_finite:case_at(law_plain_sub_questions_become_dependency_free_plan(), Index).
 
-%% |plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:196
+%% |plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:216
 law_plain_sub_questions_become_dependency_free__no_sub_questions_is_atomic() ->
     {Schema, Symbols} = lawspec_data:context(),
     Q = <<"What is a GenServer?">>,
@@ -382,7 +382,7 @@ law_plain_sub_questions_become_dependency_free__no_sub_questions_is_atomic() ->
             }
         ),
         make_atomic([], Schema),
-        <<"|plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:196"/utf8>>
+        <<"|plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:216"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -396,10 +396,10 @@ law_plain_sub_questions_become_dependency_free__no_sub_questions_is_atomic() ->
             }
         ),
         [],
-        <<"|plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:197"/utf8>>
+        <<"|plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:217"/utf8>>
     ).
 
-%% |plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:202
+%% |plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:222
 law_plain_sub_questions_become_dependency_free__two_strings_are_flat() ->
     {Schema, Symbols} = lawspec_data:context(),
     Q = <<"Compare Task and GenServer">>,
@@ -420,7 +420,7 @@ law_plain_sub_questions_become_dependency_free__two_strings_are_flat() ->
             }
         ),
         make_flat([], Schema),
-        <<"|plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:202"/utf8>>
+        <<"|plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:222"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -440,10 +440,10 @@ law_plain_sub_questions_become_dependency_free__two_strings_are_flat() ->
             ],
             Schema
         ),
-        <<"|plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:203"/utf8>>
+        <<"|plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:223"/utf8>>
     ).
 
-%% |plain sub-questions become dependency-free entries| property — laws/decomposition.lawspec:181
+%% |plain sub-questions become dependency-free entries| property — laws/decomposition.lawspec:201
 law_plain_sub_questions_become_dependency_free__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -533,7 +533,7 @@ law_plain_sub_questions_become_dependency_free__property() ->
     <<"cake.laws.decomposition::|the question index is dense and positional|">>
 ).
 
-%% |the question index is dense and positional| — laws/decomposition.lawspec:209
+%% |the question index is dense and positional| — laws/decomposition.lawspec:229
 %% The question index has exactly the keys 0 to n - 1, and key i maps to
 %%     the i-th sub-question.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) => keyValKeys (match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldquestionIndex }) = Range(0, Length(nodes)) and keyValValues (match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldquestionIndex }) = match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldsubQuestions } end for all
@@ -691,7 +691,7 @@ law_the_question_index_is_dense_and_positional_test_() ->
 law_the_question_index_is_dense_and_positional_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_question_index_is_dense_and_positional_plan(), Index).
 
-%% |the question index is dense and positional| property — laws/decomposition.lawspec:209
+%% |the question index is dense and positional| property — laws/decomposition.lawspec:229
 law_the_question_index_is_dense_and_positional__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -768,7 +768,7 @@ law_the_question_index_is_dense_and_positional__property() ->
     <<"cake.laws.decomposition::|the strategy is sequential exactly when a dependency exists|">>
 ).
 
-%% |the strategy is sequential exactly when a dependency exists| — laws/decomposition.lawspec:224
+%% |the strategy is sequential exactly when a dependency exists| — laws/decomposition.lawspec:243
 %% A decomposition with sub-questions is sequential when any sub-question
 %%     depends on another, and flat otherwise.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) => match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldstrategy } = (if Not(allElements (dagOf nodes) (~lawspecAnyItem -> Not(hasDependency ~lawspecAnyItem))) then cake.laws.decomposition::type::Strategy::Sequential() else cake.laws.decomposition::type::Strategy::Flat()) end for all
@@ -896,7 +896,7 @@ law_the_strategy_is_sequential_exactly_when_a_test_() ->
 law_the_strategy_is_sequential_exactly_when_a_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_strategy_is_sequential_exactly_when_a_plan(), Index).
 
-%% |the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:239
+%% |the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:259
 law_the_strategy_is_sequential_exactly_when_a__one_dependency_makes_it_sequential() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5(
@@ -916,7 +916,7 @@ law_the_strategy_is_sequential_exactly_when_a__one_dependency_makes_it_sequentia
             ],
             Schema
         ),
-        <<"|the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:239"/utf8>>
+        <<"|the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:259"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -935,10 +935,10 @@ law_the_strategy_is_sequential_exactly_when_a__one_dependency_makes_it_sequentia
             }
         ),
         make_sequential([], Schema),
-        <<"|the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:242"/utf8>>
+        <<"|the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:262"/utf8>>
     ).
 
-%% |the strategy is sequential exactly when a dependency exists| example |equal ranks keep it flat| — laws/decomposition.lawspec:248
+%% |the strategy is sequential exactly when a dependency exists| example |equal ranks keep it flat| — laws/decomposition.lawspec:268
 law_the_strategy_is_sequential_exactly_when_a__equal_ranks_keep_it_flat() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5(
@@ -966,10 +966,10 @@ law_the_strategy_is_sequential_exactly_when_a__equal_ranks_keep_it_flat() ->
             }
         ),
         make_flat([], Schema),
-        <<"|the strategy is sequential exactly when a dependency exists| example |equal ranks keep it flat| — laws/decomposition.lawspec:248"/utf8>>
+        <<"|the strategy is sequential exactly when a dependency exists| example |equal ranks keep it flat| — laws/decomposition.lawspec:268"/utf8>>
     ).
 
-%% |the strategy is sequential exactly when a dependency exists| property — laws/decomposition.lawspec:224
+%% |the strategy is sequential exactly when a dependency exists| property — laws/decomposition.lawspec:243
 law_the_strategy_is_sequential_exactly_when_a__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -1068,7 +1068,7 @@ law_the_strategy_is_sequential_exactly_when_a__property() ->
     <<"cake.laws.decomposition::|dependency cycles are rejected|">>
 ).
 
-%% |dependency cycles are rejected| — laws/decomposition.lawspec:254
+%% |dependency cycles are rejected| — laws/decomposition.lawspec:274
 %% A ring of two or more sub-questions, each depending on the next, cannot
 %%     be resolved and is rejected.
 %% for all (size :: BigUInt) => match (attempt (decompose "q" (ringOf size))) { Either::Left lawspecFailure -> let it = lawspecFailure in match (it) { cake.laws.decomposition::type::Rejection::InvalidDecomposition _lawspecSelection0x0 -> true }; Either::Right lawspecResult -> false } = true end for all
@@ -1167,7 +1167,7 @@ law_dependency_cycles_are_rejected_test_() ->
 law_dependency_cycles_are_rejected_case_at(Index) ->
     lawspec_beam_finite:case_at(law_dependency_cycles_are_rejected_plan(), Index).
 
-%% |dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:266
+%% |dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:286
 law_dependency_cycles_are_rejected__two_sub_questions_waiting_on_each_other() ->
     {Schema, Symbols} = lawspec_data:context(),
     Size = 2,
@@ -1184,7 +1184,7 @@ law_dependency_cycles_are_rejected__two_sub_questions_waiting_on_each_other() ->
             ],
             Schema
         ),
-        <<"|dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:266"/utf8>>
+        <<"|dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:286"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -1249,10 +1249,10 @@ law_dependency_cycles_are_rejected__two_sub_questions_waiting_on_each_other() ->
             }
         ),
         true,
-        <<"|dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:269"/utf8>>
+        <<"|dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:289"/utf8>>
     ).
 
-%% |dependency cycles are rejected| property — laws/decomposition.lawspec:254
+%% |dependency cycles are rejected| property — laws/decomposition.lawspec:274
 law_dependency_cycles_are_rejected__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -1305,7 +1305,7 @@ law_dependency_cycles_are_rejected__property() ->
     <<"cake.laws.decomposition::|dependencies outside the sub-questions are rejected|">>
 ).
 
-%% |dependencies outside the sub-questions are rejected| — laws/decomposition.lawspec:273
+%% |dependencies outside the sub-questions are rejected| — laws/decomposition.lawspec:293
 %% A dependency must be the index of another sub-question: a negative
 %%     index, or one at or past the number of sub-questions, is rejected.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) (dep :: Integer) => match (attempt (decompose "q" (withBadDependency (dagOf nodes) dep))) { Either::Left lawspecFailure -> let it = lawspecFailure in match (it) { cake.laws.decomposition::type::Rejection::InvalidDecomposition _lawspecSelection0x0 -> true }; Either::Right lawspecResult -> false } = true end for all
@@ -1689,7 +1689,7 @@ law_dependencies_outside_the_sub_questions_are_test_() ->
 law_dependencies_outside_the_sub_questions_are_case_at(Index) ->
     lawspec_beam_finite:case_at(law_dependencies_outside_the_sub_questions_are_plan(), Index).
 
-%% |dependencies outside the sub-questions are rejected| example |an index one past the end| — laws/decomposition.lawspec:287
+%% |dependencies outside the sub-questions are rejected| example |an index one past the end| — laws/decomposition.lawspec:310
 law_dependencies_outside_the_sub_questions_are__an_index_one_past_the_end() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5([make_node([0, []], Schema), []], Schema),
@@ -1766,10 +1766,10 @@ law_dependencies_outside_the_sub_questions_are__an_index_one_past_the_end() ->
             }
         ),
         true,
-        <<"|dependencies outside the sub-questions are rejected| example |an index one past the end| — laws/decomposition.lawspec:287"/utf8>>
+        <<"|dependencies outside the sub-questions are rejected| example |an index one past the end| — laws/decomposition.lawspec:310"/utf8>>
     ).
 
-%% |dependencies outside the sub-questions are rejected| example |a negative index| — laws/decomposition.lawspec:292
+%% |dependencies outside the sub-questions are rejected| example |a negative index| — laws/decomposition.lawspec:317
 law_dependencies_outside_the_sub_questions_are__a_negative_index() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5(
@@ -1849,10 +1849,10 @@ law_dependencies_outside_the_sub_questions_are__a_negative_index() ->
             }
         ),
         true,
-        <<"|dependencies outside the sub-questions are rejected| example |a negative index| — laws/decomposition.lawspec:292"/utf8>>
+        <<"|dependencies outside the sub-questions are rejected| example |a negative index| — laws/decomposition.lawspec:317"/utf8>>
     ).
 
-%% |dependencies outside the sub-questions are rejected| property — laws/decomposition.lawspec:273
+%% |dependencies outside the sub-questions are rejected| property — laws/decomposition.lawspec:293
 law_dependencies_outside_the_sub_questions_are__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -1998,7 +1998,7 @@ law_dependencies_outside_the_sub_questions_are__property() ->
     <<"cake.laws.decomposition::|a sub-question cannot depend on itself|">>
 ).
 
-%% |a sub-question cannot depend on itself| — laws/decomposition.lawspec:296
+%% |a sub-question cannot depend on itself| — laws/decomposition.lawspec:322
 %% An entry that names its own index as a dependency is rejected.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) => match (attempt (decompose "q" (withBadDependency (dagOf nodes) 0))) { Either::Left lawspecFailure -> let it = lawspecFailure in match (it) { cake.laws.decomposition::type::Rejection::InvalidDecomposition _lawspecSelection0x0 -> true }; Either::Right lawspecResult -> false } = true end for all
 law_a_sub_question_cannot_depend_on_itself(Schema, Symbols, [Nodes]) ->
@@ -2151,7 +2151,7 @@ law_a_sub_question_cannot_depend_on_itself_test_() ->
 law_a_sub_question_cannot_depend_on_itself_case_at(Index) ->
     lawspec_beam_finite:case_at(law_a_sub_question_cannot_depend_on_itself_plan(), Index).
 
-%% |a sub-question cannot depend on itself| property — laws/decomposition.lawspec:296
+%% |a sub-question cannot depend on itself| property — laws/decomposition.lawspec:322
 law_a_sub_question_cannot_depend_on_itself__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -2248,7 +2248,7 @@ law_a_sub_question_cannot_depend_on_itself__property() ->
     <<"cake.laws.decomposition::|every sub-question resolves exactly once|">>
 ).
 
-%% |every sub-question resolves exactly once| — laws/decomposition.lawspec:309
+%% |every sub-question resolves exactly once| — laws/decomposition.lawspec:336
 %% The resolution order is a permutation of the sub-question indices.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) => lawspecMatchersMatchersSameItems (resolutionOrder "q" (dagOf nodes)) (Range(0, Length(nodes))) = true end for all
 law_every_sub_question_resolves_exactly_once(Schema, Symbols, [Nodes]) ->
@@ -2360,7 +2360,7 @@ law_every_sub_question_resolves_exactly_once_test_() ->
 law_every_sub_question_resolves_exactly_once_case_at(Index) ->
     lawspec_beam_finite:case_at(law_every_sub_question_resolves_exactly_once_plan(), Index).
 
-%% |every sub-question resolves exactly once| property — laws/decomposition.lawspec:309
+%% |every sub-question resolves exactly once| property — laws/decomposition.lawspec:336
 law_every_sub_question_resolves_exactly_once__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -2437,7 +2437,7 @@ law_every_sub_question_resolves_exactly_once__property() ->
     <<"cake.laws.decomposition::|dependencies resolve first|">>
 ).
 
-%% |dependencies resolve first| — laws/decomposition.lawspec:320
+%% |dependencies resolve first| — laws/decomposition.lawspec:348
 %% Every sub-question resolves after all of the sub-questions it depends on.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) => dependenciesFirst (dagOf nodes) (List::Nil()) (resolutionOrder "q" (dagOf nodes)) = true end for all
 law_dependencies_resolve_first(Schema, Symbols, [Nodes]) ->
@@ -2534,7 +2534,7 @@ law_dependencies_resolve_first_test_() ->
 law_dependencies_resolve_first_case_at(Index) ->
     lawspec_beam_finite:case_at(law_dependencies_resolve_first_plan(), Index).
 
-%% |dependencies resolve first| property — laws/decomposition.lawspec:320
+%% |dependencies resolve first| property — laws/decomposition.lawspec:348
 law_dependencies_resolve_first__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -2609,7 +2609,7 @@ law_dependencies_resolve_first__property() ->
     <<"cake.laws.decomposition::|the smallest ready sub-question resolves next|">>
 ).
 
-%% |the smallest ready sub-question resolves next| — laws/decomposition.lawspec:331
+%% |the smallest ready sub-question resolves next| — laws/decomposition.lawspec:359
 %% At every step the smallest index whose dependencies have resolved goes
 %%     next, including an index the previous step just unlocked.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) => resolutionOrder "q" (dagOf nodes) = referenceOrder (dagOf nodes) end for all
@@ -2721,7 +2721,7 @@ law_the_smallest_ready_sub_question_resolves_next_test_() ->
 law_the_smallest_ready_sub_question_resolves_next_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_smallest_ready_sub_question_resolves_next_plan(), Index).
 
-%% |the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:346
+%% |the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:374
 law_the_smallest_ready_sub_question_resolves_next__an_unlocked_lower_index_goes_before_a_higher() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5(
@@ -2753,7 +2753,7 @@ law_the_smallest_ready_sub_question_resolves_next__an_unlocked_lower_index_goes_
             ],
             Schema
         ),
-        <<"|the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:346"/utf8>>
+        <<"|the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:374"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:resolution_order(
@@ -2763,10 +2763,10 @@ law_the_smallest_ready_sub_question_resolves_next__an_unlocked_lower_index_goes_
             lawspec_definitions:dag_of(Schema, Symbols, Nodes)
         ),
         [1, 0, 2],
-        <<"|the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:350"/utf8>>
+        <<"|the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:378"/utf8>>
     ).
 
-%% |the smallest ready sub-question resolves next| example |a dependency on a later index| — laws/decomposition.lawspec:357
+%% |the smallest ready sub-question resolves next| example |a dependency on a later index| — laws/decomposition.lawspec:385
 law_the_smallest_ready_sub_question_resolves_next__a_dependency_on_a_later_index() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5(
@@ -2791,10 +2791,10 @@ law_the_smallest_ready_sub_question_resolves_next__a_dependency_on_a_later_index
             lawspec_definitions:dag_of(Schema, Symbols, Nodes)
         ),
         [1, 2, 0],
-        <<"|the smallest ready sub-question resolves next| example |a dependency on a later index| — laws/decomposition.lawspec:357"/utf8>>
+        <<"|the smallest ready sub-question resolves next| example |a dependency on a later index| — laws/decomposition.lawspec:385"/utf8>>
     ).
 
-%% |the smallest ready sub-question resolves next| property — laws/decomposition.lawspec:331
+%% |the smallest ready sub-question resolves next| property — laws/decomposition.lawspec:359
 law_the_smallest_ready_sub_question_resolves_next__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -2871,7 +2871,7 @@ law_the_smallest_ready_sub_question_resolves_next__property() ->
     <<"cake.laws.decomposition::|flat decompositions resolve in positional order|">>
 ).
 
-%% |flat decompositions resolve in positional order| — laws/decomposition.lawspec:361
+%% |flat decompositions resolve in positional order| — laws/decomposition.lawspec:389
 %% With no dependencies, sub-questions resolve in the order they were given;
 %%     an atomic decomposition resolves nothing.
 %% for all (questions :: List (Text)) => resolutionOrder "q" (plainEntries questions) = Range(0, Length(questions)) end for all
@@ -2978,7 +2978,7 @@ law_flat_decompositions_resolve_in_positional_order_test_() ->
 law_flat_decompositions_resolve_in_positional_order_case_at(Index) ->
     lawspec_beam_finite:case_at(law_flat_decompositions_resolve_in_positional_order_plan(), Index).
 
-%% |flat decompositions resolve in positional order| example |atomic| — laws/decomposition.lawspec:373
+%% |flat decompositions resolve in positional order| example |atomic| — laws/decomposition.lawspec:402
 law_flat_decompositions_resolve_in_positional_order__atomic() ->
     {Schema, Symbols} = lawspec_data:context(),
     Questions = [],
@@ -2994,10 +2994,10 @@ law_flat_decompositions_resolve_in_positional_order__atomic() ->
             lawspec_definitions:plain_entries(Schema, Symbols, Questions)
         ),
         [],
-        <<"|flat decompositions resolve in positional order| example |atomic| — laws/decomposition.lawspec:373"/utf8>>
+        <<"|flat decompositions resolve in positional order| example |atomic| — laws/decomposition.lawspec:402"/utf8>>
     ).
 
-%% |flat decompositions resolve in positional order| example |three in a row| — laws/decomposition.lawspec:377
+%% |flat decompositions resolve in positional order| example |three in a row| — laws/decomposition.lawspec:406
 law_flat_decompositions_resolve_in_positional_order__three_in_a_row() ->
     {Schema, Symbols} = lawspec_data:context(),
     Questions = [<<"a">>, <<"b">>, <<"c">>],
@@ -3013,10 +3013,10 @@ law_flat_decompositions_resolve_in_positional_order__three_in_a_row() ->
             lawspec_definitions:plain_entries(Schema, Symbols, Questions)
         ),
         [0, 1, 2],
-        <<"|flat decompositions resolve in positional order| example |three in a row| — laws/decomposition.lawspec:377"/utf8>>
+        <<"|flat decompositions resolve in positional order| example |three in a row| — laws/decomposition.lawspec:406"/utf8>>
     ).
 
-%% |flat decompositions resolve in positional order| property — laws/decomposition.lawspec:361
+%% |flat decompositions resolve in positional order| property — laws/decomposition.lawspec:389
 law_flat_decompositions_resolve_in_positional_order__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(

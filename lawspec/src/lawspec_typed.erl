@@ -52,7 +52,7 @@ matchers_matches_regex(T, R) ->
             lawspec_beam_regex:matches(Selection, T)
     end.
 
-%% allIn — laws/decomposition.lawspec:135
+%% allIn — laws/decomposition.lawspec:149
 all_in(Xs, Done) ->
     case Xs of
         [] ->
@@ -66,11 +66,11 @@ all_in(Xs, Done) ->
             )) andalso all_in(Selection_2, Done))
     end.
 
-%% dagOf — laws/decomposition.lawspec:87
+%% dagOf — laws/decomposition.lawspec:95
 dag_of(Nodes) ->
     entries_from(Nodes, Nodes, 0).
 
-%% dependenciesFirst — laws/decomposition.lawspec:147
+%% dependenciesFirst — laws/decomposition.lawspec:162
 dependencies_first(Entries, Done, Order) ->
     case Order of
         [] ->
@@ -82,7 +82,7 @@ dependencies_first(Entries, Done, Order) ->
             ) andalso dependencies_first(Entries, (Done ++ [Selection]), Selection_2))
     end.
 
-%% depsAt — laws/decomposition.lawspec:127
+%% depsAt — laws/decomposition.lawspec:141
 deps_at(Entries, I) ->
     At =
         case lawspec_beam_fast:at_list(Entries, I) of
@@ -106,7 +106,7 @@ deps_at(Entries, I) ->
             []
     end.
 
-%% depsOf — laws/decomposition.lawspec:57
+%% depsOf — laws/decomposition.lawspec:63
 deps_of(Nodes, MyRank, Picks) ->
     case Picks of
         [] ->
@@ -149,7 +149,7 @@ deps_of(Nodes, MyRank, Picks) ->
             end
     end.
 
-%% entriesFrom — laws/decomposition.lawspec:74
+%% entriesFrom — laws/decomposition.lawspec:81
 entries_from(Nodes, Rest, I) ->
     case Rest of
         [] ->
@@ -185,7 +185,7 @@ entries_from(Nodes, Rest, I) ->
             ]
     end.
 
-%% firstReady — laws/decomposition.lawspec:158
+%% firstReady — laws/decomposition.lawspec:174
 first_ready(Entries, Done, Candidates) ->
     case Candidates of
         [] ->
@@ -199,7 +199,7 @@ first_ready(Entries, Done, Candidates) ->
             end
     end.
 
-%% hasDependency — laws/decomposition.lawspec:124
+%% hasDependency — laws/decomposition.lawspec:137
 has_dependency(Entry) ->
     Value =
         case Entry of
@@ -219,7 +219,7 @@ has_dependency(Entry) ->
         end,
     (not Value_2).
 
-%% isReady — laws/decomposition.lawspec:142
+%% isReady — laws/decomposition.lawspec:156
 is_ready(Entries, Done, I) ->
     ((not (not lists:all(
         fun(Item) ->
@@ -324,7 +324,7 @@ lawspec_matchers_matchers_same_items_list_integer_list_integer(Xs, Ys) ->
             end
     end.
 
-%% plainEntries — laws/decomposition.lawspec:117
+%% plainEntries — laws/decomposition.lawspec:129
 plain_entries(Questions) ->
     case Questions of
         [] ->
@@ -340,7 +340,7 @@ plain_entries(Questions) ->
             ]
     end.
 
-%% withBadDependency — laws/decomposition.lawspec:107
+%% withBadDependency — laws/decomposition.lawspec:118
 with_bad_dependency(Entries, Dep) ->
     case Entries of
         [] ->

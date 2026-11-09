@@ -35,7 +35,7 @@ matchers_matches_regex(_Schema, _Symbols, T, R) ->
         fun() -> lawspec_typed:matchers_matches_regex(T, lawspec_typed:from_dynamic_regex(R)) end
     ).
 
-%% decompose — laws/decomposition.lawspec:35
+%% decompose — laws/decomposition.lawspec:39
 decompose(Schema, _Symbols, Text, ListEntry) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::decompose">>,
@@ -90,7 +90,7 @@ decompose(Schema, _Symbols, Text, ListEntry) ->
         end
     ).
 
-%% decomposeQuestions — laws/decomposition.lawspec:38
+%% decomposeQuestions — laws/decomposition.lawspec:42
 decompose_questions(Schema, _Symbols, Text, ListText) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::decomposeQuestions">>,
@@ -148,7 +148,7 @@ decompose_questions(Schema, _Symbols, Text, ListText) ->
         end
     ).
 
-%% resolutionOrder — laws/decomposition.lawspec:41
+%% resolutionOrder — laws/decomposition.lawspec:45
 resolution_order(Schema, _Symbols, Text, ListEntry) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::resolutionOrder">>,
@@ -206,14 +206,14 @@ resolution_order(Schema, _Symbols, Text, ListEntry) ->
         end
     ).
 
-%% allIn — laws/decomposition.lawspec:135
+%% allIn — laws/decomposition.lawspec:149
 all_in(_Schema, _Symbols, Xs, Done) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::allIn">>,
         fun() -> lawspec_typed:all_in(Xs, Done) end
     ).
 
-%% dagOf — laws/decomposition.lawspec:87
+%% dagOf — laws/decomposition.lawspec:95
 dag_of(_Schema, _Symbols, Nodes) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::dagOf">>,
@@ -224,7 +224,7 @@ dag_of(_Schema, _Symbols, Nodes) ->
         end
     ).
 
-%% dependenciesFirst — laws/decomposition.lawspec:147
+%% dependenciesFirst — laws/decomposition.lawspec:162
 dependencies_first(_Schema, _Symbols, Entries, Done, Order) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::dependenciesFirst">>,
@@ -237,14 +237,14 @@ dependencies_first(_Schema, _Symbols, Entries, Done, Order) ->
         end
     ).
 
-%% depsAt — laws/decomposition.lawspec:127
+%% depsAt — laws/decomposition.lawspec:141
 deps_at(_Schema, _Symbols, Entries, I) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::depsAt">>,
         fun() -> lawspec_typed:deps_at(lawspec_typed:from_dynamic_list_entry(Entries), I) end
     ).
 
-%% depsOf — laws/decomposition.lawspec:57
+%% depsOf — laws/decomposition.lawspec:63
 deps_of(_Schema, _Symbols, Nodes, MyRank, Picks) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::depsOf">>,
@@ -253,7 +253,7 @@ deps_of(_Schema, _Symbols, Nodes, MyRank, Picks) ->
         end
     ).
 
-%% entriesFrom — laws/decomposition.lawspec:74
+%% entriesFrom — laws/decomposition.lawspec:81
 entries_from(_Schema, _Symbols, Nodes, Rest, I) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::entriesFrom">>,
@@ -268,7 +268,7 @@ entries_from(_Schema, _Symbols, Nodes, Rest, I) ->
         end
     ).
 
-%% firstReady — laws/decomposition.lawspec:158
+%% firstReady — laws/decomposition.lawspec:174
 first_ready(_Schema, _Symbols, Entries, Done, Candidates) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::firstReady">>,
@@ -283,14 +283,14 @@ first_ready(_Schema, _Symbols, Entries, Done, Candidates) ->
         end
     ).
 
-%% hasDependency — laws/decomposition.lawspec:124
+%% hasDependency — laws/decomposition.lawspec:137
 has_dependency(_Schema, _Symbols, Entry) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::hasDependency">>,
         fun() -> lawspec_typed:has_dependency(lawspec_typed:from_dynamic_entry(Entry)) end
     ).
 
-%% isReady — laws/decomposition.lawspec:142
+%% isReady — laws/decomposition.lawspec:156
 is_ready(_Schema, _Symbols, Entries, Done, I) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::isReady">>,
@@ -365,14 +365,14 @@ lawspec_matchers_matchers_same_items_list_integer_list_integer(_Schema, _Symbols
         end
     ).
 
-%% plainEntries — laws/decomposition.lawspec:117
+%% plainEntries — laws/decomposition.lawspec:129
 plain_entries(_Schema, _Symbols, Questions) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::plainEntries">>,
         fun() -> lawspec_typed:to_dynamic_list_entry(lawspec_typed:plain_entries(Questions)) end
     ).
 
-%% referenceOrder — laws/decomposition.lawspec:175
+%% referenceOrder — laws/decomposition.lawspec:195
 reference_order(Schema, Symbols, Entries) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::referenceOrder">>,
@@ -400,7 +400,7 @@ reference_order(Schema, Symbols, Entries) ->
         end
     ).
 
-%% resolveFrom — laws/decomposition.lawspec:166
+%% resolveFrom — laws/decomposition.lawspec:184
 resolve_from(Schema, Symbols, Entries, Done, Fuel) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::resolveFrom">>,
@@ -473,7 +473,7 @@ resolve_from(Schema, Symbols, Entries, Done, Fuel) ->
         end
     ).
 
-%% ringFrom — laws/decomposition.lawspec:92
+%% ringFrom — laws/decomposition.lawspec:101
 ring_from(Schema, Symbols, Size, I, Remaining) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::ringFrom">>,
@@ -566,7 +566,7 @@ ring_from(Schema, Symbols, Size, I, Remaining) ->
         end
     ).
 
-%% ringOf — laws/decomposition.lawspec:104
+%% ringOf — laws/decomposition.lawspec:114
 ring_of(Schema, Symbols, Size) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::ringOf">>,
@@ -585,7 +585,7 @@ ring_of(Schema, Symbols, Size) ->
         end
     ).
 
-%% withBadDependency — laws/decomposition.lawspec:107
+%% withBadDependency — laws/decomposition.lawspec:118
 with_bad_dependency(_Schema, _Symbols, Entries, Dep) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::withBadDependency">>,
