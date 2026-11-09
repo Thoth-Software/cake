@@ -1,0 +1,13 @@
+{
+  "name": "cake-laws",
+  "private": true,
+  "description": "LawSpec specifications for Cake (see README.md)",
+  "scripts": {
+    "check": "lawspec check",
+    "generate": "lawspec generate",
+    "generate:check": "lawspec generate --check"
+  },
+  "devDependencies": {
+    "lawspec": "0.31.3"
+  }
+}

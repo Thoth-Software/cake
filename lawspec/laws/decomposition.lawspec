@@ -1,0 +1,409 @@
+unit cake.laws.decomposition
+
+-- Laws for Cake.Decomposition.Result (lib/cake/decomposition/result.ex).
+--
+-- A decomposition splits a question into sub-questions that form a
+-- dependency DAG: each entry names the positional indices of the entries
+-- whose answers it needs. `new/2` validates the graph and derives a
+-- strategy; `topological_order/1` gives the order the sub-questions
+-- resolve in.
+
+type Entry is a record
+{
+  question :: Text
+  dependsOn :: List Integer
+}
+end type
+
+type Strategy is one of
+  | Atomic
+  | Flat
+  | Sequential
+end type
+
+type Decomposition is a record
+{
+  strategy :: Strategy
+  subQuestions :: List Entry
+  questionIndex :: KeyVal Integer Entry
+}
+end type
+
+type Rejection is one of
+  | InvalidDecomposition of type Text
+end type
+
+-- Adapters over Cake.Decomposition.Result (lawspec/lib/cake_decomposition.ex).
+
+-- `Result.new/2` with entry maps.
+decompose :: Text -> List Entry -> Decomposition fails with Rejection
+
+-- `Result.new/2` with plain-string sub-questions.
+decomposeQuestions :: Text -> List Text -> Decomposition fails with Rejection
+
+-- The indices of `Result.topological_order/1`, in order, for `Result.new/2`'s result.
+resolutionOrder :: Text -> List Entry -> List Integer fails with Rejection
+
+-- Building valid graphs.
+--
+-- A random list of dependency indices is almost never acyclic, so the laws
+-- quantify over graph shapes instead. Each node has a rank and a list of
+-- picks; pick `p` names entry `p rem n`, and the dependency is kept only when
+-- that entry's rank is strictly lower. Strict ranks make every graph acyclic
+-- and rule out self-dependencies, while picks still reach entries on either
+-- side, so dependencies on higher indices are common.
+
+type Node is a record
+{
+  rank :: UInt8
+  picks :: List UInt8
+}
+end type
+
+function depsOf (nodes :: List Node) (myRank :: UInt8) (picks :: List UInt8) ->
+  List Integer is
+  first matching case of picks :
+    when Nil then []
+    when Cons p rest then
+      if prelude.length nodes >= 1 then
+        (let j = prelude.rem p (prelude.length nodes) in
+          first matching case of prelude.at j nodes :
+            when Present other then
+              if other.rank < myRank then Cons j (depsOf nodes myRank rest)
+              else depsOf nodes myRank rest end if
+            when Absent then depsOf nodes myRank rest
+          end case
+        end let)
+      else [] end if
+  end case
+end function
+
+function entriesFrom (nodes :: List Node) (rest :: List Node) (i :: Integer) ->
+  List Entry is
+  first matching case of rest :
+    when Nil then []
+    when Cons node tail then
+      Cons
+        (Entry record{
+          question = "sub-question " ++ prelude.textOf i,
+          dependsOn = depsOf nodes node.rank node.picks})
+        (entriesFrom nodes tail (i + 1))
+  end case
+end function
+
+-- The acyclic graph a list of nodes describes.
+function dagOf (nodes :: List Node) -> List Entry is entriesFrom nodes nodes 0
+end function
+
+-- Building invalid graphs.
+
+-- The ring 0 -> 1 -> ... -> size - 1 -> 0: entry `i` depends on `i + 1`, wrapping.
+function ringFrom (size :: Integer) (i :: Whole) (remaining :: Whole) -> List
+  Entry is
+  if remaining = 0 then [] else
+    (if size >= 1 then
+      Cons
+        (Entry record{
+          question = "sub-question " ++ prelude.textOf i,
+          dependsOn = [prelude.rem (i + 1) size]})
+        (ringFrom size (i + 1) (remaining - 1))
+    else [] end if)
+  end if
+end function
+
+function ringOf (size :: Whole) -> List Entry is ringFrom size 0 size
+end function
+
+-- `entries` with `dep` added to the first entry's dependencies.
+function withBadDependency (entries :: List Entry) (dep :: Integer) -> List
+  Entry is
+  first matching case of entries :
+    when Nil then []
+    when Cons first rest then
+      Cons (first with dependsOn = Cons dep first.dependsOn) rest
+  end case
+end function
+
+-- Helpers over entries.
+
+function plainEntries (questions :: List Text) -> List Entry is
+  first matching case of questions :
+    when Nil then []
+    when Cons q rest then Cons (Entry record{question = q, dependsOn = []})
+        (plainEntries rest)
+  end case
+end function
+
+function hasDependency (entry :: Entry) -> Bool is not (prelude.isEmpty
+    entry.dependsOn)
+end function
+
+function depsAt (entries :: List Entry) (i :: Integer) -> List Integer is
+  first matching case of prelude.at i entries :
+    when Present entry then entry.dependsOn
+    when Absent then []
+  end case
+end function
+
+-- Every one of `xs` is in `done`.
+function allIn (xs :: List Integer) (done :: List Integer) -> Bool is
+  first matching case of xs :
+    when Nil then true
+    when Cons x rest then (x in done) && allIn rest done
+  end case
+end function
+
+function isReady (entries :: List Entry) (done :: List Integer) (i :: Integer)
+  -> Bool is
+  not (i in done) && allIn (depsAt entries i) done
+end function
+
+-- Every index in `order` comes after all of its dependencies.
+function dependenciesFirst (entries :: List Entry) (done :: List Integer) (order
+  :: List Integer) -> Bool is
+  first matching case of order :
+    when Nil then true
+    when Cons i rest then
+      allIn (depsAt entries i) done
+        && dependenciesFirst entries (done ++ [i]) rest
+  end case
+end function
+
+-- The reference resolution order: at every step, the smallest index whose
+-- dependencies have all resolved, including one the previous step unlocked.
+function firstReady (entries :: List Entry) (done :: List Integer) (candidates
+  :: List Integer) -> Maybe Integer is
+  first matching case of candidates :
+    when Nil then Absent
+    when Cons i rest then
+      if isReady entries done i then Present i else firstReady entries done rest
+      end if
+  end case
+end function
+
+function resolveFrom (entries :: List Entry) (done :: List Integer) (fuel ::
+  Whole) -> List Integer is
+  if fuel = 0 then done else
+    (first matching case of firstReady entries done (prelude.range 0
+      (prelude.length entries)) :
+      when Present i then resolveFrom entries (done ++ [i]) (fuel - 1)
+      when Absent then done
+    end case)
+  end if
+end function
+
+function referenceOrder (entries :: List Entry) -> List Integer is
+  resolveFrom entries [] (prelude.length entries)
+end function
+
+-- Laws: construction.
+
+law "|plain sub-questions become dependency-free entries| is
+  description :
+    "Sub-questions given as strings normalize to entries with no dependencies;
+    no sub-questions is atomic, and one or more is flat."
+  end description
+  definition :
+    for all (q :: Text) (questions :: List Text) =>
+      (decomposeQuestions q questions).subQuestions = plainEntries questions
+      and (decomposeQuestions q questions).strategy
+      = (if prelude.isEmpty questions then Atomic else Flat end if)
+    end for all
+  end definition
+  example "|no sub-questions is atomic| :
+    q = "What is a GenServer?"
+    questions = []
+    expect (decomposeQuestions q questions).strategy = Atomic
+    expect (decomposeQuestions q questions).subQuestions = []
+  end example
+  example "|two strings are flat| :
+    q = "Compare Task and GenServer"
+    questions = ["What is Task?", "What is GenServer?"]
+    expect (decomposeQuestions q questions).strategy = Flat
+    expect (decomposeQuestions q questions).subQuestions = [
+      Entry record{question = "What is Task?", dependsOn = []},
+      Entry record{question = "What is GenServer?", dependsOn = []}]
+  end example
+end law
+
+law "|the question index is dense and positional| is
+  description :
+    "The question index has exactly the keys 0 to n - 1, and key i maps to
+    the i-th sub-question."
+  end description
+  definition :
+    for all (nodes :: List Node) =>
+      prelude.keys (decompose "q" (dagOf nodes)).questionIndex = prelude.range 0
+        (prelude.length nodes) and prelude.values (decompose "q" (dagOf
+          nodes)).questionIndex = (decompose "q" (dagOf nodes)).subQuestions
+    end for all
+  end definition
+end law
+
+law "|the strategy is sequential exactly when a dependency exists| is
+  description :
+    "A decomposition with sub-questions is sequential when any sub-question
+    depends on another, and flat otherwise."
+  end description
+  definition :
+    for all (nodes :: List Node where prelude.length nodes >= 1) =>
+      (decompose "q" (dagOf nodes)).strategy
+      = (if prelude.any hasDependency (dagOf nodes) then Sequential else Flat
+      end if)
+    end for all
+  end definition
+  example "|one dependency makes it sequential| :
+    nodes = [
+    Node record{rank = 0, picks = []},
+    Node record{rank = 1, picks = [0]}]
+    expect dagOf nodes = [
+      Entry record{question = "sub-question 0", dependsOn = []},
+      Entry record{question = "sub-question 1", dependsOn = [0]}]
+    expect (decompose "q" (dagOf nodes)).strategy = Sequential
+  end example
+  example "|equal ranks keep it flat| :
+    nodes = [
+    Node record{rank = 3, picks = [1]},
+    Node record{rank = 3, picks = [0]}]
+    expect (decompose "q" (dagOf nodes)).strategy = Flat
+  end example
+end law
+
+-- Laws: rejection.
+
+law "|dependency cycles are rejected| is
+  description :
+    "A ring of two or more sub-questions, each depending on the next, cannot
+    be resolved and is rejected."
+  end description
+  definition :
+    for all (size :: Whole where size >= 2 && size <= 12) =>
+      decompose "q" (ringOf size) fails with InvalidDecomposition _
+    end for all
+  end definition
+  example "|two sub-questions waiting on each other| :
+    size = 2
+    expect ringOf size = [
+      Entry record{question = "sub-question 0", dependsOn = [1]},
+      Entry record{question = "sub-question 1", dependsOn = [0]}]
+    expect decompose "q" (ringOf size) fails with InvalidDecomposition _
+  end example
+end law
+
+law "|dependencies outside the sub-questions are rejected| is
+  description :
+    "A dependency must be the index of another sub-question: a negative
+    index, or one at or past the number of sub-questions, is rejected."
+  end description
+  definition :
+    for all
+      (nodes :: List Node where prelude.length nodes >= 1)
+      (dep :: Integer where dep < 0 || dep >= prelude.length nodes)
+    =>
+      decompose "q" (withBadDependency (dagOf nodes) dep) fails with
+        InvalidDecomposition _
+    end for all
+  end definition
+  example "|an index one past the end| :
+    nodes = [Node record{rank = 0, picks = []}]
+    dep = 1
+    expect decompose "q" (withBadDependency (dagOf nodes) dep) fails with
+      InvalidDecomposition _
+  end example
+  example "|a negative index| :
+    nodes = [Node record{rank = 0, picks = []}, Node record{rank = 0, picks =
+        []}]
+    dep = -1
+    expect decompose "q" (withBadDependency (dagOf nodes) dep) fails with
+      InvalidDecomposition _
+  end example
+end law
+
+law "|a sub-question cannot depend on itself| is
+  description :
+    "An entry that names its own index as a dependency is rejected."
+  end description
+  definition :
+    for all (nodes :: List Node where prelude.length nodes >= 1) =>
+      decompose "q" (withBadDependency (dagOf nodes) 0) fails with
+        InvalidDecomposition _
+    end for all
+  end definition
+end law
+
+-- Laws: resolution order.
+
+law "|every sub-question resolves exactly once| is
+  description :
+    "The resolution order is a permutation of the sub-question indices."
+  end description
+  definition :
+    for all (nodes :: List Node) =>
+      prelude.sameItems (resolutionOrder "q" (dagOf nodes)) (prelude.range 0
+        (prelude.length nodes))
+    end for all
+  end definition
+end law
+
+law "|dependencies resolve first| is
+  description :
+    "Every sub-question resolves after all of the sub-questions it depends on."
+  end description
+  definition :
+    for all (nodes :: List Node) =>
+      dependenciesFirst (dagOf nodes) [] (resolutionOrder "q" (dagOf nodes))
+    end for all
+  end definition
+end law
+
+law "|the smallest ready sub-question resolves next| is
+  description :
+    "At every step the smallest index whose dependencies have resolved goes
+    next, including an index the previous step just unlocked."
+  end description
+  definition :
+    for all (nodes :: List Node) =>
+      resolutionOrder "q" (dagOf nodes) = referenceOrder (dagOf nodes)
+    end for all
+  end definition
+  example "|an unlocked lower index goes before a higher ready one| :
+    nodes = [
+    Node record{rank = 1, picks = [1]},
+    Node record{rank = 0, picks = []},
+    Node record{rank = 0, picks = []}]
+    expect dagOf nodes = [
+      Entry record{question = "sub-question 0", dependsOn = [1]},
+      Entry record{question = "sub-question 1", dependsOn = []},
+      Entry record{question = "sub-question 2", dependsOn = []}]
+    expect resolutionOrder "q" (dagOf nodes) = [1, 0, 2]
+  end example
+  example "|a dependency on a later index| :
+    nodes = [
+    Node record{rank = 1, picks = [2]},
+    Node record{rank = 0, picks = []},
+    Node record{rank = 0, picks = []}]
+    expect resolutionOrder "q" (dagOf nodes) = [1, 2, 0]
+  end example
+end law
+
+law "|flat decompositions resolve in positional order| is
+  description :
+    "With no dependencies, sub-questions resolve in the order they were given;
+    an atomic decomposition resolves nothing."
+  end description
+  definition :
+    for all (questions :: List Text) =>
+      resolutionOrder "q" (plainEntries questions) = prelude.range 0
+        (prelude.length questions)
+    end for all
+  end definition
+  example "|atomic| :
+    questions = []
+    expect resolutionOrder "q" (plainEntries questions) = []
+  end example
+  example "|three in a row| :
+    questions = ["a", "b", "c"]
+    expect resolutionOrder "q" (plainEntries questions) = [0, 1, 2]
+  end example
+end law
+end unit
