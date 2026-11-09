@@ -8,6 +8,8 @@ Elixir these are StreamData properties inside ExUnit.
 | Specification | Covers |
 | --- | --- |
 | `laws/decomposition.lawspec` | `Cake.Decomposition.Result`: `new/2` and `topological_order/1` |
+| `laws/fakes.lawspec` | `Cake.Laws.FakeUnit`, the test retrieval unit: it carries generated data through `Cake.Citable` and `Cake.Promptable` unchanged, and meets the five-key `Citable` contract |
+| `laws/shared.lawspec` | no laws: types and checked definitions other specifications import (see "Shared types" below) |
 
 ## Why a separate Mix project
 
@@ -19,10 +21,33 @@ Elixir these are StreamData properties inside ExUnit.
   dialyzer or coverage gates, and it should not be.
 
 So this project compiles only the Cake source files listed in `@cake_sources`
-in `mix.exs`, never the application. It runs in the `laws` job of
+in `mix.exs`, never the application (#326 chose this over depending on all of
+Cake as a path dependency). It runs in the `laws` job of
 `.github/workflows/quality.yml`. A covered module that gains a dependency on
-another Cake module needs that module added to `@cake_sources`; until it is,
-the compile fails.
+another Cake module needs that module added to `@cake_sources`.
+
+A Cake module that calls modules outside `@cake_sources` in functions no law
+exercises still compiles, with undefined-module warnings. This project is not
+built with `--warnings-as-errors`, so those warnings are expected; a law that
+reaches such a call fails with `UndefinedFunctionError`, which says which
+module to add.
+
+## Hex dependencies
+
+Cake's own dependencies that covered modules need are pinned in `mix.exs` to
+the exact versions in Cake's `mix.lock`, transitive ones included in this
+project's `mix.lock`, so a covered module behaves here as it does in Cake:
+
+- `boundary` (`runtime: false`): for the many Cake modules that `use Boundary`.
+  Its compiler is not enabled here; the boundary gate is Cake's.
+- `ecto`: for `Cake.Schema`, schemas and changesets, `Ecto.UUID`. No Repo and
+  no database.
+- `jason`: for structs that derive `Jason.Encoder`.
+
+When Cake's lock moves one of these, move it here too. `stream_data` is the
+exception: it is pinned to the version LawSpec's Elixir target requires.
+Advisories `mix deps.get` reports for these packages are Cake's own (the
+report-only backlog, #206); this project is test-only and never deployed.
 
 ## Layout
 
@@ -30,15 +55,68 @@ the compile fails.
 | --- | --- | --- |
 | `laws/*.lawspec` | you | the specifications |
 | `lawspec.edn` | you | the manifest: sources, verification layers, the Elixir target, and its native failure mappings |
-| `lib/cake_laws_*.ex` | you | adapters: each translates LawSpec's generated data to and from the Cake module it covers |
+| `lib/cake_laws_<unit>.ex` | you | adapters: each translates LawSpec's generated data to and from the Cake module it covers |
+| `lib/cake_laws/*.ex` | you | support modules adapters share, such as `Cake.Laws.FakeUnit` |
 | `mix.exs`, `test/test_helper.exs` | you | the Mix project, set up as LawSpec's Elixir target guide asks |
 | `.lawspec/generated.json` | LawSpec | the ownership manifest; commit it |
-| everything else in `lib/`, `src/`, `test/` | LawSpec | generated; never edit by hand |
+| everything else in `lib/` (including `lib/cake_laws_<unit>_definitions.ex`), `src/`, `test/` | LawSpec | generated; never edit by hand |
 
 `Result.new/2` raises `ArgumentError` for an invalid graph.
 `lawspec.edn` maps that exception to the spec's `InvalidDecomposition`
 failure under `:native-bindings :failures`, so the adapter lets it
 propagate instead of rescuing it.
+
+## Shared types and fakes
+
+**Shared types.** `laws/shared.lawspec` (`cake.laws.shared`) holds types and
+checked definitions more than one specification needs, so they are declared
+once:
+
+- `CitableMeta`: a retrieval unit's `Cake.Citable` metadata, less `:extras`.
+- `Segment` and `render`: LLM response text as plain text and `[N]` markers,
+  rendered to the text Cake parses. `Plain` text never contains `[` or `]`.
+
+Import them by name, as `laws/fakes.lawspec` does:
+
+```lawspec fragment
+import cake.laws.shared as shared (CitableMeta, Segment, render)
+```
+
+An imported type stays `cake.laws.shared`'s, so its values are the same in
+every importer. Generated Elixir names it `LawSpec.Data.<Name>`
+(`LawSpec.Data.CitableMeta`), adding the unit as a prefix only when the name
+collides with another unit's (the pilot's `Entry` became
+`LawSpec.Data.CakeLawsDecompositionTypeEntry`). Imported checked definitions
+are copied into the importer. Adapter signatures and laws can't be imported;
+each unit states its own.
+
+Add a type here once a second specification needs it. `CitableMeta` and
+`Segment` are here already because the citations and responses units (#327,
+#328) both build on them.
+
+**Fake retrieval units.** Cake code that dispatches through `Cake.Citable` or
+`Cake.Promptable` (`Citations`, `Responses`, `Candidates`, `Prompt`,
+`Conversation`) needs a struct implementing both. Adapters use
+`Cake.Laws.FakeUnit` (`lib/cake_laws/fake_unit.ex`): `FakeUnit.new(meta,
+prompt_text)` from a generated `CitableMeta`, and
+`FakeUnit.to_citable_meta/1` back. `laws/fakes.lawspec` pins that the fake
+returns exactly what it was given, so a specification that uses it tests
+Cake's code, not the fake. Construct the struct directly when an adapter
+needs `:extras` or a non-text `:id`.
+
+## Generating text: two caveats
+
+- **Code points, not graphemes.** LawSpec's `prelude.length` and text
+  operations count Unicode code points; Elixir's `String.length/1` and
+  `String.slice/3` count grapheme clusters. They differ on combining marks,
+  emoji sequences and `"\r\n"`. A law about a length or a slice of generated
+  text holds only if the text is restricted (to ASCII, say) or the adapter
+  binds a native length.
+- **Float64.** LawSpec's `Float64` has no portable order, and exact laws
+  over float arithmetic are rarely true. Where Cake only compares or stores a
+  float (relevance scores, boosts), generate an exact number such as
+  `Integer` hundredths and convert it in the adapter. Where Cake computes with
+  floats (cosine similarity), keep the property in StreamData.
 
 ## Running locally
 
@@ -75,6 +153,10 @@ A new specification for another module follows the same steps:
 1. Write `laws/<name>.lawspec` with a unit named `cake.laws.<name>`.
    - The `cake.laws.` prefix keeps the adapter module (`Cake.Laws.<Name>`)
      out of Cake's own namespace.
-2. Add the module's source file to `@cake_sources`.
-3. Run `npx lawspec generate` and implement the adapter stub it writes.
-4. Add the specification to the table above.
+2. Add the module's source file to `@cake_sources`, and any hex dependency it
+   needs (see "Hex dependencies"; pin Cake's locked version).
+3. Import shared types from `cake.laws.shared` instead of redeclaring them,
+   and use `Cake.Laws.FakeUnit` for retrieval units.
+4. Run `npx lawspec fmt`, then `npx lawspec generate`, and implement the
+   adapter stub it writes.
+5. Add the specification to the table above.

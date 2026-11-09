@@ -25,7 +25,12 @@
     resolve_from/5,
     ring_from/5,
     ring_of/3,
-    with_bad_dependency/4
+    with_bad_dependency/4,
+    citable_metadata/3,
+    metadata_keys/3,
+    prompt_context/4,
+    cake_laws_shared_render/3,
+    render/3
 ]).
 
 %% matchersMatchesRegex — <lawspec.matchers>:47
@@ -595,6 +600,205 @@ with_bad_dependency(_Schema, _Symbols, Entries, Dep) ->
                     lawspec_typed:from_dynamic_list_entry(Entries),
                     Dep
                 )
+            )
+        end
+    ).
+
+%% citableMetadata — laws/fakes.lawspec:12
+citable_metadata(Schema, _Symbols, CitableMeta) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.fakes::citableMetadata">>,
+        fun() ->
+            NativeCitableMeta = lawspec_beam_schema:to_native(
+                CitableMeta,
+                {<<"cake.laws.shared::type::CitableMeta">>, []},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.Fakes':citable_metadata(NativeCitableMeta),
+                {<<"cake.laws.shared::type::CitableMeta">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% metadataKeys — laws/fakes.lawspec:15
+metadata_keys(Schema, _Symbols, CitableMeta) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.fakes::metadataKeys">>,
+        fun() ->
+            NativeCitableMeta = lawspec_beam_schema:to_native(
+                CitableMeta,
+                {<<"cake.laws.shared::type::CitableMeta">>, []},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.Fakes':metadata_keys(NativeCitableMeta),
+                {<<"List">>, [{<<"Text">>, []}]},
+                Schema
+            )
+        end
+    ).
+
+%% promptContext — laws/fakes.lawspec:19
+prompt_context(Schema, _Symbols, CitableMeta, Text) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.fakes::promptContext">>,
+        fun() ->
+            NativeCitableMeta = lawspec_beam_schema:to_native(
+                CitableMeta,
+                {<<"cake.laws.shared::type::CitableMeta">>, []},
+                Schema
+            ),
+            NativeText = lawspec_beam_schema:to_native(Text, {<<"Text">>, []}, Schema),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.Fakes':prompt_context(NativeCitableMeta, NativeText),
+                {<<"Text">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% cakeLawsSharedRender — laws/shared.lawspec:37
+cake_laws_shared_render(Schema, Symbols, Segments) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.fakes::cakeLawsSharedRender">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Segments,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> <<>> end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:helper(
+                                    <<"append">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            Selection,
+                                            fun(It_2) ->
+                                                lawspec_beam_schema:match(
+                                                    It_2,
+                                                    #{
+                                                        <<"cake.laws.shared::type::Segment::Plain">> => fun(
+                                                            [MatchSelection]
+                                                        ) ->
+                                                            MatchSelection
+                                                        end,
+                                                        <<"cake.laws.shared::type::Segment::Marker">> => fun(
+                                                            [MatchSelection_2]
+                                                        ) ->
+                                                            lawspec_beam_runtime:helper(
+                                                                <<"append">>,
+                                                                [
+                                                                    lawspec_beam_runtime:helper(
+                                                                        <<"append">>,
+                                                                        [
+                                                                            <<"[">>,
+                                                                            lawspec_beam_runtime:helper(
+                                                                                <<"textOf">>,
+                                                                                [MatchSelection_2],
+                                                                                [<<"BigUInt">>],
+                                                                                64
+                                                                            )
+                                                                        ],
+                                                                        [<<"Text">>, <<"Text">>],
+                                                                        64
+                                                                    ),
+                                                                    <<"]">>
+                                                                ],
+                                                                [<<"Text">>, <<"Text">>],
+                                                                64
+                                                            )
+                                                        end
+                                                    }
+                                                )
+                                            end
+                                        ),
+                                        lawspec_definitions:cake_laws_shared_render(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2
+                                        )
+                                    ],
+                                    [<<"Text">>, <<"Text">>],
+                                    64
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% render — laws/shared.lawspec:37
+render(Schema, Symbols, Segments) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.shared::render">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Segments,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> <<>> end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:helper(
+                                    <<"append">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            Selection,
+                                            fun(It_2) ->
+                                                lawspec_beam_schema:match(
+                                                    It_2,
+                                                    #{
+                                                        <<"cake.laws.shared::type::Segment::Plain">> => fun(
+                                                            [MatchSelection]
+                                                        ) ->
+                                                            MatchSelection
+                                                        end,
+                                                        <<"cake.laws.shared::type::Segment::Marker">> => fun(
+                                                            [MatchSelection_2]
+                                                        ) ->
+                                                            lawspec_beam_runtime:helper(
+                                                                <<"append">>,
+                                                                [
+                                                                    lawspec_beam_runtime:helper(
+                                                                        <<"append">>,
+                                                                        [
+                                                                            <<"[">>,
+                                                                            lawspec_beam_runtime:helper(
+                                                                                <<"textOf">>,
+                                                                                [MatchSelection_2],
+                                                                                [<<"BigUInt">>],
+                                                                                64
+                                                                            )
+                                                                        ],
+                                                                        [<<"Text">>, <<"Text">>],
+                                                                        64
+                                                                    ),
+                                                                    <<"]">>
+                                                                ],
+                                                                [<<"Text">>, <<"Text">>],
+                                                                64
+                                                            )
+                                                        end
+                                                    }
+                                                )
+                                            end
+                                        ),
+                                        lawspec_definitions:render(Schema, Symbols, Selection_2)
+                                    ],
+                                    [<<"Text">>, <<"Text">>],
+                                    64
+                                )
+                            end
+                        }
+                    )
+                end
             )
         end
     ).

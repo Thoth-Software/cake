@@ -1,0 +1,47 @@
+unit cake.laws.shared
+
+-- Types and checked definitions that several Cake specifications share.
+-- Import what a unit needs, by name:
+--
+--   import cake.laws.shared as shared (CitableMeta, Segment, render)
+--
+-- Imported types stay this unit's types, so a value means the same thing in
+-- every importer. Imported checked definitions are copied into the importer.
+
+-- Text with no square brackets, so it can never form or break a `[N]` marker.
+refinement PlainText is
+  (t :: Text where not (t contains "[") && not (t contains "]"))
+end refinement
+
+-- One piece of LLM response text: plain text, or a `[N]` citation marker.
+type Segment is one of
+  | Plain of type PlainText
+  | Marker of type Whole
+end type
+
+-- The `Cake.Citable` metadata of one retrieval unit
+-- (lib/cake/citable.ex), less `:extras`, which stays an Elixir map in
+-- `Cake.Laws.FakeUnit` until a specification needs it. `id` is text here;
+-- the protocol allows any term.
+type CitableMeta is a record
+{
+  id :: Text
+  label :: Text
+  preview :: Text
+  sourceRef :: Maybe Text
+}
+end type
+
+-- Response text from its segments: plain text verbatim, and marker `n` as
+-- `[n]`.
+function render (segments :: List Segment) -> Text is
+  first matching case of segments :
+    when Nil then ""
+    when Cons segment rest then
+      (first matching case of segment :
+        when Plain t then t
+        when Marker n then "[" ++ prelude.textOf n ++ "]"
+      end case) ++ render rest
+  end case
+end function
+end unit
