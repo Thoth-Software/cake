@@ -143,6 +143,104 @@ schema(_Symbols) ->
                 ]
             },
             #{
+                name => <<"cake.laws.citations::type::Citation">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.citations::type::Citation::Citation">>,
+                        fields => [
+                            {<<"index">>, {<<"BigUInt">>, []}},
+                            {<<"metadata">>, {<<"cake.laws.shared::type::CitableMeta">>, []}}
+                        ],
+                        encode => fun([Index, Metadata]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Citation',
+                                index => Index,
+                                metadata => Metadata
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Citation',
+                                        index := Index,
+                                        metadata := Metadata
+                                    }
+                                ) ->
+                                    {ok, [Index, Metadata]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.citations::type::Extraction">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.citations::type::Extraction::Extraction">>,
+                        fields => [
+                            {
+                                <<"valid">>,
+                                {<<"List">>, [{<<"cake.laws.citations::type::Citation">>, []}]}
+                            },
+                            {<<"hallucinated">>, {<<"List">>, [{<<"BigUInt">>, []}]}}
+                        ],
+                        encode => fun([Valid, Hallucinated]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Extraction',
+                                valid => Valid,
+                                hallucinated => Hallucinated
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Extraction',
+                                        valid := Valid,
+                                        hallucinated := Hallucinated
+                                    }
+                                ) ->
+                                    {ok, [Valid, Hallucinated]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.citations::type::Slot">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.citations::type::Slot::Slot">>,
+                        fields => [
+                            {<<"key">>, {<<"BigUInt">>, []}},
+                            {<<"meta">>, {<<"cake.laws.shared::type::CitableMeta">>, []}}
+                        ],
+                        encode => fun([Key, Meta]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.Slot', key => Key, meta => Meta}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Slot',
+                                        key := Key,
+                                        meta := Meta
+                                    }
+                                ) ->
+                                    {ok, [Key, Meta]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
                 name => <<"cake.laws.decomposition::type::Entry">>,
                 parameters => 0,
                 constructors => [

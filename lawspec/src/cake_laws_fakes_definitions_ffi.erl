@@ -7,7 +7,7 @@ cake_laws_shared_render(Segments) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
     lawspec_beam_schema:to_native(
-        lawspec_definitions:cake_laws_shared_render(
+        lawspec_definitions:cake_laws_shared_render_2(
             Schema,
             Symbols,
             lawspec_beam_schema:from_native(

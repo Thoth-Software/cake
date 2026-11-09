@@ -329,9 +329,9 @@ law_prompt_context_is_the_text_the_fake_was_given(Schema, Symbols, [Meta, Segmen
             Schema,
             Symbols,
             Meta,
-            lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments)
+            lawspec_definitions:cake_laws_shared_render_2(Schema, Symbols, Segments)
         ),
-        lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments),
+        lawspec_definitions:cake_laws_shared_render_2(Schema, Symbols, Segments),
         ?LAW_PROMPT_CONTEXT_IS_THE_TEXT_THE_FAKE_WAS_GIVEN
     ).
 
@@ -1047,7 +1047,7 @@ law_prompt_context_is_the_text_the_fake_was_given__a_marker_passes_through() ->
         ?LAW_PROMPT_CONTEXT_IS_THE_TEXT_THE_FAKE_WAS_GIVEN
     ),
     lawspec_beam_runtime:assert_equal(
-        lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments),
+        lawspec_definitions:cake_laws_shared_render_2(Schema, Symbols, Segments),
         <<"see [1]">>,
         <<"|prompt context is the text the fake was given| example |a marker passes through| — laws/fakes.lawspec:73"/utf8>>
     ),
@@ -1056,7 +1056,7 @@ law_prompt_context_is_the_text_the_fake_was_given__a_marker_passes_through() ->
             Schema,
             Symbols,
             Meta,
-            lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments)
+            lawspec_definitions:cake_laws_shared_render_2(Schema, Symbols, Segments)
         ),
         <<"see [1]">>,
         <<"|prompt context is the text the fake was given| example |a marker passes through| — laws/fakes.lawspec:74"/utf8>>
