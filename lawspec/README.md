@@ -50,6 +50,7 @@ npm ci
 mix deps.get
 MIX_ENV=test mix deps.compile
 npx lawspec check
+npx lawspec fmt --check
 npx lawspec generate --check
 mix test
 ```
@@ -61,10 +62,13 @@ mix test
 ## Changing a specification
 
 Laws are tests, and Cake's ordering rule applies (CLAUDE.md "Testing:
-Ordering and Failure Handling"). Change the `.lawspec` file first, regenerate
-with `npx lawspec generate`, then change the Cake module. Commit the
-specification, the regenerated files and `.lawspec/generated.json` together.
-`lawspec generate --check` fails CI when generated files are stale.
+Ordering and Failure Handling"). Change the `.lawspec` file first, format it
+with `npx lawspec fmt`, regenerate with `npx lawspec generate`, then change
+the Cake module. Format before you regenerate: the generated tests cite
+source line numbers, so formatting after generating leaves them stale.
+Commit the specification, the regenerated files and `.lawspec/generated.json`
+together. CI fails on an unformatted specification (`lawspec fmt --check`)
+and on stale generated files (`lawspec generate --check`).
 
 A new specification for another module follows the same steps:
 

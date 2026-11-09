@@ -529,8 +529,9 @@ jobs:
     # targets require Erlang/OTP 29 (its doctor refuses any other release),
     # so this job runs its own toolchain rather than the workflow's OTP 28,
     # and lawspec/ is its own Mix project that compiles only the Cake source
-    # files its mix.exs lists, never the application. `generate --check` fails
-    # when someone edits a .lawspec file without regenerating the tests.
+    # files its mix.exs lists, never the application. `fmt --check` fails on
+    # an unformatted .lawspec file, and `generate --check` when someone edits
+    # one without regenerating the tests.
     env:
       LAWSPEC_OTP_VERSION: "29"
     defaults:
@@ -576,6 +577,9 @@ jobs:
 
       - name: Check the specification
         run: npx lawspec check
+
+      - name: Specification is formatted
+        run: npx lawspec fmt --check
 
       - name: Generated tests are up to date
         run: npx lawspec generate --check
