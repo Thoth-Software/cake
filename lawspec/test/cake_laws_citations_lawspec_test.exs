@@ -35,10 +35,10 @@ defmodule Cake.Laws.Citations.LawSpecTest do
     600_000
   )
 
-  # |every reported index is positive| — laws/citations.lawspec:247
+  # |[0] is always hallucinated against a prompt map| — laws/citations.lawspec:247
   law(
     :cake_laws_citations_lawspec_cases,
-    :law_every_reported_index_is_positive,
+    :law_law_0_is_always_hallucinated_against_a_prompt_map,
     "cake.laws.citations",
     600_000
   )

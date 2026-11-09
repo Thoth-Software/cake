@@ -101,6 +101,10 @@ defmodule Cake.CitationsTest do
       assert hallucinated == [42, 99]
     end
 
+    test "[0] is reported as hallucinated index 0" do
+      assert Citations.extract("see [0]", @chunk_map) == {[], [0]}
+    end
+
     test "text with no citation markers yields empty citations and empty hallucinations" do
       assert Citations.extract("There are no markers here.", @chunk_map) == {[], []}
     end

@@ -244,18 +244,18 @@ law "|leading zeros do not change the index| is
   end example
 end law
 
-law "|every reported index is positive| is
+law "|[0] is always hallucinated against a prompt map| is
   description :
-    "`extract/2`'s spec promises positive indices, and a chunk map built by
-    Cake.Prompt numbers from 1, so no reported index is 0, valid or
-    hallucinated. Known violation (#327): `[0]` is reported as hallucinated
-    index 0."
+    "Cake.Prompt numbers a chunk map from 1, so every valid citation's index
+    is positive, and a `[0]` marker is reported as hallucinated index 0: a
+    model citing `[0]` has made a mistake, and it surfaces as a warning."
   end description
   definition :
     for all (segments :: List Segment) (metas :: List CitableMeta) =>
       allPositive (indicesOf (extract (render (small segments)) (promptMapOf
-        metas)).valid) and allPositive (extract (render (small segments))
-          (promptMapOf metas)).hallucinated
+        metas)).valid)
+      and (if 0 in distinctMarkers (small segments) then 0 in (extract (render
+        (small segments)) (promptMapOf metas)).hallucinated else true end if)
     end for all
   end definition
   example "|[0] against a one-chunk prompt map| :
@@ -267,8 +267,8 @@ law "|every reported index is positive| is
       preview = "Processes",
       sourceRef = Absent}]
     expect render segments = "see [0]"
-    expect allPositive (extract (render segments) (promptMapOf
-      metas)).hallucinated = true
+    expect (extract (render segments) (promptMapOf metas)).valid = []
+    expect (extract (render segments) (promptMapOf metas)).hallucinated = [0]
   end example
 end law
 end unit

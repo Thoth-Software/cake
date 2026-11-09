@@ -5,12 +5,12 @@
     law_hallucinated_indices_come_in_first_appearance_test_/0,
     law_extract_is_total_and_deterministic_test_/0,
     law_leading_zeros_do_not_change_the_index_test_/0,
-    law_every_reported_index_is_positive_test_/0,
+    law_law_0_is_always_hallucinated_against_a_prompt_map_test_/0,
     law_valid_citations_come_in_first_appearance_order_case_at/1,
     law_hallucinated_indices_come_in_first_appearance_case_at/1,
     law_extract_is_total_and_deterministic_case_at/1,
     law_leading_zeros_do_not_change_the_index_case_at/1,
-    law_every_reported_index_is_positive_case_at/1
+    law_law_0_is_always_hallucinated_against_a_prompt_map_case_at/1
 ]).
 
 -define(LAW_VALID_CITATIONS_COME_IN_FIRST_APPEARANCE_ORDER,
@@ -2473,17 +2473,16 @@ law_leading_zeros_do_not_change_the_index__property() ->
         [{numtests, 100}, {constraint_tries, 10000}, {max_shrinks, 1000}]
     ).
 
--define(LAW_EVERY_REPORTED_INDEX_IS_POSITIVE,
-    <<"cake.laws.citations::|every reported index is positive|">>
+-define(LAW_LAW_0_IS_ALWAYS_HALLUCINATED_AGAINST_A_PROMPT_MAP,
+    <<"cake.laws.citations::|[0] is always hallucinated against a prompt map|">>
 ).
 
-%% |every reported index is positive| — laws/citations.lawspec:247
-%% `extract/2`'s spec promises positive indices, and a chunk map built by
-%%     Cake.Prompt numbers from 1, so no reported index is 0, valid or
-%%     hallucinated. Known violation (#327): `[0]` is reported as hallucinated
-%%     index 0.
-%% for all (segments :: List (cake.laws.shared::type::Segment)) (metas :: List (cake.laws.shared::type::CitableMeta)) => allPositive (indicesOf (match (extract (cakeLawsSharedRender (small segments)) (promptMapOf metas)) { cake.laws.citations::type::Extraction::Extraction lawspecFieldvalid lawspecFieldhallucinated -> lawspecFieldvalid })) = true and allPositive (match (extract (cakeLawsSharedRender (small segments)) (promptMapOf metas)) { cake.laws.citations::type::Extraction::Extraction lawspecFieldvalid lawspecFieldhallucinated -> lawspecFieldhallucinated }) = true end for all
-law_every_reported_index_is_positive(Schema, Symbols, [Segments, Metas]) ->
+%% |[0] is always hallucinated against a prompt map| — laws/citations.lawspec:247
+%% Cake.Prompt numbers a chunk map from 1, so every valid citation's index
+%%     is positive, and a `[0]` marker is reported as hallucinated index 0: a
+%%     model citing `[0]` has made a mistake, and it surfaces as a warning.
+%% for all (segments :: List (cake.laws.shared::type::Segment)) (metas :: List (cake.laws.shared::type::CitableMeta)) => allPositive (indicesOf (match (extract (cakeLawsSharedRender (small segments)) (promptMapOf metas)) { cake.laws.citations::type::Extraction::Extraction lawspecFieldvalid lawspecFieldhallucinated -> lawspecFieldvalid })) = true and (if let needle = 0 in let collection = distinctMarkers (small segments) in Not(allElements (collection) (item -> (needle != item))) then let needle = 0 in let collection = match (extract (cakeLawsSharedRender (small segments)) (promptMapOf metas)) { cake.laws.citations::type::Extraction::Extraction lawspecFieldvalid lawspecFieldhallucinated -> lawspecFieldhallucinated } in Not(allElements (collection) (item -> (needle != item))) else true) = true end for all
+law_law_0_is_always_hallucinated_against_a_prompt_map(Schema, Symbols, [Segments, Metas]) ->
     (lawspec_beam_runtime:assert_equal(
         lawspec_definitions:all_positive(
             Schema,
@@ -2513,44 +2512,74 @@ law_every_reported_index_is_positive(Schema, Symbols, [Segments, Metas]) ->
             )
         ),
         true,
-        ?LAW_EVERY_REPORTED_INDEX_IS_POSITIVE
+        ?LAW_LAW_0_IS_ALWAYS_HALLUCINATED_AGAINST_A_PROMPT_MAP
     ) andalso
         lawspec_beam_runtime:assert_equal(
-            lawspec_definitions:all_positive(
-                Schema,
-                Symbols,
-                lawspec_beam_schema:match(
-                    lawspec_definitions:extract(
-                        Schema,
-                        Symbols,
-                        lawspec_definitions:cake_laws_shared_render(
-                            Schema,
-                            Symbols,
-                            lawspec_definitions:small(Schema, Symbols, Segments)
-                        ),
-                        lawspec_definitions:prompt_map_of(Schema, Symbols, Metas)
-                    ),
-                    #{
-                        <<"cake.laws.citations::type::Extraction::Extraction">> => fun(
-                            [_Valid, Hallucinated]
-                        ) ->
-                            Hallucinated
-                        end
-                    }
+            case
+                lawspec_beam_runtime:bind(
+                    0,
+                    fun(Needle) ->
+                        lawspec_beam_runtime:bind(
+                            lawspec_definitions:distinct_markers(
+                                Schema,
+                                Symbols,
+                                lawspec_definitions:small(Schema, Symbols, Segments)
+                            ),
+                            fun(Collection) ->
+                                (not lists:all(fun(Item) -> (Needle =/= Item) end, Collection))
+                            end
+                        )
+                    end
                 )
-            ),
+            of
+                true ->
+                    lawspec_beam_runtime:bind(
+                        0,
+                        fun(Needle_2) ->
+                            lawspec_beam_runtime:bind(
+                                lawspec_beam_schema:match(
+                                    lawspec_definitions:extract(
+                                        Schema,
+                                        Symbols,
+                                        lawspec_definitions:cake_laws_shared_render(
+                                            Schema,
+                                            Symbols,
+                                            lawspec_definitions:small(Schema, Symbols, Segments)
+                                        ),
+                                        lawspec_definitions:prompt_map_of(Schema, Symbols, Metas)
+                                    ),
+                                    #{
+                                        <<"cake.laws.citations::type::Extraction::Extraction">> => fun(
+                                            [_Valid, Hallucinated]
+                                        ) ->
+                                            Hallucinated
+                                        end
+                                    }
+                                ),
+                                fun(Collection_2) ->
+                                    (not lists:all(
+                                        fun(Item_2) -> (Needle_2 =/= Item_2) end,
+                                        Collection_2
+                                    ))
+                                end
+                            )
+                        end
+                    );
+                false ->
+                    true
+            end,
             true,
-            ?LAW_EVERY_REPORTED_INDEX_IS_POSITIVE
+            ?LAW_LAW_0_IS_ALWAYS_HALLUCINATED_AGAINST_A_PROMPT_MAP
         )).
 
-law_every_reported_index_is_positive_plan() ->
+law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
     [
         {
             fixed,
             [
                 {
-                    "|every reported index is positive| example |[0] against a one-chunk prompt map|",
-                    fun law_every_reported_index_is_positive__law_0_against_a_one_chunk_prompt_map/0
+                    "|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map|",
+                    fun law_law_0_is_always_hallucinated_against_a_prompt_map__law_0_against_a_one_chunk_prompt_map/0
                 }
             ]
         },
@@ -3200,18 +3229,18 @@ law_every_reported_index_is_positive_plan() ->
             fun(CaseIndex, CaseFactories) ->
                 {
                     lawspec_beam_finite:description(
-                        <<"|every reported index is positive|">>,
+                        <<"|[0] is always hallucinated against a prompt map|">>,
                         CaseIndex
                     ),
                     fun() ->
                         {Schema, Symbols} = lawspec_data:context(),
                         lawspec_beam_runtime:require(
-                            law_every_reported_index_is_positive(
+                            law_law_0_is_always_hallucinated_against_a_prompt_map(
                                 Schema,
                                 Symbols,
                                 lawspec_beam_finite:values(Symbols, CaseFactories)
                             ),
-                            ?LAW_EVERY_REPORTED_INDEX_IS_POSITIVE
+                            ?LAW_LAW_0_IS_ALWAYS_HALLUCINATED_AGAINST_A_PROMPT_MAP
                         )
                     end
                 }
@@ -3221,21 +3250,24 @@ law_every_reported_index_is_positive_plan() ->
             fixed,
             [
                 {
-                    "|every reported index is positive| property",
-                    fun law_every_reported_index_is_positive__property/0
+                    "|[0] is always hallucinated against a prompt map| property",
+                    fun law_law_0_is_always_hallucinated_against_a_prompt_map__property/0
                 }
             ]
         }
     ].
 
-law_every_reported_index_is_positive_test_() ->
-    lawspec_beam_finite:plan_cases(law_every_reported_index_is_positive_plan()).
+law_law_0_is_always_hallucinated_against_a_prompt_map_test_() ->
+    lawspec_beam_finite:plan_cases(law_law_0_is_always_hallucinated_against_a_prompt_map_plan()).
 
-law_every_reported_index_is_positive_case_at(Index) ->
-    lawspec_beam_finite:case_at(law_every_reported_index_is_positive_plan(), Index).
+law_law_0_is_always_hallucinated_against_a_prompt_map_case_at(Index) ->
+    lawspec_beam_finite:case_at(
+        law_law_0_is_always_hallucinated_against_a_prompt_map_plan(),
+        Index
+    ).
 
-%% |every reported index is positive| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:269
-law_every_reported_index_is_positive__law_0_against_a_one_chunk_prompt_map() ->
+%% |[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:269
+law_law_0_is_always_hallucinated_against_a_prompt_map__law_0_against_a_one_chunk_prompt_map() ->
     {Schema, Symbols} = lawspec_data:context(),
     Segments = make_cons_4(
         [make_plain([<<"see ">>], Schema), make_cons_4([make_marker([0], Schema), []], Schema)],
@@ -3257,43 +3289,58 @@ law_every_reported_index_is_positive__law_0_against_a_one_chunk_prompt_map() ->
         Schema
     ),
     lawspec_beam_runtime:require(
-        law_every_reported_index_is_positive(Schema, Symbols, [Segments, Metas]),
-        ?LAW_EVERY_REPORTED_INDEX_IS_POSITIVE
+        law_law_0_is_always_hallucinated_against_a_prompt_map(Schema, Symbols, [Segments, Metas]),
+        ?LAW_LAW_0_IS_ALWAYS_HALLUCINATED_AGAINST_A_PROMPT_MAP
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments),
         <<"see [0]">>,
-        <<"|every reported index is positive| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:269"/utf8>>
+        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:269"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
-        lawspec_definitions:all_positive(
-            Schema,
-            Symbols,
-            lawspec_beam_schema:match(
-                lawspec_definitions:extract(
-                    Schema,
-                    Symbols,
-                    lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments),
-                    lawspec_definitions:prompt_map_of(Schema, Symbols, Metas)
-                ),
-                #{
-                    <<"cake.laws.citations::type::Extraction::Extraction">> => fun(
-                        [_Valid, Hallucinated]
-                    ) ->
-                        Hallucinated
-                    end
-                }
-            )
+        lawspec_beam_schema:match(
+            lawspec_definitions:extract(
+                Schema,
+                Symbols,
+                lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments),
+                lawspec_definitions:prompt_map_of(Schema, Symbols, Metas)
+            ),
+            #{
+                <<"cake.laws.citations::type::Extraction::Extraction">> => fun(
+                    [Valid, _Hallucinated]
+                ) ->
+                    Valid
+                end
+            }
         ),
-        true,
-        <<"|every reported index is positive| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:270"/utf8>>
+        [],
+        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:270"/utf8>>
+    ),
+    lawspec_beam_runtime:assert_equal(
+        lawspec_beam_schema:match(
+            lawspec_definitions:extract(
+                Schema,
+                Symbols,
+                lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments),
+                lawspec_definitions:prompt_map_of(Schema, Symbols, Metas)
+            ),
+            #{
+                <<"cake.laws.citations::type::Extraction::Extraction">> => fun(
+                    [_Valid, Hallucinated]
+                ) ->
+                    Hallucinated
+                end
+            }
+        ),
+        [0],
+        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:271"/utf8>>
     ).
 
-%% |every reported index is positive| property — laws/citations.lawspec:247
-law_every_reported_index_is_positive__property() ->
+%% |[0] is always hallucinated against a prompt map| property — laws/citations.lawspec:247
+law_law_0_is_always_hallucinated_against_a_prompt_map__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
-        ?LAW_EVERY_REPORTED_INDEX_IS_POSITIVE,
+        ?LAW_LAW_0_IS_ALWAYS_HALLUCINATED_AGAINST_A_PROMPT_MAP,
         'Elixir.LawSpec.Beam.StreamData':forall(
             'Elixir.LawSpec.Beam.StreamData':complete(
                 'Elixir.LawSpec.Beam.StreamData':bind(
@@ -3398,7 +3445,9 @@ law_every_reported_index_is_positive__property() ->
                     end
                 )
             ),
-            fun(Values) -> law_every_reported_index_is_positive(Schema, Symbols, Values) end
+            fun(Values) ->
+                law_law_0_is_always_hallucinated_against_a_prompt_map(Schema, Symbols, Values)
+            end
         ),
         [{numtests, 100}, {constraint_tries, 10000}, {max_shrinks, 1000}]
     ).
@@ -3751,6 +3800,8 @@ finite_literal_128(Symbols) -> [finite_literal_126(Symbols), finite_literal_126(
 
 type_big_u_int() -> {<<"BigUInt">>, []}.
 
+type_bool() -> {<<"Bool">>, []}.
+
 type_list_big_u_int() -> {<<"List">>, [{<<"BigUInt">>, []}]}.
 
 type_list_citation() -> {<<"List">>, [{<<"cake.laws.citations::type::Citation">>, []}]}.
@@ -3794,25 +3845,28 @@ make_cons(Fields, Schema) ->
 make_nil(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_big_u_int(), Schema).
 
+make_nil_2(Fields, Schema) ->
+    lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_citation(), Schema).
+
 make_cons_2(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Cons">>, Fields, type_list_slot(), Schema).
 
-make_nil_2(Fields, Schema) ->
+make_nil_3(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_slot(), Schema).
 
 make_cons_3(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Cons">>, Fields, type_list_citable_meta(), Schema).
 
-make_nil_3(Fields, Schema) ->
+make_nil_4(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_citable_meta(), Schema).
 
 make_cons_4(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Cons">>, Fields, type_list_segment(), Schema).
 
-make_nil_4(Fields, Schema) ->
+make_nil_5(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_segment(), Schema).
 
-make_nil_5(Fields, Schema) ->
+make_nil_6(Fields, Schema) ->
     lawspec_beam_schema:construct(
         <<"List::Nil">>,
         Fields,

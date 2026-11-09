@@ -196,6 +196,13 @@ defmodule Cake.ResponsesTest do
       assert result.final_text == "Cite [1] and also ."
     end
 
+    test "a [0] marker surfaces as hallucinated_citation 0" do
+      indexed = indexed_override([], %{1 => @meta_a})
+      result = Responses.process("Cite [1] and [0].", indexed)
+
+      assert result.warnings == [{:hallucinated_citation, 0}]
+    end
+
     test "empty input yields a valid Result with empty fields" do
       result = Responses.process("", [])
 
