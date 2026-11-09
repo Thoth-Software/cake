@@ -1,0 +1,26 @@
+{
+  :manifest-version 1
+  :component {
+    :name "cake-laws"
+    :version "0.1.0"
+  }
+  :language-profile "1.0-rc.2"
+  :verification {
+    :layers [:property :examples]
+  }
+  :sources ["laws"]
+  :targets [
+    {
+      :language :elixir
+      :root "."
+      :native-bindings {
+        :failures [
+          {
+            :native ["ArgumentError"]
+            :failure "cake.laws.decomposition::Rejection::InvalidDecomposition"
+          }
+        ]
+      }
+    }
+  ]
+}

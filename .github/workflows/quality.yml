@@ -520,3 +520,65 @@ jobs:
 
       - name: Dialyzer
         run: mix dialyzer --format github
+
+  laws:
+    name: LawSpec laws
+    runs-on: ubuntu-latest
+    # Checks the LawSpec specifications in lawspec/ (#323): laws over a Cake
+    # module, compiled into native StreamData properties. LawSpec's BEAM
+    # targets require Erlang/OTP 29 (its doctor refuses any other release),
+    # so this job runs its own toolchain rather than the workflow's OTP 28,
+    # and lawspec/ is its own Mix project that compiles only the Cake source
+    # files its mix.exs lists, never the application. `generate --check` fails
+    # when someone edits a .lawspec file without regenerating the tests.
+    env:
+      LAWSPEC_OTP_VERSION: "29"
+    defaults:
+      run:
+        working-directory: lawspec
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir (OTP 29)
+        id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.LAWSPEC_OTP_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: lawspec/package-lock.json
+
+      - name: Cache Mix deps + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            lawspec/deps
+            lawspec/_build
+          key: ${{ runner.os }}-laws-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('lawspec/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-laws-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Install LawSpec
+        run: npm ci
+
+      # LawSpec's doctor inspects the compiled test dependencies, so they are
+      # built before check and generate run.
+      - name: Install and compile dependencies
+        run: |
+          mix deps.get
+          mix deps.compile
+
+      - name: Check the specification
+        run: npx lawspec check
+
+      - name: Generated tests are up to date
+        run: npx lawspec generate --check
+
+      - name: Run the laws
+        run: mix test

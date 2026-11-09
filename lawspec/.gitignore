@@ -1,0 +1,9 @@
+/_build/
+/deps/
+/node_modules/
+erl_crash.dump
+
+# LawSpec keeps its cache, results, reports and failure database here; only
+# the ownership manifest is committed.
+/.lawspec/*
+!/.lawspec/generated.json

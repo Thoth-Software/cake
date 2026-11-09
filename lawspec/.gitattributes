@@ -1,0 +1,9 @@
+# Files LawSpec generates (listed in .lawspec/generated.json): collapsed in
+# GitHub diffs and left out of language statistics.
+/src/** linguist-generated=true
+/test/support/** linguist-generated=true
+/test/*_lawspec_test.exs linguist-generated=true
+/lib/lawspec/** linguist-generated=true
+/lib/lawspec_*.ex linguist-generated=true
+/lib/cake_laws_*_definitions.ex linguist-generated=true
+/.lawspec/generated.json linguist-generated=true
