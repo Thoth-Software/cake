@@ -24,4 +24,8 @@ defmodule LawSpec.Data do
   @type rejection() :: LawSpec.Data.Rejection.t()
 
   @type cake_laws_decomposition_type_node() :: LawSpec.Data.CakeLawsDecompositionTypeNode.t()
+
+  @type segment() :: LawSpec.Data.SegmentPlain.t() | LawSpec.Data.SegmentMarker.t()
+
+  @type citable_meta() :: LawSpec.Data.CitableMeta.t()
 end

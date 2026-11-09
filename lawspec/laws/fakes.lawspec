@@ -1,0 +1,77 @@
+unit cake.laws.fakes
+import cake.laws.shared as shared (CitableMeta, Segment, render)
+
+-- Laws for `Cake.Laws.FakeUnit` (lawspec/lib/cake_laws/fake_unit.ex), the
+-- retrieval unit that adapters hand to Cake code which dispatches through
+-- `Cake.Citable` and `Cake.Promptable`. Specifications that use the fake
+-- rely on it carrying generated data through both protocols unchanged; these
+-- laws keep it honest, and pin the five-key `Citable` contract it must meet
+-- like any real retrieval unit.
+
+-- `Cake.Citable.metadata/1` of a fake built from the given metadata.
+citableMetadata :: CitableMeta -> CitableMeta
+
+-- The keys of that metadata map, as text, in ascending order.
+metadataKeys :: CitableMeta -> List Text
+
+-- `Cake.Promptable.prompt_context/1` of a fake built from the given metadata
+-- and prompt text.
+promptContext :: CitableMeta -> Text -> Text
+
+law "|metadata survives protocol dispatch| is
+  description :
+    "A fake's Citable metadata is exactly the metadata it was built from."
+  end description
+  definition :
+    for all (meta :: CitableMeta) =>
+      citableMetadata meta = meta
+    end for all
+  end definition
+  example "|a unit with no source| :
+    meta = CitableMeta record{
+      id = "chunk-1",
+      label = "Programming Elixir — Page 12",
+      preview = "Pattern matching is",
+      sourceRef = Absent}
+    expect citableMetadata meta = CitableMeta record{
+      id = "chunk-1",
+      label = "Programming Elixir — Page 12",
+      preview = "Pattern matching is",
+      sourceRef = Absent}
+  end example
+end law
+
+law "|metadata has exactly the five contract keys| is
+  description :
+    "Like any retrieval unit, a fake's metadata has the keys id, label,
+    preview, source_ref and extras, and no others."
+  end description
+  definition :
+    for all (meta :: CitableMeta) =>
+      metadataKeys meta = ["extras", "id", "label", "preview", "source_ref"]
+    end for all
+  end definition
+end law
+
+law "|prompt context is the text the fake was given| is
+  description :
+    "A fake's Promptable context is its prompt text verbatim, citation
+    markers included."
+  end description
+  definition :
+    for all (meta :: CitableMeta) (segments :: List Segment) =>
+      promptContext meta (render segments) = render segments
+    end for all
+  end definition
+  example "|a marker passes through| :
+    meta = CitableMeta record{
+      id = "chunk-2",
+      label = "Elixir in Action — Page 3",
+      preview = "Processes",
+      sourceRef = Present "books/elixir-in-action.pdf"}
+    segments = [shared.Plain "see ", shared.Marker 1]
+    expect render segments = "see [1]"
+    expect promptContext meta (render segments) = "see [1]"
+  end example
+end law
+end unit

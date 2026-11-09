@@ -331,6 +331,128 @@ schema(_Symbols) ->
                             end
                     }
                 ]
+            },
+            #{
+                name => <<"cake.laws.shared::type::Segment">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.shared::type::Segment::Plain">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.SegmentPlain', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.SegmentPlain',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                ((not lawspec_beam_runtime:helper(
+                                    <<"textContains">>,
+                                    [lists:nth(1, _Fields), <<"[">>],
+                                    [
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        ),
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        )
+                                    ],
+                                    64
+                                )) andalso
+                                    (not lawspec_beam_runtime:helper(
+                                        <<"textContains">>,
+                                        [lists:nth(1, _Fields), <<"]">>],
+                                        [
+                                            lawspec_beam_schema:type_key(
+                                                lawspec_beam_schema:substitute(
+                                                    {<<"Text">>, []},
+                                                    _Known
+                                                )
+                                            ),
+                                            lawspec_beam_schema:type_key(
+                                                lawspec_beam_schema:substitute(
+                                                    {<<"Text">>, []},
+                                                    _Known
+                                                )
+                                            )
+                                        ],
+                                        64
+                                    )))
+                            end
+                        ]
+                    },
+                    #{
+                        tag => <<"cake.laws.shared::type::Segment::Marker">>,
+                        fields => [{<<"value">>, {<<"BigUInt">>, []}}],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.SegmentMarker', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.SegmentMarker',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.shared::type::CitableMeta">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.shared::type::CitableMeta::CitableMeta">>,
+                        fields => [
+                            {<<"id">>, {<<"Text">>, []}},
+                            {<<"label">>, {<<"Text">>, []}},
+                            {<<"preview">>, {<<"Text">>, []}},
+                            {<<"sourceRef">>, {<<"Maybe">>, [{<<"Text">>, []}]}}
+                        ],
+                        encode => fun([Id, Label, Preview, SourceRef]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.CitableMeta',
+                                id => Id,
+                                label => Label,
+                                preview => Preview,
+                                source_ref => SourceRef
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.CitableMeta',
+                                        id := Id,
+                                        label := Label,
+                                        preview := Preview,
+                                        source_ref := SourceRef
+                                    }
+                                ) ->
+                                    {ok, [Id, Label, Preview, SourceRef]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
             }
         ],
         64

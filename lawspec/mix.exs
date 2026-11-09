@@ -14,7 +14,14 @@ defmodule CakeLaws.MixProject do
 
   # Mix takes a source outside the project only as an absolute path.
   @cake_root Path.expand("..", __DIR__)
-  @cake_sources Enum.map(["lib/cake/decomposition/result.ex"], &Path.join(@cake_root, &1))
+  @cake_sources Enum.map(
+                  [
+                    "lib/cake/citable.ex",
+                    "lib/cake/decomposition/result.ex",
+                    "lib/cake/promptable.ex"
+                  ],
+                  &Path.join(@cake_root, &1)
+                )
 
   def project do
     [
@@ -23,12 +30,25 @@ defmodule CakeLaws.MixProject do
       elixir: "~> 1.20",
       erlc_paths: ["src"] ++ test_support(),
       elixirc_paths: ["lib"] ++ @cake_sources ++ test_support(),
-      deps: [{:stream_data, "== 1.4.0", only: :test}]
+      deps: deps()
     ]
   end
 
   def application do
     [extra_applications: [:logger]]
+  end
+
+  # Cake's own dependencies are pinned to the exact versions in Cake's
+  # mix.lock, so a covered module behaves here as it does in Cake. When Cake's
+  # lock moves one of them, move it here too. StreamData is pinned to the
+  # version LawSpec's Elixir target requires, not to Cake's.
+  defp deps do
+    [
+      {:boundary, "== 0.10.4", runtime: false},
+      {:ecto, "== 3.13.5"},
+      {:jason, "== 1.4.4"},
+      {:stream_data, "== 1.4.0", only: :test}
+    ]
   end
 
   defp test_support, do: if(Mix.env() == :test, do: ["test/support"], else: [])
