@@ -228,19 +228,36 @@ end law
 
 law "|leading zeros do not change the index| is
   description :
-    "A marker's digits are read as a number, so `[007]` cites index 7."
+    "A marker's digits are read as a number, so `[007]` resolves to the
+    chunk-map entry at index 7: a valid citation with that entry's metadata,
+    and nothing hallucinated."
   end description
   definition :
-    for all (n :: UInt8) =>
-      (extract ("[00" ++ prelude.textOf n ++ "]") (prelude.keyValOf
-        [])).hallucinated = [n]
+    for all (n :: Whole where n <= 255) (meta :: CitableMeta) =>
+      extract ("[00" ++ prelude.textOf n ++ "]") (prelude.put n meta
+        (prelude.keyValOf [])) = Extraction record{ valid = [Citation
+          record{index = n, metadata = meta}], hallucinated = []}
     end for all
   end definition
-  example "|[007] is index 7| :
+  example "|[007] resolves to entry 7| :
     n = 7
+    meta = CitableMeta record{
+      id = "chunk-7",
+      label = "Programming Elixir — Page 7",
+      preview = "Seven",
+      sourceRef = Absent}
     expect "[00" ++ prelude.textOf n ++ "]" = "[007]"
-    expect (extract ("[00" ++ prelude.textOf n ++ "]") (prelude.keyValOf
-      [])).hallucinated = [7]
+    expect extract "[007]" (prelude.put n meta (prelude.keyValOf [])) =
+      Extraction record{
+        valid = [
+        Citation record{
+          index = 7,
+          metadata = CitableMeta record{
+            id = "chunk-7",
+            label = "Programming Elixir — Page 7",
+            preview = "Seven",
+            sourceRef = Absent}}],
+        hallucinated = []}
   end example
 end law
 

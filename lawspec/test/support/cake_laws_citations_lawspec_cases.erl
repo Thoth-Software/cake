@@ -749,19 +749,19 @@ law_valid_citations_come_in_first_appearance_order_case_at(Index) ->
 %% |valid citations come in first-appearance order with their metadata| example |a repeated marker is cited once, where it first appears| — laws/citations.lawspec:192
 law_valid_citations_come_in_first_appearance_order__a_repeated_marker_is_cited_once_where_it_first() ->
     {Schema, Symbols} = lawspec_data:context(),
-    Segments = make_cons_4(
+    Segments = make_cons_5(
         [
             make_marker([2], Schema),
-            make_cons_4(
+            make_cons_5(
                 [
                     make_plain([<<" and ">>], Schema),
-                    make_cons_4(
+                    make_cons_5(
                         [
                             make_marker([1], Schema),
-                            make_cons_4(
+                            make_cons_5(
                                 [
                                     make_plain([<<" again ">>], Schema),
-                                    make_cons_4([make_marker([2], Schema), []], Schema)
+                                    make_cons_5([make_marker([2], Schema), []], Schema)
                                 ],
                                 Schema
                             )
@@ -774,7 +774,7 @@ law_valid_citations_come_in_first_appearance_order__a_repeated_marker_is_cited_o
         ],
         Schema
     ),
-    Slots = make_cons_2(
+    Slots = make_cons_3(
         [
             make_slot(
                 [
@@ -791,7 +791,7 @@ law_valid_citations_come_in_first_appearance_order__a_repeated_marker_is_cited_o
                 ],
                 Schema
             ),
-            make_cons_2(
+            make_cons_3(
                 [
                     make_slot(
                         [
@@ -1698,19 +1698,19 @@ law_hallucinated_indices_come_in_first_appearance_case_at(Index) ->
 %% |hallucinated indices come in first-appearance order| example |later markers stay later| — laws/citations.lawspec:213
 law_hallucinated_indices_come_in_first_appearance__later_markers_stay_later() ->
     {Schema, Symbols} = lawspec_data:context(),
-    Segments = make_cons_4(
+    Segments = make_cons_5(
         [
             make_marker([9], Schema),
-            make_cons_4(
+            make_cons_5(
                 [
                     make_plain([<<" ">>], Schema),
-                    make_cons_4(
+                    make_cons_5(
                         [
                             make_marker([3], Schema),
-                            make_cons_4(
+                            make_cons_5(
                                 [
                                     make_plain([<<" ">>], Schema),
-                                    make_cons_4([make_marker([9], Schema), []], Schema)
+                                    make_cons_5([make_marker([9], Schema), []], Schema)
                                 ],
                                 Schema
                             )
@@ -2256,55 +2256,68 @@ law_extract_is_total_and_deterministic__property() ->
 ).
 
 %% |leading zeros do not change the index| — laws/citations.lawspec:229
-%% A marker's digits are read as a number, so `[007]` cites index 7.
-%% for all (n :: UInt8) => match (extract (Append(Append("[00", TextOf(n)), "]")) (keyValOf (List::Nil()))) { cake.laws.citations::type::Extraction::Extraction lawspecFieldvalid lawspecFieldhallucinated -> lawspecFieldhallucinated } = List::Cons((n :: BigUInt), List::Nil()) end for all
-law_leading_zeros_do_not_change_the_index(Schema, Symbols, [N]) ->
+%% A marker's digits are read as a number, so `[007]` resolves to the
+%%     chunk-map entry at index 7: a valid citation with that entry's metadata,
+%%     and nothing hallucinated.
+%% for all (n :: BigUInt) (meta :: cake.laws.shared::type::CitableMeta) => extract (Append(Append("[00", TextOf(n)), "]")) (keyValPut n meta (keyValOf (List::Nil()))) = let _lawspecRecordField0 = List::Cons(let _lawspecRecordField0 = n in let _lawspecRecordField1 = meta in cake.laws.citations::type::Citation::Citation(_lawspecRecordField0, _lawspecRecordField1), List::Nil()) in let _lawspecRecordField1 = List::Nil() in cake.laws.citations::type::Extraction::Extraction(_lawspecRecordField0, _lawspecRecordField1) end for all
+law_leading_zeros_do_not_change_the_index(Schema, Symbols, [N, Meta]) ->
     lawspec_beam_runtime:assert_equal(
-        lawspec_beam_schema:match(
-            lawspec_definitions:extract(
+        lawspec_definitions:extract(
+            Schema,
+            Symbols,
+            lawspec_beam_runtime:helper(
+                <<"append">>,
+                [
+                    lawspec_beam_runtime:helper(
+                        <<"append">>,
+                        [
+                            <<"[00">>,
+                            lawspec_beam_runtime:helper(<<"textOf">>, [N], [<<"BigUInt">>], 64)
+                        ],
+                        [<<"Text">>, <<"Text">>],
+                        64
+                    ),
+                    <<"]">>
+                ],
+                [<<"Text">>, <<"Text">>],
+                64
+            ),
+            lawspec_definitions:lawspec_collections_key_val_put_big_u_int_citable_meta_key_val_big_u_int_citable_meta(
                 Schema,
                 Symbols,
-                lawspec_beam_runtime:helper(
-                    <<"append">>,
-                    [
-                        lawspec_beam_runtime:helper(
-                            <<"append">>,
-                            [
-                                <<"[00">>,
-                                lawspec_beam_runtime:helper(<<"textOf">>, [N], [<<"UInt8">>], 64)
-                            ],
-                            [<<"Text">>, <<"Text">>],
-                            64
-                        ),
-                        <<"]">>
-                    ],
-                    [<<"Text">>, <<"Text">>],
-                    64
-                ),
+                N,
+                Meta,
                 lawspec_definitions:lawspec_collections_key_val_of_list_entry_big_u_int_citable_meta(
                     Schema,
                     Symbols,
                     []
                 )
-            ),
-            #{
-                <<"cake.laws.citations::type::Extraction::Extraction">> => fun(
-                    [_Valid, Hallucinated]
-                ) ->
-                    Hallucinated
-                end
-            }
+            )
         ),
-        make_cons(
-            [
-                lawspec_beam_schema:validate(
-                    lawspec_beam_scalar:convert(N, type_big_u_int(), 64),
-                    type_big_u_int(),
-                    Schema
-                ),
-                []
-            ],
-            Schema
+        lawspec_beam_runtime:bind(
+            make_cons_2(
+                [
+                    lawspec_beam_runtime:bind(
+                        N,
+                        fun(RecordField) ->
+                            lawspec_beam_runtime:bind(
+                                Meta,
+                                fun(RecordField_2) ->
+                                    make_citation([RecordField, RecordField_2], Schema)
+                                end
+                            )
+                        end
+                    ),
+                    []
+                ],
+                Schema
+            ),
+            fun(RecordField) ->
+                lawspec_beam_runtime:bind(
+                    [],
+                    fun(RecordField_2) -> make_extraction([RecordField, RecordField_2], Schema) end
+                )
+            end
         ),
         ?LAW_LEADING_ZEROS_DO_NOT_CHANGE_THE_INDEX
     ).
@@ -2315,8 +2328,8 @@ law_leading_zeros_do_not_change_the_index_plan() ->
             fixed,
             [
                 {
-                    "|leading zeros do not change the index| example |[007] is index 7|",
-                    fun law_leading_zeros_do_not_change_the_index__law_007_is_index_7/0
+                    "|leading zeros do not change the index| example |[007] resolves to entry 7|",
+                    fun law_leading_zeros_do_not_change_the_index__law_007_resolves_to_entry_7/0
                 }
             ]
         },
@@ -2325,8 +2338,78 @@ law_leading_zeros_do_not_change_the_index_plan() ->
             {
                 branches,
                 [
-                    {{values, [fun(_Symbols) -> 0 end]}, {copies, 3}},
-                    {{values, [fun(_Symbols) -> 255 end]}, {copies, 1}}
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_94(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    }
                 ]
             },
             fun(CaseIndex, CaseFactories) ->
@@ -2366,12 +2449,21 @@ law_leading_zeros_do_not_change_the_index_test_() ->
 law_leading_zeros_do_not_change_the_index_case_at(Index) ->
     lawspec_beam_finite:case_at(law_leading_zeros_do_not_change_the_index_plan(), Index).
 
-%% |leading zeros do not change the index| example |[007] is index 7| — laws/citations.lawspec:241
-law_leading_zeros_do_not_change_the_index__law_007_is_index_7() ->
+%% |leading zeros do not change the index| example |[007] resolves to entry 7| — laws/citations.lawspec:249
+law_leading_zeros_do_not_change_the_index__law_007_resolves_to_entry_7() ->
     {Schema, Symbols} = lawspec_data:context(),
     N = 7,
+    Meta = make_citable_meta(
+        [
+            <<"chunk-7">>,
+            <<"Programming Elixir — Page 7"/utf8>>,
+            <<"Seven">>,
+            make_absent([], Schema)
+        ],
+        Schema
+    ),
     lawspec_beam_runtime:require(
-        law_leading_zeros_do_not_change_the_index(Schema, Symbols, [N]),
+        law_leading_zeros_do_not_change_the_index(Schema, Symbols, [N, Meta]),
         ?LAW_LEADING_ZEROS_DO_NOT_CHANGE_THE_INDEX
     ),
     lawspec_beam_runtime:assert_equal(
@@ -2380,7 +2472,10 @@ law_leading_zeros_do_not_change_the_index__law_007_is_index_7() ->
             [
                 lawspec_beam_runtime:helper(
                     <<"append">>,
-                    [<<"[00">>, lawspec_beam_runtime:helper(<<"textOf">>, [N], [<<"UInt8">>], 64)],
+                    [
+                        <<"[00">>,
+                        lawspec_beam_runtime:helper(<<"textOf">>, [N], [<<"BigUInt">>], 64)
+                    ],
                     [<<"Text">>, <<"Text">>],
                     64
                 ),
@@ -2390,46 +2485,53 @@ law_leading_zeros_do_not_change_the_index__law_007_is_index_7() ->
             64
         ),
         <<"[007]">>,
-        <<"|leading zeros do not change the index| example |[007] is index 7| — laws/citations.lawspec:241"/utf8>>
+        <<"|leading zeros do not change the index| example |[007] resolves to entry 7| — laws/citations.lawspec:249"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
-        lawspec_beam_schema:match(
-            lawspec_definitions:extract(
+        lawspec_definitions:extract(
+            Schema,
+            Symbols,
+            <<"[007]">>,
+            lawspec_definitions:lawspec_collections_key_val_put_big_u_int_citable_meta_key_val_big_u_int_citable_meta(
                 Schema,
                 Symbols,
-                lawspec_beam_runtime:helper(
-                    <<"append">>,
-                    [
-                        lawspec_beam_runtime:helper(
-                            <<"append">>,
-                            [
-                                <<"[00">>,
-                                lawspec_beam_runtime:helper(<<"textOf">>, [N], [<<"UInt8">>], 64)
-                            ],
-                            [<<"Text">>, <<"Text">>],
-                            64
-                        ),
-                        <<"]">>
-                    ],
-                    [<<"Text">>, <<"Text">>],
-                    64
-                ),
+                N,
+                Meta,
                 lawspec_definitions:lawspec_collections_key_val_of_list_entry_big_u_int_citable_meta(
                     Schema,
                     Symbols,
                     []
                 )
-            ),
-            #{
-                <<"cake.laws.citations::type::Extraction::Extraction">> => fun(
-                    [_Valid, Hallucinated]
-                ) ->
-                    Hallucinated
-                end
-            }
+            )
         ),
-        [7],
-        <<"|leading zeros do not change the index| example |[007] is index 7| — laws/citations.lawspec:242"/utf8>>
+        make_extraction(
+            [
+                make_cons_2(
+                    [
+                        make_citation(
+                            [
+                                7,
+                                make_citable_meta(
+                                    [
+                                        <<"chunk-7">>,
+                                        <<"Programming Elixir — Page 7"/utf8>>,
+                                        <<"Seven">>,
+                                        make_absent([], Schema)
+                                    ],
+                                    Schema
+                                )
+                            ],
+                            Schema
+                        ),
+                        []
+                    ],
+                    Schema
+                ),
+                []
+            ],
+            Schema
+        ),
+        <<"|leading zeros do not change the index| example |[007] resolves to entry 7| — laws/citations.lawspec:250"/utf8>>
     ).
 
 %% |leading zeros do not change the index| property — laws/citations.lawspec:229
@@ -2437,12 +2539,20 @@ law_leading_zeros_do_not_change_the_index__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
         ?LAW_LEADING_ZEROS_DO_NOT_CHANGE_THE_INDEX,
-        [<<"(int UInt8 0 255)">>],
-        fun([N]) ->
-            lawspec_beam_runtime:require(
-                law_leading_zeros_do_not_change_the_index(Schema, Symbols, [N]),
-                ?LAW_LEADING_ZEROS_DO_NOT_CHANGE_THE_INDEX
-            )
+        [
+            <<"(int BigUInt 0 255)">>,
+            <<"(data cake.laws.shared::type::CitableMeta (ctor cake.laws.shared::type::CitableMeta::CitableMeta (text) (text) (text) (maybe (text)))) (ref cake.laws.shared::type::CitableMeta)">>
+        ],
+        fun([N, Meta]) ->
+            case (N =< 255) of
+                true ->
+                    lawspec_beam_runtime:require(
+                        law_leading_zeros_do_not_change_the_index(Schema, Symbols, [N, Meta]),
+                        ?LAW_LEADING_ZEROS_DO_NOT_CHANGE_THE_INDEX
+                    );
+                false ->
+                    none
+            end
         end
     ),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -2450,21 +2560,49 @@ law_leading_zeros_do_not_change_the_index__property() ->
         'Elixir.LawSpec.Beam.StreamData':forall(
             'Elixir.LawSpec.Beam.StreamData':complete(
                 'Elixir.LawSpec.Beam.StreamData':bind(
-                    'Elixir.LawSpec.Beam.StreamData':generator(
-                        {<<"UInt8">>, []},
-                        Schema,
-                        Symbols,
-                        [],
-                        [0, 0, 0, 255],
-                        none
+                    'Elixir.LawSpec.Beam.StreamData':refine_input(
+                        'Elixir.LawSpec.Beam.StreamData':generator(
+                            {<<"BigUInt">>, []},
+                            Schema,
+                            Symbols,
+                            [{<<"<=">>, 255}],
+                            [0, 1, 340282366920938463463374607431768211456],
+                            none
+                        ),
+                        fun(N) -> (N =< 255) end
                     ),
-                    fun(N) -> 'Elixir.LawSpec.Beam.StreamData':exactly([N]) end
+                    fun(N) ->
+                        'Elixir.LawSpec.Beam.StreamData':bind(
+                            'Elixir.LawSpec.Beam.StreamData':generator(
+                                {<<"cake.laws.shared::type::CitableMeta">>, []},
+                                Schema,
+                                Symbols,
+                                [],
+                                [
+                                    finite_literal_6(Symbols),
+                                    finite_literal_94(Symbols),
+                                    finite_literal_110(Symbols),
+                                    finite_literal_96(Symbols),
+                                    finite_literal_98(Symbols),
+                                    finite_literal_118(Symbols),
+                                    finite_literal_100(Symbols),
+                                    finite_literal_101(Symbols),
+                                    finite_literal_126(Symbols)
+                                ],
+                                none
+                            ),
+                            fun(Meta) -> 'Elixir.LawSpec.Beam.StreamData':exactly([N, Meta]) end
+                        )
+                    end
                 )
             ),
             fun(Values) ->
                 lawspec_beam_search:guard(
                     ?LAW_LEADING_ZEROS_DO_NOT_CHANGE_THE_INDEX,
-                    [<<"(int UInt8 0 255)">>],
+                    [
+                        <<"(int BigUInt 0 255)">>,
+                        <<"(data cake.laws.shared::type::CitableMeta (ctor cake.laws.shared::type::CitableMeta::CitableMeta (text) (text) (text) (maybe (text)))) (ref cake.laws.shared::type::CitableMeta)">>
+                    ],
                     Values,
                     fun() -> law_leading_zeros_do_not_change_the_index(Schema, Symbols, Values) end
                 )
@@ -2477,7 +2615,7 @@ law_leading_zeros_do_not_change_the_index__property() ->
     <<"cake.laws.citations::|[0] is always hallucinated against a prompt map|">>
 ).
 
-%% |[0] is always hallucinated against a prompt map| — laws/citations.lawspec:247
+%% |[0] is always hallucinated against a prompt map| — laws/citations.lawspec:264
 %% Cake.Prompt numbers a chunk map from 1, so every valid citation's index
 %%     is positive, and a `[0]` marker is reported as hallucinated index 0: a
 %%     model citing `[0]` has made a mistake, and it surfaces as a warning.
@@ -2594,7 +2732,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2606,7 +2744,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2618,7 +2756,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2630,7 +2768,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2642,7 +2780,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2654,7 +2792,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2666,7 +2804,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_108(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2678,7 +2816,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_111(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2690,7 +2828,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_112(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2702,7 +2840,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_108(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_113(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2714,7 +2852,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_109(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_114(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2726,7 +2864,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_112(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_115(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2738,7 +2876,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_113(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_116(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2750,7 +2888,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_116(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_119(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2762,7 +2900,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_117(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_120(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2774,7 +2912,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_120(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_121(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2786,7 +2924,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_121(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_122(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2846,7 +2984,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2858,7 +2996,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2870,7 +3008,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2882,7 +3020,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2894,7 +3032,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2906,7 +3044,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2918,7 +3056,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_108(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2930,7 +3068,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_111(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2942,7 +3080,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_112(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2954,7 +3092,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_108(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_113(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2966,7 +3104,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_109(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_114(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2978,7 +3116,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_112(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_115(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2990,7 +3128,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_113(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_116(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3002,7 +3140,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_116(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_119(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3014,7 +3152,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_117(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_120(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3026,7 +3164,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_120(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_121(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3038,7 +3176,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_121(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_122(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3098,7 +3236,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3110,7 +3248,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3122,7 +3260,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3134,7 +3272,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3146,7 +3284,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3158,7 +3296,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3170,7 +3308,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_108(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3182,7 +3320,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_111(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3194,7 +3332,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_112(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3206,7 +3344,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_108(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_113(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3218,7 +3356,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_109(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_114(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -3266,14 +3404,14 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_case_at(Index) ->
         Index
     ).
 
-%% |[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:269
+%% |[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:286
 law_law_0_is_always_hallucinated_against_a_prompt_map__law_0_against_a_one_chunk_prompt_map() ->
     {Schema, Symbols} = lawspec_data:context(),
-    Segments = make_cons_4(
-        [make_plain([<<"see ">>], Schema), make_cons_4([make_marker([0], Schema), []], Schema)],
+    Segments = make_cons_5(
+        [make_plain([<<"see ">>], Schema), make_cons_5([make_marker([0], Schema), []], Schema)],
         Schema
     ),
-    Metas = make_cons_3(
+    Metas = make_cons_4(
         [
             make_citable_meta(
                 [
@@ -3295,7 +3433,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map__law_0_against_a_one_chunk
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments),
         <<"see [0]">>,
-        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:269"/utf8>>
+        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:286"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -3314,7 +3452,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map__law_0_against_a_one_chunk
             }
         ),
         [],
-        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:270"/utf8>>
+        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:287"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -3333,10 +3471,10 @@ law_law_0_is_always_hallucinated_against_a_prompt_map__law_0_against_a_one_chunk
             }
         ),
         [0],
-        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:271"/utf8>>
+        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:288"/utf8>>
     ).
 
-%% |[0] is always hallucinated against a prompt map| property — laws/citations.lawspec:247
+%% |[0] is always hallucinated against a prompt map| property — laws/citations.lawspec:264
 law_law_0_is_always_hallucinated_against_a_prompt_map__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -3414,23 +3552,23 @@ law_law_0_is_always_hallucinated_against_a_prompt_map__property() ->
                                 Symbols,
                                 [],
                                 [
-                                    finite_literal_93(Symbols),
-                                    finite_literal_96(Symbols),
-                                    finite_literal_97(Symbols),
-                                    finite_literal_98(Symbols),
-                                    finite_literal_99(Symbols),
-                                    finite_literal_100(Symbols),
-                                    finite_literal_101(Symbols),
+                                    finite_literal_102(Symbols),
+                                    finite_literal_103(Symbols),
                                     finite_literal_104(Symbols),
                                     finite_literal_105(Symbols),
+                                    finite_literal_106(Symbols),
+                                    finite_literal_107(Symbols),
                                     finite_literal_108(Symbols),
-                                    finite_literal_109(Symbols),
+                                    finite_literal_111(Symbols),
                                     finite_literal_112(Symbols),
                                     finite_literal_113(Symbols),
+                                    finite_literal_114(Symbols),
+                                    finite_literal_115(Symbols),
                                     finite_literal_116(Symbols),
-                                    finite_literal_117(Symbols),
+                                    finite_literal_119(Symbols),
                                     finite_literal_120(Symbols),
                                     finite_literal_121(Symbols),
+                                    finite_literal_122(Symbols),
                                     finite_literal_123(Symbols),
                                     finite_literal_124(Symbols),
                                     finite_literal_127(Symbols),
@@ -3466,7 +3604,7 @@ finite_literal_shape_6(_Symbols, Fields) ->
 finite_literal_shape_7(_Symbols, Fields) ->
     {ls_data, <<"cake.laws.shared::type::Segment::Marker">>, Fields}.
 
-finite_literal_shape_9(_Symbols, Fields) -> {ls_data, <<"Maybe::Present">>, Fields}.
+finite_literal_shape_8(_Symbols, Fields) -> {ls_data, <<"Maybe::Present">>, Fields}.
 
 finite_literal_1(_Symbols) -> [].
 
@@ -3693,103 +3831,103 @@ finite_literal_91(Symbols) -> [finite_literal_17(Symbols), finite_literal_3(Symb
 
 finite_literal_92(Symbols) -> [finite_literal_17(Symbols), finite_literal_11(Symbols)].
 
-finite_literal_93(_Symbols) -> [].
+finite_literal_93(Symbols) -> finite_literal_shape_8(Symbols, [<<>>]).
 
-finite_literal_94(Symbols) -> finite_literal_shape_9(Symbols, [<<>>]).
+finite_literal_94(Symbols) ->
+    finite_literal_shape_5(Symbols, [<<" ">>, <<" ">>, <<" ">>, finite_literal_93(Symbols)]).
 
-finite_literal_95(Symbols) ->
-    finite_literal_shape_5(Symbols, [<<" ">>, <<" ">>, <<" ">>, finite_literal_94(Symbols)]).
+finite_literal_95(Symbols) -> finite_literal_shape_8(Symbols, [<<"Hello, World!">>]).
 
-finite_literal_96(Symbols) -> [finite_literal_6(Symbols), finite_literal_95(Symbols)].
-
-finite_literal_97(Symbols) -> [finite_literal_95(Symbols), finite_literal_6(Symbols)].
-
-finite_literal_98(Symbols) -> [finite_literal_6(Symbols)].
-
-finite_literal_99(Symbols) -> [finite_literal_6(Symbols), finite_literal_6(Symbols)].
-
-finite_literal_100(Symbols) -> [finite_literal_95(Symbols)].
-
-finite_literal_101(Symbols) -> [finite_literal_95(Symbols), finite_literal_95(Symbols)].
-
-finite_literal_102(Symbols) -> finite_literal_shape_9(Symbols, [<<" ">>]).
-
-finite_literal_103(Symbols) ->
+finite_literal_96(Symbols) ->
     finite_literal_shape_5(
         Symbols,
-        [<<"Hello, World!">>, <<"Hello, World!">>, <<"Hello, World!">>, finite_literal_102(Symbols)]
+        [<<"λ日本語😀"/utf8>>, <<"λ日本語😀"/utf8>>, <<"λ日本語😀"/utf8>>, finite_literal_95(Symbols)]
     ).
 
-finite_literal_104(Symbols) -> [finite_literal_103(Symbols)].
+finite_literal_97(Symbols) -> finite_literal_shape_8(Symbols, [<<"λ日本語😀"/utf8>>]).
 
-finite_literal_105(Symbols) -> [finite_literal_103(Symbols), finite_literal_103(Symbols)].
-
-finite_literal_106(Symbols) -> finite_literal_shape_9(Symbols, [<<"Hello, World!">>]).
-
-finite_literal_107(Symbols) ->
-    finite_literal_shape_5(
-        Symbols,
-        [<<"λ日本語😀"/utf8>>, <<"λ日本語😀"/utf8>>, <<"λ日本語😀"/utf8>>, finite_literal_106(Symbols)]
-    ).
-
-finite_literal_108(Symbols) -> [finite_literal_107(Symbols)].
-
-finite_literal_109(Symbols) -> [finite_literal_107(Symbols), finite_literal_107(Symbols)].
-
-finite_literal_110(Symbols) -> finite_literal_shape_9(Symbols, [<<"λ日本語😀"/utf8>>]).
-
-finite_literal_111(Symbols) ->
+finite_literal_98(Symbols) ->
     finite_literal_shape_5(
         Symbols,
         [
             <<"a\n\t\"\\$\x{0}z">>,
             <<"a\n\t\"\\$\x{0}z">>,
             <<"a\n\t\"\\$\x{0}z">>,
-            finite_literal_110(Symbols)
+            finite_literal_97(Symbols)
         ]
     ).
 
-finite_literal_112(Symbols) -> [finite_literal_111(Symbols)].
+finite_literal_99(Symbols) -> finite_literal_shape_8(Symbols, [<<"é"/utf8>>]).
 
-finite_literal_113(Symbols) -> [finite_literal_111(Symbols), finite_literal_111(Symbols)].
+finite_literal_100(Symbols) ->
+    finite_literal_shape_5(Symbols, [<<>>, <<>>, <<>>, finite_literal_99(Symbols)]).
 
-finite_literal_114(Symbols) -> finite_literal_shape_9(Symbols, [<<"a\n\t\"\\$\x{0}z">>]).
-
-finite_literal_115(Symbols) ->
-    finite_literal_shape_5(
-        Symbols,
-        [<<"é"/utf8>>, <<"é"/utf8>>, <<"é"/utf8>>, finite_literal_114(Symbols)]
-    ).
-
-finite_literal_116(Symbols) -> [finite_literal_115(Symbols)].
-
-finite_literal_117(Symbols) -> [finite_literal_115(Symbols), finite_literal_115(Symbols)].
-
-finite_literal_118(Symbols) -> finite_literal_shape_9(Symbols, [<<"é"/utf8>>]).
-
-finite_literal_119(Symbols) ->
-    finite_literal_shape_5(Symbols, [<<>>, <<>>, <<>>, finite_literal_118(Symbols)]).
-
-finite_literal_120(Symbols) -> [finite_literal_119(Symbols)].
-
-finite_literal_121(Symbols) -> [finite_literal_119(Symbols), finite_literal_119(Symbols)].
-
-finite_literal_122(Symbols) ->
+finite_literal_101(Symbols) ->
     finite_literal_shape_5(
         Symbols,
         [
             <<"\x{0}aλ😀\x{10ffff}"/utf8>>,
             <<"\x{0}aλ😀\x{10ffff}"/utf8>>,
             <<"\x{0}aλ😀\x{10ffff}"/utf8>>,
-            finite_literal_94(Symbols)
+            finite_literal_93(Symbols)
         ]
     ).
 
-finite_literal_123(Symbols) -> [finite_literal_122(Symbols)].
+finite_literal_102(_Symbols) -> [].
 
-finite_literal_124(Symbols) -> [finite_literal_122(Symbols), finite_literal_122(Symbols)].
+finite_literal_103(Symbols) -> [finite_literal_6(Symbols), finite_literal_94(Symbols)].
 
-finite_literal_125(Symbols) -> finite_literal_shape_9(Symbols, [<<"\x{0}aλ😀\x{10ffff}"/utf8>>]).
+finite_literal_104(Symbols) -> [finite_literal_94(Symbols), finite_literal_6(Symbols)].
+
+finite_literal_105(Symbols) -> [finite_literal_6(Symbols)].
+
+finite_literal_106(Symbols) -> [finite_literal_6(Symbols), finite_literal_6(Symbols)].
+
+finite_literal_107(Symbols) -> [finite_literal_94(Symbols)].
+
+finite_literal_108(Symbols) -> [finite_literal_94(Symbols), finite_literal_94(Symbols)].
+
+finite_literal_109(Symbols) -> finite_literal_shape_8(Symbols, [<<" ">>]).
+
+finite_literal_110(Symbols) ->
+    finite_literal_shape_5(
+        Symbols,
+        [<<"Hello, World!">>, <<"Hello, World!">>, <<"Hello, World!">>, finite_literal_109(Symbols)]
+    ).
+
+finite_literal_111(Symbols) -> [finite_literal_110(Symbols)].
+
+finite_literal_112(Symbols) -> [finite_literal_110(Symbols), finite_literal_110(Symbols)].
+
+finite_literal_113(Symbols) -> [finite_literal_96(Symbols)].
+
+finite_literal_114(Symbols) -> [finite_literal_96(Symbols), finite_literal_96(Symbols)].
+
+finite_literal_115(Symbols) -> [finite_literal_98(Symbols)].
+
+finite_literal_116(Symbols) -> [finite_literal_98(Symbols), finite_literal_98(Symbols)].
+
+finite_literal_117(Symbols) -> finite_literal_shape_8(Symbols, [<<"a\n\t\"\\$\x{0}z">>]).
+
+finite_literal_118(Symbols) ->
+    finite_literal_shape_5(
+        Symbols,
+        [<<"é"/utf8>>, <<"é"/utf8>>, <<"é"/utf8>>, finite_literal_117(Symbols)]
+    ).
+
+finite_literal_119(Symbols) -> [finite_literal_118(Symbols)].
+
+finite_literal_120(Symbols) -> [finite_literal_118(Symbols), finite_literal_118(Symbols)].
+
+finite_literal_121(Symbols) -> [finite_literal_100(Symbols)].
+
+finite_literal_122(Symbols) -> [finite_literal_100(Symbols), finite_literal_100(Symbols)].
+
+finite_literal_123(Symbols) -> [finite_literal_101(Symbols)].
+
+finite_literal_124(Symbols) -> [finite_literal_101(Symbols), finite_literal_101(Symbols)].
+
+finite_literal_125(Symbols) -> finite_literal_shape_8(Symbols, [<<"\x{0}aλ😀\x{10ffff}"/utf8>>]).
 
 finite_literal_126(Symbols) ->
     finite_literal_shape_5(Symbols, [<<>>, <<>>, <<>>, finite_literal_125(Symbols)]).
@@ -3823,7 +3961,11 @@ type_list_entry_big_u_int_citable_meta() ->
         ]
     }.
 
+type_maybe_text() -> {<<"Maybe">>, [{<<"Text">>, []}]}.
+
 type_text() -> {<<"Text">>, []}.
+
+type_citation() -> {<<"cake.laws.citations::type::Citation">>, []}.
 
 type_extraction() -> {<<"cake.laws.citations::type::Extraction">>, []}.
 
@@ -3845,22 +3987,25 @@ make_cons(Fields, Schema) ->
 make_nil(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_big_u_int(), Schema).
 
+make_cons_2(Fields, Schema) ->
+    lawspec_beam_schema:construct(<<"List::Cons">>, Fields, type_list_citation(), Schema).
+
 make_nil_2(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_citation(), Schema).
 
-make_cons_2(Fields, Schema) ->
+make_cons_3(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Cons">>, Fields, type_list_slot(), Schema).
 
 make_nil_3(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_slot(), Schema).
 
-make_cons_3(Fields, Schema) ->
+make_cons_4(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Cons">>, Fields, type_list_citable_meta(), Schema).
 
 make_nil_4(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_citable_meta(), Schema).
 
-make_cons_4(Fields, Schema) ->
+make_cons_5(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Cons">>, Fields, type_list_segment(), Schema).
 
 make_nil_5(Fields, Schema) ->
@@ -3875,18 +4020,24 @@ make_nil_6(Fields, Schema) ->
     ).
 
 make_absent(Fields, Schema) ->
+    lawspec_beam_schema:construct(<<"Maybe::Absent">>, Fields, type_maybe_text(), Schema).
+
+make_present(Fields, Schema) ->
+    lawspec_beam_schema:construct(<<"Maybe::Present">>, Fields, type_maybe_text(), Schema).
+
+make_citation(Fields, Schema) ->
     lawspec_beam_schema:construct(
-        <<"Maybe::Absent">>,
+        <<"cake.laws.citations::type::Citation::Citation">>,
         Fields,
-        {<<"Maybe">>, [{<<"Text">>, []}]},
+        type_citation(),
         Schema
     ).
 
-make_present(Fields, Schema) ->
+make_extraction(Fields, Schema) ->
     lawspec_beam_schema:construct(
-        <<"Maybe::Present">>,
+        <<"cake.laws.citations::type::Extraction::Extraction">>,
         Fields,
-        {<<"Maybe">>, [{<<"Text">>, []}]},
+        type_extraction(),
         Schema
     ).
 
