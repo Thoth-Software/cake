@@ -3,9 +3,12 @@
   "private": true,
   "description": "LawSpec specifications for Cake (see README.md)",
   "scripts": {
-    "check": "lawspec check",
-    "generate": "lawspec generate",
-    "generate:check": "lawspec generate --check"
+    "lawspec": "node --no-turbo-fast-api-calls node_modules/lawspec/bin/lawspec.mjs",
+    "check": "node --no-turbo-fast-api-calls node_modules/lawspec/bin/lawspec.mjs check",
+    "fmt": "node --no-turbo-fast-api-calls node_modules/lawspec/bin/lawspec.mjs fmt",
+    "fmt:check": "node --no-turbo-fast-api-calls node_modules/lawspec/bin/lawspec.mjs fmt --check",
+    "generate": "node --no-turbo-fast-api-calls node_modules/lawspec/bin/lawspec.mjs generate",
+    "generate:check": "node --no-turbo-fast-api-calls node_modules/lawspec/bin/lawspec.mjs generate --check"
   },
   "devDependencies": {
     "lawspec": "0.31.3"
