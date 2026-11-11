@@ -3591,7 +3591,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map__property() ->
     ).
 
 finite_literal_shape_3(_Symbols, Fields) ->
-    {ls_data, <<"cake.laws.shared::type::Segment::Plain">>, Fields}.
+    {ls_data, <<"cake.laws.shared::type::Segment::Marker">>, Fields}.
 
 finite_literal_shape_4(_Symbols, Fields) -> {ls_data, <<"Maybe::Absent">>, Fields}.
 
@@ -3602,7 +3602,7 @@ finite_literal_shape_6(_Symbols, Fields) ->
     {ls_data, <<"cake.laws.citations::type::Slot::Slot">>, Fields}.
 
 finite_literal_shape_7(_Symbols, Fields) ->
-    {ls_data, <<"cake.laws.shared::type::Segment::Marker">>, Fields}.
+    {ls_data, <<"cake.laws.shared::type::Segment::Plain">>, Fields}.
 
 finite_literal_shape_8(_Symbols, Fields) -> {ls_data, <<"Maybe::Present">>, Fields}.
 
@@ -3610,7 +3610,7 @@ finite_literal_1(_Symbols) -> [].
 
 finite_literal_2(_Symbols) -> [].
 
-finite_literal_3(Symbols) -> finite_literal_shape_3(Symbols, [<<>>]).
+finite_literal_3(Symbols) -> finite_literal_shape_3(Symbols, [0]).
 
 finite_literal_4(Symbols) -> [finite_literal_3(Symbols)].
 
@@ -3628,37 +3628,38 @@ finite_literal_9(Symbols) -> finite_literal_shape_6(Symbols, [1, finite_literal_
 
 finite_literal_10(Symbols) -> [finite_literal_7(Symbols), finite_literal_9(Symbols)].
 
-finite_literal_11(Symbols) -> finite_literal_shape_3(Symbols, [<<" ">>]).
+finite_literal_11(Symbols) -> finite_literal_shape_3(Symbols, [1]).
 
 finite_literal_12(Symbols) -> [finite_literal_11(Symbols)].
 
 finite_literal_13(Symbols) -> [finite_literal_9(Symbols), finite_literal_7(Symbols)].
 
-finite_literal_14(Symbols) -> finite_literal_shape_3(Symbols, [<<"Hello, World!">>]).
+finite_literal_14(Symbols) ->
+    finite_literal_shape_3(Symbols, [340282366920938463463374607431768211456]).
 
 finite_literal_15(Symbols) -> [finite_literal_14(Symbols)].
 
 finite_literal_16(Symbols) -> [finite_literal_7(Symbols)].
 
-finite_literal_17(Symbols) -> finite_literal_shape_3(Symbols, [<<"λ日本語😀"/utf8>>]).
+finite_literal_17(Symbols) -> finite_literal_shape_7(Symbols, [<<>>]).
 
 finite_literal_18(Symbols) -> [finite_literal_17(Symbols)].
 
 finite_literal_19(Symbols) -> [finite_literal_7(Symbols), finite_literal_7(Symbols)].
 
-finite_literal_20(Symbols) -> finite_literal_shape_3(Symbols, [<<"a\n\t\"\\$\x{0}z">>]).
+finite_literal_20(Symbols) -> finite_literal_shape_7(Symbols, [<<" ">>]).
 
 finite_literal_21(Symbols) -> [finite_literal_20(Symbols)].
 
 finite_literal_22(Symbols) -> [finite_literal_9(Symbols)].
 
-finite_literal_23(Symbols) -> finite_literal_shape_3(Symbols, [<<"é"/utf8>>]).
+finite_literal_23(Symbols) -> finite_literal_shape_7(Symbols, [<<"Hello, World!">>]).
 
 finite_literal_24(Symbols) -> [finite_literal_23(Symbols)].
 
 finite_literal_25(Symbols) -> [finite_literal_9(Symbols), finite_literal_9(Symbols)].
 
-finite_literal_26(Symbols) -> finite_literal_shape_3(Symbols, [<<"\x{0}aλ😀\x{10ffff}"/utf8>>]).
+finite_literal_26(Symbols) -> finite_literal_shape_7(Symbols, [<<"λ日本語😀"/utf8>>]).
 
 finite_literal_27(Symbols) -> [finite_literal_26(Symbols)].
 
@@ -3676,13 +3677,13 @@ finite_literal_29(Symbols) ->
 
 finite_literal_30(Symbols) -> [finite_literal_29(Symbols)].
 
-finite_literal_31(Symbols) -> finite_literal_shape_7(Symbols, [0]).
+finite_literal_31(Symbols) -> finite_literal_shape_7(Symbols, [<<"a\n\t\"\\$\x{0}z">>]).
 
 finite_literal_32(Symbols) -> [finite_literal_31(Symbols)].
 
 finite_literal_33(Symbols) -> [finite_literal_29(Symbols), finite_literal_29(Symbols)].
 
-finite_literal_34(Symbols) -> finite_literal_shape_7(Symbols, [1]).
+finite_literal_34(Symbols) -> finite_literal_shape_7(Symbols, [<<"é"/utf8>>]).
 
 finite_literal_35(Symbols) -> [finite_literal_34(Symbols)].
 
@@ -3696,8 +3697,7 @@ finite_literal_37(Symbols) -> finite_literal_shape_6(Symbols, [0, finite_literal
 
 finite_literal_38(Symbols) -> [finite_literal_37(Symbols)].
 
-finite_literal_39(Symbols) ->
-    finite_literal_shape_7(Symbols, [340282366920938463463374607431768211456]).
+finite_literal_39(Symbols) -> finite_literal_shape_7(Symbols, [<<"\x{0}aλ😀\x{10ffff}"/utf8>>]).
 
 finite_literal_40(Symbols) -> [finite_literal_39(Symbols)].
 

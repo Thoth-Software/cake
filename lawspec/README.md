@@ -130,6 +130,13 @@ warm, `npx lawspec check` and `generate` then die with a bare
 `Segmentation fault` (exit 139). The flag turns the fast path off; node
 rejects it in `NODE_OPTIONS`, so it goes on the command line.
 
+LawSpec 0.32.0 fixes this in its own compiler host, which now turns those
+fast calls off itself. Upstream verified the fix only under x64 emulation.
+On native x64 (#349), 0.31.3 without the flag segfaulted in 3 of 5
+warm-cache runs, and 0.32.0 without it ran clean in 25 of 25. The scripts
+keep the flag until a follow-up drops it from them, from this section, from
+the `laws` job's comment in `quality.yml` and from CLAUDE.md together.
+
 | Script | Runs |
 | --- | --- |
 | `npm run check` | `lawspec check` |
