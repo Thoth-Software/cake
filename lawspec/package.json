@@ -11,6 +11,6 @@
     "generate:check": "node --no-turbo-fast-api-calls node_modules/lawspec/bin/lawspec.mjs generate --check"
   },
   "devDependencies": {
-    "lawspec": "0.31.3"
+    "lawspec": "0.32.0"
   }
 }
