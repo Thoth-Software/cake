@@ -51,6 +51,59 @@
     metadata_keys/3,
     prompt_context/4,
     cake_laws_shared_render_2/3,
+    process/4,
+    citation_map/3,
+    all_blank/3,
+    all_resolve/4,
+    cake_laws_citations_citations_of/4,
+    cake_laws_citations_distinct_markers/3,
+    cake_laws_citations_fold16/3,
+    cake_laws_citations_markers_from/4,
+    cake_laws_citations_missing_from/4,
+    cake_laws_citations_prompt_map_from/5,
+    cake_laws_citations_prompt_map_of/3,
+    cake_laws_citations_small/3,
+    cake_laws_shared_render_3/3,
+    calmed/3,
+    calmed_after/4,
+    chunks_of/3,
+    context_of/4,
+    counting_from/4,
+    distinct/3,
+    downloads_from/4,
+    downloads_of/3,
+    final_text_of/5,
+    first_per_unit/3,
+    first_per_unit_from/4,
+    is_blank/3,
+    lawspec_collections_key_val_from_items_list_entry_big_u_int_citable_meta_list_entry_big_u_int_citable_meta_2/4,
+    lawspec_collections_key_val_keys_items_list_entry_big_u_int_citable_meta/3,
+    lawspec_collections_key_val_keys_key_val_big_u_int_citable_meta/3,
+    lawspec_collections_key_val_lookup_items_big_u_int_list_entry_big_u_int_citable_meta_2/4,
+    lawspec_collections_key_val_lookup_big_u_int_key_val_big_u_int_citable_meta_2/4,
+    lawspec_collections_key_val_of_list_entry_big_u_int_citable_meta_2/3,
+    lawspec_collections_key_val_put_items_big_u_int_citable_meta_list_entry_big_u_int_citable_meta_2/5,
+    lawspec_collections_key_val_put_big_u_int_citable_meta_key_val_big_u_int_citable_meta_2/5,
+    lawspec_collections_key_val_values_items_list_entry_big_u_int_citable_meta/3,
+    lawspec_collections_key_val_values_key_val_big_u_int_citable_meta/3,
+    metas_from/4,
+    new_indices_of/3,
+    numbered_from/4,
+    picked_from/5,
+    rewritten/5,
+    segments_of/3,
+    shown/5,
+    shown_as/4,
+    small_pieces/3,
+    source_ref_of/3,
+    squeezed/3,
+    squeezed_after/4,
+    text_of/3,
+    trimmed/3,
+    unnumbered/3,
+    warnings_of/3,
+    without_leading_blanks/3,
+    without_trailing_blanks/3,
     render/3
 ]).
 
@@ -83,7 +136,7 @@ extract(Schema, _Symbols, Text, KeyValBigUIntCitableMeta) ->
         end
     ).
 
-%% allPositive — laws/citations.lawspec:154
+%% allPositive — laws/citations.lawspec:158
 all_positive(Schema, Symbols, Indices) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.citations::allPositive">>,
@@ -199,7 +252,7 @@ chunk_map_of(Schema, Symbols, Slots) ->
         end
     ).
 
-%% citationsOf — laws/citations.lawspec:121
+%% citationsOf — laws/citations.lawspec:125
 citations_of(Schema, Symbols, Indices, ChunkMap) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.citations::citationsOf">>,
@@ -288,7 +341,7 @@ citations_of(Schema, Symbols, Indices, ChunkMap) ->
         end
     ).
 
-%% distinctMarkers — laws/citations.lawspec:117
+%% distinctMarkers — laws/citations.lawspec:121
 distinct_markers(Schema, Symbols, Segments) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.citations::distinctMarkers">>,
@@ -318,7 +371,7 @@ fold16(Schema, _Symbols, N) ->
         end
     ).
 
-%% indicesOf — laws/citations.lawspec:147
+%% indicesOf — laws/citations.lawspec:151
 indices_of(Schema, Symbols, Citations) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.citations::indicesOf">>,
@@ -890,7 +943,7 @@ lawspec_collections_key_val_put_big_u_int_citable_meta_key_val_big_u_int_citable
         end
     ).
 
-%% markersFrom — laws/citations.lawspec:102
+%% markersFrom — laws/citations.lawspec:106
 markers_from(Schema, Symbols, Segments, Seen) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.citations::markersFrom">>,
@@ -923,22 +976,12 @@ markers_from(Schema, Symbols, Segments, Seen) ->
                                                     [MatchSelection_2]
                                                 ) ->
                                                     case
-                                                        lawspec_beam_runtime:bind(
-                                                            MatchSelection_2,
-                                                            fun(Needle) ->
-                                                                lawspec_beam_runtime:bind(
-                                                                    Seen,
-                                                                    fun(Collection) ->
-                                                                        (not lists:all(
-                                                                            fun(Item) ->
-                                                                                (Needle =/= Item)
-                                                                            end,
-                                                                            Collection
-                                                                        ))
-                                                                    end
-                                                                )
-                                                            end
-                                                        )
+                                                        (not lists:all(
+                                                            fun(Item) ->
+                                                                (Item =/= MatchSelection_2)
+                                                            end,
+                                                            Seen
+                                                        ))
                                                     of
                                                         true ->
                                                             lawspec_definitions:markers_from(
@@ -992,7 +1035,7 @@ markers_from(Schema, Symbols, Segments, Seen) ->
         end
     ).
 
-%% missingFrom — laws/citations.lawspec:135
+%% missingFrom — laws/citations.lawspec:139
 missing_from(Schema, Symbols, Indices, ChunkMap) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.citations::missingFrom">>,
@@ -1927,6 +1970,3232 @@ cake_laws_shared_render_2(Schema, Symbols, Segments) ->
                                     [<<"Text">>, <<"Text">>],
                                     64
                                 )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% process — laws/responses.lawspec:75
+process(Schema, _Symbols, Text, ListIndexedChunk) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::process">>,
+        fun() ->
+            NativeText = lawspec_beam_schema:to_native(Text, {<<"Text">>, []}, Schema),
+            NativeListIndexedChunk = lawspec_beam_schema:to_native(
+                ListIndexedChunk,
+                {<<"List">>, [{<<"cake.laws.responses::type::IndexedChunk">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.Responses':process(NativeText, NativeListIndexedChunk),
+                {<<"cake.laws.responses::type::Processed">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% citationMap — laws/responses.lawspec:78
+citation_map(Schema, _Symbols, ListIndexedChunk) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::citationMap">>,
+        fun() ->
+            NativeListIndexedChunk = lawspec_beam_schema:to_native(
+                ListIndexedChunk,
+                {<<"List">>, [{<<"cake.laws.responses::type::IndexedChunk">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.Responses':citation_map(NativeListIndexedChunk),
+                {
+                    <<"lawspec.collections::type::KeyVal">>,
+                    [{<<"BigUInt">>, []}, {<<"cake.laws.shared::type::CitableMeta">>, []}]
+                },
+                Schema
+            )
+        end
+    ).
+
+%% allBlank — laws/responses.lawspec:394
+all_blank(Schema, Symbols, Pieces) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::allBlank">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pieces,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> true end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                (lawspec_definitions:is_blank(
+                                    Schema,
+                                    Symbols,
+                                    Selection
+                                ) andalso
+                                    lawspec_definitions:all_blank(Schema, Symbols, Selection_2))
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% allResolve — laws/responses.lawspec:257
+all_resolve(Schema, Symbols, Cited, ChunkMap) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::allResolve">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Cited,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> true end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                (lawspec_beam_scalar:equal(
+                                    lawspec_definitions:lawspec_collections_key_val_lookup_big_u_int_key_val_big_u_int_citable_meta_2(
+                                        Schema,
+                                        Symbols,
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.responses::type::Cited::Cited">> => fun(
+                                                    [OldIndex, _NewIndex, _Meta]
+                                                ) ->
+                                                    OldIndex
+                                                end
+                                            }
+                                        ),
+                                        ChunkMap
+                                    ),
+                                    lawspec_beam_schema:construct(
+                                        <<"Maybe::Present">>,
+                                        [
+                                            lawspec_beam_schema:match(
+                                                Selection,
+                                                #{
+                                                    <<"cake.laws.responses::type::Cited::Cited">> => fun(
+                                                        [_OldIndex_2, _NewIndex_2, Meta_2]
+                                                    ) ->
+                                                        Meta_2
+                                                    end
+                                                }
+                                            )
+                                        ],
+                                        {
+                                            <<"Maybe">>,
+                                            [{<<"cake.laws.shared::type::CitableMeta">>, []}]
+                                        },
+                                        Schema
+                                    )
+                                ) andalso
+                                    lawspec_definitions:all_resolve(
+                                        Schema,
+                                        Symbols,
+                                        Selection_2,
+                                        ChunkMap
+                                    ))
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsCitationsCitationsOf — laws/citations.lawspec:125
+cake_laws_citations_citations_of(Schema, Symbols, Indices, ChunkMap) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::cakeLawsCitationsCitationsOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Indices,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_definitions:lawspec_collections_key_val_lookup_big_u_int_key_val_big_u_int_citable_meta_2(
+                                        Schema,
+                                        Symbols,
+                                        Selection,
+                                        ChunkMap
+                                    ),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"Maybe::Present">> => fun([MatchSelection]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            lawspec_beam_runtime:bind(
+                                                                Selection,
+                                                                fun(RecordField) ->
+                                                                    lawspec_beam_runtime:bind(
+                                                                        MatchSelection,
+                                                                        fun(RecordField_2) ->
+                                                                            lawspec_beam_schema:construct(
+                                                                                <<"cake.laws.citations::type::Citation::Citation">>,
+                                                                                [
+                                                                                    RecordField,
+                                                                                    RecordField_2
+                                                                                ],
+                                                                                {
+                                                                                    <<"cake.laws.citations::type::Citation">>,
+                                                                                    []
+                                                                                },
+                                                                                Schema
+                                                                            )
+                                                                        end
+                                                                    )
+                                                                end
+                                                            ),
+                                                            lawspec_definitions:cake_laws_citations_citations_of(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                ChunkMap
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.citations::type::Citation">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"Maybe::Absent">> => fun([]) ->
+                                                    lawspec_definitions:cake_laws_citations_citations_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2,
+                                                        ChunkMap
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsCitationsDistinctMarkers — laws/citations.lawspec:121
+cake_laws_citations_distinct_markers(Schema, Symbols, Segments) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::cakeLawsCitationsDistinctMarkers">>,
+        fun() ->
+            lawspec_definitions:cake_laws_citations_markers_from(Schema, Symbols, Segments, [])
+        end
+    ).
+
+%% cakeLawsCitationsFold16 — laws/citations.lawspec:51
+cake_laws_citations_fold16(Schema, _Symbols, N) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::cakeLawsCitationsFold16">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_scalar:remainder(N, 16, <<"BigUInt">>, <<"Integer">>),
+                fun(R) ->
+                    case (R >= 0) of
+                        true ->
+                            lawspec_beam_schema:validate(
+                                lawspec_beam_scalar:convert(R, {<<"BigUInt">>, []}, 64),
+                                {<<"BigUInt">>, []},
+                                Schema
+                            );
+                        false ->
+                            0
+                    end
+                end
+            )
+        end
+    ).
+
+%% cakeLawsCitationsMarkersFrom — laws/citations.lawspec:106
+cake_laws_citations_markers_from(Schema, Symbols, Segments, Seen) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::cakeLawsCitationsMarkersFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Segments,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> Seen end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.shared::type::Segment::Plain">> => fun(
+                                                    [_MatchSelection]
+                                                ) ->
+                                                    lawspec_definitions:cake_laws_citations_markers_from(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2,
+                                                        Seen
+                                                    )
+                                                end,
+                                                <<"cake.laws.shared::type::Segment::Marker">> => fun(
+                                                    [MatchSelection_2]
+                                                ) ->
+                                                    case
+                                                        (not lists:all(
+                                                            fun(Item) ->
+                                                                (Item =/= MatchSelection_2)
+                                                            end,
+                                                            Seen
+                                                        ))
+                                                    of
+                                                        true ->
+                                                            lawspec_definitions:cake_laws_citations_markers_from(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                Seen
+                                                            );
+                                                        false ->
+                                                            lawspec_definitions:cake_laws_citations_markers_from(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                lawspec_beam_runtime:helper(
+                                                                    <<"append">>,
+                                                                    [
+                                                                        Seen,
+                                                                        lawspec_beam_schema:construct(
+                                                                            <<"List::Cons">>,
+                                                                            [MatchSelection_2, []],
+                                                                            {
+                                                                                <<"List">>,
+                                                                                [
+                                                                                    {
+                                                                                        <<"BigUInt">>,
+                                                                                        []
+                                                                                    }
+                                                                                ]
+                                                                            },
+                                                                            Schema
+                                                                        )
+                                                                    ],
+                                                                    [
+                                                                        <<"List BigUInt">>,
+                                                                        <<"List BigUInt">>
+                                                                    ],
+                                                                    64
+                                                                )
+                                                            )
+                                                    end
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsCitationsMissingFrom — laws/citations.lawspec:139
+cake_laws_citations_missing_from(Schema, Symbols, Indices, ChunkMap) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::cakeLawsCitationsMissingFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Indices,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_definitions:lawspec_collections_key_val_lookup_big_u_int_key_val_big_u_int_citable_meta_2(
+                                        Schema,
+                                        Symbols,
+                                        Selection,
+                                        ChunkMap
+                                    ),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"Maybe::Present">> => fun([_MatchSelection]) ->
+                                                    lawspec_definitions:cake_laws_citations_missing_from(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2,
+                                                        ChunkMap
+                                                    )
+                                                end,
+                                                <<"Maybe::Absent">> => fun([]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            Selection,
+                                                            lawspec_definitions:cake_laws_citations_missing_from(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                ChunkMap
+                                                            )
+                                                        ],
+                                                        {<<"List">>, [{<<"BigUInt">>, []}]},
+                                                        Schema
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsCitationsPromptMapFrom — laws/citations.lawspec:87
+cake_laws_citations_prompt_map_from(Schema, Symbols, Metas, I, ChunkMap) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::cakeLawsCitationsPromptMapFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Metas,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> ChunkMap end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_definitions:cake_laws_citations_prompt_map_from(
+                                    Schema,
+                                    Symbols,
+                                    Selection_2,
+                                    lawspec_beam_schema:validate(
+                                        lawspec_beam_scalar:convert(
+                                            (I + 1),
+                                            {<<"BigUInt">>, []},
+                                            64
+                                        ),
+                                        {<<"BigUInt">>, []},
+                                        Schema
+                                    ),
+                                    lawspec_definitions:lawspec_collections_key_val_put_big_u_int_citable_meta_key_val_big_u_int_citable_meta_2(
+                                        Schema,
+                                        Symbols,
+                                        I,
+                                        Selection,
+                                        ChunkMap
+                                    )
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsCitationsPromptMapOf — laws/citations.lawspec:96
+cake_laws_citations_prompt_map_of(Schema, Symbols, Metas) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::cakeLawsCitationsPromptMapOf">>,
+        fun() ->
+            lawspec_definitions:cake_laws_citations_prompt_map_from(
+                Schema,
+                Symbols,
+                Metas,
+                1,
+                lawspec_definitions:lawspec_collections_key_val_of_list_entry_big_u_int_citable_meta_2(
+                    Schema,
+                    Symbols,
+                    []
+                )
+            )
+        end
+    ).
+
+%% cakeLawsCitationsSmall — laws/citations.lawspec:73
+cake_laws_citations_small(Schema, Symbols, Segments) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::cakeLawsCitationsSmall">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Segments,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            Selection,
+                                            fun(It_2) ->
+                                                lawspec_beam_schema:match(
+                                                    It_2,
+                                                    #{
+                                                        <<"cake.laws.shared::type::Segment::Plain">> => fun(
+                                                            [MatchSelection]
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.shared::type::Segment::Plain">>,
+                                                                [MatchSelection],
+                                                                {
+                                                                    <<"cake.laws.shared::type::Segment">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end,
+                                                        <<"cake.laws.shared::type::Segment::Marker">> => fun(
+                                                            [MatchSelection_2]
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.shared::type::Segment::Marker">>,
+                                                                [
+                                                                    lawspec_definitions:cake_laws_citations_fold16(
+                                                                        Schema,
+                                                                        Symbols,
+                                                                        MatchSelection_2
+                                                                    )
+                                                                ],
+                                                                {
+                                                                    <<"cake.laws.shared::type::Segment">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end
+                                                    }
+                                                )
+                                            end
+                                        ),
+                                        lawspec_definitions:cake_laws_citations_small(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2
+                                        )
+                                    ],
+                                    {<<"List">>, [{<<"cake.laws.shared::type::Segment">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsSharedRender — laws/shared.lawspec:37
+cake_laws_shared_render_3(Schema, Symbols, Segments) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::cakeLawsSharedRender">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Segments,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> <<>> end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:helper(
+                                    <<"append">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            Selection,
+                                            fun(It_2) ->
+                                                lawspec_beam_schema:match(
+                                                    It_2,
+                                                    #{
+                                                        <<"cake.laws.shared::type::Segment::Plain">> => fun(
+                                                            [MatchSelection]
+                                                        ) ->
+                                                            MatchSelection
+                                                        end,
+                                                        <<"cake.laws.shared::type::Segment::Marker">> => fun(
+                                                            [MatchSelection_2]
+                                                        ) ->
+                                                            lawspec_beam_runtime:helper(
+                                                                <<"append">>,
+                                                                [
+                                                                    lawspec_beam_runtime:helper(
+                                                                        <<"append">>,
+                                                                        [
+                                                                            <<"[">>,
+                                                                            lawspec_beam_runtime:helper(
+                                                                                <<"textOf">>,
+                                                                                [MatchSelection_2],
+                                                                                [<<"BigUInt">>],
+                                                                                64
+                                                                            )
+                                                                        ],
+                                                                        [<<"Text">>, <<"Text">>],
+                                                                        64
+                                                                    ),
+                                                                    <<"]">>
+                                                                ],
+                                                                [<<"Text">>, <<"Text">>],
+                                                                64
+                                                            )
+                                                        end
+                                                    }
+                                                )
+                                            end
+                                        ),
+                                        lawspec_definitions:cake_laws_shared_render_3(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2
+                                        )
+                                    ],
+                                    [<<"Text">>, <<"Text">>],
+                                    64
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% calmed — laws/responses.lawspec:382
+calmed(Schema, Symbols, Pieces) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::calmed">>,
+        fun() -> lawspec_definitions:calmed_after(Schema, Symbols, Pieces, 0) end
+    ).
+
+%% calmedAfter — laws/responses.lawspec:365
+calmed_after(Schema, Symbols, Pieces, Run) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::calmedAfter">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pieces,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.responses::type::Piece::Newline">> => fun(
+                                                    []
+                                                ) ->
+                                                    case (Run >= 2) of
+                                                        true ->
+                                                            lawspec_definitions:calmed_after(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                Run
+                                                            );
+                                                        false ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"List::Cons">>,
+                                                                [
+                                                                    lawspec_beam_schema:construct(
+                                                                        <<"cake.laws.responses::type::Piece::Newline">>,
+                                                                        [],
+                                                                        {
+                                                                            <<"cake.laws.responses::type::Piece">>,
+                                                                            []
+                                                                        },
+                                                                        Schema
+                                                                    ),
+                                                                    lawspec_definitions:calmed_after(
+                                                                        Schema,
+                                                                        Symbols,
+                                                                        Selection_2,
+                                                                        lawspec_beam_schema:validate(
+                                                                            lawspec_beam_scalar:convert(
+                                                                                (Run + 1),
+                                                                                {<<"BigUInt">>, []},
+                                                                                64
+                                                                            ),
+                                                                            {<<"BigUInt">>, []},
+                                                                            Schema
+                                                                        )
+                                                                    )
+                                                                ],
+                                                                {
+                                                                    <<"List">>,
+                                                                    [
+                                                                        {
+                                                                            <<"cake.laws.responses::type::Piece">>,
+                                                                            []
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                Schema
+                                                            )
+                                                    end
+                                                end,
+                                                <<"cake.laws.responses::type::Piece::Word">> => fun(
+                                                    [_MatchSelection]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            Selection,
+                                                            lawspec_definitions:calmed_after(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                0
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.responses::type::Piece::Space">> => fun(
+                                                    []
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            Selection,
+                                                            lawspec_definitions:calmed_after(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                0
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.responses::type::Piece::Cite">> => fun(
+                                                    [_MatchSelection_2]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            Selection,
+                                                            lawspec_definitions:calmed_after(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                0
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% chunksOf — laws/responses.lawspec:151
+chunks_of(Schema, Symbols, Metas) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::chunksOf">>,
+        fun() -> lawspec_definitions:numbered_from(Schema, Symbols, Metas, 1) end
+    ).
+
+%% contextOf — laws/responses.lawspec:135
+context_of(Schema, Symbols, Pool, Picks) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::contextOf">>,
+        fun() ->
+            lawspec_definitions:picked_from(
+                Schema,
+                Symbols,
+                lawspec_definitions:metas_from(Schema, Symbols, Pool, 0),
+                lawspec_beam_schema:validate(
+                    lawspec_beam_scalar:convert(
+                        lawspec_beam_runtime:helper(
+                            <<"length">>,
+                            [Pool],
+                            [<<"List cake.laws.responses::type::RetrievalUnit">>],
+                            64
+                        ),
+                        {<<"BigUInt">>, []},
+                        64
+                    ),
+                    {<<"BigUInt">>, []},
+                    Schema
+                ),
+                Picks
+            )
+        end
+    ).
+
+%% countingFrom — laws/responses.lawspec:246
+counting_from(Schema, Symbols, I, Count) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::countingFrom">>,
+        fun() ->
+            case (Count =< 0) of
+                true ->
+                    [];
+                false ->
+                    lawspec_beam_schema:construct(
+                        <<"List::Cons">>,
+                        [
+                            I,
+                            lawspec_definitions:counting_from(
+                                Schema,
+                                Symbols,
+                                lawspec_beam_schema:validate(
+                                    lawspec_beam_scalar:convert((I + 1), {<<"BigUInt">>, []}, 64),
+                                    {<<"BigUInt">>, []},
+                                    Schema
+                                ),
+                                lawspec_beam_schema:validate(
+                                    lawspec_beam_scalar:convert(
+                                        (Count - 1),
+                                        {<<"BigUInt">>, []},
+                                        64
+                                    ),
+                                    {<<"BigUInt">>, []},
+                                    Schema
+                                )
+                            )
+                        ],
+                        {<<"List">>, [{<<"BigUInt">>, []}]},
+                        Schema
+                    )
+            end
+        end
+    ).
+
+%% distinct — laws/responses.lawspec:250
+distinct(Schema, Symbols, Items) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::distinct">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Items,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> true end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                ((not (not lists:all(
+                                    fun(Item) -> (Item =/= Selection) end,
+                                    Selection_2
+                                ))) andalso
+                                    lawspec_definitions:distinct(Schema, Symbols, Selection_2))
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% downloadsFrom — laws/responses.lawspec:278
+downloads_from(Schema, Symbols, Valid, Seen) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::downloadsFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Valid,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_beam_schema:match(
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.citations::type::Citation::Citation">> => fun(
+                                                    [_Index, Metadata]
+                                                ) ->
+                                                    Metadata
+                                                end
+                                            }
+                                        ),
+                                        #{
+                                            <<"cake.laws.shared::type::CitableMeta::CitableMeta">> => fun(
+                                                [_Id, _Label, _Preview, SourceRef]
+                                            ) ->
+                                                SourceRef
+                                            end
+                                        }
+                                    ),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"Maybe::Absent">> => fun([]) ->
+                                                    lawspec_definitions:downloads_from(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2,
+                                                        Seen
+                                                    )
+                                                end,
+                                                <<"Maybe::Present">> => fun([MatchSelection]) ->
+                                                    case
+                                                        (not lists:all(
+                                                            fun(Item) ->
+                                                                lawspec_beam_scalar:not_equal(
+                                                                    Item,
+                                                                    MatchSelection
+                                                                )
+                                                            end,
+                                                            Seen
+                                                        ))
+                                                    of
+                                                        true ->
+                                                            lawspec_definitions:downloads_from(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                Seen
+                                                            );
+                                                        false ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"List::Cons">>,
+                                                                [
+                                                                    lawspec_beam_runtime:bind(
+                                                                        lawspec_beam_schema:construct(
+                                                                            <<"cake.laws.responses::type::ActionKind::Download">>,
+                                                                            [],
+                                                                            {
+                                                                                <<"cake.laws.responses::type::ActionKind">>,
+                                                                                []
+                                                                            },
+                                                                            Schema
+                                                                        ),
+                                                                        fun(RecordField) ->
+                                                                            lawspec_beam_runtime:bind(
+                                                                                lawspec_beam_schema:match(
+                                                                                    lawspec_beam_schema:match(
+                                                                                        Selection,
+                                                                                        #{
+                                                                                            <<"cake.laws.citations::type::Citation::Citation">> => fun(
+                                                                                                [
+                                                                                                    _Index_2,
+                                                                                                    Metadata_2
+                                                                                                ]
+                                                                                            ) ->
+                                                                                                Metadata_2
+                                                                                            end
+                                                                                        }
+                                                                                    ),
+                                                                                    #{
+                                                                                        <<"cake.laws.shared::type::CitableMeta::CitableMeta">> => fun(
+                                                                                            [
+                                                                                                _Id_2,
+                                                                                                Label_2,
+                                                                                                _Preview_2,
+                                                                                                _SourceRef_2
+                                                                                            ]
+                                                                                        ) ->
+                                                                                            Label_2
+                                                                                        end
+                                                                                    }
+                                                                                ),
+                                                                                fun(
+                                                                                    RecordField_2
+                                                                                ) ->
+                                                                                    lawspec_beam_runtime:bind(
+                                                                                        MatchSelection,
+                                                                                        fun(
+                                                                                            RecordField_3
+                                                                                        ) ->
+                                                                                            lawspec_beam_schema:construct(
+                                                                                                <<"cake.laws.responses::type::Action::Action">>,
+                                                                                                [
+                                                                                                    RecordField,
+                                                                                                    RecordField_2,
+                                                                                                    RecordField_3
+                                                                                                ],
+                                                                                                {
+                                                                                                    <<"cake.laws.responses::type::Action">>,
+                                                                                                    []
+                                                                                                },
+                                                                                                Schema
+                                                                                            )
+                                                                                        end
+                                                                                    )
+                                                                                end
+                                                                            )
+                                                                        end
+                                                                    ),
+                                                                    lawspec_definitions:downloads_from(
+                                                                        Schema,
+                                                                        Symbols,
+                                                                        Selection_2,
+                                                                        lawspec_beam_runtime:helper(
+                                                                            <<"append">>,
+                                                                            [
+                                                                                Seen,
+                                                                                lawspec_beam_schema:construct(
+                                                                                    <<"List::Cons">>,
+                                                                                    [
+                                                                                        MatchSelection,
+                                                                                        []
+                                                                                    ],
+                                                                                    {
+                                                                                        <<"List">>,
+                                                                                        [
+                                                                                            {
+                                                                                                <<"Text">>,
+                                                                                                []
+                                                                                            }
+                                                                                        ]
+                                                                                    },
+                                                                                    Schema
+                                                                                )
+                                                                            ],
+                                                                            [
+                                                                                <<"List Text">>,
+                                                                                <<"List Text">>
+                                                                            ],
+                                                                            64
+                                                                        )
+                                                                    )
+                                                                ],
+                                                                {
+                                                                    <<"List">>,
+                                                                    [
+                                                                        {
+                                                                            <<"cake.laws.responses::type::Action">>,
+                                                                            []
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                Schema
+                                                            )
+                                                    end
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% downloadsOf — laws/responses.lawspec:301
+downloads_of(Schema, Symbols, Valid) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::downloadsOf">>,
+        fun() -> lawspec_definitions:downloads_from(Schema, Symbols, Valid, []) end
+    ).
+
+%% finalTextOf — laws/responses.lawspec:426
+final_text_of(Schema, Symbols, Pieces, ChunkMap, Cited) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::finalTextOf">>,
+        fun() ->
+            lawspec_definitions:text_of(
+                Schema,
+                Symbols,
+                lawspec_definitions:trimmed(
+                    Schema,
+                    Symbols,
+                    lawspec_definitions:calmed(
+                        Schema,
+                        Symbols,
+                        lawspec_definitions:squeezed(
+                            Schema,
+                            Symbols,
+                            lawspec_definitions:rewritten(Schema, Symbols, Pieces, ChunkMap, Cited)
+                        )
+                    )
+                )
+            )
+        end
+    ).
+
+%% firstPerUnit — laws/responses.lawspec:234
+first_per_unit(Schema, Symbols, Valid) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::firstPerUnit">>,
+        fun() -> lawspec_definitions:first_per_unit_from(Schema, Symbols, Valid, []) end
+    ).
+
+%% firstPerUnitFrom — laws/responses.lawspec:223
+first_per_unit_from(Schema, Symbols, Valid, Seen) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::firstPerUnitFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Valid,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case
+                                    (not lists:all(
+                                        fun(Item) ->
+                                            lawspec_beam_scalar:not_equal(
+                                                Item,
+                                                lawspec_beam_schema:match(
+                                                    lawspec_beam_schema:match(
+                                                        Selection,
+                                                        #{
+                                                            <<"cake.laws.citations::type::Citation::Citation">> => fun(
+                                                                [_Index, Metadata]
+                                                            ) ->
+                                                                Metadata
+                                                            end
+                                                        }
+                                                    ),
+                                                    #{
+                                                        <<"cake.laws.shared::type::CitableMeta::CitableMeta">> => fun(
+                                                            [Id, _Label, _Preview, _SourceRef]
+                                                        ) ->
+                                                            Id
+                                                        end
+                                                    }
+                                                )
+                                            )
+                                        end,
+                                        Seen
+                                    ))
+                                of
+                                    true ->
+                                        lawspec_definitions:first_per_unit_from(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2,
+                                            Seen
+                                        );
+                                    false ->
+                                        lawspec_beam_schema:construct(
+                                            <<"List::Cons">>,
+                                            [
+                                                Selection,
+                                                lawspec_definitions:first_per_unit_from(
+                                                    Schema,
+                                                    Symbols,
+                                                    Selection_2,
+                                                    lawspec_beam_runtime:helper(
+                                                        <<"append">>,
+                                                        [
+                                                            Seen,
+                                                            lawspec_beam_schema:construct(
+                                                                <<"List::Cons">>,
+                                                                [
+                                                                    lawspec_beam_schema:match(
+                                                                        lawspec_beam_schema:match(
+                                                                            Selection,
+                                                                            #{
+                                                                                <<"cake.laws.citations::type::Citation::Citation">> => fun(
+                                                                                    [
+                                                                                        _Index_2,
+                                                                                        Metadata_2
+                                                                                    ]
+                                                                                ) ->
+                                                                                    Metadata_2
+                                                                                end
+                                                                            }
+                                                                        ),
+                                                                        #{
+                                                                            <<"cake.laws.shared::type::CitableMeta::CitableMeta">> => fun(
+                                                                                [
+                                                                                    Id_2,
+                                                                                    _Label_2,
+                                                                                    _Preview_2,
+                                                                                    _SourceRef_2
+                                                                                ]
+                                                                            ) ->
+                                                                                Id_2
+                                                                            end
+                                                                        }
+                                                                    ),
+                                                                    []
+                                                                ],
+                                                                {<<"List">>, [{<<"Text">>, []}]},
+                                                                Schema
+                                                            )
+                                                        ],
+                                                        [<<"List Text">>, <<"List Text">>],
+                                                        64
+                                                    )
+                                                )
+                                            ],
+                                            {
+                                                <<"List">>,
+                                                [{<<"cake.laws.citations::type::Citation">>, []}]
+                                            },
+                                            Schema
+                                        )
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% isBlank — laws/responses.lawspec:385
+is_blank(_Schema, _Symbols, Piece) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::isBlank">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Piece,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"cake.laws.responses::type::Piece::Space">> => fun([]) -> true end,
+                            <<"cake.laws.responses::type::Piece::Newline">> => fun([]) -> true end,
+                            <<"cake.laws.responses::type::Piece::Word">> => fun([_Selection]) ->
+                                false
+                            end,
+                            <<"cake.laws.responses::type::Piece::Cite">> => fun([_Selection_2]) ->
+                                false
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keyValFromItems — <lawspec.collections>:55
+lawspec_collections_key_val_from_items_list_entry_big_u_int_citable_meta_list_entry_big_u_int_citable_meta_2(
+    Schema,
+    Symbols,
+    Es,
+    Acc
+) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::lawspec_lawspecCollectionsKeyValFromItems_8ac2a2bf0a41a4f96653f56c0f92905088a6d622508ebc31261236e0b17a4bfd">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Es,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> Acc end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"lawspec.collections::type::Entry::Entry">> => fun(
+                                                    [MatchSelection, MatchSelection_2]
+                                                ) ->
+                                                    lawspec_definitions:lawspec_collections_key_val_from_items_list_entry_big_u_int_citable_meta_list_entry_big_u_int_citable_meta_2(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2,
+                                                        lawspec_definitions:lawspec_collections_key_val_put_items_big_u_int_citable_meta_list_entry_big_u_int_citable_meta_2(
+                                                            Schema,
+                                                            Symbols,
+                                                            MatchSelection,
+                                                            MatchSelection_2,
+                                                            Acc
+                                                        )
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keyValKeysItems — <lawspec.collections>:64
+lawspec_collections_key_val_keys_items_list_entry_big_u_int_citable_meta(Schema, Symbols, Es) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::lawspec_lawspecCollectionsKeyValKeysItems_9937e4d09966c12aa3a9b1024ac7bce89ed7bc6d9cc984ac17feac4258cae190">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Es,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"lawspec.collections::type::Entry::Entry">> => fun(
+                                                    [MatchSelection, _MatchSelection_2]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            MatchSelection,
+                                                            lawspec_definitions:lawspec_collections_key_val_keys_items_list_entry_big_u_int_citable_meta(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2
+                                                            )
+                                                        ],
+                                                        {<<"List">>, [{<<"BigUInt">>, []}]},
+                                                        Schema
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keyValKeys — <lawspec.collections>:94
+lawspec_collections_key_val_keys_key_val_big_u_int_citable_meta(Schema, Symbols, M) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::lawspec_lawspecCollectionsKeyValKeys_976ff352f372978553acdb42beb3c2c4777feb0b523cddac2f7b58be5c654fa6">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                M,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"lawspec.collections::type::KeyVal::KeyValEntries">> => fun(
+                                [Selection]
+                            ) ->
+                                lawspec_definitions:lawspec_collections_key_val_keys_items_list_entry_big_u_int_citable_meta(
+                                    Schema,
+                                    Symbols,
+                                    Selection
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keyValLookupItems — <lawspec.collections>:42
+lawspec_collections_key_val_lookup_items_big_u_int_list_entry_big_u_int_citable_meta_2(
+    Schema,
+    Symbols,
+    K,
+    Es
+) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::lawspec_lawspecCollectionsKeyValLookupItems_4d5a5f83a948c3a48cfdf0550fc24ca1c5f49a57c0bf3d679e5440784bbe877f">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Es,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Absent">>,
+                                    [],
+                                    {
+                                        <<"Maybe">>,
+                                        [{<<"cake.laws.shared::type::CitableMeta">>, []}]
+                                    },
+                                    Schema
+                                )
+                            end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"lawspec.collections::type::Entry::Entry">> => fun(
+                                                    [MatchSelection, MatchSelection_2]
+                                                ) ->
+                                                    lawspec_beam_runtime:bind(
+                                                        lawspec_beam_runtime:helper(
+                                                            <<"compare">>,
+                                                            [K, MatchSelection],
+                                                            [<<"BigUInt">>, <<"BigUInt">>],
+                                                            64
+                                                        ),
+                                                        fun(It_3) ->
+                                                            lawspec_beam_schema:match(
+                                                                It_3,
+                                                                #{
+                                                                    <<"lawspec.collections::type::Ordering::Less">> => fun(
+                                                                        []
+                                                                    ) ->
+                                                                        lawspec_beam_schema:construct(
+                                                                            <<"Maybe::Absent">>,
+                                                                            [],
+                                                                            {
+                                                                                <<"Maybe">>,
+                                                                                [
+                                                                                    {
+                                                                                        <<"cake.laws.shared::type::CitableMeta">>,
+                                                                                        []
+                                                                                    }
+                                                                                ]
+                                                                            },
+                                                                            Schema
+                                                                        )
+                                                                    end,
+                                                                    <<"lawspec.collections::type::Ordering::Equal">> => fun(
+                                                                        []
+                                                                    ) ->
+                                                                        lawspec_beam_schema:construct(
+                                                                            <<"Maybe::Present">>,
+                                                                            [MatchSelection_2],
+                                                                            {
+                                                                                <<"Maybe">>,
+                                                                                [
+                                                                                    {
+                                                                                        <<"cake.laws.shared::type::CitableMeta">>,
+                                                                                        []
+                                                                                    }
+                                                                                ]
+                                                                            },
+                                                                            Schema
+                                                                        )
+                                                                    end,
+                                                                    <<"lawspec.collections::type::Ordering::Greater">> => fun(
+                                                                        []
+                                                                    ) ->
+                                                                        lawspec_definitions:lawspec_collections_key_val_lookup_items_big_u_int_list_entry_big_u_int_citable_meta_2(
+                                                                            Schema,
+                                                                            Symbols,
+                                                                            K,
+                                                                            Selection_2
+                                                                        )
+                                                                    end
+                                                                }
+                                                            )
+                                                        end
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keyValLookup — <lawspec.collections>:82
+lawspec_collections_key_val_lookup_big_u_int_key_val_big_u_int_citable_meta_2(
+    Schema,
+    Symbols,
+    K,
+    M
+) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::lawspec_lawspecCollectionsKeyValLookup_0b0f8d2b09320d24c50bc07206d8f4e593b151d6a9723503a75522b46fdf57ed">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                M,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"lawspec.collections::type::KeyVal::KeyValEntries">> => fun(
+                                [Selection]
+                            ) ->
+                                lawspec_definitions:lawspec_collections_key_val_lookup_items_big_u_int_list_entry_big_u_int_citable_meta_2(
+                                    Schema,
+                                    Symbols,
+                                    K,
+                                    Selection
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keyValOf — <lawspec.collections>:78
+lawspec_collections_key_val_of_list_entry_big_u_int_citable_meta_2(Schema, Symbols, Es) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::lawspec_lawspecCollectionsKeyValOf_6d52d2ebf966c92b0921280329efaf97bdb9a6efbe77251ab8e54b09ea871299">>,
+        fun() ->
+            lawspec_beam_schema:construct(
+                <<"lawspec.collections::type::KeyVal::KeyValEntries">>,
+                [
+                    lawspec_definitions:lawspec_collections_key_val_from_items_list_entry_big_u_int_citable_meta_list_entry_big_u_int_citable_meta_2(
+                        Schema,
+                        Symbols,
+                        Es,
+                        []
+                    )
+                ],
+                {
+                    <<"lawspec.collections::type::KeyVal">>,
+                    [{<<"BigUInt">>, []}, {<<"cake.laws.shared::type::CitableMeta">>, []}]
+                },
+                Schema
+            )
+        end
+    ).
+
+%% keyValPutItems — <lawspec.collections>:16
+lawspec_collections_key_val_put_items_big_u_int_citable_meta_list_entry_big_u_int_citable_meta_2(
+    Schema,
+    Symbols,
+    K,
+    V,
+    Es
+) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::lawspec_lawspecCollectionsKeyValPutItems_ae3115671e829783898352ad990fc68bcfd385248bd9eeaf55b9e0aa11dea848">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Es,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            K,
+                                            fun(RecordField) ->
+                                                lawspec_beam_runtime:bind(
+                                                    V,
+                                                    fun(RecordField_2) ->
+                                                        lawspec_beam_schema:construct(
+                                                            <<"lawspec.collections::type::Entry::Entry">>,
+                                                            [RecordField, RecordField_2],
+                                                            {
+                                                                <<"lawspec.collections::type::Entry">>,
+                                                                [
+                                                                    {<<"BigUInt">>, []},
+                                                                    {
+                                                                        <<"cake.laws.shared::type::CitableMeta">>,
+                                                                        []
+                                                                    }
+                                                                ]
+                                                            },
+                                                            Schema
+                                                        )
+                                                    end
+                                                )
+                                            end
+                                        ),
+                                        []
+                                    ],
+                                    {
+                                        <<"List">>,
+                                        [
+                                            {
+                                                <<"lawspec.collections::type::Entry">>,
+                                                [
+                                                    {<<"BigUInt">>, []},
+                                                    {<<"cake.laws.shared::type::CitableMeta">>, []}
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"lawspec.collections::type::Entry::Entry">> => fun(
+                                                    [MatchSelection, _MatchSelection_2]
+                                                ) ->
+                                                    lawspec_beam_runtime:bind(
+                                                        lawspec_beam_runtime:helper(
+                                                            <<"compare">>,
+                                                            [K, MatchSelection],
+                                                            [<<"BigUInt">>, <<"BigUInt">>],
+                                                            64
+                                                        ),
+                                                        fun(It_3) ->
+                                                            lawspec_beam_schema:match(
+                                                                It_3,
+                                                                #{
+                                                                    <<"lawspec.collections::type::Ordering::Less">> => fun(
+                                                                        []
+                                                                    ) ->
+                                                                        lawspec_beam_schema:construct(
+                                                                            <<"List::Cons">>,
+                                                                            [
+                                                                                lawspec_beam_runtime:bind(
+                                                                                    K,
+                                                                                    fun(
+                                                                                        RecordField_3
+                                                                                    ) ->
+                                                                                        lawspec_beam_runtime:bind(
+                                                                                            V,
+                                                                                            fun(
+                                                                                                RecordField_4
+                                                                                            ) ->
+                                                                                                lawspec_beam_schema:construct(
+                                                                                                    <<"lawspec.collections::type::Entry::Entry">>,
+                                                                                                    [
+                                                                                                        RecordField_3,
+                                                                                                        RecordField_4
+                                                                                                    ],
+                                                                                                    {
+                                                                                                        <<"lawspec.collections::type::Entry">>,
+                                                                                                        [
+                                                                                                            {
+                                                                                                                <<"BigUInt">>,
+                                                                                                                []
+                                                                                                            },
+                                                                                                            {
+                                                                                                                <<"cake.laws.shared::type::CitableMeta">>,
+                                                                                                                []
+                                                                                                            }
+                                                                                                        ]
+                                                                                                    },
+                                                                                                    Schema
+                                                                                                )
+                                                                                            end
+                                                                                        )
+                                                                                    end
+                                                                                ),
+                                                                                Es
+                                                                            ],
+                                                                            {
+                                                                                <<"List">>,
+                                                                                [
+                                                                                    {
+                                                                                        <<"lawspec.collections::type::Entry">>,
+                                                                                        [
+                                                                                            {
+                                                                                                <<"BigUInt">>,
+                                                                                                []
+                                                                                            },
+                                                                                            {
+                                                                                                <<"cake.laws.shared::type::CitableMeta">>,
+                                                                                                []
+                                                                                            }
+                                                                                        ]
+                                                                                    }
+                                                                                ]
+                                                                            },
+                                                                            Schema
+                                                                        )
+                                                                    end,
+                                                                    <<"lawspec.collections::type::Ordering::Equal">> => fun(
+                                                                        []
+                                                                    ) ->
+                                                                        lawspec_beam_schema:construct(
+                                                                            <<"List::Cons">>,
+                                                                            [
+                                                                                lawspec_beam_runtime:bind(
+                                                                                    K,
+                                                                                    fun(
+                                                                                        RecordField_3
+                                                                                    ) ->
+                                                                                        lawspec_beam_runtime:bind(
+                                                                                            V,
+                                                                                            fun(
+                                                                                                RecordField_4
+                                                                                            ) ->
+                                                                                                lawspec_beam_schema:construct(
+                                                                                                    <<"lawspec.collections::type::Entry::Entry">>,
+                                                                                                    [
+                                                                                                        RecordField_3,
+                                                                                                        RecordField_4
+                                                                                                    ],
+                                                                                                    {
+                                                                                                        <<"lawspec.collections::type::Entry">>,
+                                                                                                        [
+                                                                                                            {
+                                                                                                                <<"BigUInt">>,
+                                                                                                                []
+                                                                                                            },
+                                                                                                            {
+                                                                                                                <<"cake.laws.shared::type::CitableMeta">>,
+                                                                                                                []
+                                                                                                            }
+                                                                                                        ]
+                                                                                                    },
+                                                                                                    Schema
+                                                                                                )
+                                                                                            end
+                                                                                        )
+                                                                                    end
+                                                                                ),
+                                                                                Selection_2
+                                                                            ],
+                                                                            {
+                                                                                <<"List">>,
+                                                                                [
+                                                                                    {
+                                                                                        <<"lawspec.collections::type::Entry">>,
+                                                                                        [
+                                                                                            {
+                                                                                                <<"BigUInt">>,
+                                                                                                []
+                                                                                            },
+                                                                                            {
+                                                                                                <<"cake.laws.shared::type::CitableMeta">>,
+                                                                                                []
+                                                                                            }
+                                                                                        ]
+                                                                                    }
+                                                                                ]
+                                                                            },
+                                                                            Schema
+                                                                        )
+                                                                    end,
+                                                                    <<"lawspec.collections::type::Ordering::Greater">> => fun(
+                                                                        []
+                                                                    ) ->
+                                                                        lawspec_beam_schema:construct(
+                                                                            <<"List::Cons">>,
+                                                                            [
+                                                                                Selection,
+                                                                                lawspec_definitions:lawspec_collections_key_val_put_items_big_u_int_citable_meta_list_entry_big_u_int_citable_meta_2(
+                                                                                    Schema,
+                                                                                    Symbols,
+                                                                                    K,
+                                                                                    V,
+                                                                                    Selection_2
+                                                                                )
+                                                                            ],
+                                                                            {
+                                                                                <<"List">>,
+                                                                                [
+                                                                                    {
+                                                                                        <<"lawspec.collections::type::Entry">>,
+                                                                                        [
+                                                                                            {
+                                                                                                <<"BigUInt">>,
+                                                                                                []
+                                                                                            },
+                                                                                            {
+                                                                                                <<"cake.laws.shared::type::CitableMeta">>,
+                                                                                                []
+                                                                                            }
+                                                                                        ]
+                                                                                    }
+                                                                                ]
+                                                                            },
+                                                                            Schema
+                                                                        )
+                                                                    end
+                                                                }
+                                                            )
+                                                        end
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keyValPut — <lawspec.collections>:86
+lawspec_collections_key_val_put_big_u_int_citable_meta_key_val_big_u_int_citable_meta_2(
+    Schema,
+    Symbols,
+    K,
+    V,
+    M
+) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::lawspec_lawspecCollectionsKeyValPut_3b82a5f69ca5fe328d75dfe37124c5b8626158ed747c8edb887a083cd824bde2">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                M,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"lawspec.collections::type::KeyVal::KeyValEntries">> => fun(
+                                [Selection]
+                            ) ->
+                                lawspec_beam_schema:construct(
+                                    <<"lawspec.collections::type::KeyVal::KeyValEntries">>,
+                                    [
+                                        lawspec_definitions:lawspec_collections_key_val_put_items_big_u_int_citable_meta_list_entry_big_u_int_citable_meta_2(
+                                            Schema,
+                                            Symbols,
+                                            K,
+                                            V,
+                                            Selection
+                                        )
+                                    ],
+                                    {
+                                        <<"lawspec.collections::type::KeyVal">>,
+                                        [
+                                            {<<"BigUInt">>, []},
+                                            {<<"cake.laws.shared::type::CitableMeta">>, []}
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keyValValuesItems — <lawspec.collections>:71
+lawspec_collections_key_val_values_items_list_entry_big_u_int_citable_meta(Schema, Symbols, Es) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::lawspec_lawspecCollectionsKeyValValuesItems_2287992c061f33b7f1f695ed0a671f48e3b066f3acf1f01721c3b8fe6fd01f06">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Es,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"lawspec.collections::type::Entry::Entry">> => fun(
+                                                    [_MatchSelection, MatchSelection_2]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            MatchSelection_2,
+                                                            lawspec_definitions:lawspec_collections_key_val_values_items_list_entry_big_u_int_citable_meta(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.shared::type::CitableMeta">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keyValValues — <lawspec.collections>:98
+lawspec_collections_key_val_values_key_val_big_u_int_citable_meta(Schema, Symbols, M) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::lawspec_lawspecCollectionsKeyValValues_b8d1e8a37b09c7c592734fe684388f9183f771a8014ba80daa662245186aacc2">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                M,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"lawspec.collections::type::KeyVal::KeyValEntries">> => fun(
+                                [Selection]
+                            ) ->
+                                lawspec_definitions:lawspec_collections_key_val_values_items_list_entry_big_u_int_citable_meta(
+                                    Schema,
+                                    Symbols,
+                                    Selection
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% metasFrom — laws/responses.lawspec:104
+metas_from(Schema, Symbols, Pool, Position) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::metasFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pool,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            lawspec_beam_runtime:helper(
+                                                <<"append">>,
+                                                [
+                                                    <<"unit-">>,
+                                                    lawspec_beam_runtime:helper(
+                                                        <<"textOf">>,
+                                                        [Position],
+                                                        [<<"BigUInt">>],
+                                                        64
+                                                    )
+                                                ],
+                                                [<<"Text">>, <<"Text">>],
+                                                64
+                                            ),
+                                            fun(RecordField) ->
+                                                lawspec_beam_runtime:bind(
+                                                    lawspec_beam_schema:match(
+                                                        Selection,
+                                                        #{
+                                                            <<"cake.laws.responses::type::RetrievalUnit::RetrievalUnit">> => fun(
+                                                                [Label, _Preview, _Source]
+                                                            ) ->
+                                                                Label
+                                                            end
+                                                        }
+                                                    ),
+                                                    fun(RecordField_2) ->
+                                                        lawspec_beam_runtime:bind(
+                                                            lawspec_beam_schema:match(
+                                                                Selection,
+                                                                #{
+                                                                    <<"cake.laws.responses::type::RetrievalUnit::RetrievalUnit">> => fun(
+                                                                        [
+                                                                            _Label_2,
+                                                                            Preview_2,
+                                                                            _Source_2
+                                                                        ]
+                                                                    ) ->
+                                                                        Preview_2
+                                                                    end
+                                                                }
+                                                            ),
+                                                            fun(RecordField_3) ->
+                                                                lawspec_beam_runtime:bind(
+                                                                    lawspec_definitions:source_ref_of(
+                                                                        Schema,
+                                                                        Symbols,
+                                                                        lawspec_beam_schema:match(
+                                                                            Selection,
+                                                                            #{
+                                                                                <<"cake.laws.responses::type::RetrievalUnit::RetrievalUnit">> => fun(
+                                                                                    [
+                                                                                        _Label_3,
+                                                                                        _Preview_3,
+                                                                                        Source_3
+                                                                                    ]
+                                                                                ) ->
+                                                                                    Source_3
+                                                                                end
+                                                                            }
+                                                                        )
+                                                                    ),
+                                                                    fun(RecordField_4) ->
+                                                                        lawspec_beam_schema:construct(
+                                                                            <<"cake.laws.shared::type::CitableMeta::CitableMeta">>,
+                                                                            [
+                                                                                RecordField,
+                                                                                RecordField_2,
+                                                                                RecordField_3,
+                                                                                RecordField_4
+                                                                            ],
+                                                                            {
+                                                                                <<"cake.laws.shared::type::CitableMeta">>,
+                                                                                []
+                                                                            },
+                                                                            Schema
+                                                                        )
+                                                                    end
+                                                                )
+                                                            end
+                                                        )
+                                                    end
+                                                )
+                                            end
+                                        ),
+                                        lawspec_definitions:metas_from(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2,
+                                            lawspec_beam_schema:validate(
+                                                lawspec_beam_scalar:convert(
+                                                    (Position + 1),
+                                                    {<<"BigUInt">>, []},
+                                                    64
+                                                ),
+                                                {<<"BigUInt">>, []},
+                                                Schema
+                                            )
+                                        )
+                                    ],
+                                    {<<"List">>, [{<<"cake.laws.shared::type::CitableMeta">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% newIndicesOf — laws/responses.lawspec:238
+new_indices_of(Schema, Symbols, Cited) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::newIndicesOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Cited,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.responses::type::Cited::Cited">> => fun(
+                                                    [_OldIndex, NewIndex, _Meta]
+                                                ) ->
+                                                    NewIndex
+                                                end
+                                            }
+                                        ),
+                                        lawspec_definitions:new_indices_of(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2
+                                        )
+                                    ],
+                                    {<<"List">>, [{<<"BigUInt">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% numberedFrom — laws/responses.lawspec:140
+numbered_from(Schema, Symbols, Metas, I) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::numberedFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Metas,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            I,
+                                            fun(RecordField) ->
+                                                lawspec_beam_runtime:bind(
+                                                    Selection,
+                                                    fun(RecordField_2) ->
+                                                        lawspec_beam_schema:construct(
+                                                            <<"cake.laws.responses::type::IndexedChunk::IndexedChunk">>,
+                                                            [RecordField, RecordField_2],
+                                                            {
+                                                                <<"cake.laws.responses::type::IndexedChunk">>,
+                                                                []
+                                                            },
+                                                            Schema
+                                                        )
+                                                    end
+                                                )
+                                            end
+                                        ),
+                                        lawspec_definitions:numbered_from(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2,
+                                            lawspec_beam_schema:validate(
+                                                lawspec_beam_scalar:convert(
+                                                    (I + 1),
+                                                    {<<"BigUInt">>, []},
+                                                    64
+                                                ),
+                                                {<<"BigUInt">>, []},
+                                                Schema
+                                            )
+                                        )
+                                    ],
+                                    {
+                                        <<"List">>,
+                                        [{<<"cake.laws.responses::type::IndexedChunk">>, []}]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% pickedFrom — laws/responses.lawspec:119
+picked_from(Schema, Symbols, Metas, Size, Picks) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::pickedFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Picks,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case (Size >= 1) of
+                                    true ->
+                                        lawspec_beam_runtime:bind(
+                                            lawspec_beam_runtime:helper(
+                                                <<"at">>,
+                                                [
+                                                    Metas,
+                                                    lawspec_beam_scalar:remainder(
+                                                        Selection,
+                                                        Size,
+                                                        <<"BigUInt">>,
+                                                        <<"BigUInt">>
+                                                    )
+                                                ],
+                                                [
+                                                    <<"List cake.laws.shared::type::CitableMeta">>,
+                                                    <<"Integer">>
+                                                ],
+                                                64
+                                            ),
+                                            fun(It_2) ->
+                                                lawspec_beam_schema:match(
+                                                    It_2,
+                                                    #{
+                                                        <<"Maybe::Present">> => fun(
+                                                            [MatchSelection]
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"List::Cons">>,
+                                                                [
+                                                                    MatchSelection,
+                                                                    lawspec_definitions:picked_from(
+                                                                        Schema,
+                                                                        Symbols,
+                                                                        Metas,
+                                                                        Size,
+                                                                        Selection_2
+                                                                    )
+                                                                ],
+                                                                {
+                                                                    <<"List">>,
+                                                                    [
+                                                                        {
+                                                                            <<"cake.laws.shared::type::CitableMeta">>,
+                                                                            []
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end,
+                                                        <<"Maybe::Absent">> => fun([]) ->
+                                                            lawspec_definitions:picked_from(
+                                                                Schema,
+                                                                Symbols,
+                                                                Metas,
+                                                                Size,
+                                                                Selection_2
+                                                            )
+                                                        end
+                                                    }
+                                                )
+                                            end
+                                        );
+                                    false ->
+                                        []
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% rewritten — laws/responses.lawspec:326
+rewritten(Schema, Symbols, Pieces, ChunkMap, Cited) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::rewritten">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pieces,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.responses::type::Piece::Word">> => fun(
+                                                    [MatchSelection]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.responses::type::Piece::Word">>,
+                                                                [MatchSelection],
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            ),
+                                                            lawspec_definitions:rewritten(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                ChunkMap,
+                                                                Cited
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.responses::type::Piece::Space">> => fun(
+                                                    []
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.responses::type::Piece::Space">>,
+                                                                [],
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            ),
+                                                            lawspec_definitions:rewritten(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                ChunkMap,
+                                                                Cited
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.responses::type::Piece::Newline">> => fun(
+                                                    []
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.responses::type::Piece::Newline">>,
+                                                                [],
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            ),
+                                                            lawspec_definitions:rewritten(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                ChunkMap,
+                                                                Cited
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.responses::type::Piece::Cite">> => fun(
+                                                    [MatchSelection_2]
+                                                ) ->
+                                                    lawspec_beam_runtime:bind(
+                                                        lawspec_definitions:shown(
+                                                            Schema,
+                                                            Symbols,
+                                                            MatchSelection_2,
+                                                            ChunkMap,
+                                                            Cited
+                                                        ),
+                                                        fun(It_3) ->
+                                                            lawspec_beam_schema:match(
+                                                                It_3,
+                                                                #{
+                                                                    <<"Maybe::Present">> => fun(
+                                                                        [MatchMatchSelection]
+                                                                    ) ->
+                                                                        lawspec_beam_schema:construct(
+                                                                            <<"List::Cons">>,
+                                                                            [
+                                                                                lawspec_beam_schema:construct(
+                                                                                    <<"cake.laws.responses::type::Piece::Cite">>,
+                                                                                    [
+                                                                                        MatchMatchSelection
+                                                                                    ],
+                                                                                    {
+                                                                                        <<"cake.laws.responses::type::Piece">>,
+                                                                                        []
+                                                                                    },
+                                                                                    Schema
+                                                                                ),
+                                                                                lawspec_definitions:rewritten(
+                                                                                    Schema,
+                                                                                    Symbols,
+                                                                                    Selection_2,
+                                                                                    ChunkMap,
+                                                                                    Cited
+                                                                                )
+                                                                            ],
+                                                                            {
+                                                                                <<"List">>,
+                                                                                [
+                                                                                    {
+                                                                                        <<"cake.laws.responses::type::Piece">>,
+                                                                                        []
+                                                                                    }
+                                                                                ]
+                                                                            },
+                                                                            Schema
+                                                                        )
+                                                                    end,
+                                                                    <<"Maybe::Absent">> => fun(
+                                                                        []
+                                                                    ) ->
+                                                                        lawspec_definitions:rewritten(
+                                                                            Schema,
+                                                                            Symbols,
+                                                                            Selection_2,
+                                                                            ChunkMap,
+                                                                            Cited
+                                                                        )
+                                                                    end
+                                                                }
+                                                            )
+                                                        end
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% segmentsOf — laws/responses.lawspec:192
+segments_of(Schema, Symbols, Pieces) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::segmentsOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pieces,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            Selection,
+                                            fun(It_2) ->
+                                                lawspec_beam_schema:match(
+                                                    It_2,
+                                                    #{
+                                                        <<"cake.laws.responses::type::Piece::Word">> => fun(
+                                                            [MatchSelection]
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.shared::type::Segment::Plain">>,
+                                                                [MatchSelection],
+                                                                {
+                                                                    <<"cake.laws.shared::type::Segment">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end,
+                                                        <<"cake.laws.responses::type::Piece::Space">> => fun(
+                                                            []
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.shared::type::Segment::Plain">>,
+                                                                [<<" ">>],
+                                                                {
+                                                                    <<"cake.laws.shared::type::Segment">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end,
+                                                        <<"cake.laws.responses::type::Piece::Newline">> => fun(
+                                                            []
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.shared::type::Segment::Plain">>,
+                                                                [<<"\n">>],
+                                                                {
+                                                                    <<"cake.laws.shared::type::Segment">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end,
+                                                        <<"cake.laws.responses::type::Piece::Cite">> => fun(
+                                                            [MatchSelection_2]
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.shared::type::Segment::Marker">>,
+                                                                [MatchSelection_2],
+                                                                {
+                                                                    <<"cake.laws.shared::type::Segment">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end
+                                                    }
+                                                )
+                                            end
+                                        ),
+                                        lawspec_definitions:segments_of(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2
+                                        )
+                                    ],
+                                    {<<"List">>, [{<<"cake.laws.shared::type::Segment">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% shown — laws/responses.lawspec:317
+shown(Schema, Symbols, N, ChunkMap, Cited) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::shown">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_definitions:lawspec_collections_key_val_lookup_big_u_int_key_val_big_u_int_citable_meta_2(
+                    Schema,
+                    Symbols,
+                    N,
+                    ChunkMap
+                ),
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Maybe::Absent">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Absent">>,
+                                    [],
+                                    {<<"Maybe">>, [{<<"BigUInt">>, []}]},
+                                    Schema
+                                )
+                            end,
+                            <<"Maybe::Present">> => fun([Selection]) ->
+                                lawspec_definitions:shown_as(
+                                    Schema,
+                                    Symbols,
+                                    lawspec_beam_schema:match(
+                                        Selection,
+                                        #{
+                                            <<"cake.laws.shared::type::CitableMeta::CitableMeta">> => fun(
+                                                [Id, _Label, _Preview, _SourceRef]
+                                            ) ->
+                                                Id
+                                            end
+                                        }
+                                    ),
+                                    Cited
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% shownAs — laws/responses.lawspec:307
+shown_as(Schema, Symbols, Id, Cited) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::shownAs">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Cited,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Absent">>,
+                                    [],
+                                    {<<"Maybe">>, [{<<"BigUInt">>, []}]},
+                                    Schema
+                                )
+                            end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case
+                                    lawspec_beam_scalar:equal(
+                                        lawspec_beam_schema:match(
+                                            lawspec_beam_schema:match(
+                                                Selection,
+                                                #{
+                                                    <<"cake.laws.responses::type::Cited::Cited">> => fun(
+                                                        [_OldIndex, _NewIndex, Meta]
+                                                    ) ->
+                                                        Meta
+                                                    end
+                                                }
+                                            ),
+                                            #{
+                                                <<"cake.laws.shared::type::CitableMeta::CitableMeta">> => fun(
+                                                    [Id_2, _Label, _Preview, _SourceRef]
+                                                ) ->
+                                                    Id_2
+                                                end
+                                            }
+                                        ),
+                                        Id
+                                    )
+                                of
+                                    true ->
+                                        lawspec_beam_schema:construct(
+                                            <<"Maybe::Present">>,
+                                            [
+                                                lawspec_beam_schema:match(
+                                                    Selection,
+                                                    #{
+                                                        <<"cake.laws.responses::type::Cited::Cited">> => fun(
+                                                            [_OldIndex_2, NewIndex_2, _Meta_2]
+                                                        ) ->
+                                                            NewIndex_2
+                                                        end
+                                                    }
+                                                )
+                                            ],
+                                            {<<"Maybe">>, [{<<"BigUInt">>, []}]},
+                                            Schema
+                                        );
+                                    false ->
+                                        lawspec_definitions:shown_as(
+                                            Schema,
+                                            Symbols,
+                                            Id,
+                                            Selection_2
+                                        )
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% smallPieces — laws/responses.lawspec:177
+small_pieces(Schema, Symbols, Pieces) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::smallPieces">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pieces,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            Selection,
+                                            fun(It_2) ->
+                                                lawspec_beam_schema:match(
+                                                    It_2,
+                                                    #{
+                                                        <<"cake.laws.responses::type::Piece::Word">> => fun(
+                                                            [MatchSelection]
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.responses::type::Piece::Word">>,
+                                                                [MatchSelection],
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end,
+                                                        <<"cake.laws.responses::type::Piece::Space">> => fun(
+                                                            []
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.responses::type::Piece::Space">>,
+                                                                [],
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end,
+                                                        <<"cake.laws.responses::type::Piece::Newline">> => fun(
+                                                            []
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.responses::type::Piece::Newline">>,
+                                                                [],
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end,
+                                                        <<"cake.laws.responses::type::Piece::Cite">> => fun(
+                                                            [MatchSelection_2]
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.responses::type::Piece::Cite">>,
+                                                                [
+                                                                    lawspec_definitions:cake_laws_citations_fold16(
+                                                                        Schema,
+                                                                        Symbols,
+                                                                        MatchSelection_2
+                                                                    )
+                                                                ],
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end
+                                                    }
+                                                )
+                                            end
+                                        ),
+                                        lawspec_definitions:small_pieces(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2
+                                        )
+                                    ],
+                                    {<<"List">>, [{<<"cake.laws.responses::type::Piece">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% sourceRefOf — laws/responses.lawspec:96
+source_ref_of(Schema, _Symbols, Source) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::sourceRefOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Source,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Maybe::Absent">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Absent">>,
+                                    [],
+                                    {<<"Maybe">>, [{<<"Text">>, []}]},
+                                    Schema
+                                )
+                            end,
+                            <<"Maybe::Present">> => fun([Selection]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Present">>,
+                                    [
+                                        lawspec_beam_runtime:helper(
+                                            <<"append">>,
+                                            [
+                                                lawspec_beam_runtime:helper(
+                                                    <<"append">>,
+                                                    [
+                                                        <<"books/source-">>,
+                                                        lawspec_beam_runtime:helper(
+                                                            <<"textOf">>,
+                                                            [
+                                                                lawspec_beam_scalar:remainder(
+                                                                    Selection,
+                                                                    3,
+                                                                    <<"BigUInt">>,
+                                                                    <<"Integer">>
+                                                                )
+                                                            ],
+                                                            [<<"Integer">>],
+                                                            64
+                                                        )
+                                                    ],
+                                                    [<<"Text">>, <<"Text">>],
+                                                    64
+                                                ),
+                                                <<".pdf">>
+                                            ],
+                                            [<<"Text">>, <<"Text">>],
+                                            64
+                                        )
+                                    ],
+                                    {<<"Maybe">>, [{<<"Text">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% squeezed — laws/responses.lawspec:361
+squeezed(Schema, Symbols, Pieces) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::squeezed">>,
+        fun() -> lawspec_definitions:squeezed_after(Schema, Symbols, Pieces, false) end
+    ).
+
+%% squeezedAfter — laws/responses.lawspec:344
+squeezed_after(Schema, Symbols, Pieces, AfterSpace) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::squeezedAfter">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pieces,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.responses::type::Piece::Space">> => fun(
+                                                    []
+                                                ) ->
+                                                    case AfterSpace of
+                                                        true ->
+                                                            lawspec_definitions:squeezed_after(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                true
+                                                            );
+                                                        false ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"List::Cons">>,
+                                                                [
+                                                                    lawspec_beam_schema:construct(
+                                                                        <<"cake.laws.responses::type::Piece::Space">>,
+                                                                        [],
+                                                                        {
+                                                                            <<"cake.laws.responses::type::Piece">>,
+                                                                            []
+                                                                        },
+                                                                        Schema
+                                                                    ),
+                                                                    lawspec_definitions:squeezed_after(
+                                                                        Schema,
+                                                                        Symbols,
+                                                                        Selection_2,
+                                                                        true
+                                                                    )
+                                                                ],
+                                                                {
+                                                                    <<"List">>,
+                                                                    [
+                                                                        {
+                                                                            <<"cake.laws.responses::type::Piece">>,
+                                                                            []
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                Schema
+                                                            )
+                                                    end
+                                                end,
+                                                <<"cake.laws.responses::type::Piece::Word">> => fun(
+                                                    [_MatchSelection]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            Selection,
+                                                            lawspec_definitions:squeezed_after(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                false
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.responses::type::Piece::Newline">> => fun(
+                                                    []
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            Selection,
+                                                            lawspec_definitions:squeezed_after(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                false
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.responses::type::Piece::Cite">> => fun(
+                                                    [_MatchSelection_2]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            Selection,
+                                                            lawspec_definitions:squeezed_after(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2,
+                                                                false
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.responses::type::Piece">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% textOf — laws/responses.lawspec:207
+text_of(Schema, Symbols, Pieces) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::textOf">>,
+        fun() ->
+            lawspec_definitions:cake_laws_shared_render_3(
+                Schema,
+                Symbols,
+                lawspec_definitions:segments_of(Schema, Symbols, Pieces)
+            )
+        end
+    ).
+
+%% trimmed — laws/responses.lawspec:419
+trimmed(Schema, Symbols, Pieces) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::trimmed">>,
+        fun() ->
+            lawspec_definitions:without_trailing_blanks(
+                Schema,
+                Symbols,
+                lawspec_definitions:without_leading_blanks(Schema, Symbols, Pieces)
+            )
+        end
+    ).
+
+%% unnumbered — laws/responses.lawspec:214
+unnumbered(Schema, Symbols, Cited) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::unnumbered">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Cited,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            lawspec_beam_schema:match(
+                                                Selection,
+                                                #{
+                                                    <<"cake.laws.responses::type::Cited::Cited">> => fun(
+                                                        [OldIndex, _NewIndex, _Meta]
+                                                    ) ->
+                                                        OldIndex
+                                                    end
+                                                }
+                                            ),
+                                            fun(RecordField) ->
+                                                lawspec_beam_runtime:bind(
+                                                    lawspec_beam_schema:match(
+                                                        Selection,
+                                                        #{
+                                                            <<"cake.laws.responses::type::Cited::Cited">> => fun(
+                                                                [_OldIndex_2, _NewIndex_2, Meta_2]
+                                                            ) ->
+                                                                Meta_2
+                                                            end
+                                                        }
+                                                    ),
+                                                    fun(RecordField_2) ->
+                                                        lawspec_beam_schema:construct(
+                                                            <<"cake.laws.citations::type::Citation::Citation">>,
+                                                            [RecordField, RecordField_2],
+                                                            {
+                                                                <<"cake.laws.citations::type::Citation">>,
+                                                                []
+                                                            },
+                                                            Schema
+                                                        )
+                                                    end
+                                                )
+                                            end
+                                        ),
+                                        lawspec_definitions:unnumbered(Schema, Symbols, Selection_2)
+                                    ],
+                                    {<<"List">>, [{<<"cake.laws.citations::type::Citation">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% warningsOf — laws/responses.lawspec:269
+warnings_of(Schema, Symbols, Indices) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::warningsOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Indices,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_schema:construct(
+                                            <<"cake.laws.responses::type::Warning::HallucinatedCitation">>,
+                                            [Selection],
+                                            {<<"cake.laws.responses::type::Warning">>, []},
+                                            Schema
+                                        ),
+                                        lawspec_definitions:warnings_of(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2
+                                        )
+                                    ],
+                                    {<<"List">>, [{<<"cake.laws.responses::type::Warning">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% withoutLeadingBlanks — laws/responses.lawspec:401
+without_leading_blanks(Schema, Symbols, Pieces) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::withoutLeadingBlanks">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pieces,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case lawspec_definitions:is_blank(Schema, Symbols, Selection) of
+                                    true ->
+                                        lawspec_definitions:without_leading_blanks(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2
+                                        );
+                                    false ->
+                                        Pieces
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% withoutTrailingBlanks — laws/responses.lawspec:409
+without_trailing_blanks(Schema, Symbols, Pieces) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.responses::withoutTrailingBlanks">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pieces,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case lawspec_definitions:all_blank(Schema, Symbols, Pieces) of
+                                    true ->
+                                        [];
+                                    false ->
+                                        lawspec_beam_schema:construct(
+                                            <<"List::Cons">>,
+                                            [
+                                                Selection,
+                                                lawspec_definitions:without_trailing_blanks(
+                                                    Schema,
+                                                    Symbols,
+                                                    Selection_2
+                                                )
+                                            ],
+                                            {
+                                                <<"List">>,
+                                                [{<<"cake.laws.responses::type::Piece">>, []}]
+                                            },
+                                            Schema
+                                        )
+                                end
                             end
                         }
                     )

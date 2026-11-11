@@ -17,7 +17,7 @@
     <<"cake.laws.citations::|valid citations come in first-appearance order with their metadata|">>
 ).
 
-%% |valid citations come in first-appearance order with their metadata| — laws/citations.lawspec:163
+%% |valid citations come in first-appearance order with their metadata| — laws/citations.lawspec:167
 %% The valid citations are the markers that are chunk-map keys, in order of
 %%     first appearance, each carrying the chunk map's metadata for its index.
 %% for all (segments :: List (cake.laws.shared::type::Segment)) (slots :: List (cake.laws.citations::type::Slot)) => match (extract (cakeLawsSharedRender (small segments)) (chunkMapOf slots)) { cake.laws.citations::type::Extraction::Extraction lawspecFieldvalid lawspecFieldhallucinated -> lawspecFieldvalid } = citationsOf (distinctMarkers (small segments)) (chunkMapOf slots) end for all
@@ -746,7 +746,7 @@ law_valid_citations_come_in_first_appearance_order_test_() ->
 law_valid_citations_come_in_first_appearance_order_case_at(Index) ->
     lawspec_beam_finite:case_at(law_valid_citations_come_in_first_appearance_order_plan(), Index).
 
-%% |valid citations come in first-appearance order with their metadata| example |a repeated marker is cited once, where it first appears| — laws/citations.lawspec:192
+%% |valid citations come in first-appearance order with their metadata| example |a repeated marker is cited once, where it first appears| — laws/citations.lawspec:196
 law_valid_citations_come_in_first_appearance_order__a_repeated_marker_is_cited_once_where_it_first() ->
     {Schema, Symbols} = lawspec_data:context(),
     Segments = make_cons_5(
@@ -822,7 +822,7 @@ law_valid_citations_come_in_first_appearance_order__a_repeated_marker_is_cited_o
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments),
         <<"[2] and [1] again [2]">>,
-        <<"|valid citations come in first-appearance order with their metadata| example |a repeated marker is cited once, where it first appears| — laws/citations.lawspec:192"/utf8>>
+        <<"|valid citations come in first-appearance order with their metadata| example |a repeated marker is cited once, where it first appears| — laws/citations.lawspec:196"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:indices_of(
@@ -845,10 +845,10 @@ law_valid_citations_come_in_first_appearance_order__a_repeated_marker_is_cited_o
             )
         ),
         [2, 1],
-        <<"|valid citations come in first-appearance order with their metadata| example |a repeated marker is cited once, where it first appears| — laws/citations.lawspec:193"/utf8>>
+        <<"|valid citations come in first-appearance order with their metadata| example |a repeated marker is cited once, where it first appears| — laws/citations.lawspec:197"/utf8>>
     ).
 
-%% |valid citations come in first-appearance order with their metadata| property — laws/citations.lawspec:163
+%% |valid citations come in first-appearance order with their metadata| property — laws/citations.lawspec:167
 law_valid_citations_come_in_first_appearance_order__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -966,7 +966,7 @@ law_valid_citations_come_in_first_appearance_order__property() ->
     <<"cake.laws.citations::|hallucinated indices come in first-appearance order|">>
 ).
 
-%% |hallucinated indices come in first-appearance order| — laws/citations.lawspec:198
+%% |hallucinated indices come in first-appearance order| — laws/citations.lawspec:202
 %% The hallucinated indices are the markers that are not chunk-map keys, in
 %%     order of first appearance, each once.
 %% for all (segments :: List (cake.laws.shared::type::Segment)) (slots :: List (cake.laws.citations::type::Slot)) => match (extract (cakeLawsSharedRender (small segments)) (chunkMapOf slots)) { cake.laws.citations::type::Extraction::Extraction lawspecFieldvalid lawspecFieldhallucinated -> lawspecFieldhallucinated } = missingFrom (distinctMarkers (small segments)) (chunkMapOf slots) end for all
@@ -1695,7 +1695,7 @@ law_hallucinated_indices_come_in_first_appearance_test_() ->
 law_hallucinated_indices_come_in_first_appearance_case_at(Index) ->
     lawspec_beam_finite:case_at(law_hallucinated_indices_come_in_first_appearance_plan(), Index).
 
-%% |hallucinated indices come in first-appearance order| example |later markers stay later| — laws/citations.lawspec:213
+%% |hallucinated indices come in first-appearance order| example |later markers stay later| — laws/citations.lawspec:217
 law_hallucinated_indices_come_in_first_appearance__later_markers_stay_later() ->
     {Schema, Symbols} = lawspec_data:context(),
     Segments = make_cons_5(
@@ -1745,10 +1745,10 @@ law_hallucinated_indices_come_in_first_appearance__later_markers_stay_later() ->
             }
         ),
         [9, 3],
-        <<"|hallucinated indices come in first-appearance order| example |later markers stay later| — laws/citations.lawspec:213"/utf8>>
+        <<"|hallucinated indices come in first-appearance order| example |later markers stay later| — laws/citations.lawspec:217"/utf8>>
     ).
 
-%% |hallucinated indices come in first-appearance order| property — laws/citations.lawspec:198
+%% |hallucinated indices come in first-appearance order| property — laws/citations.lawspec:202
 law_hallucinated_indices_come_in_first_appearance__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -1866,7 +1866,7 @@ law_hallucinated_indices_come_in_first_appearance__property() ->
     <<"cake.laws.citations::|extract is total and deterministic|">>
 ).
 
-%% |extract is total and deterministic| — laws/citations.lawspec:217
+%% |extract is total and deterministic| — laws/citations.lawspec:221
 %% Any text and any chunk map give a result, and the same inputs give the
 %%     same result.
 %% for all (text :: Text) (slots :: List (cake.laws.citations::type::Slot)) => extract text (chunkMapOf slots) = extract text (chunkMapOf slots) end for all
@@ -2161,7 +2161,7 @@ law_extract_is_total_and_deterministic_test_() ->
 law_extract_is_total_and_deterministic_case_at(Index) ->
     lawspec_beam_finite:case_at(law_extract_is_total_and_deterministic_plan(), Index).
 
-%% |extract is total and deterministic| property — laws/citations.lawspec:217
+%% |extract is total and deterministic| property — laws/citations.lawspec:221
 law_extract_is_total_and_deterministic__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -2255,7 +2255,7 @@ law_extract_is_total_and_deterministic__property() ->
     <<"cake.laws.citations::|leading zeros do not change the index|">>
 ).
 
-%% |leading zeros do not change the index| — laws/citations.lawspec:229
+%% |leading zeros do not change the index| — laws/citations.lawspec:233
 %% A marker's digits are read as a number, so `[007]` resolves to the
 %%     chunk-map entry at index 7: a valid citation with that entry's metadata,
 %%     and nothing hallucinated.
@@ -2449,7 +2449,7 @@ law_leading_zeros_do_not_change_the_index_test_() ->
 law_leading_zeros_do_not_change_the_index_case_at(Index) ->
     lawspec_beam_finite:case_at(law_leading_zeros_do_not_change_the_index_plan(), Index).
 
-%% |leading zeros do not change the index| example |[007] resolves to entry 7| — laws/citations.lawspec:249
+%% |leading zeros do not change the index| example |[007] resolves to entry 7| — laws/citations.lawspec:253
 law_leading_zeros_do_not_change_the_index__law_007_resolves_to_entry_7() ->
     {Schema, Symbols} = lawspec_data:context(),
     N = 7,
@@ -2485,7 +2485,7 @@ law_leading_zeros_do_not_change_the_index__law_007_resolves_to_entry_7() ->
             64
         ),
         <<"[007]">>,
-        <<"|leading zeros do not change the index| example |[007] resolves to entry 7| — laws/citations.lawspec:249"/utf8>>
+        <<"|leading zeros do not change the index| example |[007] resolves to entry 7| — laws/citations.lawspec:253"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:extract(
@@ -2531,10 +2531,10 @@ law_leading_zeros_do_not_change_the_index__law_007_resolves_to_entry_7() ->
             ],
             Schema
         ),
-        <<"|leading zeros do not change the index| example |[007] resolves to entry 7| — laws/citations.lawspec:250"/utf8>>
+        <<"|leading zeros do not change the index| example |[007] resolves to entry 7| — laws/citations.lawspec:254"/utf8>>
     ).
 
-%% |leading zeros do not change the index| property — laws/citations.lawspec:229
+%% |leading zeros do not change the index| property — laws/citations.lawspec:233
 law_leading_zeros_do_not_change_the_index__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -2615,7 +2615,7 @@ law_leading_zeros_do_not_change_the_index__property() ->
     <<"cake.laws.citations::|[0] is always hallucinated against a prompt map|">>
 ).
 
-%% |[0] is always hallucinated against a prompt map| — laws/citations.lawspec:264
+%% |[0] is always hallucinated against a prompt map| — laws/citations.lawspec:268
 %% Cake.Prompt numbers a chunk map from 1, so every valid citation's index
 %%     is positive, and a `[0]` marker is reported as hallucinated index 0: a
 %%     model citing `[0]` has made a mistake, and it surfaces as a warning.
@@ -3404,7 +3404,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map_case_at(Index) ->
         Index
     ).
 
-%% |[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:286
+%% |[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:290
 law_law_0_is_always_hallucinated_against_a_prompt_map__law_0_against_a_one_chunk_prompt_map() ->
     {Schema, Symbols} = lawspec_data:context(),
     Segments = make_cons_5(
@@ -3433,7 +3433,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map__law_0_against_a_one_chunk
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:cake_laws_shared_render(Schema, Symbols, Segments),
         <<"see [0]">>,
-        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:286"/utf8>>
+        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:290"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -3452,7 +3452,7 @@ law_law_0_is_always_hallucinated_against_a_prompt_map__law_0_against_a_one_chunk
             }
         ),
         [],
-        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:287"/utf8>>
+        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:291"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -3471,10 +3471,10 @@ law_law_0_is_always_hallucinated_against_a_prompt_map__law_0_against_a_one_chunk
             }
         ),
         [0],
-        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:288"/utf8>>
+        <<"|[0] is always hallucinated against a prompt map| example |[0] against a one-chunk prompt map| — laws/citations.lawspec:292"/utf8>>
     ).
 
-%% |[0] is always hallucinated against a prompt map| property — laws/citations.lawspec:264
+%% |[0] is always hallucinated against a prompt map| property — laws/citations.lawspec:268
 law_law_0_is_always_hallucinated_against_a_prompt_map__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(

@@ -9,13 +9,13 @@ defmodule Cake.Laws.Citations do
   shape a real retrieval unit gives, and each citation's metadata is turned
   back into a record for the laws to compare.
 
-  `extract/2` logs a warning per hallucinated index. Generated text
-  hallucinates constantly, so the adapter raises this process's log level
-  for the call; the warning is operational noise here, not part of any law.
+  `extract/2` logs a warning per hallucinated index; `Cake.Laws.Quiet` keeps
+  that out of the test output.
   """
 
   alias Cake.Citations
   alias Cake.Laws.FakeUnit
+  alias Cake.Laws.Quiet
   alias LawSpec.Data.Citation
   alias LawSpec.Data.Extraction
   alias LawSpec.Data.KeyVal
@@ -25,7 +25,8 @@ defmodule Cake.Laws.Citations do
   @spec extract(binary(), LawSpec.Data.key_val(non_neg_integer(), LawSpec.Data.citable_meta())) ::
           LawSpec.Data.extraction()
   def extract(text, %KeyVal{} = chunk_map) when is_binary(text) do
-    {valid, hallucinated} = quietly(fn -> Citations.extract(text, to_chunk_map(chunk_map)) end)
+    {valid, hallucinated} =
+      Quiet.quietly(fn -> Citations.extract(text, to_chunk_map(chunk_map)) end)
 
     %Extraction{
       valid: Enum.map(valid, &to_citation/1),
@@ -41,15 +42,5 @@ defmodule Cake.Laws.Citations do
 
   defp to_citation(%{index: index, metadata: metadata}) do
     %Citation{index: index, metadata: FakeUnit.to_citable_meta(metadata)}
-  end
-
-  defp quietly(fun) do
-    Logger.put_process_level(self(), :error)
-
-    try do
-      fun.()
-    after
-      Logger.delete_process_level(self())
-    end
   end
 end

@@ -431,6 +431,448 @@ schema(_Symbols) ->
                 ]
             },
             #{
+                name => <<"cake.laws.responses::type::Cited">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.responses::type::Cited::Cited">>,
+                        fields => [
+                            {<<"oldIndex">>, {<<"BigUInt">>, []}},
+                            {<<"newIndex">>, {<<"BigUInt">>, []}},
+                            {<<"meta">>, {<<"cake.laws.shared::type::CitableMeta">>, []}}
+                        ],
+                        encode => fun([OldIndex, NewIndex, Meta]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Cited',
+                                old_index => OldIndex,
+                                new_index => NewIndex,
+                                meta => Meta
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Cited',
+                                        old_index := OldIndex,
+                                        new_index := NewIndex,
+                                        meta := Meta
+                                    }
+                                ) ->
+                                    {ok, [OldIndex, NewIndex, Meta]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.responses::type::ActionKind">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.responses::type::ActionKind::Download">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.ActionKindDownload'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.ActionKindDownload'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.responses::type::ActionKind::ExternalLink">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.ActionKindExternalLink'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.ActionKindExternalLink'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.responses::type::Action">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.responses::type::Action::Action">>,
+                        fields => [
+                            {<<"kind">>, {<<"cake.laws.responses::type::ActionKind">>, []}},
+                            {<<"label">>, {<<"Text">>, []}},
+                            {<<"sourceRef">>, {<<"Text">>, []}}
+                        ],
+                        encode => fun([Kind, Label, SourceRef]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Action',
+                                kind => Kind,
+                                label => Label,
+                                source_ref => SourceRef
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Action',
+                                        kind := Kind,
+                                        label := Label,
+                                        source_ref := SourceRef
+                                    }
+                                ) ->
+                                    {ok, [Kind, Label, SourceRef]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.responses::type::Warning">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.responses::type::Warning::HallucinatedCitation">>,
+                        fields => [{<<"value">>, {<<"BigUInt">>, []}}],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.Warning', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{'__struct__' := 'Elixir.LawSpec.Data.Warning', value := Value}
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.responses::type::Processed">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.responses::type::Processed::Processed">>,
+                        fields => [
+                            {<<"rawText">>, {<<"Text">>, []}},
+                            {<<"finalText">>, {<<"Text">>, []}},
+                            {
+                                <<"chunkMap">>,
+                                {
+                                    <<"lawspec.collections::type::KeyVal">>,
+                                    [
+                                        {<<"BigUInt">>, []},
+                                        {<<"cake.laws.shared::type::CitableMeta">>, []}
+                                    ]
+                                }
+                            },
+                            {
+                                <<"citations">>,
+                                {<<"List">>, [{<<"cake.laws.responses::type::Cited">>, []}]}
+                            },
+                            {<<"mediaCount">>, {<<"BigUInt">>, []}},
+                            {
+                                <<"actions">>,
+                                {<<"List">>, [{<<"cake.laws.responses::type::Action">>, []}]}
+                            },
+                            {
+                                <<"warnings">>,
+                                {<<"List">>, [{<<"cake.laws.responses::type::Warning">>, []}]}
+                            }
+                        ],
+                        encode => fun(
+                            [RawText, FinalText, ChunkMap, Citations, MediaCount, Actions, Warnings]
+                        ) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Processed',
+                                raw_text => RawText,
+                                final_text => FinalText,
+                                chunk_map => ChunkMap,
+                                citations => Citations,
+                                media_count => MediaCount,
+                                actions => Actions,
+                                warnings => Warnings
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Processed',
+                                        raw_text := RawText,
+                                        final_text := FinalText,
+                                        chunk_map := ChunkMap,
+                                        citations := Citations,
+                                        media_count := MediaCount,
+                                        actions := Actions,
+                                        warnings := Warnings
+                                    }
+                                ) ->
+                                    {
+                                        ok,
+                                        [
+                                            RawText,
+                                            FinalText,
+                                            ChunkMap,
+                                            Citations,
+                                            MediaCount,
+                                            Actions,
+                                            Warnings
+                                        ]
+                                    };
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.responses::type::IndexedChunk">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.responses::type::IndexedChunk::IndexedChunk">>,
+                        fields => [
+                            {<<"index">>, {<<"BigUInt">>, []}},
+                            {<<"meta">>, {<<"cake.laws.shared::type::CitableMeta">>, []}}
+                        ],
+                        encode => fun([Index, Meta]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.IndexedChunk',
+                                index => Index,
+                                meta => Meta
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.IndexedChunk',
+                                        index := Index,
+                                        meta := Meta
+                                    }
+                                ) ->
+                                    {ok, [Index, Meta]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.responses::type::RetrievalUnit">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.responses::type::RetrievalUnit::RetrievalUnit">>,
+                        fields => [
+                            {<<"label">>, {<<"Text">>, []}},
+                            {<<"preview">>, {<<"Text">>, []}},
+                            {<<"source">>, {<<"Maybe">>, [{<<"BigUInt">>, []}]}}
+                        ],
+                        encode => fun([Label, Preview, Source]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.RetrievalUnit',
+                                label => Label,
+                                preview => Preview,
+                                source => Source
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.RetrievalUnit',
+                                        label := Label,
+                                        preview := Preview,
+                                        source := Source
+                                    }
+                                ) ->
+                                    {ok, [Label, Preview, Source]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.responses::type::Piece">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.responses::type::Piece::Word">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.PieceWord', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.PieceWord',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                (((not lawspec_beam_runtime:helper(
+                                    <<"textContains">>,
+                                    [lists:nth(1, _Fields), <<"[">>],
+                                    [
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        ),
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        )
+                                    ],
+                                    64
+                                )) andalso
+                                    (not lawspec_beam_runtime:helper(
+                                        <<"textContains">>,
+                                        [lists:nth(1, _Fields), <<"]">>],
+                                        [
+                                            lawspec_beam_schema:type_key(
+                                                lawspec_beam_schema:substitute(
+                                                    {<<"Text">>, []},
+                                                    _Known
+                                                )
+                                            ),
+                                            lawspec_beam_schema:type_key(
+                                                lawspec_beam_schema:substitute(
+                                                    {<<"Text">>, []},
+                                                    _Known
+                                                )
+                                            )
+                                        ],
+                                        64
+                                    ))) andalso
+                                    lawspec_beam_runtime:helper(
+                                        <<"regexMatches">>,
+                                        [<<"[a-zA-Z0-9.,;:!?'-]{1,8}">>, lists:nth(1, _Fields)],
+                                        [
+                                            lawspec_beam_schema:type_key(
+                                                lawspec_beam_schema:substitute(
+                                                    {<<"Text">>, []},
+                                                    _Known
+                                                )
+                                            ),
+                                            lawspec_beam_schema:type_key(
+                                                lawspec_beam_schema:substitute(
+                                                    {<<"Text">>, []},
+                                                    _Known
+                                                )
+                                            )
+                                        ],
+                                        64
+                                    ))
+                            end
+                        ],
+                        generators => #{
+                            1 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {
+                                    [],
+                                    [
+                                        <<"!">>,
+                                        <<"e">>,
+                                        <<"j">>,
+                                        <<"VKbrw?Q">>,
+                                        <<"aIs4y!">>,
+                                        <<"9u">>,
+                                        <<"LW">>,
+                                        <<"nr!V">>,
+                                        <<"-">>,
+                                        <<"a,b">>,
+                                        <<"x;J">>,
+                                        <<"!e9btQK">>,
+                                        <<"GFR8">>,
+                                        <<"b0">>,
+                                        <<"Ey;">>,
+                                        <<"81">>,
+                                        <<"dK">>,
+                                        <<"-cP:E3D">>,
+                                        <<"J9sB">>,
+                                        <<"OiS">>,
+                                        <<"KWsJk">>,
+                                        <<"sZoBZvD">>,
+                                        <<"XnIRzA">>,
+                                        <<"ZwFzWJ">>
+                                    ]
+                                }
+                            end
+                        }
+                    },
+                    #{
+                        tag => <<"cake.laws.responses::type::Piece::Space">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.PieceSpace'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.PieceSpace'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.responses::type::Piece::Newline">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.PieceNewline'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.PieceNewline'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.responses::type::Piece::Cite">>,
+                        fields => [{<<"value">>, {<<"BigUInt">>, []}}],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.PieceCite', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.PieceCite',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
                 name => <<"cake.laws.shared::type::Segment">>,
                 parameters => 0,
                 constructors => [

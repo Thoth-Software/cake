@@ -23,7 +23,7 @@
     small/1
 ]).
 
-%% allPositive — laws/citations.lawspec:154
+%% allPositive — laws/citations.lawspec:158
 all_positive(Indices) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -76,7 +76,7 @@ chunk_map_of(Slots) ->
         Schema
     ).
 
-%% citationsOf — laws/citations.lawspec:121
+%% citationsOf — laws/citations.lawspec:125
 citations_of(Indices, ChunkMap) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -98,7 +98,7 @@ citations_of(Indices, ChunkMap) ->
         Schema
     ).
 
-%% distinctMarkers — laws/citations.lawspec:117
+%% distinctMarkers — laws/citations.lawspec:121
 distinct_markers(Segments) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -130,7 +130,7 @@ fold16(N) ->
         Schema
     ).
 
-%% indicesOf — laws/citations.lawspec:147
+%% indicesOf — laws/citations.lawspec:151
 indices_of(Citations) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -350,7 +350,7 @@ lawspec_collections_key_val_put_big_u_int_citable_meta_key_val_big_u_int_citable
         Schema
     ).
 
-%% markersFrom — laws/citations.lawspec:102
+%% markersFrom — laws/citations.lawspec:106
 markers_from(Segments, Seen) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -369,7 +369,7 @@ markers_from(Segments, Seen) ->
         Schema
     ).
 
-%% missingFrom — laws/citations.lawspec:135
+%% missingFrom — laws/citations.lawspec:139
 missing_from(Indices, ChunkMap) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),

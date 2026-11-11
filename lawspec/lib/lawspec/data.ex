@@ -31,6 +31,27 @@ defmodule LawSpec.Data do
 
   @type cake_laws_decomposition_type_node() :: LawSpec.Data.CakeLawsDecompositionTypeNode.t()
 
+  @type cited() :: LawSpec.Data.Cited.t()
+
+  @type action_kind() ::
+          LawSpec.Data.ActionKindDownload.t() | LawSpec.Data.ActionKindExternalLink.t()
+
+  @type action() :: LawSpec.Data.Action.t()
+
+  @type warning() :: LawSpec.Data.Warning.t()
+
+  @type processed() :: LawSpec.Data.Processed.t()
+
+  @type indexed_chunk() :: LawSpec.Data.IndexedChunk.t()
+
+  @type retrieval_unit() :: LawSpec.Data.RetrievalUnit.t()
+
+  @type piece() ::
+          LawSpec.Data.PieceWord.t()
+          | LawSpec.Data.PieceSpace.t()
+          | LawSpec.Data.PieceNewline.t()
+          | LawSpec.Data.PieceCite.t()
+
   @type segment() :: LawSpec.Data.SegmentPlain.t() | LawSpec.Data.SegmentMarker.t()
 
   @type citable_meta() :: LawSpec.Data.CitableMeta.t()
