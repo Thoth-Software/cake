@@ -6,6 +6,14 @@ defmodule Cake.Responses do
   resolve → renumber → rewrite → media → actions → format.
   Each stage is a pure `Result -> Result` transformation.
 
+  A citation stands for a retrieval unit, not for a marker. Resolve keeps one
+  citation per `Cake.Citable` `:id`, so a unit that sits at two prompt indices
+  is cited once, under the index whose marker appears first. Renumber numbers
+  the citations `1..K` in that order, and rewrite shows every marker as the
+  number of its unit's citation, so two markers for one unit read the same.
+  A hallucinated marker takes no number: it is removed and reported in
+  `warnings`.
+
   LLM transport lives in `Cake.Generation` — this module does no HTTP
   and knows nothing about providers.
   """
@@ -49,7 +57,9 @@ defmodule Cake.Responses do
     {parsed, hallucinated} = Citations.extract(text, map)
 
     citations =
-      Enum.map(parsed, fn %{index: idx, metadata: m} ->
+      parsed
+      |> Enum.uniq_by(fn %{metadata: m} -> m.id end)
+      |> Enum.map(fn %{index: idx, metadata: m} ->
         %{
           old_index: idx,
           new_index: idx,
@@ -67,37 +77,29 @@ defmodule Cake.Responses do
   end
 
   # --- Stage 2: renumber ---
-  defp renumber_citations(%Result{raw_text: text, citations: citations} = result) do
-    first_appearances =
-      ~r/\[(\d+)\]/
-      |> Regex.scan(text)
-      |> Enum.map(fn [_, n] -> String.to_integer(n) end)
-      |> Enum.uniq()
-
+  # Resolve leaves the citations in first-appearance order, so a citation's
+  # new index is its position. Hallucinated markers are not in the list and
+  # take no number.
+  defp renumber_citations(%Result{citations: citations} = result) do
     renumbered =
       citations
-      |> Enum.map(fn c ->
-        case Enum.find_index(first_appearances, &(&1 == c.old_index)) do
-          nil -> c
-          i -> %{c | new_index: i + 1}
-        end
-      end)
-      |> Enum.sort_by(& &1.new_index)
+      |> Enum.with_index(1)
+      |> Enum.map(fn {citation, position} -> %{citation | new_index: position} end)
 
     %{result | citations: renumbered}
   end
 
   # --- Stage 3: rewrite text ---
-  defp rewrite_text(%Result{raw_text: text, citations: citations} = result) do
-    lookup = Map.new(citations, fn c -> {c.old_index, c.new_index} end)
+  # A marker shows the new index of the citation for the unit at its prompt
+  # index, found by `:id`: the unit may be cited under another index.
+  defp rewrite_text(%Result{raw_text: text, chunk_map: map, citations: citations} = result) do
+    new_index_by_id = Map.new(citations, fn c -> {c.id, c.new_index} end)
 
     final =
       ~r/\[(\d+)\]/
       |> Regex.replace(text, fn _whole, n_str ->
-        old = String.to_integer(n_str)
-
-        case Map.fetch(lookup, old) do
-          {:ok, new} -> "[#{new}]"
+        case Map.fetch(map, String.to_integer(n_str)) do
+          {:ok, %{id: id}} -> "[#{Map.fetch!(new_index_by_id, id)}]"
           :error -> ""
         end
       end)

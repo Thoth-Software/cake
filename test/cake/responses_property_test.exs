@@ -59,6 +59,22 @@ defmodule Cake.ResponsesPropertyTest do
     end
   end
 
+  # Chunks drawn from at most three ids, so two prompt indices often hold the
+  # same retrieval unit.
+  defp indexed_chunks_sharing_ids do
+    gen all(
+          chunks <- indexed_chunks(),
+          ids <- list_of(member_of(["a", "b", "c"]), length: length(chunks))
+        ) do
+      chunks
+      |> Enum.zip(ids)
+      |> Enum.map(fn {{idx, result}, id} ->
+        metadata = %{result.retrieval_unit.metadata | id: id}
+        {idx, %{result | retrieval_unit: %StubChunk{metadata: metadata}}}
+      end)
+    end
+  end
+
   # raw_text generators that exercise the parsing surface:
   #   - completely arbitrary binary (including invalid UTF-8)
   #   - text with random `[N]` markers (some valid, some hallucinated)
@@ -136,14 +152,25 @@ defmodule Cake.ResponsesPropertyTest do
   # Renumbering invariants
   # ---------------------------------------------------------------------------
 
-  property "process/3 citation new_indices are unique" do
+  property "process/3 citation new_indices are exactly 1..K, in list order" do
     check all(
             text <- raw_text(),
             chunks <- indexed_chunks()
           ) do
       result = Responses.process(text, chunks)
       new_indices = Enum.map(result.citations, & &1.new_index)
-      assert length(new_indices) == length(Enum.uniq(new_indices))
+      assert new_indices == Enum.to_list(1..length(new_indices)//1)
+    end
+  end
+
+  property "process/3 gives one citation per :id, however many indices hold it" do
+    check all(
+            text <- raw_text(),
+            chunks <- indexed_chunks_sharing_ids()
+          ) do
+      result = Responses.process(text, chunks)
+      ids = Enum.map(result.citations, & &1.id)
+      assert ids == Enum.uniq(ids)
     end
   end
 
