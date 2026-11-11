@@ -531,7 +531,11 @@ jobs:
     # and lawspec/ is its own Mix project that compiles only the Cake source
     # files its mix.exs lists, never the application. `fmt --check` fails on
     # an unformatted .lawspec file, and `generate --check` when someone edits
-    # one without regenerating the tests.
+    # one without regenerating the tests. LawSpec runs through the npm scripts
+    # in lawspec/package.json, which start node with
+    # --no-turbo-fast-api-calls: on Node 22 a WASI file open on V8's fast-call
+    # path can start a garbage collection, which segfaults once LawSpec's
+    # cache is warm (lawspec/README.md, "Running LawSpec").
     env:
       LAWSPEC_OTP_VERSION: "29"
     defaults:
@@ -576,13 +580,13 @@ jobs:
           mix deps.compile
 
       - name: Check the specification
-        run: npx lawspec check
+        run: npm run check
 
       - name: Specification is formatted
-        run: npx lawspec fmt --check
+        run: npm run fmt:check
 
       - name: Generated tests are up to date
-        run: npx lawspec generate --check
+        run: npm run generate:check
 
       - name: Run the laws
         run: mix test

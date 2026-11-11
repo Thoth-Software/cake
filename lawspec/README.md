@@ -8,6 +8,7 @@ Elixir these are StreamData properties inside ExUnit.
 | Specification | Covers |
 | --- | --- |
 | `laws/decomposition.lawspec` | `Cake.Decomposition.Result`: `new/2` and `topological_order/1` |
+| `laws/citations.lawspec` | `Cake.Citations.extract/2`: valid citations and hallucinated indices, each in first-appearance order against a reference model; totality; leading zeros; and `[0]`, which is always hallucinated because `Cake.Prompt` numbers from 1 |
 | `laws/fakes.lawspec` | `Cake.Laws.FakeUnit`, the test retrieval unit: it carries generated data through `Cake.Citable` and `Cake.Promptable` unchanged, and meets the five-key `Citable` contract |
 | `laws/shared.lawspec` | no laws: types and checked definitions other specifications import (see "Shared types" below) |
 
@@ -118,6 +119,24 @@ needs `:extras` or a non-text `:id`.
   `Integer` hundredths and convert it in the adapter. Where Cake computes with
   floats (cosine similarity), keep the property in StreamData.
 
+## Running LawSpec
+
+Run LawSpec through the npm scripts in `package.json`, never through
+`npx lawspec`. The scripts start node with `--no-turbo-fast-api-calls`. On
+Node 22, LawSpec's WASM core opens its cache files through WASI, and Node
+handles that call on V8's fast-call path, where an allocation can start a
+garbage collection that V8 does not allow there. Once `.lawspec/cache` is
+warm, `npx lawspec check` and `generate` then die with a bare
+`Segmentation fault` (exit 139). The flag turns the fast path off; node
+rejects it in `NODE_OPTIONS`, so it goes on the command line.
+
+| Script | Runs |
+| --- | --- |
+| `npm run check` | `lawspec check` |
+| `npm run fmt` / `npm run fmt:check` | `lawspec fmt` / `lawspec fmt --check` |
+| `npm run generate` / `npm run generate:check` | `lawspec generate` / `lawspec generate --check` |
+| `npm run lawspec -- <args>` | any other command, such as `explain` or `evidence` |
+
 ## Running locally
 
 You need Erlang/OTP 29, Elixir 1.20 and Node 22 or later. From this
@@ -127,21 +146,21 @@ directory:
 npm ci
 mix deps.get
 MIX_ENV=test mix deps.compile
-npx lawspec check
-npx lawspec fmt --check
-npx lawspec generate --check
+npm run check
+npm run fmt:check
+npm run generate:check
 mix test
 ```
 
-- `npx lawspec explain` words every law in plain English. Add
+- `npm run lawspec -- explain` words every law in plain English. Add
   `--view math` for mathematical notation.
-- `npx lawspec evidence` lists each obligation and its status.
+- `npm run lawspec -- evidence` lists each obligation and its status.
 
 ## Changing a specification
 
 Laws are tests, and Cake's ordering rule applies (CLAUDE.md "Testing:
 Ordering and Failure Handling"). Change the `.lawspec` file first, format it
-with `npx lawspec fmt`, regenerate with `npx lawspec generate`, then change
+with `npm run fmt`, regenerate with `npm run generate`, then change
 the Cake module. Format before you regenerate: the generated tests cite
 source line numbers, so formatting after generating leaves them stale.
 Commit the specification, the regenerated files and `.lawspec/generated.json`
@@ -157,6 +176,6 @@ A new specification for another module follows the same steps:
    needs (see "Hex dependencies"; pin Cake's locked version).
 3. Import shared types from `cake.laws.shared` instead of redeclaring them,
    and use `Cake.Laws.FakeUnit` for retrieval units.
-4. Run `npx lawspec fmt`, then `npx lawspec generate`, and implement the
+4. Run `npm run fmt`, then `npm run generate`, and implement the
    adapter stub it writes.
 5. Add the specification to the table above.

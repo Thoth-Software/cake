@@ -12,6 +12,12 @@ defmodule LawSpec.Data do
 
   @type regex() :: LawSpec.Data.Regex.t()
 
+  @type citation() :: LawSpec.Data.Citation.t()
+
+  @type extraction() :: LawSpec.Data.Extraction.t()
+
+  @type slot() :: LawSpec.Data.Slot.t()
+
   @type cake_laws_decomposition_type_entry() :: LawSpec.Data.CakeLawsDecompositionTypeEntry.t()
 
   @type strategy() ::

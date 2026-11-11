@@ -56,9 +56,10 @@ defmodule Cake.Responses.Result do
 
   @typedoc """
   A non-fatal issue: `{:hallucinated_citation, n}` for an `[n]` marker that
-  resolved to no chunk, or another `{atom, term}`.
+  resolved to no chunk (`n` can be `0`, which no chunk map has), or another
+  `{atom, term}`.
   """
-  @type warning :: {:hallucinated_citation, pos_integer()} | {atom(), term()}
+  @type warning :: {:hallucinated_citation, non_neg_integer()} | {atom(), term()}
 
   @typedoc "The structured response; the moduledoc gives each field's owner."
   @type t :: %__MODULE__{

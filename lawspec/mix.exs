@@ -17,6 +17,7 @@ defmodule CakeLaws.MixProject do
   @cake_sources Enum.map(
                   [
                     "lib/cake/citable.ex",
+                    "lib/cake/citations.ex",
                     "lib/cake/decomposition/result.ex",
                     "lib/cake/promptable.ex"
                   ],

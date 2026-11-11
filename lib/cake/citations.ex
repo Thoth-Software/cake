@@ -27,13 +27,15 @@ defmodule Cake.Citations do
       list of valid citations, each carrying its original index and its
       metadata.
     * second element: list of indices that appeared in the text but were
-      not present in the chunk_map (i.e., hallucinated by the LLM).
+      not present in the chunk_map (i.e., hallucinated by the LLM). This
+      includes `0`: `Cake.Prompt` numbers the chunk_map from 1, so a `[0]`
+      marker is always hallucinated.
 
   Hallucinated indices are also logged at warn level for operational
   visibility, but the returned list is what callers should use to surface
   warnings to end users.
   """
-  @spec extract(String.t(), map()) :: {[citation()], [pos_integer()]}
+  @spec extract(String.t(), map()) :: {[citation()], [non_neg_integer()]}
   def extract(response_text, chunk_map) do
     all_indices =
       @citation_pattern

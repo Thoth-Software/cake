@@ -1,0 +1,291 @@
+unit cake.laws.citations
+import cake.laws.shared as shared (CitableMeta, Segment, render)
+
+-- Laws for Cake.Citations.extract/2 (lib/cake/citations.ex).
+--
+-- `extract/2` finds the `[N]` markers in LLM response text and resolves each
+-- distinct N against a chunk map of `Cake.Citable` metadata. It returns the
+-- valid citations (N is a key) and the hallucinated indices (N is not), each
+-- in the order the markers first appear.
+--
+-- LawSpec has no regex, so the laws build the text from a list of segments
+-- (`cake.laws.shared`): plain text has no brackets, so the only markers in the
+-- rendered text are the segments' own, and the expected result is computed
+-- from the segments.
+
+-- One valid citation: the index as written and the metadata it resolves to.
+type Citation is a record
+{
+  index :: Whole
+  metadata :: CitableMeta
+}
+end type
+
+-- What `extract/2` returns: `{valid, hallucinated}`.
+type Extraction is a record
+{
+  valid :: List Citation
+  hallucinated :: List Whole
+}
+end type
+
+-- Adapter over Cake.Citations (lawspec/lib/cake_laws_citations.ex).
+
+-- `Citations.extract/2` of the text, with the chunk map as metadata maps.
+extract :: Text -> KeyVal Whole CitableMeta -> Extraction
+
+-- Building chunk maps and text that overlap.
+--
+-- Random indices and random keys almost never meet, so both are folded into
+-- 0..15: a slot's key and a marker's index are taken modulo 16. Index 0 is in
+-- range on purpose; a chunk map built by `Cake.Prompt` never has it.
+
+type Slot is a record
+{
+  key :: Whole
+  meta :: CitableMeta
+}
+end type
+
+-- `n` modulo 16.
+function fold16 (n :: Whole) -> Whole is
+  let r = prelude.rem n 16 in if r >= 0 then r else 0 end if end let
+end function
+
+function slotKey (slot :: Slot) -> Whole is fold16 slot.key
+end function
+
+function putSlots (slots :: List Slot) (chunkMap :: KeyVal Whole CitableMeta)
+  -> KeyVal Whole CitableMeta is
+  first matching case of slots :
+    when Nil then chunkMap
+    when Cons slot rest then
+      putSlots rest (prelude.put (slotKey slot) slot.meta chunkMap)
+  end case
+end function
+
+-- The chunk map the slots describe; a later slot wins a repeated key.
+function chunkMapOf (slots :: List Slot) -> KeyVal Whole CitableMeta is
+  putSlots slots (prelude.keyValOf [])
+end function
+
+-- The segments with every marker's index folded into 0..15.
+function small (segments :: List Segment) -> List Segment is
+  first matching case of segments :
+    when Nil then []
+    when Cons segment rest then
+      Cons
+      (first matching case of segment :
+        when shared.Plain t then shared.Plain t
+        when shared.Marker n then shared.Marker (fold16 n)
+      end case)
+        (small rest)
+  end case
+end function
+
+-- The chunk map Cake.Prompt builds for `metas`: keys dense from 1.
+function promptMapFrom (metas :: List CitableMeta) (i :: Whole) (chunkMap ::
+  KeyVal Whole CitableMeta) -> KeyVal Whole CitableMeta is
+  first matching case of metas :
+    when Nil then chunkMap
+    when Cons meta rest then
+      promptMapFrom rest (i + 1) (prelude.put i meta chunkMap)
+  end case
+end function
+
+function promptMapOf (metas :: List CitableMeta) -> KeyVal Whole CitableMeta is
+  promptMapFrom metas 1 (prelude.keyValOf [])
+end function
+
+-- The reference model.
+
+function markersFrom (segments :: List Segment) (seen :: List Whole) -> List
+  Whole is
+  first matching case of segments :
+    when Nil then seen
+    when Cons segment rest then
+      first matching case of segment :
+        when shared.Plain t then markersFrom rest seen
+        when shared.Marker n then
+          if n in seen then markersFrom rest seen
+          else markersFrom rest (seen ++ [n]) end if
+      end case
+  end case
+end function
+
+-- The distinct marker indices, in order of first appearance.
+function distinctMarkers (segments :: List Segment) -> List Whole is
+  markersFrom segments []
+end function
+
+function citationsOf (indices :: List Whole) (chunkMap :: KeyVal Whole
+  CitableMeta) -> List Citation is
+  first matching case of indices :
+    when Nil then []
+    when Cons n rest then
+      first matching case of prelude.lookup n chunkMap :
+        when Present meta then
+          Cons (Citation record{index = n, metadata = meta})
+            (citationsOf rest chunkMap)
+        when Absent then citationsOf rest chunkMap
+      end case
+  end case
+end function
+
+function missingFrom (indices :: List Whole) (chunkMap :: KeyVal Whole
+  CitableMeta) -> List Whole is
+  first matching case of indices :
+    when Nil then []
+    when Cons n rest then
+      first matching case of prelude.lookup n chunkMap :
+        when Present meta then missingFrom rest chunkMap
+        when Absent then Cons n (missingFrom rest chunkMap)
+      end case
+  end case
+end function
+
+function indicesOf (citations :: List Citation) -> List Whole is
+  first matching case of citations :
+    when Nil then []
+    when Cons c rest then Cons c.index (indicesOf rest)
+  end case
+end function
+
+function allPositive (indices :: List Whole) -> Bool is
+  first matching case of indices :
+    when Nil then true
+    when Cons n rest then n >= 1 && allPositive rest
+  end case
+end function
+
+-- Laws.
+
+law "|valid citations come in first-appearance order with their metadata| is
+  description :
+    "The valid citations are the markers that are chunk-map keys, in order of
+    first appearance, each carrying the chunk map's metadata for its index."
+  end description
+  definition :
+    for all (segments :: List Segment) (slots :: List Slot) =>
+      (extract (render (small segments)) (chunkMapOf slots)).valid = citationsOf
+        (distinctMarkers (small segments)) (chunkMapOf slots)
+    end for all
+  end definition
+  example "|a repeated marker is cited once, where it first appears| :
+    segments = [shared.Marker 2, shared.Plain " and ", shared.Marker 1,
+    shared.Plain " again ", shared.Marker 2]
+    slots = [
+    Slot record{
+      key = 1,
+      meta = CitableMeta record{
+        id = "chunk-1",
+        label = "Programming Elixir — Page 1",
+        preview = "One",
+        sourceRef = Absent}},
+    Slot record{
+      key = 2,
+      meta = CitableMeta record{
+        id = "chunk-2",
+        label = "Programming Elixir — Page 2",
+        preview = "Two",
+        sourceRef = Present "books/programming-elixir.pdf"}}]
+    expect render segments = "[2] and [1] again [2]"
+    expect indicesOf (extract (render segments) (chunkMapOf slots)).valid = [
+      2, 1]
+  end example
+end law
+
+law "|hallucinated indices come in first-appearance order| is
+  description :
+    "The hallucinated indices are the markers that are not chunk-map keys, in
+    order of first appearance, each once."
+  end description
+  definition :
+    for all (segments :: List Segment) (slots :: List Slot) =>
+      (extract (render (small segments)) (chunkMapOf slots)).hallucinated =
+        missingFrom (distinctMarkers (small segments)) (chunkMapOf slots)
+    end for all
+  end definition
+  example "|later markers stay later| :
+    segments = [shared.Marker 9, shared.Plain " ", shared.Marker 3,
+    shared.Plain " ", shared.Marker 9]
+    slots = []
+    expect (extract (render segments) (chunkMapOf slots)).hallucinated = [9, 3]
+  end example
+end law
+
+law "|extract is total and deterministic| is
+  description :
+    "Any text and any chunk map give a result, and the same inputs give the
+    same result."
+  end description
+  definition :
+    for all (text :: Text) (slots :: List Slot) =>
+      extract text (chunkMapOf slots) = extract text (chunkMapOf slots)
+    end for all
+  end definition
+end law
+
+law "|leading zeros do not change the index| is
+  description :
+    "A marker's digits are read as a number, so `[007]` resolves to the
+    chunk-map entry at index 7: a valid citation with that entry's metadata,
+    and nothing hallucinated."
+  end description
+  definition :
+    for all (n :: Whole where n <= 255) (meta :: CitableMeta) =>
+      extract ("[00" ++ prelude.textOf n ++ "]") (prelude.put n meta
+        (prelude.keyValOf [])) = Extraction record{ valid = [Citation
+          record{index = n, metadata = meta}], hallucinated = []}
+    end for all
+  end definition
+  example "|[007] resolves to entry 7| :
+    n = 7
+    meta = CitableMeta record{
+      id = "chunk-7",
+      label = "Programming Elixir — Page 7",
+      preview = "Seven",
+      sourceRef = Absent}
+    expect "[00" ++ prelude.textOf n ++ "]" = "[007]"
+    expect extract "[007]" (prelude.put n meta (prelude.keyValOf [])) =
+      Extraction record{
+        valid = [
+        Citation record{
+          index = 7,
+          metadata = CitableMeta record{
+            id = "chunk-7",
+            label = "Programming Elixir — Page 7",
+            preview = "Seven",
+            sourceRef = Absent}}],
+        hallucinated = []}
+  end example
+end law
+
+law "|[0] is always hallucinated against a prompt map| is
+  description :
+    "Cake.Prompt numbers a chunk map from 1, so every valid citation's index
+    is positive, and a `[0]` marker is reported as hallucinated index 0: a
+    model citing `[0]` has made a mistake, and it surfaces as a warning."
+  end description
+  definition :
+    for all (segments :: List Segment) (metas :: List CitableMeta) =>
+      allPositive (indicesOf (extract (render (small segments)) (promptMapOf
+        metas)).valid)
+      and (if 0 in distinctMarkers (small segments) then 0 in (extract (render
+        (small segments)) (promptMapOf metas)).hallucinated else true end if)
+    end for all
+  end definition
+  example "|[0] against a one-chunk prompt map| :
+    segments = [shared.Plain "see ", shared.Marker 0]
+    metas = [
+    CitableMeta record{
+      id = "chunk-1",
+      label = "Elixir in Action — Page 3",
+      preview = "Processes",
+      sourceRef = Absent}]
+    expect render segments = "see [0]"
+    expect (extract (render segments) (promptMapOf metas)).valid = []
+    expect (extract (render segments) (promptMapOf metas)).hallucinated = [0]
+  end example
+end law
+end unit
