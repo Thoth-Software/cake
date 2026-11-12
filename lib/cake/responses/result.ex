@@ -32,7 +32,7 @@ defmodule Cake.Responses.Result do
   @type citation :: %{
           old_index: pos_integer(),
           new_index: pos_integer(),
-          id: term(),
+          id: String.t(),
           label: String.t(),
           preview: String.t(),
           source_ref: String.t() | nil,

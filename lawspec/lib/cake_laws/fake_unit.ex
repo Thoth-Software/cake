@@ -14,7 +14,7 @@ defmodule Cake.Laws.FakeUnit do
 
   Build one with `new/2` from the metadata a specification generated
   (`LawSpec.Data.CitableMeta`, from `cake.laws.shared`), or construct the
-  struct directly when an adapter needs `:extras` or a non-text `:id`.
+  struct directly when an adapter needs `:extras`.
   """
 
   @enforce_keys [:metadata, :prompt_context]

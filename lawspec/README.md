@@ -10,7 +10,7 @@ Elixir these are StreamData properties inside ExUnit.
 | `laws/decomposition.lawspec` | `Cake.Decomposition.Result`: `new/2` and `topological_order/1` |
 | `laws/citations.lawspec` | `Cake.Citations.extract/2`: valid citations and hallucinated indices, each in first-appearance order against a reference model; totality; leading zeros; and `[0]`, which is always hallucinated because `Cake.Prompt` numbers from 1 |
 | `laws/responses.lawspec` | `Cake.Responses.process/3` and `build_citation_map/1`: the chunk map; one citation per retrieval unit, numbered `1..K` by first appearance; the final text against a reference model of marker rewriting and whitespace tidying; warnings, download actions, and the untouched `raw_text` and empty `media` |
-| `laws/candidates.lawspec` | `Cake.Candidates`: `group_by_document/1` against a reference model (one group per document id, in first-seen order, candidates in input order, text keys) and as a permutation of its input; `all_chunk_ids/1` and `expand_to_chunk_ids/2` against a reference model of a selection, with expansion distributing over appended selections; `document_metadata/1`'s title, 100-character preview and page label; and a group for every candidate whatever its `Cake.Citable` id, text or tuple |
+| `laws/candidates.lawspec` | `Cake.Candidates`: `group_by_document/1` against a reference model (one group per document id, in first-seen order, candidates in input order, text keys) and as a permutation of its input; `all_chunk_ids/1` and `expand_to_chunk_ids/2` against a reference model of a selection, with expansion distributing over appended selections; `document_metadata/1`'s title, 100-character preview and page label, which counts distinct pages; and a group for every candidate whatever its `Cake.Citable` id |
 | `laws/fakes.lawspec` | `Cake.Laws.FakeUnit`, the test retrieval unit: it carries generated data through `Cake.Citable` and `Cake.Promptable` unchanged, and meets the five-key `Citable` contract |
 | `laws/shared.lawspec` | no laws: types and checked definitions other specifications import (see "Shared types" below) |
 
@@ -113,7 +113,7 @@ prompt_text)` from a generated `CitableMeta`, and
 `FakeUnit.to_citable_meta/1` back. `laws/fakes.lawspec` pins that the fake
 returns exactly what it was given, so a specification that uses it tests
 Cake's code, not the fake. Construct the struct directly when an adapter
-needs `:extras` or a non-text `:id`.
+needs `:extras`, as `Cake.Laws.Candidates` does.
 
 ## Generating text: four caveats
 
@@ -178,9 +178,10 @@ pins and needs no upkeep when that version moves.
 - **When.** The first tool call of a session that touches LawSpec work: a
   file under `lawspec/` or any `.lawspec` file, a call made from inside
   `lawspec/`, or a shell command or search that names `lawspec`. It loads
-  once per session, and once more for each subagent. A session that starts,
-  resumes, is cleared or is compacted loads it again on its next such call,
-  because compaction can drop it from the context.
+  once per session, and once more for each subagent. A session that is
+  cleared or compacted loads it again on its next such call, because the
+  earlier load is no longer in its context; a resumed session gets its
+  transcript back and does not.
 - **What.** Every prelude operation name, and every prelude law with its
   parameters, constraints and definition, from `lawspec prelude --json`. The
   compiler reports operation names only, with no signatures. Claude Code
