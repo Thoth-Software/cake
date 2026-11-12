@@ -1,0 +1,736 @@
+unit cake.laws.candidates
+
+-- Laws for Cake.Candidates (lib/cake/candidates.ex): `group_by_document/1`,
+-- `document_metadata/1`, `expand_to_chunk_ids/2` and `all_chunk_ids/1`.
+--
+-- The manual-selection UI shows retrieved candidates one document at a time.
+-- `group_by_document/1` groups them by document id: the candidate's
+-- `Cake.Citable` `source_ref`, or its `id` when it has no source, as text.
+-- `document_metadata/1` summarises one group for display. The other two turn
+-- a selection of documents back into the candidates' own ids.
+--
+-- These laws carry their own candidate type instead of the shared
+-- `CitableMeta`: they need the two `:extras` the summary reads, and an id
+-- that is not always text.
+
+-- A candidate's `Cake.Citable` id. Production ids are UUIDs, which are text;
+-- the `Citable` moduledoc also allows a tuple.
+type CompositeKey is a record
+{
+  book :: Text
+  position :: Whole
+}
+end type
+
+type UnitId is one of
+  | TextId of type Text
+  | TupleId of type CompositeKey
+end type
+
+-- One of three source files, so that candidates often share a document, as
+-- the pages of one book do.
+refinement SourceRef is
+  (t :: Text where t matches regex "books/source-[0-2][.]pdf")
+end refinement
+
+-- ASCII, so that LawSpec's code points and Elixir's graphemes count the same
+-- characters. Only the law about the preview's length needs it.
+refinement AsciiText is
+  (t :: Text where t matches regex "[a-zA-Z0-9 .,]*")
+end refinement
+
+-- One retrieved candidate: the `Cake.Citable` metadata of the retrieval unit
+-- a `Cake.Search.Result` carries. `page` and `bookTitle` are the
+-- `:page_number` and `:book_title` extras; an absent one is a missing key.
+type Candidate is a record
+{
+  id :: UnitId
+  label :: Text
+  preview :: Text
+  sourceRef :: Maybe SourceRef
+  page :: Maybe Whole
+  bookTitle :: Maybe Text
+}
+end type
+
+-- One entry of `group_by_document/1`'s result: `{doc_id, results}`.
+type DocumentGroup is a record
+{
+  docId :: Text
+  members :: List Candidate
+}
+end type
+
+-- What `document_metadata/1` returns.
+type DocumentSummary is a record
+{
+  title :: Text
+  preview :: Text
+  pageLabel :: Maybe Text
+}
+end type
+
+-- Adapter over Cake.Candidates (lawspec/lib/cake_laws_candidates.ex).
+
+-- `Candidates.group_by_document/1` of the candidates.
+groupByDocument :: List Candidate -> List DocumentGroup
+
+-- `Candidates.document_metadata/1` of one group's candidates. It reads the
+-- first candidate, so the list must not be empty.
+documentMetadata :: List Candidate -> DocumentSummary
+
+-- `Candidates.expand_to_chunk_ids/2` of the selected document ids over the
+-- groups.
+expandToChunkIds :: List Text -> List DocumentGroup -> List UnitId
+
+-- `Candidates.all_chunk_ids/1` of the groups.
+allChunkIds :: List DocumentGroup -> List UnitId
+
+-- The reference model.
+
+-- Document ids.
+
+-- The id of the candidate's document: its source, or its own id when it has
+-- no source. Absent for a tuple id with no source: `Candidates` has no
+-- document id for it today (B4, #329), and what it should be is undecided.
+function docIdOf (c :: Candidate) -> Maybe Text is
+  first matching case of c.sourceRef :
+    when Present ref then Present ref
+    when Absent then
+      first matching case of c.id :
+        when TextId t then Present t
+        when TupleId key then Absent
+      end case
+  end case
+end function
+
+-- The candidates that have a document id. The grouping and selection laws
+-- keep to these, so that B4 turns one law red and not all of them.
+function documented (cs :: List Candidate) -> List Candidate is
+  first matching case of cs :
+    when Nil then []
+    when Cons c rest then
+      first matching case of docIdOf c :
+        when Present d then Cons c (documented rest)
+        when Absent then documented rest
+      end case
+  end case
+end function
+
+-- Grouping.
+
+-- The groups with `c` added to document `d`: at the end of its group, or as
+-- a new last group.
+function added (groups :: List DocumentGroup) (d :: Text) (c :: Candidate) ->
+  List DocumentGroup is
+  first matching case of groups :
+    when Nil then [DocumentGroup record{docId = d, members = [c]}]
+    when Cons g rest then
+      if g.docId = d then
+        Cons (DocumentGroup record{docId = d, members = g.members ++ [c]}) rest
+      else Cons g (added rest d c) end if
+  end case
+end function
+
+function groupsFrom (cs :: List Candidate) (groups :: List DocumentGroup) ->
+  List DocumentGroup is
+  first matching case of cs :
+    when Nil then groups
+    when Cons c rest then
+      first matching case of docIdOf c :
+        when Present d then groupsFrom rest (added groups d c)
+        when Absent then groupsFrom rest groups
+      end case
+  end case
+end function
+
+-- The candidates grouped by document: groups in the order their documents
+-- first appear, and each group's members in input order.
+function groupsOf (cs :: List Candidate) -> List DocumentGroup is
+  groupsFrom cs []
+end function
+
+-- Every group's members, group after group.
+function membersOf (groups :: List DocumentGroup) -> List Candidate is
+  first matching case of groups :
+    when Nil then []
+    when Cons g rest then g.members ++ membersOf rest
+  end case
+end function
+
+function docIdsOf (groups :: List DocumentGroup) -> List Text is
+  first matching case of groups :
+    when Nil then []
+    when Cons g rest then Cons g.docId (docIdsOf rest)
+  end case
+end function
+
+function idsOf (cs :: List Candidate) -> List UnitId is
+  first matching case of cs :
+    when Nil then []
+    when Cons c rest then Cons c.id (idsOf rest)
+  end case
+end function
+
+function distinctTexts (items :: List Text) -> Bool is
+  first matching case of items :
+    when Nil then true
+    when Cons item rest then not (rest contains item) && distinctTexts rest
+  end case
+end function
+
+function allBelongTo (d :: Text) (cs :: List Candidate) -> Bool is
+  first matching case of cs :
+    when Nil then true
+    when Cons c rest then docIdOf c = Present d && allBelongTo d rest
+  end case
+end function
+
+-- Every group has a member, and every member's document is its group's.
+function wellFormed (groups :: List DocumentGroup) -> Bool is
+  first matching case of groups :
+    when Nil then true
+    when Cons g rest then
+      prelude.length g.members >= 1 && allBelongTo g.docId g.members &&
+        wellFormed
+          rest
+  end case
+end function
+
+function withoutFirst (c :: Candidate) (cs :: List Candidate) -> List
+  Candidate is
+  first matching case of cs :
+    when Nil then []
+    when Cons other rest then
+      if other = c then rest else Cons other (withoutFirst c rest) end if
+  end case
+end function
+
+-- Whether `ys` is `xs` in some order, each candidate as many times.
+function permutes (xs :: List Candidate) (ys :: List Candidate) -> Bool is
+  first matching case of xs :
+    when Nil then prelude.length ys = 0
+    when Cons x rest then ys contains x && permutes rest (withoutFirst x ys)
+  end case
+end function
+
+-- Selections.
+
+-- The members of document `d`'s group; none when no group has that id.
+function membersFor (d :: Text) (groups :: List DocumentGroup) -> List
+  Candidate is
+  first matching case of groups :
+    when Nil then []
+    when Cons g rest then
+      if g.docId = d then g.members else membersFor d rest end if
+  end case
+end function
+
+-- The ids of the selected documents' members: document after document in
+-- selection order, and members in group order.
+function chunkIdsFor (selection :: List Text) (groups :: List DocumentGroup)
+  -> List UnitId is
+  first matching case of selection :
+    when Nil then []
+    when Cons d rest then
+      idsOf (membersFor d groups) ++ chunkIdsFor rest groups
+  end case
+end function
+
+function selectedFrom (docIds :: List Text) (count :: Whole) (picks :: List
+  Whole) -> List Text is
+  first matching case of picks :
+    when Nil then []
+    when Cons pick rest then
+      first matching case of prelude.at (prelude.rem pick (count + 1)) docIds :
+        when Present d then Cons d (selectedFrom docIds count rest)
+        when Absent then
+          Cons "no-such-document" (selectedFrom docIds count rest)
+      end case
+  end case
+end function
+
+-- A selection the way the form returns one: pick `p` is the id of document
+-- `p` modulo one more than the number of documents, and the pick past the
+-- last document is an id no group is likely to have. A document may be
+-- picked twice.
+function selectionOf (groups :: List DocumentGroup) (picks :: List Whole) ->
+  List Text is
+  selectedFrom (docIdsOf groups) (prelude.length groups) picks
+end function
+
+-- Summaries.
+
+-- `text` end to end, `times` times.
+function repeated (text :: Text) (times :: Whole) -> Text is
+  if times <= 0 then "" else text ++ repeated text (times - 1) end if
+end function
+
+-- A preview of up to 150 digits and then `tail`: ten digits, `tens` modulo
+-- 16 times over. Generated text is rarely longer than twenty characters, so
+-- this is what takes a preview up to and past the 100-character cut.
+function previewOf (tens :: Whole) (tail :: AsciiText) -> Text is
+  repeated "0123456789" (prelude.rem tens 16) ++ tail
+end function
+
+-- A candidate with the given preview and nothing else: no source, no page
+-- and no book title. A function cannot copy another candidate's source,
+-- because LawSpec cannot prove the copy is still one of the three.
+function previewing (preview :: Text) -> Candidate is
+  Candidate record{
+    id = TextId "previewed",
+    label = "Previewed",
+    preview = preview,
+    sourceRef = Absent,
+    page = Absent,
+    bookTitle = Absent}
+end function
+
+-- The candidates' page numbers, in order, less the candidates with none.
+function pagesOf (cs :: List Candidate) -> List Whole is
+  first matching case of cs :
+    when Nil then []
+    when Cons c rest then
+      first matching case of c.page :
+        when Present p then Cons p (pagesOf rest)
+        when Absent then pagesOf rest
+      end case
+  end case
+end function
+
+function smallest (p :: Whole) (pages :: List Whole) -> Whole is
+  first matching case of pages :
+    when Nil then p
+    when Cons q rest then
+      if q < p then smallest q rest else smallest p rest end if
+  end case
+end function
+
+function largest (p :: Whole) (pages :: List Whole) -> Whole is
+  first matching case of pages :
+    when Nil then p
+    when Cons q rest then
+      if q > p then largest q rest else largest p rest end if
+  end case
+end function
+
+-- No label for no page numbers, the page for one, and for more the smallest
+-- and the largest. It counts page numbers, not distinct pages: two
+-- candidates on page 5 give "PDF pages 5-5".
+function pageLabelOf (pages :: List Whole) -> Maybe Text is
+  first matching case of pages :
+    when Nil then Absent
+    when Cons p rest then
+      first matching case of rest :
+        when Nil then Present ("PDF page " ++ prelude.textOf p)
+        when Cons q more then
+          Present
+            ("PDF pages " ++ prelude.textOf (smallest p rest) ++ "-" ++
+              prelude.textOf (largest p rest))
+      end case
+  end case
+end function
+
+function titleOf (c :: Candidate) -> Text is
+  first matching case of c.bookTitle :
+    when Present title then title
+    when Absent then c.label
+  end case
+end function
+
+-- Laws: group_by_document/1.
+
+law "|candidates are grouped by document, in first-seen order| is
+  description :
+    "group_by_document/1 returns one group per document id, in the order the
+    documents first appear in the input, each holding that document's
+    candidates in input order. A candidate's document id is its source, or
+    its own id when it has no source, and every key is text."
+  end description
+  definition :
+    for all (cs :: List Candidate) =>
+      groupByDocument (documented cs) = groupsOf (documented cs)
+    end for all
+  end definition
+  example "|two pages of one book around another unit| :
+    cs = [
+    Candidate record{
+      id = TextId "c1",
+      label = "Alpha, p. 1",
+      preview = "One",
+      sourceRef = Present "books/source-0.pdf",
+      page = Present 1,
+      bookTitle = Present "Alpha"},
+    Candidate record{
+      id = TextId "c2",
+      label = "Notes",
+      preview = "Two",
+      sourceRef = Absent,
+      page = Absent,
+      bookTitle = Absent},
+    Candidate record{
+      id = TextId "c3",
+      label = "Alpha, p. 3",
+      preview = "Three",
+      sourceRef = Present "books/source-0.pdf",
+      page = Present 3,
+      bookTitle = Present "Alpha"}]
+    expect docIdsOf (groupByDocument cs) = ["books/source-0.pdf", "c2"]
+    expect idsOf (membersFor "books/source-0.pdf" (groupByDocument cs)) = [
+      TextId "c1", TextId "c3"]
+    expect idsOf (membersFor "c2" (groupByDocument cs)) = [TextId "c2"]
+  end example
+  example "|a tuple id groups under its source| :
+    cs = [
+    Candidate record{
+      id = TupleId (CompositeKey record{book = "alpha", position = 4}),
+      label = "Alpha, p. 9",
+      preview = "Nine",
+      sourceRef = Present "books/source-1.pdf",
+      page = Present 9,
+      bookTitle = Absent}]
+    expect docIdsOf (groupByDocument cs) = ["books/source-1.pdf"]
+  end example
+end law
+
+law "|every group is one document's candidates| is
+  description :
+    "No group is empty, every candidate in a group has the group's document
+    id, and no two groups share a document id."
+  end description
+  definition :
+    for all (cs :: List Candidate) =>
+      wellFormed (groupByDocument (documented cs)) and distinctTexts (docIdsOf
+        (groupByDocument (documented cs)))
+    end for all
+  end definition
+end law
+
+law "|flattening the groups gives a permutation of the input| is
+  description :
+    "The groups' candidates, group after group, are exactly the input
+    candidates in some order: none lost, none added, and a candidate that
+    appears twice in the input appears twice in the groups."
+  end description
+  definition :
+    for all (cs :: List Candidate) =>
+      permutes (documented cs) (membersOf (groupByDocument (documented cs)))
+    end for all
+  end definition
+end law
+
+-- Laws: all_chunk_ids/1 and expand_to_chunk_ids/2.
+
+law "|all chunk ids are every candidate's id, group after group| is
+  description :
+    "all_chunk_ids/1 returns each candidate's own Citable id, unchanged, in
+    group order and then member order: one id per candidate, so as many ids
+    as there were candidates."
+  end description
+  definition :
+    for all (cs :: List Candidate) =>
+      allChunkIds (groupByDocument (documented cs)) = idsOf (membersOf (groupsOf
+        (documented cs))) and prelude.length (allChunkIds (groupByDocument
+          (documented cs))) = prelude.length (documented cs)
+    end for all
+  end definition
+  example "|ids come back as they went in| :
+    cs = [
+    Candidate record{
+      id = TextId "c1",
+      label = "A",
+      preview = "a",
+      sourceRef = Absent,
+      page = Absent,
+      bookTitle = Absent},
+    Candidate record{
+      id = TupleId (CompositeKey record{book = "beta", position = 2}),
+      label = "B",
+      preview = "b",
+      sourceRef = Present "books/source-2.pdf",
+      page = Absent,
+      bookTitle = Absent}]
+    expect allChunkIds (groupByDocument cs) = [
+      TextId "c1",
+      TupleId (CompositeKey record{book = "beta", position = 2})]
+  end example
+end law
+
+law "|a selection expands to its documents' chunk ids, in selection order|
+  is
+  description :
+    "expand_to_chunk_ids/2 returns the ids of the selected documents'
+    candidates: document after document in the order selected, each
+    document's candidates in group order. A document id that no group has
+    contributes nothing, and a document selected twice contributes twice."
+  end description
+  definition :
+    for all (cs :: List Candidate) (picks :: List Whole) =>
+      expandToChunkIds (selectionOf (groupsOf (documented cs)) picks)
+        (groupByDocument (documented cs)) = chunkIdsFor (selectionOf (groupsOf
+          (documented cs)) picks) (groupsOf (documented cs))
+    end for all
+  end definition
+  example "|second document first, and an unknown id| :
+    cs = [
+    Candidate record{
+      id = TextId "c1",
+      label = "Alpha, p. 1",
+      preview = "One",
+      sourceRef = Present "books/source-0.pdf",
+      page = Absent,
+      bookTitle = Absent},
+    Candidate record{
+      id = TextId "c2",
+      label = "Beta, p. 2",
+      preview = "Two",
+      sourceRef = Present "books/source-1.pdf",
+      page = Absent,
+      bookTitle = Absent},
+    Candidate record{
+      id = TextId "c3",
+      label = "Alpha, p. 3",
+      preview = "Three",
+      sourceRef = Present "books/source-0.pdf",
+      page = Absent,
+      bookTitle = Absent}]
+    picks = [1, 2, 0]
+    expect selectionOf (groupsOf cs) picks = [
+      "books/source-1.pdf", "no-such-document", "books/source-0.pdf"]
+    expect expandToChunkIds (selectionOf (groupsOf cs) picks) (groupByDocument
+      cs) = [TextId "c2", TextId "c1", TextId "c3"]
+  end example
+end law
+
+law "|selecting every document gives every chunk id| is
+  description :
+    "Expanding the selection of every document id, in group order, equals
+    all_chunk_ids/1."
+  end description
+  definition :
+    for all (cs :: List Candidate) =>
+      expandToChunkIds (docIdsOf (groupByDocument (documented cs)))
+        (groupByDocument (documented cs)) = allChunkIds (groupByDocument
+          (documented cs))
+    end for all
+  end definition
+end law
+
+law "|an empty selection gives no chunk ids| is
+  description :
+    "Selecting no document expands to no ids, whatever the groups."
+  end description
+  definition :
+    for all (cs :: List Candidate) =>
+      prelude.length (expandToChunkIds [] (groupByDocument (documented cs))) = 0
+    end for all
+  end definition
+end law
+
+law "|expansion distributes over appending selections| is
+  description :
+    "Expanding two selections joined end to end equals expanding each and
+    joining the results."
+  end description
+  definition :
+    for all
+      (cs :: List Candidate)
+      (picks :: List Whole)
+      (more :: List Whole)
+    =>
+      expandToChunkIds (selectionOf (groupsOf (documented cs)) picks ++
+        selectionOf (groupsOf (documented cs)) more) (groupByDocument
+          (documented cs)) = expandToChunkIds (selectionOf (groupsOf (documented
+            cs)) picks) (groupByDocument (documented cs)) ++ expandToChunkIds
+            (selectionOf (groupsOf (documented cs)) more) (groupByDocument
+              (documented cs))
+    end for all
+  end definition
+end law
+
+-- Laws: document_metadata/1.
+--
+-- `document_metadata/1` reads its first result, so each law builds a
+-- non-empty list from a first candidate and the rest.
+
+law "|the summary's title is the first candidate's book title, or its label|
+  is
+  description :
+    "The title is the first candidate's book title, and its label when it has
+    no book title. Later candidates do not change it."
+  end description
+  definition :
+    for all (first :: Candidate) (rest :: List Candidate) =>
+      (documentMetadata (Cons first rest)).title = titleOf first
+    end for all
+  end definition
+  example "|a book title wins over the label| :
+    first = Candidate record{
+      id = TextId "c1",
+      label = "The Book, p. 5",
+      preview = "Five",
+      sourceRef = Present "books/source-0.pdf",
+      page = Present 5,
+      bookTitle = Present "The Book"}
+    rest = []
+    expect (documentMetadata (Cons first rest)).title = "The Book"
+  end example
+  example "|no book title falls back to the label| :
+    first = Candidate record{
+      id = TextId "c1",
+      label = "Enum.map/2",
+      preview = "Maps",
+      sourceRef = Absent,
+      page = Absent,
+      bookTitle = Absent}
+    rest = []
+    expect (documentMetadata (Cons first rest)).title = "Enum.map/2"
+  end example
+end law
+
+law "|the summary's preview is the first candidate's, cut to 100 characters|
+  is
+  description :
+    "The preview is the first 100 characters of the first candidate's
+    preview, and the whole of it when it is shorter. It is never longer than
+    100 characters. Later candidates do not change it."
+  end description
+  definition :
+    for all
+      (tens :: Whole)
+      (tail :: AsciiText)
+      (rest :: List Candidate)
+    =>
+      (documentMetadata (Cons (previewing (previewOf tens tail)) rest)).preview
+        = prelude.slice 0 100 (previewOf tens tail) and prelude.length
+          (documentMetadata (Cons (previewing (previewOf tens tail))
+            rest)).preview <= 100
+    end for all
+  end definition
+  example "|a short preview is kept whole| :
+    tens = 0
+    tail = "Pattern matching is"
+    rest = []
+    expect (documentMetadata (Cons (previewing (previewOf tens tail))
+      rest)).preview = "Pattern matching is"
+  end example
+  example "|a preview of 104 characters loses its last four| :
+    tens = 10
+    tail = "abcd"
+    rest = []
+    expect prelude.length (previewOf tens tail) = 104
+    expect (documentMetadata (Cons (previewing (previewOf tens tail))
+      rest)).preview =
+      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
+  end example
+end law
+
+law "|the page label spans the group's page numbers| is
+  description :
+    "With no page number in the group there is no page label. With one, the
+    label is `PDF page N`. With more, it is `PDF pages MIN-MAX`, the smallest
+    and the largest page number, whatever order the candidates are in.
+    Candidates with no page number are skipped."
+  end description
+  definition :
+    for all (first :: Candidate) (rest :: List Candidate) =>
+      (documentMetadata (Cons first rest)).pageLabel = pageLabelOf (pagesOf
+        (Cons first rest))
+    end for all
+  end definition
+  example "|no page numbers| :
+    first = Candidate record{
+      id = TextId "c1",
+      label = "A",
+      preview = "a",
+      sourceRef = Absent,
+      page = Absent,
+      bookTitle = Absent}
+    rest = []
+    expect (documentMetadata (Cons first rest)).pageLabel = Absent
+  end example
+  example "|one page number, after a candidate with none| :
+    first = Candidate record{
+      id = TextId "c1",
+      label = "A",
+      preview = "a",
+      sourceRef = Absent,
+      page = Absent,
+      bookTitle = Absent}
+    rest = [
+    Candidate record{
+      id = TextId "c2",
+      label = "B",
+      preview = "b",
+      sourceRef = Absent,
+      page = Present 7,
+      bookTitle = Absent}]
+    expect (documentMetadata (Cons first rest)).pageLabel = Present "PDF page 7"
+  end example
+  example "|a range, smallest page first whatever the order| :
+    first = Candidate record{
+      id = TextId "c1",
+      label = "A",
+      preview = "a",
+      sourceRef = Absent,
+      page = Present 5,
+      bookTitle = Absent}
+    rest = [
+    Candidate record{
+      id = TextId "c2",
+      label = "B",
+      preview = "b",
+      sourceRef = Absent,
+      page = Present 2,
+      bookTitle = Absent}]
+    expect (documentMetadata (Cons first rest)).pageLabel = Present
+      "PDF pages 2-5"
+  end example
+  example "|two candidates on one page| :
+    first = Candidate record{
+      id = TextId "c1",
+      label = "A",
+      preview = "a",
+      sourceRef = Absent,
+      page = Present 5,
+      bookTitle = Absent}
+    rest = [
+    Candidate record{
+      id = TextId "c2",
+      label = "B",
+      preview = "b",
+      sourceRef = Absent,
+      page = Present 5,
+      bookTitle = Absent}]
+    expect (documentMetadata (Cons first rest)).pageLabel = Present
+      "PDF pages 5-5"
+  end example
+end law
+
+-- B4 (#329). This law is red until the issue decides it: a tuple id with no
+-- source has no document id, and `group_by_document/1` raises
+-- `Protocol.UndefinedError` on it.
+
+law "|every candidate has a document, whatever its id| is
+  description :
+    "group_by_document/1 places every candidate in a group, for every id the
+    Citable contract allows: text or a tuple, with a source or without one."
+  end description
+  definition :
+    for all (cs :: List Candidate) =>
+      prelude.length (membersOf (groupByDocument cs)) = prelude.length cs
+    end for all
+  end definition
+  example "|a tuple id with no source| :
+    cs = [
+    Candidate record{
+      id = TupleId (CompositeKey record{book = "alpha", position = 4}),
+      label = "Alpha, p. 9",
+      preview = "Nine",
+      sourceRef = Absent,
+      page = Present 9,
+      bookTitle = Absent}]
+    expect prelude.length (groupByDocument cs) = 1
+  end example
+end law
+end unit

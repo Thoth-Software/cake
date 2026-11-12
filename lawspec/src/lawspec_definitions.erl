@@ -2,6 +2,35 @@
 -module(lawspec_definitions).
 -export([
     matchers_matches_regex/4,
+    group_by_document/3,
+    document_metadata/3,
+    expand_to_chunk_ids/4,
+    all_chunk_ids/3,
+    added/5,
+    all_belong_to/4,
+    chunk_ids_for/4,
+    distinct_texts/3,
+    doc_id_of/3,
+    doc_ids_of/3,
+    documented/3,
+    groups_from/4,
+    groups_of/3,
+    ids_of/3,
+    largest/4,
+    members_for/4,
+    members_of/3,
+    page_label_of/3,
+    pages_of/3,
+    permutes/4,
+    preview_of/4,
+    previewing/3,
+    repeated/4,
+    selected_from/5,
+    selection_of/4,
+    smallest/4,
+    title_of/3,
+    well_formed/3,
+    without_first/4,
     extract/4,
     all_positive/3,
     cake_laws_shared_render/3,
@@ -112,6 +141,1459 @@ matchers_matches_regex(_Schema, _Symbols, T, R) ->
     lawspec_beam_runtime:contextual(
         <<"lawspec.matchers::matchersMatchesRegex">>,
         fun() -> lawspec_typed:matchers_matches_regex(T, lawspec_typed:from_dynamic_regex(R)) end
+    ).
+
+%% groupByDocument — laws/candidates.lawspec:76
+group_by_document(Schema, _Symbols, ListCandidate) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::groupByDocument">>,
+        fun() ->
+            NativeListCandidate = lawspec_beam_schema:to_native(
+                ListCandidate,
+                {<<"List">>, [{<<"cake.laws.candidates::type::Candidate">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.Candidates':group_by_document(NativeListCandidate),
+                {<<"List">>, [{<<"cake.laws.candidates::type::DocumentGroup">>, []}]},
+                Schema
+            )
+        end
+    ).
+
+%% documentMetadata — laws/candidates.lawspec:80
+document_metadata(Schema, _Symbols, ListCandidate) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::documentMetadata">>,
+        fun() ->
+            NativeListCandidate = lawspec_beam_schema:to_native(
+                ListCandidate,
+                {<<"List">>, [{<<"cake.laws.candidates::type::Candidate">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.Candidates':document_metadata(NativeListCandidate),
+                {<<"cake.laws.candidates::type::DocumentSummary">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% expandToChunkIds — laws/candidates.lawspec:84
+expand_to_chunk_ids(Schema, _Symbols, ListText, ListDocumentGroup) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::expandToChunkIds">>,
+        fun() ->
+            NativeListText = lawspec_beam_schema:to_native(
+                ListText,
+                {<<"List">>, [{<<"Text">>, []}]},
+                Schema
+            ),
+            NativeListDocumentGroup = lawspec_beam_schema:to_native(
+                ListDocumentGroup,
+                {<<"List">>, [{<<"cake.laws.candidates::type::DocumentGroup">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.Candidates':expand_to_chunk_ids(
+                    NativeListText,
+                    NativeListDocumentGroup
+                ),
+                {<<"List">>, [{<<"cake.laws.candidates::type::UnitId">>, []}]},
+                Schema
+            )
+        end
+    ).
+
+%% allChunkIds — laws/candidates.lawspec:87
+all_chunk_ids(Schema, _Symbols, ListDocumentGroup) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::allChunkIds">>,
+        fun() ->
+            NativeListDocumentGroup = lawspec_beam_schema:to_native(
+                ListDocumentGroup,
+                {<<"List">>, [{<<"cake.laws.candidates::type::DocumentGroup">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.Candidates':all_chunk_ids(NativeListDocumentGroup),
+                {<<"List">>, [{<<"cake.laws.candidates::type::UnitId">>, []}]},
+                Schema
+            )
+        end
+    ).
+
+%% added — laws/candidates.lawspec:124
+added(Schema, Symbols, Groups, D, C) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::added">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Groups,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            D,
+                                            fun(RecordField) ->
+                                                lawspec_beam_runtime:bind(
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [C, []],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.candidates::type::Candidate">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    ),
+                                                    fun(RecordField_2) ->
+                                                        lawspec_beam_schema:construct(
+                                                            <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">>,
+                                                            [RecordField, RecordField_2],
+                                                            {
+                                                                <<"cake.laws.candidates::type::DocumentGroup">>,
+                                                                []
+                                                            },
+                                                            Schema
+                                                        )
+                                                    end
+                                                )
+                                            end
+                                        ),
+                                        []
+                                    ],
+                                    {
+                                        <<"List">>,
+                                        [{<<"cake.laws.candidates::type::DocumentGroup">>, []}]
+                                    },
+                                    Schema
+                                )
+                            end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case
+                                    lawspec_beam_scalar:equal(
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">> => fun(
+                                                    [DocId, _Members]
+                                                ) ->
+                                                    DocId
+                                                end
+                                            }
+                                        ),
+                                        D
+                                    )
+                                of
+                                    true ->
+                                        lawspec_beam_schema:construct(
+                                            <<"List::Cons">>,
+                                            [
+                                                lawspec_beam_runtime:bind(
+                                                    D,
+                                                    fun(RecordField_3) ->
+                                                        lawspec_beam_runtime:bind(
+                                                            lawspec_beam_runtime:helper(
+                                                                <<"append">>,
+                                                                [
+                                                                    lawspec_beam_schema:match(
+                                                                        Selection,
+                                                                        #{
+                                                                            <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">> => fun(
+                                                                                [
+                                                                                    _DocId_2,
+                                                                                    Members_2
+                                                                                ]
+                                                                            ) ->
+                                                                                Members_2
+                                                                            end
+                                                                        }
+                                                                    ),
+                                                                    lawspec_beam_schema:construct(
+                                                                        <<"List::Cons">>,
+                                                                        [C, []],
+                                                                        {
+                                                                            <<"List">>,
+                                                                            [
+                                                                                {
+                                                                                    <<"cake.laws.candidates::type::Candidate">>,
+                                                                                    []
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        Schema
+                                                                    )
+                                                                ],
+                                                                [
+                                                                    <<"List cake.laws.candidates::type::Candidate">>,
+                                                                    <<"List cake.laws.candidates::type::Candidate">>
+                                                                ],
+                                                                64
+                                                            ),
+                                                            fun(RecordField_4) ->
+                                                                lawspec_beam_schema:construct(
+                                                                    <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">>,
+                                                                    [RecordField_3, RecordField_4],
+                                                                    {
+                                                                        <<"cake.laws.candidates::type::DocumentGroup">>,
+                                                                        []
+                                                                    },
+                                                                    Schema
+                                                                )
+                                                            end
+                                                        )
+                                                    end
+                                                ),
+                                                Selection_2
+                                            ],
+                                            {
+                                                <<"List">>,
+                                                [
+                                                    {
+                                                        <<"cake.laws.candidates::type::DocumentGroup">>,
+                                                        []
+                                                    }
+                                                ]
+                                            },
+                                            Schema
+                                        );
+                                    false ->
+                                        lawspec_beam_schema:construct(
+                                            <<"List::Cons">>,
+                                            [
+                                                Selection,
+                                                lawspec_definitions:added(
+                                                    Schema,
+                                                    Symbols,
+                                                    Selection_2,
+                                                    D,
+                                                    C
+                                                )
+                                            ],
+                                            {
+                                                <<"List">>,
+                                                [
+                                                    {
+                                                        <<"cake.laws.candidates::type::DocumentGroup">>,
+                                                        []
+                                                    }
+                                                ]
+                                            },
+                                            Schema
+                                        )
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% allBelongTo — laws/candidates.lawspec:182
+all_belong_to(Schema, Symbols, D, Cs) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::allBelongTo">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Cs,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> true end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                (lawspec_beam_scalar:equal(
+                                    lawspec_definitions:doc_id_of(Schema, Symbols, Selection),
+                                    lawspec_beam_schema:construct(
+                                        <<"Maybe::Present">>,
+                                        [D],
+                                        {<<"Maybe">>, [{<<"Text">>, []}]},
+                                        Schema
+                                    )
+                                ) andalso
+                                    lawspec_definitions:all_belong_to(
+                                        Schema,
+                                        Symbols,
+                                        D,
+                                        Selection_2
+                                    ))
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% chunkIdsFor — laws/candidates.lawspec:231
+chunk_ids_for(Schema, Symbols, Selection, Groups) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::chunkIdsFor">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Selection,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection_2, Selection_3]) ->
+                                lawspec_beam_runtime:helper(
+                                    <<"append">>,
+                                    [
+                                        lawspec_definitions:ids_of(
+                                            Schema,
+                                            Symbols,
+                                            lawspec_definitions:members_for(
+                                                Schema,
+                                                Symbols,
+                                                Selection_2,
+                                                Groups
+                                            )
+                                        ),
+                                        lawspec_definitions:chunk_ids_for(
+                                            Schema,
+                                            Symbols,
+                                            Selection_3,
+                                            Groups
+                                        )
+                                    ],
+                                    [
+                                        <<"List cake.laws.candidates::type::UnitId">>,
+                                        <<"List cake.laws.candidates::type::UnitId">>
+                                    ],
+                                    64
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% distinctTexts — laws/candidates.lawspec:175
+distinct_texts(_Schema, _Symbols, Items) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::distinctTexts">>,
+        fun() -> lawspec_typed:distinct_texts(Items) end
+    ).
+
+%% docIdOf — laws/candidates.lawspec:96
+doc_id_of(Schema, _Symbols, C) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::docIdOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_schema:match(
+                    C,
+                    #{
+                        <<"cake.laws.candidates::type::Candidate::Candidate">> => fun(
+                            [_Id, _Label, _Preview, SourceRef, _Page, _BookTitle]
+                        ) ->
+                            SourceRef
+                        end
+                    }
+                ),
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Maybe::Present">> => fun([Selection]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Present">>,
+                                    [Selection],
+                                    {<<"Maybe">>, [{<<"Text">>, []}]},
+                                    Schema
+                                )
+                            end,
+                            <<"Maybe::Absent">> => fun([]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_beam_schema:match(
+                                        C,
+                                        #{
+                                            <<"cake.laws.candidates::type::Candidate::Candidate">> => fun(
+                                                [
+                                                    Id_2,
+                                                    _Label_2,
+                                                    _Preview_2,
+                                                    _SourceRef_2,
+                                                    _Page_2,
+                                                    _BookTitle_2
+                                                ]
+                                            ) ->
+                                                Id_2
+                                            end
+                                        }
+                                    ),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.candidates::type::UnitId::TextId">> => fun(
+                                                    [Selection_2]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"Maybe::Present">>,
+                                                        [Selection_2],
+                                                        {<<"Maybe">>, [{<<"Text">>, []}]},
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.candidates::type::UnitId::TupleId">> => fun(
+                                                    [_Selection_3]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"Maybe::Absent">>,
+                                                        [],
+                                                        {<<"Maybe">>, [{<<"Text">>, []}]},
+                                                        Schema
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% docIdsOf — laws/candidates.lawspec:161
+doc_ids_of(Schema, Symbols, Groups) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::docIdsOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Groups,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">> => fun(
+                                                    [DocId, _Members]
+                                                ) ->
+                                                    DocId
+                                                end
+                                            }
+                                        ),
+                                        lawspec_definitions:doc_ids_of(Schema, Symbols, Selection_2)
+                                    ],
+                                    {<<"List">>, [{<<"Text">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% documented — laws/candidates.lawspec:109
+documented(Schema, Symbols, Cs) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::documented">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Cs,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_definitions:doc_id_of(Schema, Symbols, Selection),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"Maybe::Present">> => fun([_MatchSelection]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            Selection,
+                                                            lawspec_definitions:documented(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.candidates::type::Candidate">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"Maybe::Absent">> => fun([]) ->
+                                                    lawspec_definitions:documented(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% groupsFrom — laws/candidates.lawspec:135
+groups_from(Schema, Symbols, Cs, Groups) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::groupsFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Cs,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> Groups end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_definitions:doc_id_of(Schema, Symbols, Selection),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"Maybe::Present">> => fun([MatchSelection]) ->
+                                                    lawspec_definitions:groups_from(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2,
+                                                        lawspec_definitions:added(
+                                                            Schema,
+                                                            Symbols,
+                                                            Groups,
+                                                            MatchSelection,
+                                                            Selection
+                                                        )
+                                                    )
+                                                end,
+                                                <<"Maybe::Absent">> => fun([]) ->
+                                                    lawspec_definitions:groups_from(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2,
+                                                        Groups
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% groupsOf — laws/candidates.lawspec:149
+groups_of(Schema, Symbols, Cs) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::groupsOf">>,
+        fun() -> lawspec_definitions:groups_from(Schema, Symbols, Cs, []) end
+    ).
+
+%% idsOf — laws/candidates.lawspec:168
+ids_of(Schema, Symbols, Cs) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::idsOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Cs,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.candidates::type::Candidate::Candidate">> => fun(
+                                                    [
+                                                        Id,
+                                                        _Label,
+                                                        _Preview,
+                                                        _SourceRef,
+                                                        _Page,
+                                                        _BookTitle
+                                                    ]
+                                                ) ->
+                                                    Id
+                                                end
+                                            }
+                                        ),
+                                        lawspec_definitions:ids_of(Schema, Symbols, Selection_2)
+                                    ],
+                                    {<<"List">>, [{<<"cake.laws.candidates::type::UnitId">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% largest — laws/candidates.lawspec:309
+largest(Schema, Symbols, P, Pages) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::largest">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pages,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> P end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case (Selection > P) of
+                                    true ->
+                                        lawspec_definitions:largest(
+                                            Schema,
+                                            Symbols,
+                                            Selection,
+                                            Selection_2
+                                        );
+                                    false ->
+                                        lawspec_definitions:largest(Schema, Symbols, P, Selection_2)
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% membersFor — laws/candidates.lawspec:220
+members_for(Schema, Symbols, D, Groups) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::membersFor">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Groups,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case
+                                    lawspec_beam_scalar:equal(
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">> => fun(
+                                                    [DocId, _Members]
+                                                ) ->
+                                                    DocId
+                                                end
+                                            }
+                                        ),
+                                        D
+                                    )
+                                of
+                                    true ->
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">> => fun(
+                                                    [_DocId_2, Members_2]
+                                                ) ->
+                                                    Members_2
+                                                end
+                                            }
+                                        );
+                                    false ->
+                                        lawspec_definitions:members_for(
+                                            Schema,
+                                            Symbols,
+                                            D,
+                                            Selection_2
+                                        )
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% membersOf — laws/candidates.lawspec:154
+members_of(Schema, Symbols, Groups) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::membersOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Groups,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:helper(
+                                    <<"append">>,
+                                    [
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">> => fun(
+                                                    [_DocId, Members]
+                                                ) ->
+                                                    Members
+                                                end
+                                            }
+                                        ),
+                                        lawspec_definitions:members_of(Schema, Symbols, Selection_2)
+                                    ],
+                                    [
+                                        <<"List cake.laws.candidates::type::Candidate">>,
+                                        <<"List cake.laws.candidates::type::Candidate">>
+                                    ],
+                                    64
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% pageLabelOf — laws/candidates.lawspec:320
+page_label_of(Schema, Symbols, Pages) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::pageLabelOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pages,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Absent">>,
+                                    [],
+                                    {<<"Maybe">>, [{<<"Text">>, []}]},
+                                    Schema
+                                )
+                            end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection_2,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"List::Nil">> => fun([]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"Maybe::Present">>,
+                                                        [
+                                                            lawspec_beam_runtime:helper(
+                                                                <<"append">>,
+                                                                [
+                                                                    <<"PDF page ">>,
+                                                                    lawspec_beam_runtime:helper(
+                                                                        <<"textOf">>,
+                                                                        [Selection],
+                                                                        [<<"BigUInt">>],
+                                                                        64
+                                                                    )
+                                                                ],
+                                                                [<<"Text">>, <<"Text">>],
+                                                                64
+                                                            )
+                                                        ],
+                                                        {<<"Maybe">>, [{<<"Text">>, []}]},
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"List::Cons">> => fun(
+                                                    [_MatchSelection, _MatchSelection_2]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"Maybe::Present">>,
+                                                        [
+                                                            lawspec_beam_runtime:helper(
+                                                                <<"append">>,
+                                                                [
+                                                                    lawspec_beam_runtime:helper(
+                                                                        <<"append">>,
+                                                                        [
+                                                                            lawspec_beam_runtime:helper(
+                                                                                <<"append">>,
+                                                                                [
+                                                                                    <<"PDF pages ">>,
+                                                                                    lawspec_beam_runtime:helper(
+                                                                                        <<"textOf">>,
+                                                                                        [
+                                                                                            lawspec_definitions:smallest(
+                                                                                                Schema,
+                                                                                                Symbols,
+                                                                                                Selection,
+                                                                                                Selection_2
+                                                                                            )
+                                                                                        ],
+                                                                                        [
+                                                                                            <<"BigUInt">>
+                                                                                        ],
+                                                                                        64
+                                                                                    )
+                                                                                ],
+                                                                                [
+                                                                                    <<"Text">>,
+                                                                                    <<"Text">>
+                                                                                ],
+                                                                                64
+                                                                            ),
+                                                                            <<"-">>
+                                                                        ],
+                                                                        [<<"Text">>, <<"Text">>],
+                                                                        64
+                                                                    ),
+                                                                    lawspec_beam_runtime:helper(
+                                                                        <<"textOf">>,
+                                                                        [
+                                                                            lawspec_definitions:largest(
+                                                                                Schema,
+                                                                                Symbols,
+                                                                                Selection,
+                                                                                Selection_2
+                                                                            )
+                                                                        ],
+                                                                        [<<"BigUInt">>],
+                                                                        64
+                                                                    )
+                                                                ],
+                                                                [<<"Text">>, <<"Text">>],
+                                                                64
+                                                            )
+                                                        ],
+                                                        {<<"Maybe">>, [{<<"Text">>, []}]},
+                                                        Schema
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% pagesOf — laws/candidates.lawspec:290
+pages_of(Schema, Symbols, Cs) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::pagesOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Cs,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_beam_schema:match(
+                                        Selection,
+                                        #{
+                                            <<"cake.laws.candidates::type::Candidate::Candidate">> => fun(
+                                                [
+                                                    _Id,
+                                                    _Label,
+                                                    _Preview,
+                                                    _SourceRef,
+                                                    Page,
+                                                    _BookTitle
+                                                ]
+                                            ) ->
+                                                Page
+                                            end
+                                        }
+                                    ),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"Maybe::Present">> => fun([MatchSelection]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            MatchSelection,
+                                                            lawspec_definitions:pages_of(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2
+                                                            )
+                                                        ],
+                                                        {<<"List">>, [{<<"BigUInt">>, []}]},
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"Maybe::Absent">> => fun([]) ->
+                                                    lawspec_definitions:pages_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% permutes — laws/candidates.lawspec:210
+permutes(Schema, Symbols, Xs, Ys) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::permutes">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Xs,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                (lawspec_beam_runtime:helper(
+                                    <<"length">>,
+                                    [Ys],
+                                    [<<"List cake.laws.candidates::type::Candidate">>],
+                                    64
+                                ) =:= 0)
+                            end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                ((not lists:all(
+                                    fun(Item) -> lawspec_beam_scalar:not_equal(Item, Selection) end,
+                                    Ys
+                                )) andalso
+                                    lawspec_definitions:permutes(
+                                        Schema,
+                                        Symbols,
+                                        Selection_2,
+                                        lawspec_definitions:without_first(
+                                            Schema,
+                                            Symbols,
+                                            Selection,
+                                            Ys
+                                        )
+                                    ))
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% previewOf — laws/candidates.lawspec:272
+preview_of(Schema, Symbols, Tens, Tail) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::previewOf">>,
+        fun() ->
+            lawspec_beam_runtime:require(
+                lawspec_beam_runtime:helper(
+                    <<"regexMatches">>,
+                    [<<"[a-zA-Z0-9 .,]*">>, Tail],
+                    [<<"Text">>, <<"Text">>],
+                    64
+                ),
+                <<"precondition">>
+            ),
+            lawspec_beam_runtime:helper(
+                <<"append">>,
+                [
+                    lawspec_definitions:repeated(
+                        Schema,
+                        Symbols,
+                        <<"0123456789">>,
+                        lawspec_beam_schema:validate(
+                            lawspec_beam_scalar:convert(
+                                lawspec_beam_scalar:remainder(
+                                    Tens,
+                                    16,
+                                    <<"BigUInt">>,
+                                    <<"Integer">>
+                                ),
+                                {<<"BigUInt">>, []},
+                                64
+                            ),
+                            {<<"BigUInt">>, []},
+                            Schema
+                        )
+                    ),
+                    Tail
+                ],
+                [<<"Text">>, <<"Text">>],
+                64
+            )
+        end
+    ).
+
+%% previewing — laws/candidates.lawspec:279
+previewing(Schema, _Symbols, Preview) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::previewing">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_schema:construct(
+                    <<"cake.laws.candidates::type::UnitId::TextId">>,
+                    [<<"previewed">>],
+                    {<<"cake.laws.candidates::type::UnitId">>, []},
+                    Schema
+                ),
+                fun(RecordField) ->
+                    lawspec_beam_runtime:bind(
+                        <<"Previewed">>,
+                        fun(RecordField_2) ->
+                            lawspec_beam_runtime:bind(
+                                Preview,
+                                fun(RecordField_3) ->
+                                    lawspec_beam_runtime:bind(
+                                        lawspec_beam_schema:construct(
+                                            <<"Maybe::Absent">>,
+                                            [],
+                                            {<<"Maybe">>, [{<<"Text">>, []}]},
+                                            Schema
+                                        ),
+                                        fun(RecordField_4) ->
+                                            lawspec_beam_runtime:bind(
+                                                lawspec_beam_schema:construct(
+                                                    <<"Maybe::Absent">>,
+                                                    [],
+                                                    {<<"Maybe">>, [{<<"BigUInt">>, []}]},
+                                                    Schema
+                                                ),
+                                                fun(RecordField_5) ->
+                                                    lawspec_beam_runtime:bind(
+                                                        lawspec_beam_schema:construct(
+                                                            <<"Maybe::Absent">>,
+                                                            [],
+                                                            {<<"Maybe">>, [{<<"Text">>, []}]},
+                                                            Schema
+                                                        ),
+                                                        fun(RecordField_6) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.candidates::type::Candidate::Candidate">>,
+                                                                [
+                                                                    RecordField,
+                                                                    RecordField_2,
+                                                                    RecordField_3,
+                                                                    RecordField_4,
+                                                                    RecordField_5,
+                                                                    RecordField_6
+                                                                ],
+                                                                {
+                                                                    <<"cake.laws.candidates::type::Candidate">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end
+                                                    )
+                                                end
+                                            )
+                                        end
+                                    )
+                                end
+                            )
+                        end
+                    )
+                end
+            )
+        end
+    ).
+
+%% repeated — laws/candidates.lawspec:265
+repeated(Schema, Symbols, Text, Times) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::repeated">>,
+        fun() ->
+            case (Times =< 0) of
+                true ->
+                    <<>>;
+                false ->
+                    lawspec_beam_runtime:helper(
+                        <<"append">>,
+                        [
+                            Text,
+                            lawspec_definitions:repeated(
+                                Schema,
+                                Symbols,
+                                Text,
+                                lawspec_beam_schema:validate(
+                                    lawspec_beam_scalar:convert(
+                                        (Times - 1),
+                                        {<<"BigUInt">>, []},
+                                        64
+                                    ),
+                                    {<<"BigUInt">>, []},
+                                    Schema
+                                )
+                            )
+                        ],
+                        [<<"Text">>, <<"Text">>],
+                        64
+                    )
+            end
+        end
+    ).
+
+%% selectedFrom — laws/candidates.lawspec:240
+selected_from(Schema, Symbols, DocIds, Count, Picks) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::selectedFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Picks,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_beam_runtime:helper(
+                                        <<"at">>,
+                                        [
+                                            DocIds,
+                                            lawspec_beam_scalar:remainder(
+                                                Selection,
+                                                (Count + 1),
+                                                <<"BigUInt">>,
+                                                <<"Integer">>
+                                            )
+                                        ],
+                                        [<<"List Text">>, <<"Integer">>],
+                                        64
+                                    ),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"Maybe::Present">> => fun([MatchSelection]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            MatchSelection,
+                                                            lawspec_definitions:selected_from(
+                                                                Schema,
+                                                                Symbols,
+                                                                DocIds,
+                                                                Count,
+                                                                Selection_2
+                                                            )
+                                                        ],
+                                                        {<<"List">>, [{<<"Text">>, []}]},
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"Maybe::Absent">> => fun([]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            <<"no-such-document">>,
+                                                            lawspec_definitions:selected_from(
+                                                                Schema,
+                                                                Symbols,
+                                                                DocIds,
+                                                                Count,
+                                                                Selection_2
+                                                            )
+                                                        ],
+                                                        {<<"List">>, [{<<"Text">>, []}]},
+                                                        Schema
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% selectionOf — laws/candidates.lawspec:257
+selection_of(Schema, Symbols, Groups, Picks) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::selectionOf">>,
+        fun() ->
+            lawspec_definitions:selected_from(
+                Schema,
+                Symbols,
+                lawspec_definitions:doc_ids_of(Schema, Symbols, Groups),
+                lawspec_beam_schema:validate(
+                    lawspec_beam_scalar:convert(
+                        lawspec_beam_runtime:helper(
+                            <<"length">>,
+                            [Groups],
+                            [<<"List cake.laws.candidates::type::DocumentGroup">>],
+                            64
+                        ),
+                        {<<"BigUInt">>, []},
+                        64
+                    ),
+                    {<<"BigUInt">>, []},
+                    Schema
+                ),
+                Picks
+            )
+        end
+    ).
+
+%% smallest — laws/candidates.lawspec:301
+smallest(Schema, Symbols, P, Pages) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::smallest">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pages,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> P end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case (Selection < P) of
+                                    true ->
+                                        lawspec_definitions:smallest(
+                                            Schema,
+                                            Symbols,
+                                            Selection,
+                                            Selection_2
+                                        );
+                                    false ->
+                                        lawspec_definitions:smallest(
+                                            Schema,
+                                            Symbols,
+                                            P,
+                                            Selection_2
+                                        )
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% titleOf — laws/candidates.lawspec:334
+title_of(_Schema, _Symbols, C) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::titleOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_schema:match(
+                    C,
+                    #{
+                        <<"cake.laws.candidates::type::Candidate::Candidate">> => fun(
+                            [_Id, _Label, _Preview, _SourceRef, _Page, BookTitle]
+                        ) ->
+                            BookTitle
+                        end
+                    }
+                ),
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Maybe::Present">> => fun([Selection]) -> Selection end,
+                            <<"Maybe::Absent">> => fun([]) ->
+                                lawspec_beam_schema:match(
+                                    C,
+                                    #{
+                                        <<"cake.laws.candidates::type::Candidate::Candidate">> => fun(
+                                            [
+                                                _Id_2,
+                                                Label_2,
+                                                _Preview_2,
+                                                _SourceRef_2,
+                                                _Page_2,
+                                                _BookTitle_2
+                                            ]
+                                        ) ->
+                                            Label_2
+                                        end
+                                    }
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% wellFormed — laws/candidates.lawspec:190
+well_formed(Schema, Symbols, Groups) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::wellFormed">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Groups,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> true end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                (((lawspec_beam_runtime:helper(
+                                    <<"length">>,
+                                    [
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">> => fun(
+                                                    [_DocId, Members]
+                                                ) ->
+                                                    Members
+                                                end
+                                            }
+                                        )
+                                    ],
+                                    [<<"List cake.laws.candidates::type::Candidate">>],
+                                    64
+                                ) >=
+                                    1) andalso
+                                    lawspec_definitions:all_belong_to(
+                                        Schema,
+                                        Symbols,
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">> => fun(
+                                                    [DocId_2, _Members_2]
+                                                ) ->
+                                                    DocId_2
+                                                end
+                                            }
+                                        ),
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">> => fun(
+                                                    [_DocId_3, Members_3]
+                                                ) ->
+                                                    Members_3
+                                                end
+                                            }
+                                        )
+                                    )) andalso
+                                    lawspec_definitions:well_formed(Schema, Symbols, Selection_2))
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% withoutFirst — laws/candidates.lawspec:200
+without_first(Schema, Symbols, C, Cs) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.candidates::withoutFirst">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Cs,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case lawspec_beam_scalar:equal(Selection, C) of
+                                    true ->
+                                        Selection_2;
+                                    false ->
+                                        lawspec_beam_schema:construct(
+                                            <<"List::Cons">>,
+                                            [
+                                                Selection,
+                                                lawspec_definitions:without_first(
+                                                    Schema,
+                                                    Symbols,
+                                                    C,
+                                                    Selection_2
+                                                )
+                                            ],
+                                            {
+                                                <<"List">>,
+                                                [{<<"cake.laws.candidates::type::Candidate">>, []}]
+                                            },
+                                            Schema
+                                        )
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
     ).
 
 %% extract — laws/citations.lawspec:35

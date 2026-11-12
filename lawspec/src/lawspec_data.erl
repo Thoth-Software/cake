@@ -143,6 +143,236 @@ schema(_Symbols) ->
                 ]
             },
             #{
+                name => <<"cake.laws.candidates::type::CompositeKey">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.candidates::type::CompositeKey::CompositeKey">>,
+                        fields => [
+                            {<<"book">>, {<<"Text">>, []}},
+                            {<<"position">>, {<<"BigUInt">>, []}}
+                        ],
+                        encode => fun([Book, Position]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.CompositeKey',
+                                book => Book,
+                                position => Position
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.CompositeKey',
+                                        book := Book,
+                                        position := Position
+                                    }
+                                ) ->
+                                    {ok, [Book, Position]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.candidates::type::UnitId">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.candidates::type::UnitId::TextId">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.UnitIdTextId', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.UnitIdTextId',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.candidates::type::UnitId::TupleId">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.candidates::type::CompositeKey">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.UnitIdTupleId', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.UnitIdTupleId',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.candidates::type::Candidate">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.candidates::type::Candidate::Candidate">>,
+                        fields => [
+                            {<<"id">>, {<<"cake.laws.candidates::type::UnitId">>, []}},
+                            {<<"label">>, {<<"Text">>, []}},
+                            {<<"preview">>, {<<"Text">>, []}},
+                            {<<"sourceRef">>, {<<"Maybe">>, [{<<"Text">>, []}]}},
+                            {<<"page">>, {<<"Maybe">>, [{<<"BigUInt">>, []}]}},
+                            {<<"bookTitle">>, {<<"Maybe">>, [{<<"Text">>, []}]}}
+                        ],
+                        encode => fun([Id, Label, Preview, SourceRef, Page, BookTitle]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Candidate',
+                                id => Id,
+                                label => Label,
+                                preview => Preview,
+                                source_ref => SourceRef,
+                                page => Page,
+                                book_title => BookTitle
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Candidate',
+                                        id := Id,
+                                        label := Label,
+                                        preview := Preview,
+                                        source_ref := SourceRef,
+                                        page := Page,
+                                        book_title := BookTitle
+                                    }
+                                ) ->
+                                    {ok, [Id, Label, Preview, SourceRef, Page, BookTitle]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_schema:match(
+                                    lists:nth(4, _Fields),
+                                    #{
+                                        <<"Maybe::Absent">> => fun([]) -> true end,
+                                        <<"Maybe::Present">> => fun([Element]) ->
+                                            (lawspec_beam_runtime:helper(
+                                                <<"regexMatches">>,
+                                                [<<"books/source-[0-2][.]pdf">>, Element],
+                                                [
+                                                    lawspec_beam_schema:type_key(
+                                                        lawspec_beam_schema:substitute(
+                                                            {<<"Text">>, []},
+                                                            _Known
+                                                        )
+                                                    ),
+                                                    lawspec_beam_schema:type_key(
+                                                        lawspec_beam_schema:substitute(
+                                                            {<<"Text">>, []},
+                                                            _Known
+                                                        )
+                                                    )
+                                                ],
+                                                64
+                                            ) andalso true)
+                                        end
+                                    }
+                                )
+                            end
+                        ]
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.candidates::type::DocumentGroup">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.candidates::type::DocumentGroup::DocumentGroup">>,
+                        fields => [
+                            {<<"docId">>, {<<"Text">>, []}},
+                            {
+                                <<"members">>,
+                                {<<"List">>, [{<<"cake.laws.candidates::type::Candidate">>, []}]}
+                            }
+                        ],
+                        encode => fun([DocId, Members]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.DocumentGroup',
+                                doc_id => DocId,
+                                members => Members
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.DocumentGroup',
+                                        doc_id := DocId,
+                                        members := Members
+                                    }
+                                ) ->
+                                    {ok, [DocId, Members]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.candidates::type::DocumentSummary">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.candidates::type::DocumentSummary::DocumentSummary">>,
+                        fields => [
+                            {<<"title">>, {<<"Text">>, []}},
+                            {<<"preview">>, {<<"Text">>, []}},
+                            {<<"pageLabel">>, {<<"Maybe">>, [{<<"Text">>, []}]}}
+                        ],
+                        encode => fun([Title, Preview, PageLabel]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.DocumentSummary',
+                                title => Title,
+                                preview => Preview,
+                                page_label => PageLabel
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.DocumentSummary',
+                                        title := Title,
+                                        preview := Preview,
+                                        page_label := PageLabel
+                                    }
+                                ) ->
+                                    {ok, [Title, Preview, PageLabel]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
                 name => <<"cake.laws.citations::type::Citation">>,
                 parameters => 0,
                 constructors => [

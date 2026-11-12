@@ -10,6 +10,7 @@ Elixir these are StreamData properties inside ExUnit.
 | `laws/decomposition.lawspec` | `Cake.Decomposition.Result`: `new/2` and `topological_order/1` |
 | `laws/citations.lawspec` | `Cake.Citations.extract/2`: valid citations and hallucinated indices, each in first-appearance order against a reference model; totality; leading zeros; and `[0]`, which is always hallucinated because `Cake.Prompt` numbers from 1 |
 | `laws/responses.lawspec` | `Cake.Responses.process/3` and `build_citation_map/1`: the chunk map; one citation per retrieval unit, numbered `1..K` by first appearance; the final text against a reference model of marker rewriting and whitespace tidying; warnings, download actions, and the untouched `raw_text` and empty `media` |
+| `laws/candidates.lawspec` | `Cake.Candidates`: `group_by_document/1` against a reference model (one group per document id, in first-seen order, candidates in input order, text keys) and as a permutation of its input; `all_chunk_ids/1` and `expand_to_chunk_ids/2` against a reference model of a selection, with expansion distributing over appended selections; `document_metadata/1`'s title, 100-character preview and page label; and a group for every candidate whatever its `Cake.Citable` id, text or tuple |
 | `laws/fakes.lawspec` | `Cake.Laws.FakeUnit`, the test retrieval unit: it carries generated data through `Cake.Citable` and `Cake.Promptable` unchanged, and meets the five-key `Citable` contract |
 | `laws/shared.lawspec` | no laws: types and checked definitions other specifications import (see "Shared types" below) |
 
@@ -114,7 +115,7 @@ returns exactly what it was given, so a specification that uses it tests
 Cake's code, not the fake. Construct the struct directly when an adapter
 needs `:extras` or a non-text `:id`.
 
-## Generating text: three caveats
+## Generating text: four caveats
 
 - **Code points, not graphemes.** LawSpec's `prelude.length` and text
   operations count Unicode code points; Elixir's `String.length/1` and
@@ -127,6 +128,14 @@ needs `:extras` or a non-text `:id`.
   the input from pieces and compute the expected text piece by piece, as
   `laws/responses.lawspec` does for `final_text`: a word, a space, a newline
   or a marker, each of which the whitespace rules treat as one item.
+- **Generated text is short.** Measured on the candidates unit, 675
+  generated values of a regex-refined `Text` had a median length of 0 and a
+  longest of 19, and a `{0,160}` bound in the regex did not make them longer.
+  A law about a length threshold never reaches it unless the law builds the
+  text: repeat a fixed piece a generated number of times and append the
+  generated text, as `laws/candidates.lawspec` does for the 100-character
+  preview cut (`previewOf`). Check that such a law bites by breaking the Cake
+  code and watching it fail.
 - **Float64.** LawSpec's `Float64` has no portable order, and exact laws
   over float arithmetic are rarely true. Where Cake only compares or stores a
   float (relevance scores, boosts), generate an exact number such as
@@ -187,6 +196,21 @@ source line numbers, so formatting after generating leaves them stale.
 Commit the specification, the regenerated files and `.lawspec/generated.json`
 together. CI fails on an unformatted specification (`lawspec fmt --check`)
 and on stale generated files (`lawspec generate --check`).
+
+Three things `npm run check` and `npm run generate` are strict or quiet
+about:
+
+- **Definition names are global.** Two units that each define a function of
+  the same name both compile, but the generator renames one (`distinct`
+  became `distinct_2`) and rewrites the other unit's generated files. Pick a
+  name no other unit uses: `grep -n "^function <name> " laws/*.lawspec`.
+- **A function cannot build a record with a refined field from a computed
+  value.** `check` fails with `constructor field refinement could not be
+  proved`, even when the value is copied from another record of the same
+  type. Give the field a literal or `Absent`, or keep the refinement off the
+  record and on the law's own variable.
+- **An example's expected value is a literal.** The right-hand side of
+  `expect ... = ...` takes a constructor or a literal, not a function call.
 
 A new specification for another module follows the same steps:
 
