@@ -11,6 +11,10 @@
 # It must never block or fail a tool call, so every path exits 0.
 input="$(cat)"
 
+# Case-insensitive, as lawspec-prelude.mjs is: a search for "LawSpec" is
+# LawSpec work too.
+shopt -s nocasematch
+
 case "$input" in
   *lawspec* | *SessionStart*) ;;
   *) exit 0 ;;
