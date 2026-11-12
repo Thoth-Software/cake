@@ -167,6 +167,38 @@ the `laws` job's comment in `quality.yml` and from CLAUDE.md together.
 | `npm run generate` / `npm run generate:check` | `lawspec generate` / `lawspec generate --check` |
 | `npm run lawspec -- <args>` | any other command, such as `explain` or `evidence` |
 
+## The prelude in Claude Code sessions
+
+A Claude Code session that writes a specification from memory guesses at
+prelude names, so a hook loads the prelude into the session instead. It is
+read from the compiler installed in `node_modules` each time, never from a
+copy in the repository, so it matches the LawSpec version `package.json`
+pins and needs no upkeep when that version moves.
+
+- **When.** The first tool call of a session that touches LawSpec work: a
+  file under `lawspec/` or any `.lawspec` file, a call made from inside
+  `lawspec/`, or a shell command or search that names `lawspec`. It loads
+  once per session, and once more for each subagent. A session that starts,
+  resumes, is cleared or is compacted loads it again on its next such call,
+  because compaction can drop it from the context.
+- **What.** Every prelude operation name, and every prelude law with its
+  parameters, constraints and definition, from `lawspec prelude --json`. The
+  compiler reports operation names only, with no signatures. Claude Code
+  shows a session at most 10,000 characters from a hook, so descriptions and
+  rationales are left out; the hook writes the full source to a temporary
+  file and gives its path.
+- **Where.** `.claude/hooks/lawspec-prelude.sh` is registered in
+  `.claude/settings.json` for `PreToolUse` (Read, Edit, Write, Grep, Glob,
+  Bash) and `SessionStart`. It is a cheap gate that runs before every one of
+  those calls and starts node only for a call that mentions `lawspec`;
+  `.claude/hooks/lawspec-prelude.mjs` decides and renders. Neither can block
+  or fail a tool call.
+- **Not installed.** Without `node_modules/lawspec` the hook says so once,
+  with the `npm ci` to run, and loads the prelude on the next call after
+  that.
+
+To read the same inventory by hand: `npm run -s lawspec -- prelude`.
+
 ## Running locally
 
 You need Erlang/OTP 29, Elixir 1.20 and Node 22 or later. From this
