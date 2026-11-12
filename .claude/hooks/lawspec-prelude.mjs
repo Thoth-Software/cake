@@ -30,11 +30,12 @@ function main() {
   const input = JSON.parse(fs.readFileSync(0, 'utf8'))
   const session = safeName(input.session_id ?? 'unknown-session')
 
-  // A new, resumed, cleared or compacted session may have lost the prelude
-  // from its context, so forget that it was loaded and let the next LawSpec
-  // tool call load it again.
+  // A new, cleared or compacted session no longer has the prelude in its
+  // context, so forget that it was loaded and let the next LawSpec tool call
+  // load it again. A resumed session gets its transcript back, prelude
+  // included, so it keeps its marker.
   if (input.hook_event_name === 'SessionStart') {
-    forget(session)
+    if (input.source !== 'resume') forget(session)
     return
   }
 
