@@ -19,7 +19,7 @@ defmodule Cake.ResponsesTest do
   end
 
   @meta_a %{
-    id: {"a.pdf", 1},
+    id: "a.pdf#1",
     label: "Alpha, p. 1",
     preview: "alpha preview",
     source_ref: "a.pdf",
@@ -27,7 +27,7 @@ defmodule Cake.ResponsesTest do
   }
 
   @meta_b %{
-    id: {"b.pdf", 2},
+    id: "b.pdf#2",
     label: "Beta, p. 2",
     preview: "beta preview",
     source_ref: "b.pdf",
@@ -35,7 +35,7 @@ defmodule Cake.ResponsesTest do
   }
 
   @meta_c %{
-    id: {"a.pdf", 3},
+    id: "a.pdf#3",
     label: "Alpha, p. 3",
     preview: "alpha-c preview",
     source_ref: "a.pdf",

@@ -12,6 +12,12 @@ defmodule LawSpec.Data do
 
   @type regex() :: LawSpec.Data.Regex.t()
 
+  @type candidate() :: LawSpec.Data.Candidate.t()
+
+  @type document_group() :: LawSpec.Data.DocumentGroup.t()
+
+  @type document_summary() :: LawSpec.Data.DocumentSummary.t()
+
   @type citation() :: LawSpec.Data.Citation.t()
 
   @type extraction() :: LawSpec.Data.Extraction.t()

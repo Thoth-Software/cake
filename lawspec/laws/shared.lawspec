@@ -21,8 +21,8 @@ end type
 
 -- The `Cake.Citable` metadata of one retrieval unit
 -- (lib/cake/citable.ex), less `:extras`, which stays an Elixir map in
--- `Cake.Laws.FakeUnit` until a specification needs it. `id` is text here;
--- the protocol allows any term.
+-- `Cake.Laws.FakeUnit` until a specification needs it. `id` is text, as the
+-- protocol requires.
 type CitableMeta is a record
 {
   id :: Text

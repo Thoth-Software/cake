@@ -125,7 +125,7 @@ defmodule CakeWeb.ChatLive do
 
   def handle_info({:candidates_ready, candidates}, socket) do
     grouped = Candidates.group_by_document(candidates)
-    available_doc_ids = Enum.map(grouped, fn {doc_id, _} -> to_string(doc_id) end)
+    available_doc_ids = Enum.map(grouped, fn {doc_id, _results} -> doc_id end)
     selection_form = to_form(SelectionForm.changeset(%{}, available_doc_ids))
 
     {:noreply,

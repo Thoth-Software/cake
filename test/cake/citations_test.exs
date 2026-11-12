@@ -6,7 +6,7 @@ defmodule Cake.CitationsTest do
   alias Cake.Citations
 
   @meta_1 %{
-    id: {"programming_elixir.pdf", 10},
+    id: "programming_elixir.pdf#10",
     label: "Programming Elixir, p. 42 — Enum",
     preview: "The Enum module provides a set of algorithms to work with enumerables.",
     source_ref: "assets/static/programming_elixir.pdf",
@@ -19,7 +19,7 @@ defmodule Cake.CitationsTest do
   }
 
   @meta_2 %{
-    id: {"programming_elixir.pdf", 15},
+    id: "programming_elixir.pdf#15",
     label: "Programming Elixir, p. 55 — Streams",
     preview: "Streams are lazy enumerables that allow you to compose operations.",
     source_ref: "assets/static/programming_elixir.pdf",
@@ -32,7 +32,7 @@ defmodule Cake.CitationsTest do
   }
 
   @meta_3 %{
-    id: {"elixir_in_action.pdf", 40},
+    id: "elixir_in_action.pdf#40",
     label: "Elixir in Action, p. 101 — Tasks",
     preview:
       "Tasks are processes meant to execute one particular action throughout their lifetime.",

@@ -4,6 +4,7 @@
 -module(lawspec_typed).
 -export([
     matchers_matches_regex/2,
+    distinct_texts/1,
     all_in/2,
     dag_of/1,
     dependencies_first/3,
@@ -50,6 +51,20 @@ matchers_matches_regex(T, R) ->
     case R of
         #{'__struct__' := 'Elixir.LawSpec.Data.Regex', pattern := Selection} ->
             lawspec_beam_regex:matches(Selection, T)
+    end.
+
+%% distinctTexts — laws/candidates.lawspec:139
+distinct_texts(Items) ->
+    case Items of
+        [] ->
+            true;
+        [Selection | Selection_2] ->
+            ((not (not lists:all(
+                fun(Item) ->
+                    (Item =/= Selection)
+                end,
+                Selection_2
+            ))) andalso distinct_texts(Selection_2))
     end.
 
 %% allIn — laws/decomposition.lawspec:149

@@ -8,10 +8,13 @@ defprotocol Cake.Citable do
 
   `metadata/1` returns a map with exactly five keys:
 
-    * `:id` — stable unique identifier for the unit, used by Responses for
-      deduplication when the LLM cites the same unit under two different
-      indices. Any pattern-matchable term; UUIDs, tuples, and binaries are
-      all fine.
+    * `:id` — stable unique identifier for the unit, as a string (both
+      implementations use the record's `Ecto.UUID.t()`, which a record has
+      once it is persisted). Responses deduplicates on it when the LLM cites
+      the same unit under two different indices,
+      `Cake.Conversation.select_docs/2` accepts it back as a candidate id,
+      and `Cake.Candidates` uses it as the document id of a unit with no
+      `:source_ref`.
     * `:label` — human-readable display string. The implementation composes
       this from whatever fields make sense for the unit; callers may use
       it verbatim or override via `:extras`.
@@ -35,7 +38,7 @@ defprotocol Cake.Citable do
 
   @typedoc "The five-key map `metadata/1` returns; `metadata/1` describes each key."
   @type metadata :: %{
-          required(:id) => term(),
+          required(:id) => String.t(),
           required(:label) => String.t(),
           required(:preview) => String.t(),
           required(:source_ref) => String.t() | nil,

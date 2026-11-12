@@ -7,8 +7,9 @@ defmodule Cake.Candidates do
   `Result`), groups them by document, and expands a document selection back
   into chunk ids for `Cake.Conversation.select_docs/2`.
 
-  Document ids are stringified so they round-trip cleanly through the HTML
-  selection form, which always hands ids back as strings.
+  Document ids are strings, as `Cake.Citable`'s `source_ref` and `id` both
+  are, so they round-trip cleanly through the HTML selection form, which
+  always hands ids back as strings.
   """
 
   use Boundary, top_level?: true, deps: [Cake, Cake.Search], exports: []
@@ -18,7 +19,7 @@ defmodule Cake.Candidates do
 
   @typedoc """
   The document a candidate belongs to: its `Cake.Citable` `source_ref`, or its
-  `id` when it has none, as a string.
+  `id` when it has none.
   """
   @type doc_id :: String.t()
 
@@ -51,15 +52,20 @@ defmodule Cake.Candidates do
   @spec doc_id_for(Result.t()) :: doc_id()
   defp doc_id_for(%Result{retrieval_unit: unit}) do
     meta = Citable.metadata(unit)
-    to_string(meta.source_ref || meta.id)
+    meta.source_ref || meta.id
   end
 
   @doc """
-  Display metadata for one document's result group: a title, a preview
-  (first 100 characters), and a page label derived from the group's chunk
-  page numbers.
+  Display metadata for one document's result group: a title (the first
+  result's `:book_title` extra, or its label), a preview (the first result's,
+  cut to 100 characters), and a page label from the group's distinct
+  `:page_number` extras: `nil` for none, `"PDF page N"` for one page however
+  many results are on it, and `"PDF pages MIN-MAX"` for more.
+
+  `results` must not be empty: the title and the preview are the first
+  result's.
   """
-  @spec document_metadata([Result.t()]) :: %{
+  @spec document_metadata([Result.t(), ...]) :: %{
           title: String.t() | nil,
           preview: String.t(),
           page_label: String.t() | nil
@@ -74,6 +80,7 @@ defmodule Cake.Candidates do
         Citable.metadata(unit).extras[:page_number]
       end)
       |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
       |> Enum.sort()
 
     page_label =
@@ -97,7 +104,7 @@ defmodule Cake.Candidates do
 
     Enum.flat_map(selected_doc_ids, fn doc_id ->
       lookup
-      |> Map.get(to_string(doc_id), [])
+      |> Map.get(doc_id, [])
       |> Enum.map(fn %Result{retrieval_unit: unit} -> Citable.metadata(unit).id end)
     end)
   end

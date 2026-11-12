@@ -109,6 +109,24 @@ defmodule Cake.CandidatesPropertyTest do
     end
   end
 
+  # One document's results, all on one page: `{page_number, results}`.
+  defp same_page_results do
+    gen all(
+          source_ref <- doc_id(),
+          page_number <- integer(1..200),
+          previews <- list_of(string(:alphanumeric, max_length: 20), min_length: 1, max_length: 6)
+        ) do
+      results =
+        previews
+        |> Enum.with_index()
+        |> Enum.map(fn {preview, index} ->
+          build_result("chunk-#{index}", source_ref, page_number, nil, preview)
+        end)
+
+      {page_number, results}
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # group_by_document/1 properties
   # ---------------------------------------------------------------------------
@@ -210,18 +228,24 @@ defmodule Cake.CandidatesPropertyTest do
     end
   end
 
-  property "document_metadata/1 page range has min <= max" do
+  property "document_metadata/1 page range spans two different pages: min < max" do
     check all(results <- single_doc_results()) do
       meta = Candidates.document_metadata(results)
 
       case meta.page_label do
         "PDF pages " <> range ->
           [min_s, max_s] = String.split(range, "-")
-          assert String.to_integer(min_s) <= String.to_integer(max_s)
+          assert String.to_integer(min_s) < String.to_integer(max_s)
 
         _ ->
           :ok
       end
+    end
+  end
+
+  property "document_metadata/1 names one page, however many results are on it" do
+    check all({page_number, results} <- same_page_results()) do
+      assert Candidates.document_metadata(results).page_label == "PDF page #{page_number}"
     end
   end
 end

@@ -16,6 +16,7 @@ defmodule CakeLaws.MixProject do
   @cake_root Path.expand("..", __DIR__)
   @cake_sources Enum.map(
                   [
+                    "lib/cake/candidates.ex",
                     "lib/cake/citable.ex",
                     "lib/cake/citations.ex",
                     "lib/cake/decomposition/result.ex",
