@@ -5,7 +5,7 @@ defmodule LawSpec.Data.Candidate do
   defstruct [:id, :label, :preview, :source_ref, :page, :book_title]
 
   @type t() :: %__MODULE__{
-          :id => LawSpec.Data.unit_id(),
+          :id => binary(),
           :label => binary(),
           :preview => binary(),
           :source_ref => :absent | {:present, binary()},

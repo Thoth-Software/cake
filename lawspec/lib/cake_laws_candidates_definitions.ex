@@ -14,7 +14,13 @@ defmodule Cake.Laws.Candidates.Definitions do
     :cake_laws_candidates_definitions_ffi.all_belong_to(d, cs)
   end
 
-  @spec chunk_ids_for([binary()], [LawSpec.Data.document_group()]) :: [LawSpec.Data.unit_id()]
+  @spec all_on_page(non_neg_integer(), non_neg_integer()) :: [LawSpec.Data.candidate()]
+
+  def all_on_page(page, count) do
+    :cake_laws_candidates_definitions_ffi.all_on_page(page, count)
+  end
+
+  @spec chunk_ids_for([binary()], [LawSpec.Data.document_group()]) :: [binary()]
 
   def chunk_ids_for(selection, groups) do
     :cake_laws_candidates_definitions_ffi.chunk_ids_for(selection, groups)
@@ -26,7 +32,7 @@ defmodule Cake.Laws.Candidates.Definitions do
     :cake_laws_candidates_definitions_ffi.distinct_texts(items)
   end
 
-  @spec doc_id_of(LawSpec.Data.candidate()) :: :absent | {:present, binary()}
+  @spec doc_id_of(LawSpec.Data.candidate()) :: binary()
 
   def doc_id_of(c) do
     :cake_laws_candidates_definitions_ffi.doc_id_of(c)
@@ -36,12 +42,6 @@ defmodule Cake.Laws.Candidates.Definitions do
 
   def doc_ids_of(groups) do
     :cake_laws_candidates_definitions_ffi.doc_ids_of(groups)
-  end
-
-  @spec documented([LawSpec.Data.candidate()]) :: [LawSpec.Data.candidate()]
-
-  def documented(cs) do
-    :cake_laws_candidates_definitions_ffi.documented(cs)
   end
 
   @spec groups_from([LawSpec.Data.candidate()], [LawSpec.Data.document_group()]) :: [
@@ -58,7 +58,7 @@ defmodule Cake.Laws.Candidates.Definitions do
     :cake_laws_candidates_definitions_ffi.groups_of(cs)
   end
 
-  @spec ids_of([LawSpec.Data.candidate()]) :: [LawSpec.Data.unit_id()]
+  @spec ids_of([LawSpec.Data.candidate()]) :: [binary()]
 
   def ids_of(cs) do
     :cake_laws_candidates_definitions_ffi.ids_of(cs)
@@ -80,6 +80,12 @@ defmodule Cake.Laws.Candidates.Definitions do
 
   def members_of(groups) do
     :cake_laws_candidates_definitions_ffi.members_of(groups)
+  end
+
+  @spec on_page(non_neg_integer()) :: LawSpec.Data.candidate()
+
+  def on_page(page) do
+    :cake_laws_candidates_definitions_ffi.on_page(page)
   end
 
   @spec page_label_of([non_neg_integer()]) :: :absent | {:present, binary()}

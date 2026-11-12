@@ -53,7 +53,7 @@ matchers_matches_regex(T, R) ->
             lawspec_beam_regex:matches(Selection, T)
     end.
 
-%% distinctTexts — laws/candidates.lawspec:175
+%% distinctTexts — laws/candidates.lawspec:139
 distinct_texts(Items) ->
     case Items of
         [] ->

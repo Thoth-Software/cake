@@ -12,6 +12,7 @@
     law_the_summary_s_title_is_the_first_candidate_s_test_/0,
     law_the_summary_s_preview_is_the_first_candidate_s_test_/0,
     law_the_page_label_spans_the_group_s_page_numbers_test_/0,
+    law_candidates_on_one_page_share_a_single_page_label_test_/0,
     law_every_candidate_has_a_document_whatever_its_id_test_/0,
     law_candidates_are_grouped_by_document_in_first_seen_case_at/1,
     law_every_group_is_one_document_s_candidates_case_at/1,
@@ -24,6 +25,7 @@
     law_the_summary_s_title_is_the_first_candidate_s_case_at/1,
     law_the_summary_s_preview_is_the_first_candidate_s_case_at/1,
     law_the_page_label_spans_the_group_s_page_numbers_case_at/1,
+    law_candidates_on_one_page_share_a_single_page_label_case_at/1,
     law_every_candidate_has_a_document_whatever_its_id_case_at/1
 ]).
 
@@ -31,24 +33,16 @@
     <<"cake.laws.candidates::|candidates are grouped by document, in first-seen order|">>
 ).
 
-%% |candidates are grouped by document, in first-seen order| — laws/candidates.lawspec:343
+%% |candidates are grouped by document, in first-seen order| — laws/candidates.lawspec:325
 %% group_by_document/1 returns one group per document id, in the order the
 %%     documents first appear in the input, each holding that document's
 %%     candidates in input order. A candidate's document id is its source, or
 %%     its own id when it has no source, and every key is text.
-%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => groupByDocument (documented cs) = groupsOf (documented cs) end for all
+%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => groupByDocument cs = groupsOf cs end for all
 law_candidates_are_grouped_by_document_in_first_seen(Schema, Symbols, [Cs]) ->
     lawspec_beam_runtime:assert_equal(
-        lawspec_definitions:group_by_document(
-            Schema,
-            Symbols,
-            lawspec_definitions:documented(Schema, Symbols, Cs)
-        ),
-        lawspec_definitions:groups_of(
-            Schema,
-            Symbols,
-            lawspec_definitions:documented(Schema, Symbols, Cs)
-        ),
+        lawspec_definitions:group_by_document(Schema, Symbols, Cs),
+        lawspec_definitions:groups_of(Schema, Symbols, Cs),
         ?LAW_CANDIDATES_ARE_GROUPED_BY_DOCUMENT_IN_FIRST_SEEN
     ).
 
@@ -60,10 +54,6 @@ law_candidates_are_grouped_by_document_in_first_seen_plan() ->
                 {
                     "|candidates are grouped by document, in first-seen order| example |two pages of one book around another unit|",
                     fun law_candidates_are_grouped_by_document_in_first_seen__two_pages_of_one_book_around_another_unit/0
-                },
-                {
-                    "|candidates are grouped by document, in first-seen order| example |a tuple id groups under its source|",
-                    fun law_candidates_are_grouped_by_document_in_first_seen__a_tuple_id_groups_under_its_source/0
                 }
             ]
         },
@@ -77,21 +67,39 @@ law_candidates_are_grouped_by_document_in_first_seen_plan() ->
                             values,
                             [
                                 fun(Symbols) -> finite_literal_1(Symbols) end,
-                                fun(Symbols) -> finite_literal_6(Symbols) end,
+                                fun(Symbols) -> finite_literal_5(Symbols) end,
+                                fun(Symbols) -> finite_literal_7(Symbols) end,
+                                fun(Symbols) -> finite_literal_9(Symbols) end,
                                 fun(Symbols) -> finite_literal_11(Symbols) end,
-                                fun(Symbols) -> finite_literal_16(Symbols) end,
-                                fun(Symbols) -> finite_literal_20(Symbols) end,
+                                fun(Symbols) -> finite_literal_13(Symbols) end,
+                                fun(Symbols) -> finite_literal_15(Symbols) end,
+                                fun(Symbols) -> finite_literal_17(Symbols) end,
+                                fun(Symbols) -> finite_literal_19(Symbols) end,
+                                fun(Symbols) -> finite_literal_21(Symbols) end,
                                 fun(Symbols) -> finite_literal_23(Symbols) end,
-                                fun(Symbols) -> finite_literal_26(Symbols) end,
+                                fun(Symbols) -> finite_literal_25(Symbols) end,
+                                fun(Symbols) -> finite_literal_27(Symbols) end,
                                 fun(Symbols) -> finite_literal_29(Symbols) end,
-                                fun(Symbols) -> finite_literal_32(Symbols) end,
+                                fun(Symbols) -> finite_literal_31(Symbols) end,
+                                fun(Symbols) -> finite_literal_33(Symbols) end,
                                 fun(Symbols) -> finite_literal_35(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_38(Symbols) end,
+                                fun(Symbols) -> finite_literal_39(Symbols) end,
+                                fun(Symbols) -> finite_literal_40(Symbols) end,
                                 fun(Symbols) -> finite_literal_41(Symbols) end,
+                                fun(Symbols) -> finite_literal_42(Symbols) end,
+                                fun(Symbols) -> finite_literal_43(Symbols) end,
                                 fun(Symbols) -> finite_literal_44(Symbols) end,
+                                fun(Symbols) -> finite_literal_45(Symbols) end,
                                 fun(Symbols) -> finite_literal_46(Symbols) end,
+                                fun(Symbols) -> finite_literal_47(Symbols) end,
                                 fun(Symbols) -> finite_literal_48(Symbols) end,
+                                fun(Symbols) -> finite_literal_49(Symbols) end,
                                 fun(Symbols) -> finite_literal_50(Symbols) end,
+                                fun(Symbols) -> finite_literal_51(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
                                 fun(Symbols) -> finite_literal_52(Symbols) end,
                                 fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_54(Symbols) end,
@@ -108,8 +116,8 @@ law_candidates_are_grouped_by_document_in_first_seen_plan() ->
                                 fun(Symbols) -> finite_literal_65(Symbols) end,
                                 fun(Symbols) -> finite_literal_66(Symbols) end,
                                 fun(Symbols) -> finite_literal_67(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_68(Symbols) end,
-                                fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_69(Symbols) end,
                                 fun(Symbols) -> finite_literal_70(Symbols) end,
                                 fun(Symbols) -> finite_literal_71(Symbols) end,
@@ -122,25 +130,7 @@ law_candidates_are_grouped_by_document_in_first_seen_plan() ->
                                 fun(Symbols) -> finite_literal_78(Symbols) end,
                                 fun(Symbols) -> finite_literal_79(Symbols) end,
                                 fun(Symbols) -> finite_literal_80(Symbols) end,
-                                fun(Symbols) -> finite_literal_81(Symbols) end,
-                                fun(Symbols) -> finite_literal_82(Symbols) end,
-                                fun(Symbols) -> finite_literal_83(Symbols) end,
-                                fun(Symbols) -> finite_literal_84(Symbols) end,
-                                fun(Symbols) -> finite_literal_54(Symbols) end,
-                                fun(Symbols) -> finite_literal_85(Symbols) end,
-                                fun(Symbols) -> finite_literal_86(Symbols) end,
-                                fun(Symbols) -> finite_literal_87(Symbols) end,
-                                fun(Symbols) -> finite_literal_88(Symbols) end,
-                                fun(Symbols) -> finite_literal_89(Symbols) end,
-                                fun(Symbols) -> finite_literal_90(Symbols) end,
-                                fun(Symbols) -> finite_literal_91(Symbols) end,
-                                fun(Symbols) -> finite_literal_92(Symbols) end,
-                                fun(Symbols) -> finite_literal_93(Symbols) end,
-                                fun(Symbols) -> finite_literal_94(Symbols) end,
-                                fun(Symbols) -> finite_literal_95(Symbols) end,
-                                fun(Symbols) -> finite_literal_96(Symbols) end,
-                                fun(Symbols) -> finite_literal_97(Symbols) end,
-                                fun(Symbols) -> finite_literal_98(Symbols) end
+                                fun(Symbols) -> finite_literal_81(Symbols) end
                             ]
                         },
                         {copies, 1}
@@ -184,14 +174,14 @@ law_candidates_are_grouped_by_document_in_first_seen_test_() ->
 law_candidates_are_grouped_by_document_in_first_seen_case_at(Index) ->
     lawspec_beam_finite:case_at(law_candidates_are_grouped_by_document_in_first_seen_plan(), Index).
 
-%% |candidates are grouped by document, in first-seen order| example |two pages of one book around another unit| — laws/candidates.lawspec:378
+%% |candidates are grouped by document, in first-seen order| example |two pages of one book around another unit| — laws/candidates.lawspec:360
 law_candidates_are_grouped_by_document_in_first_seen__two_pages_of_one_book_around_another_unit() ->
     {Schema, Symbols} = lawspec_data:context(),
     Cs = make_cons_3(
         [
             make_candidate(
                 [
-                    make_text_id([<<"c1">>], Schema),
+                    <<"c1">>,
                     <<"Alpha, p. 1">>,
                     <<"One">>,
                     make_present_2([<<"books/source-0.pdf">>], Schema),
@@ -204,7 +194,7 @@ law_candidates_are_grouped_by_document_in_first_seen__two_pages_of_one_book_arou
                 [
                     make_candidate(
                         [
-                            make_text_id([<<"c2">>], Schema),
+                            <<"c2">>,
                             <<"Notes">>,
                             <<"Two">>,
                             make_absent_2([], Schema),
@@ -217,7 +207,7 @@ law_candidates_are_grouped_by_document_in_first_seen__two_pages_of_one_book_arou
                         [
                             make_candidate(
                                 [
-                                    make_text_id([<<"c3">>], Schema),
+                                    <<"c3">>,
                                     <<"Alpha, p. 3">>,
                                     <<"Three">>,
                                     make_present_2([<<"books/source-0.pdf">>], Schema),
@@ -247,7 +237,7 @@ law_candidates_are_grouped_by_document_in_first_seen__two_pages_of_one_book_arou
             lawspec_definitions:group_by_document(Schema, Symbols, Cs)
         ),
         [<<"books/source-0.pdf">>, <<"c2">>],
-        <<"|candidates are grouped by document, in first-seen order| example |two pages of one book around another unit| — laws/candidates.lawspec:378"/utf8>>
+        <<"|candidates are grouped by document, in first-seen order| example |two pages of one book around another unit| — laws/candidates.lawspec:360"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:ids_of(
@@ -260,14 +250,8 @@ law_candidates_are_grouped_by_document_in_first_seen__two_pages_of_one_book_arou
                 lawspec_definitions:group_by_document(Schema, Symbols, Cs)
             )
         ),
-        make_cons_4(
-            [
-                make_text_id([<<"c1">>], Schema),
-                make_cons_4([make_text_id([<<"c3">>], Schema), []], Schema)
-            ],
-            Schema
-        ),
-        <<"|candidates are grouped by document, in first-seen order| example |two pages of one book around another unit| — laws/candidates.lawspec:379"/utf8>>
+        [<<"c1">>, <<"c3">>],
+        <<"|candidates are grouped by document, in first-seen order| example |two pages of one book around another unit| — laws/candidates.lawspec:361"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:ids_of(
@@ -280,45 +264,11 @@ law_candidates_are_grouped_by_document_in_first_seen__two_pages_of_one_book_arou
                 lawspec_definitions:group_by_document(Schema, Symbols, Cs)
             )
         ),
-        make_cons_4([make_text_id([<<"c2">>], Schema), []], Schema),
-        <<"|candidates are grouped by document, in first-seen order| example |two pages of one book around another unit| — laws/candidates.lawspec:381"/utf8>>
+        [<<"c2">>],
+        <<"|candidates are grouped by document, in first-seen order| example |two pages of one book around another unit| — laws/candidates.lawspec:363"/utf8>>
     ).
 
-%% |candidates are grouped by document, in first-seen order| example |a tuple id groups under its source| — laws/candidates.lawspec:392
-law_candidates_are_grouped_by_document_in_first_seen__a_tuple_id_groups_under_its_source() ->
-    {Schema, Symbols} = lawspec_data:context(),
-    Cs = make_cons_3(
-        [
-            make_candidate(
-                [
-                    make_tuple_id([make_composite_key([<<"alpha">>, 4], Schema)], Schema),
-                    <<"Alpha, p. 9">>,
-                    <<"Nine">>,
-                    make_present_2([<<"books/source-1.pdf">>], Schema),
-                    make_present([9], Schema),
-                    make_absent_2([], Schema)
-                ],
-                Schema
-            ),
-            []
-        ],
-        Schema
-    ),
-    lawspec_beam_runtime:require(
-        law_candidates_are_grouped_by_document_in_first_seen(Schema, Symbols, [Cs]),
-        ?LAW_CANDIDATES_ARE_GROUPED_BY_DOCUMENT_IN_FIRST_SEEN
-    ),
-    lawspec_beam_runtime:assert_equal(
-        lawspec_definitions:doc_ids_of(
-            Schema,
-            Symbols,
-            lawspec_definitions:group_by_document(Schema, Symbols, Cs)
-        ),
-        [<<"books/source-1.pdf">>],
-        <<"|candidates are grouped by document, in first-seen order| example |a tuple id groups under its source| — laws/candidates.lawspec:392"/utf8>>
-    ).
-
-%% |candidates are grouped by document, in first-seen order| property — laws/candidates.lawspec:343
+%% |candidates are grouped by document, in first-seen order| property — laws/candidates.lawspec:325
 law_candidates_are_grouped_by_document_in_first_seen__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -333,21 +283,39 @@ law_candidates_are_grouped_by_document_in_first_seen__property() ->
                         [],
                         [
                             finite_literal_1(Symbols),
-                            finite_literal_6(Symbols),
+                            finite_literal_5(Symbols),
+                            finite_literal_7(Symbols),
+                            finite_literal_9(Symbols),
                             finite_literal_11(Symbols),
-                            finite_literal_16(Symbols),
-                            finite_literal_20(Symbols),
+                            finite_literal_13(Symbols),
+                            finite_literal_15(Symbols),
+                            finite_literal_17(Symbols),
+                            finite_literal_19(Symbols),
+                            finite_literal_21(Symbols),
                             finite_literal_23(Symbols),
-                            finite_literal_26(Symbols),
+                            finite_literal_25(Symbols),
+                            finite_literal_27(Symbols),
                             finite_literal_29(Symbols),
-                            finite_literal_32(Symbols),
+                            finite_literal_31(Symbols),
+                            finite_literal_33(Symbols),
                             finite_literal_35(Symbols),
+                            finite_literal_36(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_38(Symbols),
+                            finite_literal_39(Symbols),
+                            finite_literal_40(Symbols),
                             finite_literal_41(Symbols),
+                            finite_literal_42(Symbols),
+                            finite_literal_43(Symbols),
                             finite_literal_44(Symbols),
+                            finite_literal_45(Symbols),
                             finite_literal_46(Symbols),
+                            finite_literal_47(Symbols),
                             finite_literal_48(Symbols),
+                            finite_literal_49(Symbols),
                             finite_literal_50(Symbols),
+                            finite_literal_51(Symbols),
+                            finite_literal_36(Symbols),
                             finite_literal_52(Symbols),
                             finite_literal_53(Symbols),
                             finite_literal_54(Symbols),
@@ -364,8 +332,8 @@ law_candidates_are_grouped_by_document_in_first_seen__property() ->
                             finite_literal_65(Symbols),
                             finite_literal_66(Symbols),
                             finite_literal_67(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_68(Symbols),
-                            finite_literal_53(Symbols),
                             finite_literal_69(Symbols),
                             finite_literal_70(Symbols),
                             finite_literal_71(Symbols),
@@ -378,25 +346,7 @@ law_candidates_are_grouped_by_document_in_first_seen__property() ->
                             finite_literal_78(Symbols),
                             finite_literal_79(Symbols),
                             finite_literal_80(Symbols),
-                            finite_literal_81(Symbols),
-                            finite_literal_82(Symbols),
-                            finite_literal_83(Symbols),
-                            finite_literal_84(Symbols),
-                            finite_literal_54(Symbols),
-                            finite_literal_85(Symbols),
-                            finite_literal_86(Symbols),
-                            finite_literal_87(Symbols),
-                            finite_literal_88(Symbols),
-                            finite_literal_89(Symbols),
-                            finite_literal_90(Symbols),
-                            finite_literal_91(Symbols),
-                            finite_literal_92(Symbols),
-                            finite_literal_93(Symbols),
-                            finite_literal_94(Symbols),
-                            finite_literal_95(Symbols),
-                            finite_literal_96(Symbols),
-                            finite_literal_97(Symbols),
-                            finite_literal_98(Symbols)
+                            finite_literal_81(Symbols)
                         ],
                         none
                     ),
@@ -414,20 +364,16 @@ law_candidates_are_grouped_by_document_in_first_seen__property() ->
     <<"cake.laws.candidates::|every group is one document's candidates|">>
 ).
 
-%% |every group is one document's candidates| — laws/candidates.lawspec:396
+%% |every group is one document's candidates| — laws/candidates.lawspec:367
 %% No group is empty, every candidate in a group has the group's document
 %%     id, and no two groups share a document id.
-%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => wellFormed (groupByDocument (documented cs)) = true and distinctTexts (docIdsOf (groupByDocument (documented cs))) = true end for all
+%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => wellFormed (groupByDocument cs) = true and distinctTexts (docIdsOf (groupByDocument cs)) = true end for all
 law_every_group_is_one_document_s_candidates(Schema, Symbols, [Cs]) ->
     (lawspec_beam_runtime:assert_equal(
         lawspec_definitions:well_formed(
             Schema,
             Symbols,
-            lawspec_definitions:group_by_document(
-                Schema,
-                Symbols,
-                lawspec_definitions:documented(Schema, Symbols, Cs)
-            )
+            lawspec_definitions:group_by_document(Schema, Symbols, Cs)
         ),
         true,
         ?LAW_EVERY_GROUP_IS_ONE_DOCUMENT_S_CANDIDATES
@@ -439,11 +385,7 @@ law_every_group_is_one_document_s_candidates(Schema, Symbols, [Cs]) ->
                 lawspec_definitions:doc_ids_of(
                     Schema,
                     Symbols,
-                    lawspec_definitions:group_by_document(
-                        Schema,
-                        Symbols,
-                        lawspec_definitions:documented(Schema, Symbols, Cs)
-                    )
+                    lawspec_definitions:group_by_document(Schema, Symbols, Cs)
                 )
             ),
             true,
@@ -462,21 +404,39 @@ law_every_group_is_one_document_s_candidates_plan() ->
                             values,
                             [
                                 fun(Symbols) -> finite_literal_1(Symbols) end,
-                                fun(Symbols) -> finite_literal_6(Symbols) end,
+                                fun(Symbols) -> finite_literal_5(Symbols) end,
+                                fun(Symbols) -> finite_literal_7(Symbols) end,
+                                fun(Symbols) -> finite_literal_9(Symbols) end,
                                 fun(Symbols) -> finite_literal_11(Symbols) end,
-                                fun(Symbols) -> finite_literal_16(Symbols) end,
-                                fun(Symbols) -> finite_literal_20(Symbols) end,
+                                fun(Symbols) -> finite_literal_13(Symbols) end,
+                                fun(Symbols) -> finite_literal_15(Symbols) end,
+                                fun(Symbols) -> finite_literal_17(Symbols) end,
+                                fun(Symbols) -> finite_literal_19(Symbols) end,
+                                fun(Symbols) -> finite_literal_21(Symbols) end,
                                 fun(Symbols) -> finite_literal_23(Symbols) end,
-                                fun(Symbols) -> finite_literal_26(Symbols) end,
+                                fun(Symbols) -> finite_literal_25(Symbols) end,
+                                fun(Symbols) -> finite_literal_27(Symbols) end,
                                 fun(Symbols) -> finite_literal_29(Symbols) end,
-                                fun(Symbols) -> finite_literal_32(Symbols) end,
+                                fun(Symbols) -> finite_literal_31(Symbols) end,
+                                fun(Symbols) -> finite_literal_33(Symbols) end,
                                 fun(Symbols) -> finite_literal_35(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_38(Symbols) end,
+                                fun(Symbols) -> finite_literal_39(Symbols) end,
+                                fun(Symbols) -> finite_literal_40(Symbols) end,
                                 fun(Symbols) -> finite_literal_41(Symbols) end,
+                                fun(Symbols) -> finite_literal_42(Symbols) end,
+                                fun(Symbols) -> finite_literal_43(Symbols) end,
                                 fun(Symbols) -> finite_literal_44(Symbols) end,
+                                fun(Symbols) -> finite_literal_45(Symbols) end,
                                 fun(Symbols) -> finite_literal_46(Symbols) end,
+                                fun(Symbols) -> finite_literal_47(Symbols) end,
                                 fun(Symbols) -> finite_literal_48(Symbols) end,
+                                fun(Symbols) -> finite_literal_49(Symbols) end,
                                 fun(Symbols) -> finite_literal_50(Symbols) end,
+                                fun(Symbols) -> finite_literal_51(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
                                 fun(Symbols) -> finite_literal_52(Symbols) end,
                                 fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_54(Symbols) end,
@@ -493,8 +453,8 @@ law_every_group_is_one_document_s_candidates_plan() ->
                                 fun(Symbols) -> finite_literal_65(Symbols) end,
                                 fun(Symbols) -> finite_literal_66(Symbols) end,
                                 fun(Symbols) -> finite_literal_67(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_68(Symbols) end,
-                                fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_69(Symbols) end,
                                 fun(Symbols) -> finite_literal_70(Symbols) end,
                                 fun(Symbols) -> finite_literal_71(Symbols) end,
@@ -507,25 +467,7 @@ law_every_group_is_one_document_s_candidates_plan() ->
                                 fun(Symbols) -> finite_literal_78(Symbols) end,
                                 fun(Symbols) -> finite_literal_79(Symbols) end,
                                 fun(Symbols) -> finite_literal_80(Symbols) end,
-                                fun(Symbols) -> finite_literal_81(Symbols) end,
-                                fun(Symbols) -> finite_literal_82(Symbols) end,
-                                fun(Symbols) -> finite_literal_83(Symbols) end,
-                                fun(Symbols) -> finite_literal_84(Symbols) end,
-                                fun(Symbols) -> finite_literal_54(Symbols) end,
-                                fun(Symbols) -> finite_literal_85(Symbols) end,
-                                fun(Symbols) -> finite_literal_86(Symbols) end,
-                                fun(Symbols) -> finite_literal_87(Symbols) end,
-                                fun(Symbols) -> finite_literal_88(Symbols) end,
-                                fun(Symbols) -> finite_literal_89(Symbols) end,
-                                fun(Symbols) -> finite_literal_90(Symbols) end,
-                                fun(Symbols) -> finite_literal_91(Symbols) end,
-                                fun(Symbols) -> finite_literal_92(Symbols) end,
-                                fun(Symbols) -> finite_literal_93(Symbols) end,
-                                fun(Symbols) -> finite_literal_94(Symbols) end,
-                                fun(Symbols) -> finite_literal_95(Symbols) end,
-                                fun(Symbols) -> finite_literal_96(Symbols) end,
-                                fun(Symbols) -> finite_literal_97(Symbols) end,
-                                fun(Symbols) -> finite_literal_98(Symbols) end
+                                fun(Symbols) -> finite_literal_81(Symbols) end
                             ]
                         },
                         {copies, 1}
@@ -569,7 +511,7 @@ law_every_group_is_one_document_s_candidates_test_() ->
 law_every_group_is_one_document_s_candidates_case_at(Index) ->
     lawspec_beam_finite:case_at(law_every_group_is_one_document_s_candidates_plan(), Index).
 
-%% |every group is one document's candidates| property — laws/candidates.lawspec:396
+%% |every group is one document's candidates| property — laws/candidates.lawspec:367
 law_every_group_is_one_document_s_candidates__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -584,21 +526,39 @@ law_every_group_is_one_document_s_candidates__property() ->
                         [],
                         [
                             finite_literal_1(Symbols),
-                            finite_literal_6(Symbols),
+                            finite_literal_5(Symbols),
+                            finite_literal_7(Symbols),
+                            finite_literal_9(Symbols),
                             finite_literal_11(Symbols),
-                            finite_literal_16(Symbols),
-                            finite_literal_20(Symbols),
+                            finite_literal_13(Symbols),
+                            finite_literal_15(Symbols),
+                            finite_literal_17(Symbols),
+                            finite_literal_19(Symbols),
+                            finite_literal_21(Symbols),
                             finite_literal_23(Symbols),
-                            finite_literal_26(Symbols),
+                            finite_literal_25(Symbols),
+                            finite_literal_27(Symbols),
                             finite_literal_29(Symbols),
-                            finite_literal_32(Symbols),
+                            finite_literal_31(Symbols),
+                            finite_literal_33(Symbols),
                             finite_literal_35(Symbols),
+                            finite_literal_36(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_38(Symbols),
+                            finite_literal_39(Symbols),
+                            finite_literal_40(Symbols),
                             finite_literal_41(Symbols),
+                            finite_literal_42(Symbols),
+                            finite_literal_43(Symbols),
                             finite_literal_44(Symbols),
+                            finite_literal_45(Symbols),
                             finite_literal_46(Symbols),
+                            finite_literal_47(Symbols),
                             finite_literal_48(Symbols),
+                            finite_literal_49(Symbols),
                             finite_literal_50(Symbols),
+                            finite_literal_51(Symbols),
+                            finite_literal_36(Symbols),
                             finite_literal_52(Symbols),
                             finite_literal_53(Symbols),
                             finite_literal_54(Symbols),
@@ -615,8 +575,8 @@ law_every_group_is_one_document_s_candidates__property() ->
                             finite_literal_65(Symbols),
                             finite_literal_66(Symbols),
                             finite_literal_67(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_68(Symbols),
-                            finite_literal_53(Symbols),
                             finite_literal_69(Symbols),
                             finite_literal_70(Symbols),
                             finite_literal_71(Symbols),
@@ -629,25 +589,7 @@ law_every_group_is_one_document_s_candidates__property() ->
                             finite_literal_78(Symbols),
                             finite_literal_79(Symbols),
                             finite_literal_80(Symbols),
-                            finite_literal_81(Symbols),
-                            finite_literal_82(Symbols),
-                            finite_literal_83(Symbols),
-                            finite_literal_84(Symbols),
-                            finite_literal_54(Symbols),
-                            finite_literal_85(Symbols),
-                            finite_literal_86(Symbols),
-                            finite_literal_87(Symbols),
-                            finite_literal_88(Symbols),
-                            finite_literal_89(Symbols),
-                            finite_literal_90(Symbols),
-                            finite_literal_91(Symbols),
-                            finite_literal_92(Symbols),
-                            finite_literal_93(Symbols),
-                            finite_literal_94(Symbols),
-                            finite_literal_95(Symbols),
-                            finite_literal_96(Symbols),
-                            finite_literal_97(Symbols),
-                            finite_literal_98(Symbols)
+                            finite_literal_81(Symbols)
                         ],
                         none
                     ),
@@ -663,25 +605,21 @@ law_every_group_is_one_document_s_candidates__property() ->
     <<"cake.laws.candidates::|flattening the groups gives a permutation of the input|">>
 ).
 
-%% |flattening the groups gives a permutation of the input| — laws/candidates.lawspec:409
+%% |flattening the groups gives a permutation of the input| — laws/candidates.lawspec:380
 %% The groups' candidates, group after group, are exactly the input
 %%     candidates in some order: none lost, none added, and a candidate that
 %%     appears twice in the input appears twice in the groups.
-%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => permutes (documented cs) (membersOf (groupByDocument (documented cs))) = true end for all
+%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => permutes cs (membersOf (groupByDocument cs)) = true end for all
 law_flattening_the_groups_gives_a_permutation_of_the(Schema, Symbols, [Cs]) ->
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:permutes(
             Schema,
             Symbols,
-            lawspec_definitions:documented(Schema, Symbols, Cs),
+            Cs,
             lawspec_definitions:members_of(
                 Schema,
                 Symbols,
-                lawspec_definitions:group_by_document(
-                    Schema,
-                    Symbols,
-                    lawspec_definitions:documented(Schema, Symbols, Cs)
-                )
+                lawspec_definitions:group_by_document(Schema, Symbols, Cs)
             )
         ),
         true,
@@ -700,21 +638,39 @@ law_flattening_the_groups_gives_a_permutation_of_the_plan() ->
                             values,
                             [
                                 fun(Symbols) -> finite_literal_1(Symbols) end,
-                                fun(Symbols) -> finite_literal_6(Symbols) end,
+                                fun(Symbols) -> finite_literal_5(Symbols) end,
+                                fun(Symbols) -> finite_literal_7(Symbols) end,
+                                fun(Symbols) -> finite_literal_9(Symbols) end,
                                 fun(Symbols) -> finite_literal_11(Symbols) end,
-                                fun(Symbols) -> finite_literal_16(Symbols) end,
-                                fun(Symbols) -> finite_literal_20(Symbols) end,
+                                fun(Symbols) -> finite_literal_13(Symbols) end,
+                                fun(Symbols) -> finite_literal_15(Symbols) end,
+                                fun(Symbols) -> finite_literal_17(Symbols) end,
+                                fun(Symbols) -> finite_literal_19(Symbols) end,
+                                fun(Symbols) -> finite_literal_21(Symbols) end,
                                 fun(Symbols) -> finite_literal_23(Symbols) end,
-                                fun(Symbols) -> finite_literal_26(Symbols) end,
+                                fun(Symbols) -> finite_literal_25(Symbols) end,
+                                fun(Symbols) -> finite_literal_27(Symbols) end,
                                 fun(Symbols) -> finite_literal_29(Symbols) end,
-                                fun(Symbols) -> finite_literal_32(Symbols) end,
+                                fun(Symbols) -> finite_literal_31(Symbols) end,
+                                fun(Symbols) -> finite_literal_33(Symbols) end,
                                 fun(Symbols) -> finite_literal_35(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_38(Symbols) end,
+                                fun(Symbols) -> finite_literal_39(Symbols) end,
+                                fun(Symbols) -> finite_literal_40(Symbols) end,
                                 fun(Symbols) -> finite_literal_41(Symbols) end,
+                                fun(Symbols) -> finite_literal_42(Symbols) end,
+                                fun(Symbols) -> finite_literal_43(Symbols) end,
                                 fun(Symbols) -> finite_literal_44(Symbols) end,
+                                fun(Symbols) -> finite_literal_45(Symbols) end,
                                 fun(Symbols) -> finite_literal_46(Symbols) end,
+                                fun(Symbols) -> finite_literal_47(Symbols) end,
                                 fun(Symbols) -> finite_literal_48(Symbols) end,
+                                fun(Symbols) -> finite_literal_49(Symbols) end,
                                 fun(Symbols) -> finite_literal_50(Symbols) end,
+                                fun(Symbols) -> finite_literal_51(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
                                 fun(Symbols) -> finite_literal_52(Symbols) end,
                                 fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_54(Symbols) end,
@@ -731,8 +687,8 @@ law_flattening_the_groups_gives_a_permutation_of_the_plan() ->
                                 fun(Symbols) -> finite_literal_65(Symbols) end,
                                 fun(Symbols) -> finite_literal_66(Symbols) end,
                                 fun(Symbols) -> finite_literal_67(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_68(Symbols) end,
-                                fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_69(Symbols) end,
                                 fun(Symbols) -> finite_literal_70(Symbols) end,
                                 fun(Symbols) -> finite_literal_71(Symbols) end,
@@ -745,25 +701,7 @@ law_flattening_the_groups_gives_a_permutation_of_the_plan() ->
                                 fun(Symbols) -> finite_literal_78(Symbols) end,
                                 fun(Symbols) -> finite_literal_79(Symbols) end,
                                 fun(Symbols) -> finite_literal_80(Symbols) end,
-                                fun(Symbols) -> finite_literal_81(Symbols) end,
-                                fun(Symbols) -> finite_literal_82(Symbols) end,
-                                fun(Symbols) -> finite_literal_83(Symbols) end,
-                                fun(Symbols) -> finite_literal_84(Symbols) end,
-                                fun(Symbols) -> finite_literal_54(Symbols) end,
-                                fun(Symbols) -> finite_literal_85(Symbols) end,
-                                fun(Symbols) -> finite_literal_86(Symbols) end,
-                                fun(Symbols) -> finite_literal_87(Symbols) end,
-                                fun(Symbols) -> finite_literal_88(Symbols) end,
-                                fun(Symbols) -> finite_literal_89(Symbols) end,
-                                fun(Symbols) -> finite_literal_90(Symbols) end,
-                                fun(Symbols) -> finite_literal_91(Symbols) end,
-                                fun(Symbols) -> finite_literal_92(Symbols) end,
-                                fun(Symbols) -> finite_literal_93(Symbols) end,
-                                fun(Symbols) -> finite_literal_94(Symbols) end,
-                                fun(Symbols) -> finite_literal_95(Symbols) end,
-                                fun(Symbols) -> finite_literal_96(Symbols) end,
-                                fun(Symbols) -> finite_literal_97(Symbols) end,
-                                fun(Symbols) -> finite_literal_98(Symbols) end
+                                fun(Symbols) -> finite_literal_81(Symbols) end
                             ]
                         },
                         {copies, 1}
@@ -807,7 +745,7 @@ law_flattening_the_groups_gives_a_permutation_of_the_test_() ->
 law_flattening_the_groups_gives_a_permutation_of_the_case_at(Index) ->
     lawspec_beam_finite:case_at(law_flattening_the_groups_gives_a_permutation_of_the_plan(), Index).
 
-%% |flattening the groups gives a permutation of the input| property — laws/candidates.lawspec:409
+%% |flattening the groups gives a permutation of the input| property — laws/candidates.lawspec:380
 law_flattening_the_groups_gives_a_permutation_of_the__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -822,21 +760,39 @@ law_flattening_the_groups_gives_a_permutation_of_the__property() ->
                         [],
                         [
                             finite_literal_1(Symbols),
-                            finite_literal_6(Symbols),
+                            finite_literal_5(Symbols),
+                            finite_literal_7(Symbols),
+                            finite_literal_9(Symbols),
                             finite_literal_11(Symbols),
-                            finite_literal_16(Symbols),
-                            finite_literal_20(Symbols),
+                            finite_literal_13(Symbols),
+                            finite_literal_15(Symbols),
+                            finite_literal_17(Symbols),
+                            finite_literal_19(Symbols),
+                            finite_literal_21(Symbols),
                             finite_literal_23(Symbols),
-                            finite_literal_26(Symbols),
+                            finite_literal_25(Symbols),
+                            finite_literal_27(Symbols),
                             finite_literal_29(Symbols),
-                            finite_literal_32(Symbols),
+                            finite_literal_31(Symbols),
+                            finite_literal_33(Symbols),
                             finite_literal_35(Symbols),
+                            finite_literal_36(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_38(Symbols),
+                            finite_literal_39(Symbols),
+                            finite_literal_40(Symbols),
                             finite_literal_41(Symbols),
+                            finite_literal_42(Symbols),
+                            finite_literal_43(Symbols),
                             finite_literal_44(Symbols),
+                            finite_literal_45(Symbols),
                             finite_literal_46(Symbols),
+                            finite_literal_47(Symbols),
                             finite_literal_48(Symbols),
+                            finite_literal_49(Symbols),
                             finite_literal_50(Symbols),
+                            finite_literal_51(Symbols),
+                            finite_literal_36(Symbols),
                             finite_literal_52(Symbols),
                             finite_literal_53(Symbols),
                             finite_literal_54(Symbols),
@@ -853,8 +809,8 @@ law_flattening_the_groups_gives_a_permutation_of_the__property() ->
                             finite_literal_65(Symbols),
                             finite_literal_66(Symbols),
                             finite_literal_67(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_68(Symbols),
-                            finite_literal_53(Symbols),
                             finite_literal_69(Symbols),
                             finite_literal_70(Symbols),
                             finite_literal_71(Symbols),
@@ -867,25 +823,7 @@ law_flattening_the_groups_gives_a_permutation_of_the__property() ->
                             finite_literal_78(Symbols),
                             finite_literal_79(Symbols),
                             finite_literal_80(Symbols),
-                            finite_literal_81(Symbols),
-                            finite_literal_82(Symbols),
-                            finite_literal_83(Symbols),
-                            finite_literal_84(Symbols),
-                            finite_literal_54(Symbols),
-                            finite_literal_85(Symbols),
-                            finite_literal_86(Symbols),
-                            finite_literal_87(Symbols),
-                            finite_literal_88(Symbols),
-                            finite_literal_89(Symbols),
-                            finite_literal_90(Symbols),
-                            finite_literal_91(Symbols),
-                            finite_literal_92(Symbols),
-                            finite_literal_93(Symbols),
-                            finite_literal_94(Symbols),
-                            finite_literal_95(Symbols),
-                            finite_literal_96(Symbols),
-                            finite_literal_97(Symbols),
-                            finite_literal_98(Symbols)
+                            finite_literal_81(Symbols)
                         ],
                         none
                     ),
@@ -903,21 +841,17 @@ law_flattening_the_groups_gives_a_permutation_of_the__property() ->
     <<"cake.laws.candidates::|all chunk ids are every candidate's id, group after group|">>
 ).
 
-%% |all chunk ids are every candidate's id, group after group| — laws/candidates.lawspec:424
+%% |all chunk ids are every candidate's id, group after group| — laws/candidates.lawspec:395
 %% all_chunk_ids/1 returns each candidate's own Citable id, unchanged, in
 %%     group order and then member order: one id per candidate, so as many ids
 %%     as there were candidates.
-%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => allChunkIds (groupByDocument (documented cs)) = idsOf (membersOf (groupsOf (documented cs))) and Length(allChunkIds (groupByDocument (documented cs))) = Length(documented cs) end for all
+%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => allChunkIds (groupByDocument cs) = idsOf (membersOf (groupsOf cs)) and Length(allChunkIds (groupByDocument cs)) = Length(cs) end for all
 law_all_chunk_ids_are_every_candidate_s_id_group(Schema, Symbols, [Cs]) ->
     (lawspec_beam_runtime:assert_equal(
         lawspec_definitions:all_chunk_ids(
             Schema,
             Symbols,
-            lawspec_definitions:group_by_document(
-                Schema,
-                Symbols,
-                lawspec_definitions:documented(Schema, Symbols, Cs)
-            )
+            lawspec_definitions:group_by_document(Schema, Symbols, Cs)
         ),
         lawspec_definitions:ids_of(
             Schema,
@@ -925,11 +859,7 @@ law_all_chunk_ids_are_every_candidate_s_id_group(Schema, Symbols, [Cs]) ->
             lawspec_definitions:members_of(
                 Schema,
                 Symbols,
-                lawspec_definitions:groups_of(
-                    Schema,
-                    Symbols,
-                    lawspec_definitions:documented(Schema, Symbols, Cs)
-                )
+                lawspec_definitions:groups_of(Schema, Symbols, Cs)
             )
         ),
         ?LAW_ALL_CHUNK_IDS_ARE_EVERY_CANDIDATE_S_ID_GROUP
@@ -941,19 +871,15 @@ law_all_chunk_ids_are_every_candidate_s_id_group(Schema, Symbols, [Cs]) ->
                     lawspec_definitions:all_chunk_ids(
                         Schema,
                         Symbols,
-                        lawspec_definitions:group_by_document(
-                            Schema,
-                            Symbols,
-                            lawspec_definitions:documented(Schema, Symbols, Cs)
-                        )
+                        lawspec_definitions:group_by_document(Schema, Symbols, Cs)
                     )
                 ],
-                [<<"List cake.laws.candidates::type::UnitId">>],
+                [<<"List Text">>],
                 64
             ),
             lawspec_beam_runtime:helper(
                 <<"length">>,
-                [lawspec_definitions:documented(Schema, Symbols, Cs)],
+                [Cs],
                 [<<"List cake.laws.candidates::type::Candidate">>],
                 64
             ),
@@ -981,21 +907,39 @@ law_all_chunk_ids_are_every_candidate_s_id_group_plan() ->
                             values,
                             [
                                 fun(Symbols) -> finite_literal_1(Symbols) end,
-                                fun(Symbols) -> finite_literal_6(Symbols) end,
+                                fun(Symbols) -> finite_literal_5(Symbols) end,
+                                fun(Symbols) -> finite_literal_7(Symbols) end,
+                                fun(Symbols) -> finite_literal_9(Symbols) end,
                                 fun(Symbols) -> finite_literal_11(Symbols) end,
-                                fun(Symbols) -> finite_literal_16(Symbols) end,
-                                fun(Symbols) -> finite_literal_20(Symbols) end,
+                                fun(Symbols) -> finite_literal_13(Symbols) end,
+                                fun(Symbols) -> finite_literal_15(Symbols) end,
+                                fun(Symbols) -> finite_literal_17(Symbols) end,
+                                fun(Symbols) -> finite_literal_19(Symbols) end,
+                                fun(Symbols) -> finite_literal_21(Symbols) end,
                                 fun(Symbols) -> finite_literal_23(Symbols) end,
-                                fun(Symbols) -> finite_literal_26(Symbols) end,
+                                fun(Symbols) -> finite_literal_25(Symbols) end,
+                                fun(Symbols) -> finite_literal_27(Symbols) end,
                                 fun(Symbols) -> finite_literal_29(Symbols) end,
-                                fun(Symbols) -> finite_literal_32(Symbols) end,
+                                fun(Symbols) -> finite_literal_31(Symbols) end,
+                                fun(Symbols) -> finite_literal_33(Symbols) end,
                                 fun(Symbols) -> finite_literal_35(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_38(Symbols) end,
+                                fun(Symbols) -> finite_literal_39(Symbols) end,
+                                fun(Symbols) -> finite_literal_40(Symbols) end,
                                 fun(Symbols) -> finite_literal_41(Symbols) end,
+                                fun(Symbols) -> finite_literal_42(Symbols) end,
+                                fun(Symbols) -> finite_literal_43(Symbols) end,
                                 fun(Symbols) -> finite_literal_44(Symbols) end,
+                                fun(Symbols) -> finite_literal_45(Symbols) end,
                                 fun(Symbols) -> finite_literal_46(Symbols) end,
+                                fun(Symbols) -> finite_literal_47(Symbols) end,
                                 fun(Symbols) -> finite_literal_48(Symbols) end,
+                                fun(Symbols) -> finite_literal_49(Symbols) end,
                                 fun(Symbols) -> finite_literal_50(Symbols) end,
+                                fun(Symbols) -> finite_literal_51(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
                                 fun(Symbols) -> finite_literal_52(Symbols) end,
                                 fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_54(Symbols) end,
@@ -1012,8 +956,8 @@ law_all_chunk_ids_are_every_candidate_s_id_group_plan() ->
                                 fun(Symbols) -> finite_literal_65(Symbols) end,
                                 fun(Symbols) -> finite_literal_66(Symbols) end,
                                 fun(Symbols) -> finite_literal_67(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_68(Symbols) end,
-                                fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_69(Symbols) end,
                                 fun(Symbols) -> finite_literal_70(Symbols) end,
                                 fun(Symbols) -> finite_literal_71(Symbols) end,
@@ -1026,25 +970,7 @@ law_all_chunk_ids_are_every_candidate_s_id_group_plan() ->
                                 fun(Symbols) -> finite_literal_78(Symbols) end,
                                 fun(Symbols) -> finite_literal_79(Symbols) end,
                                 fun(Symbols) -> finite_literal_80(Symbols) end,
-                                fun(Symbols) -> finite_literal_81(Symbols) end,
-                                fun(Symbols) -> finite_literal_82(Symbols) end,
-                                fun(Symbols) -> finite_literal_83(Symbols) end,
-                                fun(Symbols) -> finite_literal_84(Symbols) end,
-                                fun(Symbols) -> finite_literal_54(Symbols) end,
-                                fun(Symbols) -> finite_literal_85(Symbols) end,
-                                fun(Symbols) -> finite_literal_86(Symbols) end,
-                                fun(Symbols) -> finite_literal_87(Symbols) end,
-                                fun(Symbols) -> finite_literal_88(Symbols) end,
-                                fun(Symbols) -> finite_literal_89(Symbols) end,
-                                fun(Symbols) -> finite_literal_90(Symbols) end,
-                                fun(Symbols) -> finite_literal_91(Symbols) end,
-                                fun(Symbols) -> finite_literal_92(Symbols) end,
-                                fun(Symbols) -> finite_literal_93(Symbols) end,
-                                fun(Symbols) -> finite_literal_94(Symbols) end,
-                                fun(Symbols) -> finite_literal_95(Symbols) end,
-                                fun(Symbols) -> finite_literal_96(Symbols) end,
-                                fun(Symbols) -> finite_literal_97(Symbols) end,
-                                fun(Symbols) -> finite_literal_98(Symbols) end
+                                fun(Symbols) -> finite_literal_81(Symbols) end
                             ]
                         },
                         {copies, 1}
@@ -1088,14 +1014,14 @@ law_all_chunk_ids_are_every_candidate_s_id_group_test_() ->
 law_all_chunk_ids_are_every_candidate_s_id_group_case_at(Index) ->
     lawspec_beam_finite:case_at(law_all_chunk_ids_are_every_candidate_s_id_group_plan(), Index).
 
-%% |all chunk ids are every candidate's id, group after group| example |ids come back as they went in| — laws/candidates.lawspec:453
+%% |all chunk ids are every candidate's id, group after group| example |ids come back as they went in| — laws/candidates.lawspec:423
 law_all_chunk_ids_are_every_candidate_s_id_group__ids_come_back_as_they_went_in() ->
     {Schema, Symbols} = lawspec_data:context(),
     Cs = make_cons_3(
         [
             make_candidate(
                 [
-                    make_text_id([<<"c1">>], Schema),
+                    <<"9f1c2a70-5b1e-4c58-8a0e-2f6d3b7c9e11">>,
                     <<"A">>,
                     <<"a">>,
                     make_absent_2([], Schema),
@@ -1108,7 +1034,7 @@ law_all_chunk_ids_are_every_candidate_s_id_group__ids_come_back_as_they_went_in(
                 [
                     make_candidate(
                         [
-                            make_tuple_id([make_composite_key([<<"beta">>, 2], Schema)], Schema),
+                            <<"c2">>,
                             <<"B">>,
                             <<"b">>,
                             make_present_2([<<"books/source-2.pdf">>], Schema),
@@ -1134,20 +1060,11 @@ law_all_chunk_ids_are_every_candidate_s_id_group__ids_come_back_as_they_went_in(
             Symbols,
             lawspec_definitions:group_by_document(Schema, Symbols, Cs)
         ),
-        make_cons_4(
-            [
-                make_text_id([<<"c1">>], Schema),
-                make_cons_4(
-                    [make_tuple_id([make_composite_key([<<"beta">>, 2], Schema)], Schema), []],
-                    Schema
-                )
-            ],
-            Schema
-        ),
-        <<"|all chunk ids are every candidate's id, group after group| example |ids come back as they went in| — laws/candidates.lawspec:453"/utf8>>
+        [<<"9f1c2a70-5b1e-4c58-8a0e-2f6d3b7c9e11">>, <<"c2">>],
+        <<"|all chunk ids are every candidate's id, group after group| example |ids come back as they went in| — laws/candidates.lawspec:423"/utf8>>
     ).
 
-%% |all chunk ids are every candidate's id, group after group| property — laws/candidates.lawspec:424
+%% |all chunk ids are every candidate's id, group after group| property — laws/candidates.lawspec:395
 law_all_chunk_ids_are_every_candidate_s_id_group__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -1162,21 +1079,39 @@ law_all_chunk_ids_are_every_candidate_s_id_group__property() ->
                         [],
                         [
                             finite_literal_1(Symbols),
-                            finite_literal_6(Symbols),
+                            finite_literal_5(Symbols),
+                            finite_literal_7(Symbols),
+                            finite_literal_9(Symbols),
                             finite_literal_11(Symbols),
-                            finite_literal_16(Symbols),
-                            finite_literal_20(Symbols),
+                            finite_literal_13(Symbols),
+                            finite_literal_15(Symbols),
+                            finite_literal_17(Symbols),
+                            finite_literal_19(Symbols),
+                            finite_literal_21(Symbols),
                             finite_literal_23(Symbols),
-                            finite_literal_26(Symbols),
+                            finite_literal_25(Symbols),
+                            finite_literal_27(Symbols),
                             finite_literal_29(Symbols),
-                            finite_literal_32(Symbols),
+                            finite_literal_31(Symbols),
+                            finite_literal_33(Symbols),
                             finite_literal_35(Symbols),
+                            finite_literal_36(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_38(Symbols),
+                            finite_literal_39(Symbols),
+                            finite_literal_40(Symbols),
                             finite_literal_41(Symbols),
+                            finite_literal_42(Symbols),
+                            finite_literal_43(Symbols),
                             finite_literal_44(Symbols),
+                            finite_literal_45(Symbols),
                             finite_literal_46(Symbols),
+                            finite_literal_47(Symbols),
                             finite_literal_48(Symbols),
+                            finite_literal_49(Symbols),
                             finite_literal_50(Symbols),
+                            finite_literal_51(Symbols),
+                            finite_literal_36(Symbols),
                             finite_literal_52(Symbols),
                             finite_literal_53(Symbols),
                             finite_literal_54(Symbols),
@@ -1193,8 +1128,8 @@ law_all_chunk_ids_are_every_candidate_s_id_group__property() ->
                             finite_literal_65(Symbols),
                             finite_literal_66(Symbols),
                             finite_literal_67(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_68(Symbols),
-                            finite_literal_53(Symbols),
                             finite_literal_69(Symbols),
                             finite_literal_70(Symbols),
                             finite_literal_71(Symbols),
@@ -1207,25 +1142,7 @@ law_all_chunk_ids_are_every_candidate_s_id_group__property() ->
                             finite_literal_78(Symbols),
                             finite_literal_79(Symbols),
                             finite_literal_80(Symbols),
-                            finite_literal_81(Symbols),
-                            finite_literal_82(Symbols),
-                            finite_literal_83(Symbols),
-                            finite_literal_84(Symbols),
-                            finite_literal_54(Symbols),
-                            finite_literal_85(Symbols),
-                            finite_literal_86(Symbols),
-                            finite_literal_87(Symbols),
-                            finite_literal_88(Symbols),
-                            finite_literal_89(Symbols),
-                            finite_literal_90(Symbols),
-                            finite_literal_91(Symbols),
-                            finite_literal_92(Symbols),
-                            finite_literal_93(Symbols),
-                            finite_literal_94(Symbols),
-                            finite_literal_95(Symbols),
-                            finite_literal_96(Symbols),
-                            finite_literal_97(Symbols),
-                            finite_literal_98(Symbols)
+                            finite_literal_81(Symbols)
                         ],
                         none
                     ),
@@ -1243,12 +1160,12 @@ law_all_chunk_ids_are_every_candidate_s_id_group__property() ->
     <<"cake.laws.candidates::|a selection expands to its documents' chunk ids, in selection order|">>
 ).
 
-%% |a selection expands to its documents' chunk ids, in selection order| — laws/candidates.lawspec:459
+%% |a selection expands to its documents' chunk ids, in selection order| — laws/candidates.lawspec:428
 %% expand_to_chunk_ids/2 returns the ids of the selected documents'
 %%     candidates: document after document in the order selected, each
 %%     document's candidates in group order. A document id that no group has
 %%     contributes nothing, and a document selected twice contributes twice.
-%% for all (cs :: List (cake.laws.candidates::type::Candidate)) (picks :: List (BigUInt)) => expandToChunkIds (selectionOf (groupsOf (documented cs)) picks) (groupByDocument (documented cs)) = chunkIdsFor (selectionOf (groupsOf (documented cs)) picks) (groupsOf (documented cs)) end for all
+%% for all (cs :: List (cake.laws.candidates::type::Candidate)) (picks :: List (BigUInt)) => expandToChunkIds (selectionOf (groupsOf cs) picks) (groupByDocument cs) = chunkIdsFor (selectionOf (groupsOf cs) picks) (groupsOf cs) end for all
 law_a_selection_expands_to_its_documents_chunk_ids(Schema, Symbols, [Cs, Picks]) ->
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:expand_to_chunk_ids(
@@ -1257,18 +1174,10 @@ law_a_selection_expands_to_its_documents_chunk_ids(Schema, Symbols, [Cs, Picks])
             lawspec_definitions:selection_of(
                 Schema,
                 Symbols,
-                lawspec_definitions:groups_of(
-                    Schema,
-                    Symbols,
-                    lawspec_definitions:documented(Schema, Symbols, Cs)
-                ),
+                lawspec_definitions:groups_of(Schema, Symbols, Cs),
                 Picks
             ),
-            lawspec_definitions:group_by_document(
-                Schema,
-                Symbols,
-                lawspec_definitions:documented(Schema, Symbols, Cs)
-            )
+            lawspec_definitions:group_by_document(Schema, Symbols, Cs)
         ),
         lawspec_definitions:chunk_ids_for(
             Schema,
@@ -1276,18 +1185,10 @@ law_a_selection_expands_to_its_documents_chunk_ids(Schema, Symbols, [Cs, Picks])
             lawspec_definitions:selection_of(
                 Schema,
                 Symbols,
-                lawspec_definitions:groups_of(
-                    Schema,
-                    Symbols,
-                    lawspec_definitions:documented(Schema, Symbols, Cs)
-                ),
+                lawspec_definitions:groups_of(Schema, Symbols, Cs),
                 Picks
             ),
-            lawspec_definitions:groups_of(
-                Schema,
-                Symbols,
-                lawspec_definitions:documented(Schema, Symbols, Cs)
-            )
+            lawspec_definitions:groups_of(Schema, Symbols, Cs)
         ),
         ?LAW_A_SELECTION_EXPANDS_TO_ITS_DOCUMENTS_CHUNK_IDS
     ).
@@ -1314,19 +1215,43 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_7(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_9(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1338,31 +1263,67 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_16(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_13(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_20(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_15(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_17(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_19(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_21(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1374,19 +1335,31 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_26(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_25(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_27(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1398,19 +1371,31 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_32(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_31(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_33(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1422,7 +1407,31 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_36(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1434,7 +1443,31 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_39(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_40(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1446,7 +1479,31 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_42(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_43(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1458,7 +1515,19 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_45(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1470,7 +1539,19 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_47(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1482,7 +1563,19 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_49(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1494,7 +1587,31 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_51(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_36(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1506,7 +1623,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1518,7 +1635,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1530,7 +1647,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1542,7 +1659,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1554,7 +1671,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1566,7 +1683,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1578,7 +1695,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1590,7 +1707,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1602,7 +1719,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1614,7 +1731,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1626,7 +1743,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1638,7 +1755,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1650,7 +1767,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1662,7 +1779,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1674,7 +1791,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1686,7 +1803,19 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1698,19 +1827,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_53(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1722,7 +1839,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1734,7 +1851,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1746,7 +1863,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1758,7 +1875,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1770,7 +1887,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1782,7 +1899,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1794,7 +1911,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1806,7 +1923,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1818,7 +1935,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1830,7 +1947,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1842,7 +1959,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1854,7 +1971,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -1866,223 +1983,7 @@ law_a_selection_expands_to_its_documents_chunk_ids_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_54(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_91(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_92(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_94(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_95(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -2127,14 +2028,14 @@ law_a_selection_expands_to_its_documents_chunk_ids_test_() ->
 law_a_selection_expands_to_its_documents_chunk_ids_case_at(Index) ->
     lawspec_beam_finite:case_at(law_a_selection_expands_to_its_documents_chunk_ids_plan(), Index).
 
-%% |a selection expands to its documents' chunk ids, in selection order| example |second document first, and an unknown id| — laws/candidates.lawspec:498
+%% |a selection expands to its documents' chunk ids, in selection order| example |second document first, and an unknown id| — laws/candidates.lawspec:466
 law_a_selection_expands_to_its_documents_chunk_ids__second_document_first_and_an_unknown_id() ->
     {Schema, Symbols} = lawspec_data:context(),
     Cs = make_cons_3(
         [
             make_candidate(
                 [
-                    make_text_id([<<"c1">>], Schema),
+                    <<"c1">>,
                     <<"Alpha, p. 1">>,
                     <<"One">>,
                     make_present_2([<<"books/source-0.pdf">>], Schema),
@@ -2147,7 +2048,7 @@ law_a_selection_expands_to_its_documents_chunk_ids__second_document_first_and_an
                 [
                     make_candidate(
                         [
-                            make_text_id([<<"c2">>], Schema),
+                            <<"c2">>,
                             <<"Beta, p. 2">>,
                             <<"Two">>,
                             make_present_2([<<"books/source-1.pdf">>], Schema),
@@ -2160,7 +2061,7 @@ law_a_selection_expands_to_its_documents_chunk_ids__second_document_first_and_an
                         [
                             make_candidate(
                                 [
-                                    make_text_id([<<"c3">>], Schema),
+                                    <<"c3">>,
                                     <<"Alpha, p. 3">>,
                                     <<"Three">>,
                                     make_present_2([<<"books/source-0.pdf">>], Schema),
@@ -2192,7 +2093,7 @@ law_a_selection_expands_to_its_documents_chunk_ids__second_document_first_and_an
             Picks
         ),
         [<<"books/source-1.pdf">>, <<"no-such-document">>, <<"books/source-0.pdf">>],
-        <<"|a selection expands to its documents' chunk ids, in selection order| example |second document first, and an unknown id| — laws/candidates.lawspec:498"/utf8>>
+        <<"|a selection expands to its documents' chunk ids, in selection order| example |second document first, and an unknown id| — laws/candidates.lawspec:466"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:expand_to_chunk_ids(
@@ -2206,23 +2107,11 @@ law_a_selection_expands_to_its_documents_chunk_ids__second_document_first_and_an
             ),
             lawspec_definitions:group_by_document(Schema, Symbols, Cs)
         ),
-        make_cons_4(
-            [
-                make_text_id([<<"c2">>], Schema),
-                make_cons_4(
-                    [
-                        make_text_id([<<"c1">>], Schema),
-                        make_cons_4([make_text_id([<<"c3">>], Schema), []], Schema)
-                    ],
-                    Schema
-                )
-            ],
-            Schema
-        ),
-        <<"|a selection expands to its documents' chunk ids, in selection order| example |second document first, and an unknown id| — laws/candidates.lawspec:500"/utf8>>
+        [<<"c2">>, <<"c1">>, <<"c3">>],
+        <<"|a selection expands to its documents' chunk ids, in selection order| example |second document first, and an unknown id| — laws/candidates.lawspec:468"/utf8>>
     ).
 
-%% |a selection expands to its documents' chunk ids, in selection order| property — laws/candidates.lawspec:459
+%% |a selection expands to its documents' chunk ids, in selection order| property — laws/candidates.lawspec:428
 law_a_selection_expands_to_its_documents_chunk_ids__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -2237,21 +2126,39 @@ law_a_selection_expands_to_its_documents_chunk_ids__property() ->
                         [],
                         [
                             finite_literal_1(Symbols),
-                            finite_literal_6(Symbols),
+                            finite_literal_5(Symbols),
+                            finite_literal_7(Symbols),
+                            finite_literal_9(Symbols),
                             finite_literal_11(Symbols),
-                            finite_literal_16(Symbols),
-                            finite_literal_20(Symbols),
+                            finite_literal_13(Symbols),
+                            finite_literal_15(Symbols),
+                            finite_literal_17(Symbols),
+                            finite_literal_19(Symbols),
+                            finite_literal_21(Symbols),
                             finite_literal_23(Symbols),
-                            finite_literal_26(Symbols),
+                            finite_literal_25(Symbols),
+                            finite_literal_27(Symbols),
                             finite_literal_29(Symbols),
-                            finite_literal_32(Symbols),
+                            finite_literal_31(Symbols),
+                            finite_literal_33(Symbols),
                             finite_literal_35(Symbols),
+                            finite_literal_36(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_38(Symbols),
+                            finite_literal_39(Symbols),
+                            finite_literal_40(Symbols),
                             finite_literal_41(Symbols),
+                            finite_literal_42(Symbols),
+                            finite_literal_43(Symbols),
                             finite_literal_44(Symbols),
+                            finite_literal_45(Symbols),
                             finite_literal_46(Symbols),
+                            finite_literal_47(Symbols),
                             finite_literal_48(Symbols),
+                            finite_literal_49(Symbols),
                             finite_literal_50(Symbols),
+                            finite_literal_51(Symbols),
+                            finite_literal_36(Symbols),
                             finite_literal_52(Symbols),
                             finite_literal_53(Symbols),
                             finite_literal_54(Symbols),
@@ -2268,8 +2175,8 @@ law_a_selection_expands_to_its_documents_chunk_ids__property() ->
                             finite_literal_65(Symbols),
                             finite_literal_66(Symbols),
                             finite_literal_67(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_68(Symbols),
-                            finite_literal_53(Symbols),
                             finite_literal_69(Symbols),
                             finite_literal_70(Symbols),
                             finite_literal_71(Symbols),
@@ -2282,25 +2189,7 @@ law_a_selection_expands_to_its_documents_chunk_ids__property() ->
                             finite_literal_78(Symbols),
                             finite_literal_79(Symbols),
                             finite_literal_80(Symbols),
-                            finite_literal_81(Symbols),
-                            finite_literal_82(Symbols),
-                            finite_literal_83(Symbols),
-                            finite_literal_84(Symbols),
-                            finite_literal_54(Symbols),
-                            finite_literal_85(Symbols),
-                            finite_literal_86(Symbols),
-                            finite_literal_87(Symbols),
-                            finite_literal_88(Symbols),
-                            finite_literal_89(Symbols),
-                            finite_literal_90(Symbols),
-                            finite_literal_91(Symbols),
-                            finite_literal_92(Symbols),
-                            finite_literal_93(Symbols),
-                            finite_literal_94(Symbols),
-                            finite_literal_95(Symbols),
-                            finite_literal_96(Symbols),
-                            finite_literal_97(Symbols),
-                            finite_literal_98(Symbols)
+                            finite_literal_81(Symbols)
                         ],
                         none
                     ),
@@ -2312,15 +2201,15 @@ law_a_selection_expands_to_its_documents_chunk_ids__property() ->
                                 Symbols,
                                 [],
                                 [
-                                    finite_literal_99(Symbols),
-                                    finite_literal_100(Symbols),
-                                    finite_literal_101(Symbols),
-                                    finite_literal_102(Symbols),
-                                    finite_literal_103(Symbols),
-                                    finite_literal_104(Symbols),
-                                    finite_literal_105(Symbols),
-                                    finite_literal_106(Symbols),
-                                    finite_literal_107(Symbols)
+                                    finite_literal_82(Symbols),
+                                    finite_literal_83(Symbols),
+                                    finite_literal_84(Symbols),
+                                    finite_literal_85(Symbols),
+                                    finite_literal_86(Symbols),
+                                    finite_literal_87(Symbols),
+                                    finite_literal_88(Symbols),
+                                    finite_literal_89(Symbols),
+                                    finite_literal_90(Symbols)
                                 ],
                                 none
                             ),
@@ -2340,10 +2229,10 @@ law_a_selection_expands_to_its_documents_chunk_ids__property() ->
     <<"cake.laws.candidates::|selecting every document gives every chunk id|">>
 ).
 
-%% |selecting every document gives every chunk id| — laws/candidates.lawspec:505
+%% |selecting every document gives every chunk id| — laws/candidates.lawspec:473
 %% Expanding the selection of every document id, in group order, equals
 %%     all_chunk_ids/1.
-%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => expandToChunkIds (docIdsOf (groupByDocument (documented cs))) (groupByDocument (documented cs)) = allChunkIds (groupByDocument (documented cs)) end for all
+%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => expandToChunkIds (docIdsOf (groupByDocument cs)) (groupByDocument cs) = allChunkIds (groupByDocument cs) end for all
 law_selecting_every_document_gives_every_chunk_id(Schema, Symbols, [Cs]) ->
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:expand_to_chunk_ids(
@@ -2352,26 +2241,14 @@ law_selecting_every_document_gives_every_chunk_id(Schema, Symbols, [Cs]) ->
             lawspec_definitions:doc_ids_of(
                 Schema,
                 Symbols,
-                lawspec_definitions:group_by_document(
-                    Schema,
-                    Symbols,
-                    lawspec_definitions:documented(Schema, Symbols, Cs)
-                )
+                lawspec_definitions:group_by_document(Schema, Symbols, Cs)
             ),
-            lawspec_definitions:group_by_document(
-                Schema,
-                Symbols,
-                lawspec_definitions:documented(Schema, Symbols, Cs)
-            )
+            lawspec_definitions:group_by_document(Schema, Symbols, Cs)
         ),
         lawspec_definitions:all_chunk_ids(
             Schema,
             Symbols,
-            lawspec_definitions:group_by_document(
-                Schema,
-                Symbols,
-                lawspec_definitions:documented(Schema, Symbols, Cs)
-            )
+            lawspec_definitions:group_by_document(Schema, Symbols, Cs)
         ),
         ?LAW_SELECTING_EVERY_DOCUMENT_GIVES_EVERY_CHUNK_ID
     ).
@@ -2388,21 +2265,39 @@ law_selecting_every_document_gives_every_chunk_id_plan() ->
                             values,
                             [
                                 fun(Symbols) -> finite_literal_1(Symbols) end,
-                                fun(Symbols) -> finite_literal_6(Symbols) end,
+                                fun(Symbols) -> finite_literal_5(Symbols) end,
+                                fun(Symbols) -> finite_literal_7(Symbols) end,
+                                fun(Symbols) -> finite_literal_9(Symbols) end,
                                 fun(Symbols) -> finite_literal_11(Symbols) end,
-                                fun(Symbols) -> finite_literal_16(Symbols) end,
-                                fun(Symbols) -> finite_literal_20(Symbols) end,
+                                fun(Symbols) -> finite_literal_13(Symbols) end,
+                                fun(Symbols) -> finite_literal_15(Symbols) end,
+                                fun(Symbols) -> finite_literal_17(Symbols) end,
+                                fun(Symbols) -> finite_literal_19(Symbols) end,
+                                fun(Symbols) -> finite_literal_21(Symbols) end,
                                 fun(Symbols) -> finite_literal_23(Symbols) end,
-                                fun(Symbols) -> finite_literal_26(Symbols) end,
+                                fun(Symbols) -> finite_literal_25(Symbols) end,
+                                fun(Symbols) -> finite_literal_27(Symbols) end,
                                 fun(Symbols) -> finite_literal_29(Symbols) end,
-                                fun(Symbols) -> finite_literal_32(Symbols) end,
+                                fun(Symbols) -> finite_literal_31(Symbols) end,
+                                fun(Symbols) -> finite_literal_33(Symbols) end,
                                 fun(Symbols) -> finite_literal_35(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_38(Symbols) end,
+                                fun(Symbols) -> finite_literal_39(Symbols) end,
+                                fun(Symbols) -> finite_literal_40(Symbols) end,
                                 fun(Symbols) -> finite_literal_41(Symbols) end,
+                                fun(Symbols) -> finite_literal_42(Symbols) end,
+                                fun(Symbols) -> finite_literal_43(Symbols) end,
                                 fun(Symbols) -> finite_literal_44(Symbols) end,
+                                fun(Symbols) -> finite_literal_45(Symbols) end,
                                 fun(Symbols) -> finite_literal_46(Symbols) end,
+                                fun(Symbols) -> finite_literal_47(Symbols) end,
                                 fun(Symbols) -> finite_literal_48(Symbols) end,
+                                fun(Symbols) -> finite_literal_49(Symbols) end,
                                 fun(Symbols) -> finite_literal_50(Symbols) end,
+                                fun(Symbols) -> finite_literal_51(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
                                 fun(Symbols) -> finite_literal_52(Symbols) end,
                                 fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_54(Symbols) end,
@@ -2419,8 +2314,8 @@ law_selecting_every_document_gives_every_chunk_id_plan() ->
                                 fun(Symbols) -> finite_literal_65(Symbols) end,
                                 fun(Symbols) -> finite_literal_66(Symbols) end,
                                 fun(Symbols) -> finite_literal_67(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_68(Symbols) end,
-                                fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_69(Symbols) end,
                                 fun(Symbols) -> finite_literal_70(Symbols) end,
                                 fun(Symbols) -> finite_literal_71(Symbols) end,
@@ -2433,25 +2328,7 @@ law_selecting_every_document_gives_every_chunk_id_plan() ->
                                 fun(Symbols) -> finite_literal_78(Symbols) end,
                                 fun(Symbols) -> finite_literal_79(Symbols) end,
                                 fun(Symbols) -> finite_literal_80(Symbols) end,
-                                fun(Symbols) -> finite_literal_81(Symbols) end,
-                                fun(Symbols) -> finite_literal_82(Symbols) end,
-                                fun(Symbols) -> finite_literal_83(Symbols) end,
-                                fun(Symbols) -> finite_literal_84(Symbols) end,
-                                fun(Symbols) -> finite_literal_54(Symbols) end,
-                                fun(Symbols) -> finite_literal_85(Symbols) end,
-                                fun(Symbols) -> finite_literal_86(Symbols) end,
-                                fun(Symbols) -> finite_literal_87(Symbols) end,
-                                fun(Symbols) -> finite_literal_88(Symbols) end,
-                                fun(Symbols) -> finite_literal_89(Symbols) end,
-                                fun(Symbols) -> finite_literal_90(Symbols) end,
-                                fun(Symbols) -> finite_literal_91(Symbols) end,
-                                fun(Symbols) -> finite_literal_92(Symbols) end,
-                                fun(Symbols) -> finite_literal_93(Symbols) end,
-                                fun(Symbols) -> finite_literal_94(Symbols) end,
-                                fun(Symbols) -> finite_literal_95(Symbols) end,
-                                fun(Symbols) -> finite_literal_96(Symbols) end,
-                                fun(Symbols) -> finite_literal_97(Symbols) end,
-                                fun(Symbols) -> finite_literal_98(Symbols) end
+                                fun(Symbols) -> finite_literal_81(Symbols) end
                             ]
                         },
                         {copies, 1}
@@ -2495,7 +2372,7 @@ law_selecting_every_document_gives_every_chunk_id_test_() ->
 law_selecting_every_document_gives_every_chunk_id_case_at(Index) ->
     lawspec_beam_finite:case_at(law_selecting_every_document_gives_every_chunk_id_plan(), Index).
 
-%% |selecting every document gives every chunk id| property — laws/candidates.lawspec:505
+%% |selecting every document gives every chunk id| property — laws/candidates.lawspec:473
 law_selecting_every_document_gives_every_chunk_id__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -2510,21 +2387,39 @@ law_selecting_every_document_gives_every_chunk_id__property() ->
                         [],
                         [
                             finite_literal_1(Symbols),
-                            finite_literal_6(Symbols),
+                            finite_literal_5(Symbols),
+                            finite_literal_7(Symbols),
+                            finite_literal_9(Symbols),
                             finite_literal_11(Symbols),
-                            finite_literal_16(Symbols),
-                            finite_literal_20(Symbols),
+                            finite_literal_13(Symbols),
+                            finite_literal_15(Symbols),
+                            finite_literal_17(Symbols),
+                            finite_literal_19(Symbols),
+                            finite_literal_21(Symbols),
                             finite_literal_23(Symbols),
-                            finite_literal_26(Symbols),
+                            finite_literal_25(Symbols),
+                            finite_literal_27(Symbols),
                             finite_literal_29(Symbols),
-                            finite_literal_32(Symbols),
+                            finite_literal_31(Symbols),
+                            finite_literal_33(Symbols),
                             finite_literal_35(Symbols),
+                            finite_literal_36(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_38(Symbols),
+                            finite_literal_39(Symbols),
+                            finite_literal_40(Symbols),
                             finite_literal_41(Symbols),
+                            finite_literal_42(Symbols),
+                            finite_literal_43(Symbols),
                             finite_literal_44(Symbols),
+                            finite_literal_45(Symbols),
                             finite_literal_46(Symbols),
+                            finite_literal_47(Symbols),
                             finite_literal_48(Symbols),
+                            finite_literal_49(Symbols),
                             finite_literal_50(Symbols),
+                            finite_literal_51(Symbols),
+                            finite_literal_36(Symbols),
                             finite_literal_52(Symbols),
                             finite_literal_53(Symbols),
                             finite_literal_54(Symbols),
@@ -2541,8 +2436,8 @@ law_selecting_every_document_gives_every_chunk_id__property() ->
                             finite_literal_65(Symbols),
                             finite_literal_66(Symbols),
                             finite_literal_67(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_68(Symbols),
-                            finite_literal_53(Symbols),
                             finite_literal_69(Symbols),
                             finite_literal_70(Symbols),
                             finite_literal_71(Symbols),
@@ -2555,25 +2450,7 @@ law_selecting_every_document_gives_every_chunk_id__property() ->
                             finite_literal_78(Symbols),
                             finite_literal_79(Symbols),
                             finite_literal_80(Symbols),
-                            finite_literal_81(Symbols),
-                            finite_literal_82(Symbols),
-                            finite_literal_83(Symbols),
-                            finite_literal_84(Symbols),
-                            finite_literal_54(Symbols),
-                            finite_literal_85(Symbols),
-                            finite_literal_86(Symbols),
-                            finite_literal_87(Symbols),
-                            finite_literal_88(Symbols),
-                            finite_literal_89(Symbols),
-                            finite_literal_90(Symbols),
-                            finite_literal_91(Symbols),
-                            finite_literal_92(Symbols),
-                            finite_literal_93(Symbols),
-                            finite_literal_94(Symbols),
-                            finite_literal_95(Symbols),
-                            finite_literal_96(Symbols),
-                            finite_literal_97(Symbols),
-                            finite_literal_98(Symbols)
+                            finite_literal_81(Symbols)
                         ],
                         none
                     ),
@@ -2591,9 +2468,9 @@ law_selecting_every_document_gives_every_chunk_id__property() ->
     <<"cake.laws.candidates::|an empty selection gives no chunk ids|">>
 ).
 
-%% |an empty selection gives no chunk ids| — laws/candidates.lawspec:519
+%% |an empty selection gives no chunk ids| — laws/candidates.lawspec:486
 %% Selecting no document expands to no ids, whatever the groups.
-%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => Length(expandToChunkIds (List::Nil()) (groupByDocument (documented cs))) = 0 end for all
+%% for all (cs :: List (cake.laws.candidates::type::Candidate)) => Length(expandToChunkIds (List::Nil()) (groupByDocument cs)) = 0 end for all
 law_an_empty_selection_gives_no_chunk_ids(Schema, Symbols, [Cs]) ->
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -2603,14 +2480,10 @@ law_an_empty_selection_gives_no_chunk_ids(Schema, Symbols, [Cs]) ->
                     Schema,
                     Symbols,
                     [],
-                    lawspec_definitions:group_by_document(
-                        Schema,
-                        Symbols,
-                        lawspec_definitions:documented(Schema, Symbols, Cs)
-                    )
+                    lawspec_definitions:group_by_document(Schema, Symbols, Cs)
                 )
             ],
-            [<<"List cake.laws.candidates::type::UnitId">>],
+            [<<"List Text">>],
             64
         ),
         0,
@@ -2629,21 +2502,39 @@ law_an_empty_selection_gives_no_chunk_ids_plan() ->
                             values,
                             [
                                 fun(Symbols) -> finite_literal_1(Symbols) end,
-                                fun(Symbols) -> finite_literal_6(Symbols) end,
+                                fun(Symbols) -> finite_literal_5(Symbols) end,
+                                fun(Symbols) -> finite_literal_7(Symbols) end,
+                                fun(Symbols) -> finite_literal_9(Symbols) end,
                                 fun(Symbols) -> finite_literal_11(Symbols) end,
-                                fun(Symbols) -> finite_literal_16(Symbols) end,
-                                fun(Symbols) -> finite_literal_20(Symbols) end,
+                                fun(Symbols) -> finite_literal_13(Symbols) end,
+                                fun(Symbols) -> finite_literal_15(Symbols) end,
+                                fun(Symbols) -> finite_literal_17(Symbols) end,
+                                fun(Symbols) -> finite_literal_19(Symbols) end,
+                                fun(Symbols) -> finite_literal_21(Symbols) end,
                                 fun(Symbols) -> finite_literal_23(Symbols) end,
-                                fun(Symbols) -> finite_literal_26(Symbols) end,
+                                fun(Symbols) -> finite_literal_25(Symbols) end,
+                                fun(Symbols) -> finite_literal_27(Symbols) end,
                                 fun(Symbols) -> finite_literal_29(Symbols) end,
-                                fun(Symbols) -> finite_literal_32(Symbols) end,
+                                fun(Symbols) -> finite_literal_31(Symbols) end,
+                                fun(Symbols) -> finite_literal_33(Symbols) end,
                                 fun(Symbols) -> finite_literal_35(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_38(Symbols) end,
+                                fun(Symbols) -> finite_literal_39(Symbols) end,
+                                fun(Symbols) -> finite_literal_40(Symbols) end,
                                 fun(Symbols) -> finite_literal_41(Symbols) end,
+                                fun(Symbols) -> finite_literal_42(Symbols) end,
+                                fun(Symbols) -> finite_literal_43(Symbols) end,
                                 fun(Symbols) -> finite_literal_44(Symbols) end,
+                                fun(Symbols) -> finite_literal_45(Symbols) end,
                                 fun(Symbols) -> finite_literal_46(Symbols) end,
+                                fun(Symbols) -> finite_literal_47(Symbols) end,
                                 fun(Symbols) -> finite_literal_48(Symbols) end,
+                                fun(Symbols) -> finite_literal_49(Symbols) end,
                                 fun(Symbols) -> finite_literal_50(Symbols) end,
+                                fun(Symbols) -> finite_literal_51(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
                                 fun(Symbols) -> finite_literal_52(Symbols) end,
                                 fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_54(Symbols) end,
@@ -2660,8 +2551,8 @@ law_an_empty_selection_gives_no_chunk_ids_plan() ->
                                 fun(Symbols) -> finite_literal_65(Symbols) end,
                                 fun(Symbols) -> finite_literal_66(Symbols) end,
                                 fun(Symbols) -> finite_literal_67(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_68(Symbols) end,
-                                fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_69(Symbols) end,
                                 fun(Symbols) -> finite_literal_70(Symbols) end,
                                 fun(Symbols) -> finite_literal_71(Symbols) end,
@@ -2674,25 +2565,7 @@ law_an_empty_selection_gives_no_chunk_ids_plan() ->
                                 fun(Symbols) -> finite_literal_78(Symbols) end,
                                 fun(Symbols) -> finite_literal_79(Symbols) end,
                                 fun(Symbols) -> finite_literal_80(Symbols) end,
-                                fun(Symbols) -> finite_literal_81(Symbols) end,
-                                fun(Symbols) -> finite_literal_82(Symbols) end,
-                                fun(Symbols) -> finite_literal_83(Symbols) end,
-                                fun(Symbols) -> finite_literal_84(Symbols) end,
-                                fun(Symbols) -> finite_literal_54(Symbols) end,
-                                fun(Symbols) -> finite_literal_85(Symbols) end,
-                                fun(Symbols) -> finite_literal_86(Symbols) end,
-                                fun(Symbols) -> finite_literal_87(Symbols) end,
-                                fun(Symbols) -> finite_literal_88(Symbols) end,
-                                fun(Symbols) -> finite_literal_89(Symbols) end,
-                                fun(Symbols) -> finite_literal_90(Symbols) end,
-                                fun(Symbols) -> finite_literal_91(Symbols) end,
-                                fun(Symbols) -> finite_literal_92(Symbols) end,
-                                fun(Symbols) -> finite_literal_93(Symbols) end,
-                                fun(Symbols) -> finite_literal_94(Symbols) end,
-                                fun(Symbols) -> finite_literal_95(Symbols) end,
-                                fun(Symbols) -> finite_literal_96(Symbols) end,
-                                fun(Symbols) -> finite_literal_97(Symbols) end,
-                                fun(Symbols) -> finite_literal_98(Symbols) end
+                                fun(Symbols) -> finite_literal_81(Symbols) end
                             ]
                         },
                         {copies, 1}
@@ -2736,7 +2609,7 @@ law_an_empty_selection_gives_no_chunk_ids_test_() ->
 law_an_empty_selection_gives_no_chunk_ids_case_at(Index) ->
     lawspec_beam_finite:case_at(law_an_empty_selection_gives_no_chunk_ids_plan(), Index).
 
-%% |an empty selection gives no chunk ids| property — laws/candidates.lawspec:519
+%% |an empty selection gives no chunk ids| property — laws/candidates.lawspec:486
 law_an_empty_selection_gives_no_chunk_ids__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -2751,21 +2624,39 @@ law_an_empty_selection_gives_no_chunk_ids__property() ->
                         [],
                         [
                             finite_literal_1(Symbols),
-                            finite_literal_6(Symbols),
+                            finite_literal_5(Symbols),
+                            finite_literal_7(Symbols),
+                            finite_literal_9(Symbols),
                             finite_literal_11(Symbols),
-                            finite_literal_16(Symbols),
-                            finite_literal_20(Symbols),
+                            finite_literal_13(Symbols),
+                            finite_literal_15(Symbols),
+                            finite_literal_17(Symbols),
+                            finite_literal_19(Symbols),
+                            finite_literal_21(Symbols),
                             finite_literal_23(Symbols),
-                            finite_literal_26(Symbols),
+                            finite_literal_25(Symbols),
+                            finite_literal_27(Symbols),
                             finite_literal_29(Symbols),
-                            finite_literal_32(Symbols),
+                            finite_literal_31(Symbols),
+                            finite_literal_33(Symbols),
                             finite_literal_35(Symbols),
+                            finite_literal_36(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_38(Symbols),
+                            finite_literal_39(Symbols),
+                            finite_literal_40(Symbols),
                             finite_literal_41(Symbols),
+                            finite_literal_42(Symbols),
+                            finite_literal_43(Symbols),
                             finite_literal_44(Symbols),
+                            finite_literal_45(Symbols),
                             finite_literal_46(Symbols),
+                            finite_literal_47(Symbols),
                             finite_literal_48(Symbols),
+                            finite_literal_49(Symbols),
                             finite_literal_50(Symbols),
+                            finite_literal_51(Symbols),
+                            finite_literal_36(Symbols),
                             finite_literal_52(Symbols),
                             finite_literal_53(Symbols),
                             finite_literal_54(Symbols),
@@ -2782,8 +2673,8 @@ law_an_empty_selection_gives_no_chunk_ids__property() ->
                             finite_literal_65(Symbols),
                             finite_literal_66(Symbols),
                             finite_literal_67(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_68(Symbols),
-                            finite_literal_53(Symbols),
                             finite_literal_69(Symbols),
                             finite_literal_70(Symbols),
                             finite_literal_71(Symbols),
@@ -2796,25 +2687,7 @@ law_an_empty_selection_gives_no_chunk_ids__property() ->
                             finite_literal_78(Symbols),
                             finite_literal_79(Symbols),
                             finite_literal_80(Symbols),
-                            finite_literal_81(Symbols),
-                            finite_literal_82(Symbols),
-                            finite_literal_83(Symbols),
-                            finite_literal_84(Symbols),
-                            finite_literal_54(Symbols),
-                            finite_literal_85(Symbols),
-                            finite_literal_86(Symbols),
-                            finite_literal_87(Symbols),
-                            finite_literal_88(Symbols),
-                            finite_literal_89(Symbols),
-                            finite_literal_90(Symbols),
-                            finite_literal_91(Symbols),
-                            finite_literal_92(Symbols),
-                            finite_literal_93(Symbols),
-                            finite_literal_94(Symbols),
-                            finite_literal_95(Symbols),
-                            finite_literal_96(Symbols),
-                            finite_literal_97(Symbols),
-                            finite_literal_98(Symbols)
+                            finite_literal_81(Symbols)
                         ],
                         none
                     ),
@@ -2830,10 +2703,10 @@ law_an_empty_selection_gives_no_chunk_ids__property() ->
     <<"cake.laws.candidates::|expansion distributes over appending selections|">>
 ).
 
-%% |expansion distributes over appending selections| — laws/candidates.lawspec:530
+%% |expansion distributes over appending selections| — laws/candidates.lawspec:497
 %% Expanding two selections joined end to end equals expanding each and
 %%     joining the results.
-%% for all (cs :: List (cake.laws.candidates::type::Candidate)) (picks :: List (BigUInt)) (more :: List (BigUInt)) => expandToChunkIds (Append(selectionOf (groupsOf (documented cs)) picks, selectionOf (groupsOf (documented cs)) more)) (groupByDocument (documented cs)) = Append(expandToChunkIds (selectionOf (groupsOf (documented cs)) picks) (groupByDocument (documented cs)), expandToChunkIds (selectionOf (groupsOf (documented cs)) more) (groupByDocument (documented cs))) end for all
+%% for all (cs :: List (cake.laws.candidates::type::Candidate)) (picks :: List (BigUInt)) (more :: List (BigUInt)) => expandToChunkIds (Append(selectionOf (groupsOf cs) picks, selectionOf (groupsOf cs) more)) (groupByDocument cs) = Append(expandToChunkIds (selectionOf (groupsOf cs) picks) (groupByDocument cs), expandToChunkIds (selectionOf (groupsOf cs) more) (groupByDocument cs)) end for all
 law_expansion_distributes_over_appending_selections(Schema, Symbols, [Cs, Picks, More]) ->
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:expand_to_chunk_ids(
@@ -2845,32 +2718,20 @@ law_expansion_distributes_over_appending_selections(Schema, Symbols, [Cs, Picks,
                     lawspec_definitions:selection_of(
                         Schema,
                         Symbols,
-                        lawspec_definitions:groups_of(
-                            Schema,
-                            Symbols,
-                            lawspec_definitions:documented(Schema, Symbols, Cs)
-                        ),
+                        lawspec_definitions:groups_of(Schema, Symbols, Cs),
                         Picks
                     ),
                     lawspec_definitions:selection_of(
                         Schema,
                         Symbols,
-                        lawspec_definitions:groups_of(
-                            Schema,
-                            Symbols,
-                            lawspec_definitions:documented(Schema, Symbols, Cs)
-                        ),
+                        lawspec_definitions:groups_of(Schema, Symbols, Cs),
                         More
                     )
                 ],
                 [<<"List Text">>, <<"List Text">>],
                 64
             ),
-            lawspec_definitions:group_by_document(
-                Schema,
-                Symbols,
-                lawspec_definitions:documented(Schema, Symbols, Cs)
-            )
+            lawspec_definitions:group_by_document(Schema, Symbols, Cs)
         ),
         lawspec_beam_runtime:helper(
             <<"append">>,
@@ -2881,18 +2742,10 @@ law_expansion_distributes_over_appending_selections(Schema, Symbols, [Cs, Picks,
                     lawspec_definitions:selection_of(
                         Schema,
                         Symbols,
-                        lawspec_definitions:groups_of(
-                            Schema,
-                            Symbols,
-                            lawspec_definitions:documented(Schema, Symbols, Cs)
-                        ),
+                        lawspec_definitions:groups_of(Schema, Symbols, Cs),
                         Picks
                     ),
-                    lawspec_definitions:group_by_document(
-                        Schema,
-                        Symbols,
-                        lawspec_definitions:documented(Schema, Symbols, Cs)
-                    )
+                    lawspec_definitions:group_by_document(Schema, Symbols, Cs)
                 ),
                 lawspec_definitions:expand_to_chunk_ids(
                     Schema,
@@ -2900,24 +2753,13 @@ law_expansion_distributes_over_appending_selections(Schema, Symbols, [Cs, Picks,
                     lawspec_definitions:selection_of(
                         Schema,
                         Symbols,
-                        lawspec_definitions:groups_of(
-                            Schema,
-                            Symbols,
-                            lawspec_definitions:documented(Schema, Symbols, Cs)
-                        ),
+                        lawspec_definitions:groups_of(Schema, Symbols, Cs),
                         More
                     ),
-                    lawspec_definitions:group_by_document(
-                        Schema,
-                        Symbols,
-                        lawspec_definitions:documented(Schema, Symbols, Cs)
-                    )
+                    lawspec_definitions:group_by_document(Schema, Symbols, Cs)
                 )
             ],
-            [
-                <<"List cake.laws.candidates::type::UnitId">>,
-                <<"List cake.laws.candidates::type::UnitId">>
-            ],
+            [<<"List Text">>, <<"List Text">>],
             64
         ),
         ?LAW_EXPANSION_DISTRIBUTES_OVER_APPENDING_SELECTIONS
@@ -2936,14 +2778,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_99(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_82(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -2954,23 +2796,65 @@ law_expansion_distributes_over_appending_selections_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_100(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_83(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_7(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_84(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_9(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_85(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -2986,18 +2870,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_101(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_86(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3008,23 +2888,19 @@ law_expansion_distributes_over_appending_selections_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_16(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_13(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_102(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_87(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3035,23 +2911,88 @@ law_expansion_distributes_over_appending_selections_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_20(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_15(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_103(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_88(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_17(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_89(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_19(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_90(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_21(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_82(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3067,18 +3008,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_104(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_83(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3089,23 +3026,42 @@ law_expansion_distributes_over_appending_selections_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_26(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_25(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_105(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_84(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_27(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_85(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3121,18 +3077,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_106(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_86(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3143,23 +3095,42 @@ law_expansion_distributes_over_appending_selections_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_32(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_31(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_107(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_87(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_33(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_88(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3175,14 +3146,60 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_99(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_89(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_36(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_90(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_82(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3198,18 +3215,60 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_100(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_83(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_39(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_84(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_40(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_85(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3225,18 +3284,60 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_101(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_86(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_42(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_87(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_43(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_88(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3252,18 +3353,37 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_102(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_89(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_45(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_90(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3279,18 +3399,37 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_103(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_82(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_47(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_83(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3306,18 +3445,37 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_104(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_84(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_49(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_85(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3333,18 +3491,60 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_105(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_86(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_51(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_87(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_36(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_88(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3360,18 +3560,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_106(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_89(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3387,18 +3583,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_107(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_90(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3414,14 +3606,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_99(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_82(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3437,18 +3629,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_100(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_83(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3464,18 +3652,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_101(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_84(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3491,18 +3675,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_102(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_85(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3518,18 +3698,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_103(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_86(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3545,18 +3721,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_104(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_87(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3572,18 +3744,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_105(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_88(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3599,18 +3767,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_106(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_89(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3626,18 +3790,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_107(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_90(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3653,14 +3813,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_99(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_82(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3676,18 +3836,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_100(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_83(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3703,18 +3859,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_101(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_84(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3730,18 +3882,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_102(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_85(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3757,18 +3905,37 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_103(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_86(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_87(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3784,45 +3951,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_104(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_53(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_105(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_88(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3838,18 +3974,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_106(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_89(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3865,18 +3997,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_107(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_90(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3892,14 +4020,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_99(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_82(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3915,18 +4043,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_100(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_83(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3942,18 +4066,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_101(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_84(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3969,18 +4089,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_102(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_85(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -3996,18 +4112,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_103(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_86(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -4023,18 +4135,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_104(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_87(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -4050,18 +4158,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_105(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_88(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -4077,18 +4181,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_106(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_89(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -4104,18 +4204,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_107(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_90(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -4131,14 +4227,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_99(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_82(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -4154,496 +4250,14 @@ law_expansion_distributes_over_appending_selections_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_100(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_101(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_102(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_103(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_54(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_104(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_105(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_106(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_107(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_99(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_100(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_101(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_91(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_102(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_92(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_103(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_104(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_94(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_105(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_95(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_106(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_107(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_107(Symbols)
-                                                        end
-                                                    ]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_99(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [
-                                                        fun(Symbols) ->
-                                                            finite_literal_100(Symbols)
-                                                        end
-                                                    ]
+                                                    [fun(Symbols) -> finite_literal_83(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -4692,7 +4306,7 @@ law_expansion_distributes_over_appending_selections_test_() ->
 law_expansion_distributes_over_appending_selections_case_at(Index) ->
     lawspec_beam_finite:case_at(law_expansion_distributes_over_appending_selections_plan(), Index).
 
-%% |expansion distributes over appending selections| property — laws/candidates.lawspec:530
+%% |expansion distributes over appending selections| property — laws/candidates.lawspec:497
 law_expansion_distributes_over_appending_selections__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -4707,21 +4321,39 @@ law_expansion_distributes_over_appending_selections__property() ->
                         [],
                         [
                             finite_literal_1(Symbols),
-                            finite_literal_6(Symbols),
+                            finite_literal_5(Symbols),
+                            finite_literal_7(Symbols),
+                            finite_literal_9(Symbols),
                             finite_literal_11(Symbols),
-                            finite_literal_16(Symbols),
-                            finite_literal_20(Symbols),
+                            finite_literal_13(Symbols),
+                            finite_literal_15(Symbols),
+                            finite_literal_17(Symbols),
+                            finite_literal_19(Symbols),
+                            finite_literal_21(Symbols),
                             finite_literal_23(Symbols),
-                            finite_literal_26(Symbols),
+                            finite_literal_25(Symbols),
+                            finite_literal_27(Symbols),
                             finite_literal_29(Symbols),
-                            finite_literal_32(Symbols),
+                            finite_literal_31(Symbols),
+                            finite_literal_33(Symbols),
                             finite_literal_35(Symbols),
+                            finite_literal_36(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_38(Symbols),
+                            finite_literal_39(Symbols),
+                            finite_literal_40(Symbols),
                             finite_literal_41(Symbols),
+                            finite_literal_42(Symbols),
+                            finite_literal_43(Symbols),
                             finite_literal_44(Symbols),
+                            finite_literal_45(Symbols),
                             finite_literal_46(Symbols),
+                            finite_literal_47(Symbols),
                             finite_literal_48(Symbols),
+                            finite_literal_49(Symbols),
                             finite_literal_50(Symbols),
+                            finite_literal_51(Symbols),
+                            finite_literal_36(Symbols),
                             finite_literal_52(Symbols),
                             finite_literal_53(Symbols),
                             finite_literal_54(Symbols),
@@ -4738,8 +4370,8 @@ law_expansion_distributes_over_appending_selections__property() ->
                             finite_literal_65(Symbols),
                             finite_literal_66(Symbols),
                             finite_literal_67(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_68(Symbols),
-                            finite_literal_53(Symbols),
                             finite_literal_69(Symbols),
                             finite_literal_70(Symbols),
                             finite_literal_71(Symbols),
@@ -4752,25 +4384,7 @@ law_expansion_distributes_over_appending_selections__property() ->
                             finite_literal_78(Symbols),
                             finite_literal_79(Symbols),
                             finite_literal_80(Symbols),
-                            finite_literal_81(Symbols),
-                            finite_literal_82(Symbols),
-                            finite_literal_83(Symbols),
-                            finite_literal_84(Symbols),
-                            finite_literal_54(Symbols),
-                            finite_literal_85(Symbols),
-                            finite_literal_86(Symbols),
-                            finite_literal_87(Symbols),
-                            finite_literal_88(Symbols),
-                            finite_literal_89(Symbols),
-                            finite_literal_90(Symbols),
-                            finite_literal_91(Symbols),
-                            finite_literal_92(Symbols),
-                            finite_literal_93(Symbols),
-                            finite_literal_94(Symbols),
-                            finite_literal_95(Symbols),
-                            finite_literal_96(Symbols),
-                            finite_literal_97(Symbols),
-                            finite_literal_98(Symbols)
+                            finite_literal_81(Symbols)
                         ],
                         none
                     ),
@@ -4782,15 +4396,15 @@ law_expansion_distributes_over_appending_selections__property() ->
                                 Symbols,
                                 [],
                                 [
-                                    finite_literal_99(Symbols),
-                                    finite_literal_100(Symbols),
-                                    finite_literal_101(Symbols),
-                                    finite_literal_102(Symbols),
-                                    finite_literal_103(Symbols),
-                                    finite_literal_104(Symbols),
-                                    finite_literal_105(Symbols),
-                                    finite_literal_106(Symbols),
-                                    finite_literal_107(Symbols)
+                                    finite_literal_82(Symbols),
+                                    finite_literal_83(Symbols),
+                                    finite_literal_84(Symbols),
+                                    finite_literal_85(Symbols),
+                                    finite_literal_86(Symbols),
+                                    finite_literal_87(Symbols),
+                                    finite_literal_88(Symbols),
+                                    finite_literal_89(Symbols),
+                                    finite_literal_90(Symbols)
                                 ],
                                 none
                             ),
@@ -4802,15 +4416,15 @@ law_expansion_distributes_over_appending_selections__property() ->
                                         Symbols,
                                         [],
                                         [
-                                            finite_literal_99(Symbols),
-                                            finite_literal_100(Symbols),
-                                            finite_literal_101(Symbols),
-                                            finite_literal_102(Symbols),
-                                            finite_literal_103(Symbols),
-                                            finite_literal_104(Symbols),
-                                            finite_literal_105(Symbols),
-                                            finite_literal_106(Symbols),
-                                            finite_literal_107(Symbols)
+                                            finite_literal_82(Symbols),
+                                            finite_literal_83(Symbols),
+                                            finite_literal_84(Symbols),
+                                            finite_literal_85(Symbols),
+                                            finite_literal_86(Symbols),
+                                            finite_literal_87(Symbols),
+                                            finite_literal_88(Symbols),
+                                            finite_literal_89(Symbols),
+                                            finite_literal_90(Symbols)
                                         ],
                                         none
                                     ),
@@ -4834,7 +4448,7 @@ law_expansion_distributes_over_appending_selections__property() ->
     <<"cake.laws.candidates::|the summary's title is the first candidate's book title, or its label|">>
 ).
 
-%% |the summary's title is the first candidate's book title, or its label| — laws/candidates.lawspec:556
+%% |the summary's title is the first candidate's book title, or its label| — laws/candidates.lawspec:521
 %% The title is the first candidate's book title, and its label when it has
 %%     no book title. Later candidates do not change it.
 %% for all (first :: cake.laws.candidates::type::Candidate) (rest :: List (cake.laws.candidates::type::Candidate)) => match (documentMetadata (List::Cons(first, rest))) { cake.laws.candidates::type::DocumentSummary::DocumentSummary lawspecFieldtitle lawspecFieldpreview lawspecFieldpageLabel -> lawspecFieldtitle } = titleOf first end for all
@@ -4879,7 +4493,7 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                 branches,
                 [
                     {
-                        {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_4(Symbols) end]},
                         {
                             branches,
                             [
@@ -4891,19 +4505,43 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_10(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_15(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_8(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_7(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_10(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_9(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_12(Symbols) end]},
                         {
                             branches,
                             [
@@ -4915,12 +4553,48 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_19(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_14(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_16(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_13(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_16(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_15(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_18(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_17(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_20(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_19(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -4932,14 +4606,14 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_20(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_21(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_25(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_24(Symbols) end]},
                         {
                             branches,
                             [
@@ -4951,19 +4625,31 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_28(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_26(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_26(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_25(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_31(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_28(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_27(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_30(Symbols) end]},
                         {
                             branches,
                             [
@@ -4975,19 +4661,31 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_34(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_32(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_32(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_31(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_34(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_33(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_91(Symbols) end]},
                         {
                             branches,
                             [
@@ -4999,7 +4697,31 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_40(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_92(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_36(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_94(Symbols) end]},
                         {
                             branches,
                             [
@@ -5011,7 +4733,31 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_43(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_95(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_39(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_40(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
                         {
                             branches,
                             [
@@ -5023,7 +4769,31 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_45(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_42(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_43(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
                         {
                             branches,
                             [
@@ -5035,7 +4805,19 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_47(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_45(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
                         {
                             branches,
                             [
@@ -5047,7 +4829,19 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_49(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_47(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
                         {
                             branches,
                             [
@@ -5059,7 +4853,19 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_51(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_49(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
                         {
                             branches,
                             [
@@ -5071,204 +4877,36 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_108(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_4(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_51(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_36(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_8(Symbols) end]},
                         {
                             branches,
                             [
                                 {
                                     {values, [fun(Symbols) -> finite_literal_52(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_109(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_53(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_110(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_54(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_111(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_55(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_112(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_56(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_113(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_57(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_114(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_58(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_115(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_59(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_116(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_60(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_117(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_61(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_118(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_62(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_119(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_63(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_120(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_64(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_121(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_65(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_122(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_66(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_123(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_67(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_68(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -5287,199 +4925,7 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_15(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_69(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_19(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_70(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_22(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_71(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_25(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_72(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_28(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_73(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_31(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_74(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_34(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_75(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_76(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_40(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_77(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_43(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_78(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_45(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_79(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_47(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_80(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_49(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_81(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_51(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_108(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_109(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_110(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_12(Symbols) end]},
                         {
                             branches,
                             [
@@ -5491,168 +4937,336 @@ law_the_summary_s_title_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_111(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_14(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_55(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_112(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_16(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_56(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_113(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_18(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_57(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_114(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_20(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_58(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_115(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_22(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_59(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_116(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_24(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_60(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_117(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_26(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_91(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_61(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_118(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_28(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_92(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_62(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_119(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_30(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_63(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_120(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_32(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_94(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_64(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_121(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_34(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_95(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_65(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_122(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_91(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_66(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_123(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_92(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_67(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_94(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_68(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_95(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_69(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_70(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_71(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_72(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_73(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_74(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_75(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_76(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_77(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_78(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_79(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_80(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_4(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_81(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -5697,12 +5311,12 @@ law_the_summary_s_title_is_the_first_candidate_s_test_() ->
 law_the_summary_s_title_is_the_first_candidate_s_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_summary_s_title_is_the_first_candidate_s_plan(), Index).
 
-%% |the summary's title is the first candidate's book title, or its label| example |a book title wins over the label| — laws/candidates.lawspec:576
+%% |the summary's title is the first candidate's book title, or its label| example |a book title wins over the label| — laws/candidates.lawspec:541
 law_the_summary_s_title_is_the_first_candidate_s__a_book_title_wins_over_the_label() ->
     {Schema, Symbols} = lawspec_data:context(),
     First = make_candidate(
         [
-            make_text_id([<<"c1">>], Schema),
+            <<"c1">>,
             <<"The Book, p. 5">>,
             <<"Five">>,
             make_present_2([<<"books/source-0.pdf">>], Schema),
@@ -5732,15 +5346,15 @@ law_the_summary_s_title_is_the_first_candidate_s__a_book_title_wins_over_the_lab
             }
         ),
         <<"The Book">>,
-        <<"|the summary's title is the first candidate's book title, or its label| example |a book title wins over the label| — laws/candidates.lawspec:576"/utf8>>
+        <<"|the summary's title is the first candidate's book title, or its label| example |a book title wins over the label| — laws/candidates.lawspec:541"/utf8>>
     ).
 
-%% |the summary's title is the first candidate's book title, or its label| example |no book title falls back to the label| — laws/candidates.lawspec:587
+%% |the summary's title is the first candidate's book title, or its label| example |no book title falls back to the label| — laws/candidates.lawspec:552
 law_the_summary_s_title_is_the_first_candidate_s__no_book_title_falls_back_to_the_label() ->
     {Schema, Symbols} = lawspec_data:context(),
     First = make_candidate(
         [
-            make_text_id([<<"c1">>], Schema),
+            <<"c1">>,
             <<"Enum.map/2">>,
             <<"Maps">>,
             make_absent_2([], Schema),
@@ -5770,10 +5384,10 @@ law_the_summary_s_title_is_the_first_candidate_s__no_book_title_falls_back_to_th
             }
         ),
         <<"Enum.map/2">>,
-        <<"|the summary's title is the first candidate's book title, or its label| example |no book title falls back to the label| — laws/candidates.lawspec:587"/utf8>>
+        <<"|the summary's title is the first candidate's book title, or its label| example |no book title falls back to the label| — laws/candidates.lawspec:552"/utf8>>
     ).
 
-%% |the summary's title is the first candidate's book title, or its label| property — laws/candidates.lawspec:556
+%% |the summary's title is the first candidate's book title, or its label| property — laws/candidates.lawspec:521
 law_the_summary_s_title_is_the_first_candidate_s__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -5787,38 +5401,38 @@ law_the_summary_s_title_is_the_first_candidate_s__property() ->
                         Symbols,
                         [],
                         [
-                            finite_literal_5(Symbols),
+                            finite_literal_4(Symbols),
+                            finite_literal_6(Symbols),
+                            finite_literal_8(Symbols),
                             finite_literal_10(Symbols),
-                            finite_literal_15(Symbols),
-                            finite_literal_19(Symbols),
+                            finite_literal_12(Symbols),
+                            finite_literal_14(Symbols),
+                            finite_literal_16(Symbols),
+                            finite_literal_18(Symbols),
+                            finite_literal_20(Symbols),
                             finite_literal_22(Symbols),
-                            finite_literal_25(Symbols),
+                            finite_literal_24(Symbols),
+                            finite_literal_26(Symbols),
                             finite_literal_28(Symbols),
-                            finite_literal_31(Symbols),
+                            finite_literal_30(Symbols),
+                            finite_literal_32(Symbols),
                             finite_literal_34(Symbols),
-                            finite_literal_37(Symbols),
-                            finite_literal_40(Symbols),
-                            finite_literal_43(Symbols),
-                            finite_literal_45(Symbols),
-                            finite_literal_47(Symbols),
-                            finite_literal_49(Symbols),
-                            finite_literal_51(Symbols),
-                            finite_literal_108(Symbols),
-                            finite_literal_109(Symbols),
-                            finite_literal_110(Symbols),
-                            finite_literal_111(Symbols),
-                            finite_literal_112(Symbols),
-                            finite_literal_113(Symbols),
-                            finite_literal_114(Symbols),
-                            finite_literal_115(Symbols),
-                            finite_literal_116(Symbols),
-                            finite_literal_117(Symbols),
-                            finite_literal_118(Symbols),
-                            finite_literal_119(Symbols),
-                            finite_literal_120(Symbols),
-                            finite_literal_121(Symbols),
-                            finite_literal_122(Symbols),
-                            finite_literal_123(Symbols)
+                            finite_literal_91(Symbols),
+                            finite_literal_92(Symbols),
+                            finite_literal_93(Symbols),
+                            finite_literal_94(Symbols),
+                            finite_literal_95(Symbols),
+                            finite_literal_96(Symbols),
+                            finite_literal_97(Symbols),
+                            finite_literal_98(Symbols),
+                            finite_literal_99(Symbols),
+                            finite_literal_100(Symbols),
+                            finite_literal_101(Symbols),
+                            finite_literal_102(Symbols),
+                            finite_literal_103(Symbols),
+                            finite_literal_104(Symbols),
+                            finite_literal_105(Symbols),
+                            finite_literal_106(Symbols)
                         ],
                         none
                     ),
@@ -5831,21 +5445,39 @@ law_the_summary_s_title_is_the_first_candidate_s__property() ->
                                 [],
                                 [
                                     finite_literal_1(Symbols),
-                                    finite_literal_6(Symbols),
+                                    finite_literal_5(Symbols),
+                                    finite_literal_7(Symbols),
+                                    finite_literal_9(Symbols),
                                     finite_literal_11(Symbols),
-                                    finite_literal_16(Symbols),
-                                    finite_literal_20(Symbols),
+                                    finite_literal_13(Symbols),
+                                    finite_literal_15(Symbols),
+                                    finite_literal_17(Symbols),
+                                    finite_literal_19(Symbols),
+                                    finite_literal_21(Symbols),
                                     finite_literal_23(Symbols),
-                                    finite_literal_26(Symbols),
+                                    finite_literal_25(Symbols),
+                                    finite_literal_27(Symbols),
                                     finite_literal_29(Symbols),
-                                    finite_literal_32(Symbols),
+                                    finite_literal_31(Symbols),
+                                    finite_literal_33(Symbols),
                                     finite_literal_35(Symbols),
+                                    finite_literal_36(Symbols),
+                                    finite_literal_37(Symbols),
                                     finite_literal_38(Symbols),
+                                    finite_literal_39(Symbols),
+                                    finite_literal_40(Symbols),
                                     finite_literal_41(Symbols),
+                                    finite_literal_42(Symbols),
+                                    finite_literal_43(Symbols),
                                     finite_literal_44(Symbols),
+                                    finite_literal_45(Symbols),
                                     finite_literal_46(Symbols),
+                                    finite_literal_47(Symbols),
                                     finite_literal_48(Symbols),
+                                    finite_literal_49(Symbols),
                                     finite_literal_50(Symbols),
+                                    finite_literal_51(Symbols),
+                                    finite_literal_36(Symbols),
                                     finite_literal_52(Symbols),
                                     finite_literal_53(Symbols),
                                     finite_literal_54(Symbols),
@@ -5862,8 +5494,8 @@ law_the_summary_s_title_is_the_first_candidate_s__property() ->
                                     finite_literal_65(Symbols),
                                     finite_literal_66(Symbols),
                                     finite_literal_67(Symbols),
+                                    finite_literal_37(Symbols),
                                     finite_literal_68(Symbols),
-                                    finite_literal_53(Symbols),
                                     finite_literal_69(Symbols),
                                     finite_literal_70(Symbols),
                                     finite_literal_71(Symbols),
@@ -5876,25 +5508,7 @@ law_the_summary_s_title_is_the_first_candidate_s__property() ->
                                     finite_literal_78(Symbols),
                                     finite_literal_79(Symbols),
                                     finite_literal_80(Symbols),
-                                    finite_literal_81(Symbols),
-                                    finite_literal_82(Symbols),
-                                    finite_literal_83(Symbols),
-                                    finite_literal_84(Symbols),
-                                    finite_literal_54(Symbols),
-                                    finite_literal_85(Symbols),
-                                    finite_literal_86(Symbols),
-                                    finite_literal_87(Symbols),
-                                    finite_literal_88(Symbols),
-                                    finite_literal_89(Symbols),
-                                    finite_literal_90(Symbols),
-                                    finite_literal_91(Symbols),
-                                    finite_literal_92(Symbols),
-                                    finite_literal_93(Symbols),
-                                    finite_literal_94(Symbols),
-                                    finite_literal_95(Symbols),
-                                    finite_literal_96(Symbols),
-                                    finite_literal_97(Symbols),
-                                    finite_literal_98(Symbols)
+                                    finite_literal_81(Symbols)
                                 ],
                                 none
                             ),
@@ -5914,7 +5528,7 @@ law_the_summary_s_title_is_the_first_candidate_s__property() ->
     <<"cake.laws.candidates::|the summary's preview is the first candidate's, cut to 100 characters|">>
 ).
 
-%% |the summary's preview is the first candidate's, cut to 100 characters| — laws/candidates.lawspec:591
+%% |the summary's preview is the first candidate's, cut to 100 characters| — laws/candidates.lawspec:556
 %% The preview is the first 100 characters of the first candidate's
 %%     preview, and the whole of it when it is shorter. It is never longer than
 %%     100 characters. Later candidates do not change it.
@@ -6045,7 +5659,7 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_6(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_5(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -6062,6 +5676,52 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                             [
                                 {
                                     {values, [fun(_Symbols) -> <<"ucnGZ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_7(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<>> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_9(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<" ">> end]},
                                     {
                                         branches,
                                         [
@@ -6091,7 +5751,7 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_16(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_21(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -6102,19 +5762,19 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(_Symbols) -> 1 end]},
+                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(_Symbols) -> <<" ">> end]},
+                                    {values, [fun(_Symbols) -> <<>> end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_20(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_25(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -6130,14 +5790,37 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(_Symbols) -> <<>> end]},
+                                    {values, [fun(_Symbols) -> <<"6oHDcJ">> end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_35(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_27(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<"ucnGZ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_29(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -6149,6 +5832,75 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                     },
                     {
                         {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<>> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_31(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<" ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_33(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<>> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_39(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
                         {
                             branches,
                             [
@@ -6171,12 +5923,58 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(_Symbols) -> 0 end]},
+                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
                         {
                             branches,
                             [
                                 {
                                     {values, [fun(_Symbols) -> <<"6oHDcJ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_42(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<"ucnGZ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_43(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<>> end]},
                                     {
                                         branches,
                                         [
@@ -6194,42 +5992,19 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(_Symbols) -> 1 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<"ucnGZ">> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_46(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
                         {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(_Symbols) -> <<>> end]},
+                                    {values, [fun(_Symbols) -> <<" ">> end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_48(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_45(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -6240,12 +6015,12 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(_Symbols) -> 0 end]},
+                        {values, [fun(_Symbols) -> 1 end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(_Symbols) -> <<" ">> end]},
+                                    {values, [fun(_Symbols) -> <<>> end]},
                                     {
                                         branches,
                                         [
@@ -6263,7 +6038,7 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
+                        {values, [fun(_Symbols) -> 0 end]},
                         {
                             branches,
                             [
@@ -6275,7 +6050,7 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_56(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_36(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -6287,29 +6062,6 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                     },
                     {
                         {values, [fun(_Symbols) -> 1 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_58(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
                         {
                             branches,
                             [
@@ -6321,53 +6073,7 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_59(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 0 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<"ucnGZ">> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_60(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 1 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_61(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_52(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -6383,53 +6089,7 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(_Symbols) -> <<" ">> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_62(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 1 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_67(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 0 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
+                                    {values, [fun(_Symbols) -> <<"ucnGZ">> end]},
                                     {
                                         branches,
                                         [
@@ -6447,19 +6107,65 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(_Symbols) -> 1 end]},
+                        {values, [fun(_Symbols) -> 0 end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(_Symbols) -> <<"6oHDcJ">> end]},
+                                    {values, [fun(_Symbols) -> <<>> end]},
                                     {
                                         branches,
                                         [
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_69(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_54(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<" ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_55(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<>> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_60(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -6475,7 +6181,122 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                             branches,
                             [
                                 {
+                                    {values, [fun(_Symbols) -> <<>> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_62(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<"6oHDcJ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_63(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
+                        {
+                            branches,
+                            [
+                                {
                                     {values, [fun(_Symbols) -> <<"ucnGZ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_64(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<>> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_65(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<" ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_66(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<>> end]},
                                     {
                                         branches,
                                         [
@@ -6493,35 +6314,12 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(_Symbols) -> 0 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_71(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
                         {values, [fun(_Symbols) -> 1 end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(_Symbols) -> <<" ">> end]},
+                                    {values, [fun(_Symbols) -> <<>> end]},
                                     {
                                         branches,
                                         [
@@ -6539,53 +6337,7 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                         }
                     },
                     {
-                        {values, [fun(_Symbols) -> 0 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_77(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
                         {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_79(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 0 end]},
                         {
                             branches,
                             [
@@ -6597,7 +6349,30 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                                             {
                                                 {
                                                     values,
-                                                    [fun(Symbols) -> finite_literal_80(Symbols) end]
+                                                    [fun(Symbols) -> finite_literal_73(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<"ucnGZ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_74(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -6613,7 +6388,53 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(_Symbols) -> <<"ucnGZ">> end]},
+                                    {values, [fun(_Symbols) -> <<>> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_75(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<" ">> end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_76(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(_Symbols) -> <<>> end]},
                                     {
                                         branches,
                                         [
@@ -6621,213 +6442,6 @@ law_the_summary_s_preview_is_the_first_candidate_s_plan() ->
                                                 {
                                                     values,
                                                     [fun(Symbols) -> finite_literal_81(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_82(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 0 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<" ">> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_83(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_87(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 1 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_89(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<"6oHDcJ">> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_90(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 0 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<"ucnGZ">> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_91(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 1 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_92(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<" ">> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_93(Symbols) end]
-                                                },
-                                                {copies, 1}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(_Symbols) -> 1 end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(_Symbols) -> <<>> end]},
-                                    {
-                                        branches,
-                                        [
-                                            {
-                                                {
-                                                    values,
-                                                    [fun(Symbols) -> finite_literal_98(Symbols) end]
                                                 },
                                                 {copies, 1}
                                             }
@@ -6876,7 +6490,7 @@ law_the_summary_s_preview_is_the_first_candidate_s_test_() ->
 law_the_summary_s_preview_is_the_first_candidate_s_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_summary_s_preview_is_the_first_candidate_s_plan(), Index).
 
-%% |the summary's preview is the first candidate's, cut to 100 characters| example |a short preview is kept whole| — laws/candidates.lawspec:614
+%% |the summary's preview is the first candidate's, cut to 100 characters| example |a short preview is kept whole| — laws/candidates.lawspec:579
 law_the_summary_s_preview_is_the_first_candidate_s__a_short_preview_is_kept_whole() ->
     {Schema, Symbols} = lawspec_data:context(),
     Tens = 0,
@@ -6912,10 +6526,10 @@ law_the_summary_s_preview_is_the_first_candidate_s__a_short_preview_is_kept_whol
             }
         ),
         <<"Pattern matching is">>,
-        <<"|the summary's preview is the first candidate's, cut to 100 characters| example |a short preview is kept whole| — laws/candidates.lawspec:614"/utf8>>
+        <<"|the summary's preview is the first candidate's, cut to 100 characters| example |a short preview is kept whole| — laws/candidates.lawspec:579"/utf8>>
     ).
 
-%% |the summary's preview is the first candidate's, cut to 100 characters| example |a preview of 104 characters loses its last four| — laws/candidates.lawspec:621
+%% |the summary's preview is the first candidate's, cut to 100 characters| example |a preview of 104 characters loses its last four| — laws/candidates.lawspec:586
 law_the_summary_s_preview_is_the_first_candidate_s__a_preview_of_104_characters_loses_its_last_four() ->
     {Schema, Symbols} = lawspec_data:context(),
     Tens = 10,
@@ -6933,7 +6547,7 @@ law_the_summary_s_preview_is_the_first_candidate_s__a_preview_of_104_characters_
             64
         ),
         104,
-        <<"|the summary's preview is the first candidate's, cut to 100 characters| example |a preview of 104 characters loses its last four| — laws/candidates.lawspec:621"/utf8>>
+        <<"|the summary's preview is the first candidate's, cut to 100 characters| example |a preview of 104 characters loses its last four| — laws/candidates.lawspec:586"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -6961,10 +6575,10 @@ law_the_summary_s_preview_is_the_first_candidate_s__a_preview_of_104_characters_
             }
         ),
         <<"0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789">>,
-        <<"|the summary's preview is the first candidate's, cut to 100 characters| example |a preview of 104 characters loses its last four| — laws/candidates.lawspec:622"/utf8>>
+        <<"|the summary's preview is the first candidate's, cut to 100 characters| example |a preview of 104 characters loses its last four| — laws/candidates.lawspec:587"/utf8>>
     ).
 
-%% |the summary's preview is the first candidate's, cut to 100 characters| property — laws/candidates.lawspec:591
+%% |the summary's preview is the first candidate's, cut to 100 characters| property — laws/candidates.lawspec:556
 law_the_summary_s_preview_is_the_first_candidate_s__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -7045,21 +6659,39 @@ law_the_summary_s_preview_is_the_first_candidate_s__property() ->
                                         [],
                                         [
                                             finite_literal_1(Symbols),
-                                            finite_literal_6(Symbols),
+                                            finite_literal_5(Symbols),
+                                            finite_literal_7(Symbols),
+                                            finite_literal_9(Symbols),
                                             finite_literal_11(Symbols),
-                                            finite_literal_16(Symbols),
-                                            finite_literal_20(Symbols),
+                                            finite_literal_13(Symbols),
+                                            finite_literal_15(Symbols),
+                                            finite_literal_17(Symbols),
+                                            finite_literal_19(Symbols),
+                                            finite_literal_21(Symbols),
                                             finite_literal_23(Symbols),
-                                            finite_literal_26(Symbols),
+                                            finite_literal_25(Symbols),
+                                            finite_literal_27(Symbols),
                                             finite_literal_29(Symbols),
-                                            finite_literal_32(Symbols),
+                                            finite_literal_31(Symbols),
+                                            finite_literal_33(Symbols),
                                             finite_literal_35(Symbols),
+                                            finite_literal_36(Symbols),
+                                            finite_literal_37(Symbols),
                                             finite_literal_38(Symbols),
+                                            finite_literal_39(Symbols),
+                                            finite_literal_40(Symbols),
                                             finite_literal_41(Symbols),
+                                            finite_literal_42(Symbols),
+                                            finite_literal_43(Symbols),
                                             finite_literal_44(Symbols),
+                                            finite_literal_45(Symbols),
                                             finite_literal_46(Symbols),
+                                            finite_literal_47(Symbols),
                                             finite_literal_48(Symbols),
+                                            finite_literal_49(Symbols),
                                             finite_literal_50(Symbols),
+                                            finite_literal_51(Symbols),
+                                            finite_literal_36(Symbols),
                                             finite_literal_52(Symbols),
                                             finite_literal_53(Symbols),
                                             finite_literal_54(Symbols),
@@ -7076,8 +6708,8 @@ law_the_summary_s_preview_is_the_first_candidate_s__property() ->
                                             finite_literal_65(Symbols),
                                             finite_literal_66(Symbols),
                                             finite_literal_67(Symbols),
+                                            finite_literal_37(Symbols),
                                             finite_literal_68(Symbols),
-                                            finite_literal_53(Symbols),
                                             finite_literal_69(Symbols),
                                             finite_literal_70(Symbols),
                                             finite_literal_71(Symbols),
@@ -7090,25 +6722,7 @@ law_the_summary_s_preview_is_the_first_candidate_s__property() ->
                                             finite_literal_78(Symbols),
                                             finite_literal_79(Symbols),
                                             finite_literal_80(Symbols),
-                                            finite_literal_81(Symbols),
-                                            finite_literal_82(Symbols),
-                                            finite_literal_83(Symbols),
-                                            finite_literal_84(Symbols),
-                                            finite_literal_54(Symbols),
-                                            finite_literal_85(Symbols),
-                                            finite_literal_86(Symbols),
-                                            finite_literal_87(Symbols),
-                                            finite_literal_88(Symbols),
-                                            finite_literal_89(Symbols),
-                                            finite_literal_90(Symbols),
-                                            finite_literal_91(Symbols),
-                                            finite_literal_92(Symbols),
-                                            finite_literal_93(Symbols),
-                                            finite_literal_94(Symbols),
-                                            finite_literal_95(Symbols),
-                                            finite_literal_96(Symbols),
-                                            finite_literal_97(Symbols),
-                                            finite_literal_98(Symbols)
+                                            finite_literal_81(Symbols)
                                         ],
                                         none
                                     ),
@@ -7132,11 +6746,12 @@ law_the_summary_s_preview_is_the_first_candidate_s__property() ->
     <<"cake.laws.candidates::|the page label spans the group's page numbers|">>
 ).
 
-%% |the page label spans the group's page numbers| — laws/candidates.lawspec:628
-%% With no page number in the group there is no page label. With one, the
-%%     label is `PDF page N`. With more, it is `PDF pages MIN-MAX`, the smallest
-%%     and the largest page number, whatever order the candidates are in.
-%%     Candidates with no page number are skipped.
+%% |the page label spans the group's page numbers| — laws/candidates.lawspec:593
+%% With no page number in the group there is no page label. When every
+%%     page number in the group is the same page, the label is `PDF page N`,
+%%     however many candidates are on that page. Otherwise it is
+%%     `PDF pages MIN-MAX`, the smallest and the largest page number, whatever
+%%     order the candidates are in. Candidates with no page number are skipped.
 %% for all (first :: cake.laws.candidates::type::Candidate) (rest :: List (cake.laws.candidates::type::Candidate)) => match (documentMetadata (List::Cons(first, rest))) { cake.laws.candidates::type::DocumentSummary::DocumentSummary lawspecFieldtitle lawspecFieldpreview lawspecFieldpageLabel -> lawspecFieldpageLabel } = pageLabelOf (pagesOf (List::Cons(first, rest))) end for all
 law_the_page_label_spans_the_group_s_page_numbers(Schema, Symbols, [First, Rest]) ->
     lawspec_beam_runtime:assert_equal(
@@ -7191,7 +6806,7 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                 branches,
                 [
                     {
-                        {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_4(Symbols) end]},
                         {
                             branches,
                             [
@@ -7203,19 +6818,43 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_10(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_15(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_8(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_7(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_10(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_9(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_12(Symbols) end]},
                         {
                             branches,
                             [
@@ -7227,12 +6866,48 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_19(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_14(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_16(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_13(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_16(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_15(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_18(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_17(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_20(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_19(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -7244,14 +6919,14 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_20(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_21(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_25(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_24(Symbols) end]},
                         {
                             branches,
                             [
@@ -7263,19 +6938,31 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_28(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_26(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_26(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_25(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_31(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_28(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_27(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_30(Symbols) end]},
                         {
                             branches,
                             [
@@ -7287,19 +6974,31 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_34(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_32(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_32(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_31(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_34(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_33(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_91(Symbols) end]},
                         {
                             branches,
                             [
@@ -7311,7 +7010,31 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_40(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_92(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_36(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_94(Symbols) end]},
                         {
                             branches,
                             [
@@ -7323,7 +7046,31 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_43(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_95(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_39(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_40(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
                         {
                             branches,
                             [
@@ -7335,7 +7082,31 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_45(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_42(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_43(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
                         {
                             branches,
                             [
@@ -7347,7 +7118,19 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_47(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_45(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
                         {
                             branches,
                             [
@@ -7359,7 +7142,19 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_49(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_47(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
                         {
                             branches,
                             [
@@ -7371,7 +7166,19 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_51(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_49(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
                         {
                             branches,
                             [
@@ -7383,204 +7190,36 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_108(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_4(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_51(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_36(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_8(Symbols) end]},
                         {
                             branches,
                             [
                                 {
                                     {values, [fun(Symbols) -> finite_literal_52(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_109(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_53(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_110(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_54(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_111(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_55(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_112(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_56(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_113(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_57(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_114(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_58(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_115(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_59(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_116(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_60(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_117(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_61(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_118(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_62(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_119(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_63(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_120(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_64(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_121(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_65(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_122(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_66(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_123(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_67(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_68(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -7599,199 +7238,7 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_15(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_69(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_19(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_70(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_22(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_71(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_25(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_72(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_28(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_73(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_31(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_74(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_34(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_75(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_76(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_40(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_77(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_43(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_78(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_45(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_79(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_47(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_80(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_49(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_81(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_51(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_82(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_108(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_83(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_109(Symbols) end]},
-                        {
-                            branches,
-                            [
-                                {
-                                    {values, [fun(Symbols) -> finite_literal_84(Symbols) end]},
-                                    {copies, 1}
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        {values, [fun(Symbols) -> finite_literal_110(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_12(Symbols) end]},
                         {
                             branches,
                             [
@@ -7803,168 +7250,336 @@ law_the_page_label_spans_the_group_s_page_numbers_plan() ->
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_111(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_14(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_85(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_55(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_112(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_16(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_86(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_56(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_113(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_18(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_87(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_57(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_114(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_20(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_88(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_58(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_115(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_22(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_89(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_59(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_116(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_24(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_90(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_60(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_117(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_26(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_91(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_61(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_118(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_28(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_92(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_62(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_119(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_30(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_63(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_120(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_32(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_94(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_64(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_121(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_34(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_95(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_65(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_122(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_91(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_66(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_123(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_92(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_67(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
                         }
                     },
                     {
-                        {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
+                        {values, [fun(Symbols) -> finite_literal_93(Symbols) end]},
                         {
                             branches,
                             [
                                 {
-                                    {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
+                                    {values, [fun(Symbols) -> finite_literal_37(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_94(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_68(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_95(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_69(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_96(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_70(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_97(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_71(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_98(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_72(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_99(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_73(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_100(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_74(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_101(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_75(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_102(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_76(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_103(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_77(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_104(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_78(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_105(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_79(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_106(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_80(Symbols) end]},
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(Symbols) -> finite_literal_4(Symbols) end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_81(Symbols) end]},
                                     {copies, 1}
                                 }
                             ]
@@ -8009,12 +7624,12 @@ law_the_page_label_spans_the_group_s_page_numbers_test_() ->
 law_the_page_label_spans_the_group_s_page_numbers_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_page_label_spans_the_group_s_page_numbers_plan(), Index).
 
-%% |the page label spans the group's page numbers| example |no page numbers| — laws/candidates.lawspec:650
+%% |the page label spans the group's page numbers| example |no page numbers| — laws/candidates.lawspec:616
 law_the_page_label_spans_the_group_s_page_numbers__no_page_numbers() ->
     {Schema, Symbols} = lawspec_data:context(),
     First = make_candidate(
         [
-            make_text_id([<<"c1">>], Schema),
+            <<"c1">>,
             <<"A">>,
             <<"a">>,
             make_absent_2([], Schema),
@@ -8044,15 +7659,15 @@ law_the_page_label_spans_the_group_s_page_numbers__no_page_numbers() ->
             }
         ),
         make_absent_2([], Schema),
-        <<"|the page label spans the group's page numbers| example |no page numbers| — laws/candidates.lawspec:650"/utf8>>
+        <<"|the page label spans the group's page numbers| example |no page numbers| — laws/candidates.lawspec:616"/utf8>>
     ).
 
-%% |the page label spans the group's page numbers| example |one page number, after a candidate with none| — laws/candidates.lawspec:668
+%% |the page label spans the group's page numbers| example |one page number, after a candidate with none| — laws/candidates.lawspec:634
 law_the_page_label_spans_the_group_s_page_numbers__one_page_number_after_a_candidate_with_none() ->
     {Schema, Symbols} = lawspec_data:context(),
     First = make_candidate(
         [
-            make_text_id([<<"c1">>], Schema),
+            <<"c1">>,
             <<"A">>,
             <<"a">>,
             make_absent_2([], Schema),
@@ -8065,7 +7680,7 @@ law_the_page_label_spans_the_group_s_page_numbers__one_page_number_after_a_candi
         [
             make_candidate(
                 [
-                    make_text_id([<<"c2">>], Schema),
+                    <<"c2">>,
                     <<"B">>,
                     <<"b">>,
                     make_absent_2([], Schema),
@@ -8098,15 +7713,15 @@ law_the_page_label_spans_the_group_s_page_numbers__one_page_number_after_a_candi
             }
         ),
         make_present_2([<<"PDF page 7">>], Schema),
-        <<"|the page label spans the group's page numbers| example |one page number, after a candidate with none| — laws/candidates.lawspec:668"/utf8>>
+        <<"|the page label spans the group's page numbers| example |one page number, after a candidate with none| — laws/candidates.lawspec:634"/utf8>>
     ).
 
-%% |the page label spans the group's page numbers| example |a range, smallest page first whatever the order| — laws/candidates.lawspec:686
+%% |the page label spans the group's page numbers| example |a range, smallest page first whatever the order| — laws/candidates.lawspec:652
 law_the_page_label_spans_the_group_s_page_numbers__a_range_smallest_page_first_whatever_the_order() ->
     {Schema, Symbols} = lawspec_data:context(),
     First = make_candidate(
         [
-            make_text_id([<<"c1">>], Schema),
+            <<"c1">>,
             <<"A">>,
             <<"a">>,
             make_absent_2([], Schema),
@@ -8119,7 +7734,7 @@ law_the_page_label_spans_the_group_s_page_numbers__a_range_smallest_page_first_w
         [
             make_candidate(
                 [
-                    make_text_id([<<"c2">>], Schema),
+                    <<"c2">>,
                     <<"B">>,
                     <<"b">>,
                     make_absent_2([], Schema),
@@ -8152,15 +7767,15 @@ law_the_page_label_spans_the_group_s_page_numbers__a_range_smallest_page_first_w
             }
         ),
         make_present_2([<<"PDF pages 2-5">>], Schema),
-        <<"|the page label spans the group's page numbers| example |a range, smallest page first whatever the order| — laws/candidates.lawspec:686"/utf8>>
+        <<"|the page label spans the group's page numbers| example |a range, smallest page first whatever the order| — laws/candidates.lawspec:652"/utf8>>
     ).
 
-%% |the page label spans the group's page numbers| example |two candidates on one page| — laws/candidates.lawspec:705
+%% |the page label spans the group's page numbers| example |two candidates on one page| — laws/candidates.lawspec:671
 law_the_page_label_spans_the_group_s_page_numbers__two_candidates_on_one_page() ->
     {Schema, Symbols} = lawspec_data:context(),
     First = make_candidate(
         [
-            make_text_id([<<"c1">>], Schema),
+            <<"c1">>,
             <<"A">>,
             <<"a">>,
             make_absent_2([], Schema),
@@ -8173,7 +7788,7 @@ law_the_page_label_spans_the_group_s_page_numbers__two_candidates_on_one_page() 
         [
             make_candidate(
                 [
-                    make_text_id([<<"c2">>], Schema),
+                    <<"c2">>,
                     <<"B">>,
                     <<"b">>,
                     make_absent_2([], Schema),
@@ -8205,11 +7820,11 @@ law_the_page_label_spans_the_group_s_page_numbers__two_candidates_on_one_page() 
                 end
             }
         ),
-        make_present_2([<<"PDF pages 5-5">>], Schema),
-        <<"|the page label spans the group's page numbers| example |two candidates on one page| — laws/candidates.lawspec:705"/utf8>>
+        make_present_2([<<"PDF page 5">>], Schema),
+        <<"|the page label spans the group's page numbers| example |two candidates on one page| — laws/candidates.lawspec:671"/utf8>>
     ).
 
-%% |the page label spans the group's page numbers| property — laws/candidates.lawspec:628
+%% |the page label spans the group's page numbers| property — laws/candidates.lawspec:593
 law_the_page_label_spans_the_group_s_page_numbers__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -8223,38 +7838,38 @@ law_the_page_label_spans_the_group_s_page_numbers__property() ->
                         Symbols,
                         [],
                         [
-                            finite_literal_5(Symbols),
+                            finite_literal_4(Symbols),
+                            finite_literal_6(Symbols),
+                            finite_literal_8(Symbols),
                             finite_literal_10(Symbols),
-                            finite_literal_15(Symbols),
-                            finite_literal_19(Symbols),
+                            finite_literal_12(Symbols),
+                            finite_literal_14(Symbols),
+                            finite_literal_16(Symbols),
+                            finite_literal_18(Symbols),
+                            finite_literal_20(Symbols),
                             finite_literal_22(Symbols),
-                            finite_literal_25(Symbols),
+                            finite_literal_24(Symbols),
+                            finite_literal_26(Symbols),
                             finite_literal_28(Symbols),
-                            finite_literal_31(Symbols),
+                            finite_literal_30(Symbols),
+                            finite_literal_32(Symbols),
                             finite_literal_34(Symbols),
-                            finite_literal_37(Symbols),
-                            finite_literal_40(Symbols),
-                            finite_literal_43(Symbols),
-                            finite_literal_45(Symbols),
-                            finite_literal_47(Symbols),
-                            finite_literal_49(Symbols),
-                            finite_literal_51(Symbols),
-                            finite_literal_108(Symbols),
-                            finite_literal_109(Symbols),
-                            finite_literal_110(Symbols),
-                            finite_literal_111(Symbols),
-                            finite_literal_112(Symbols),
-                            finite_literal_113(Symbols),
-                            finite_literal_114(Symbols),
-                            finite_literal_115(Symbols),
-                            finite_literal_116(Symbols),
-                            finite_literal_117(Symbols),
-                            finite_literal_118(Symbols),
-                            finite_literal_119(Symbols),
-                            finite_literal_120(Symbols),
-                            finite_literal_121(Symbols),
-                            finite_literal_122(Symbols),
-                            finite_literal_123(Symbols)
+                            finite_literal_91(Symbols),
+                            finite_literal_92(Symbols),
+                            finite_literal_93(Symbols),
+                            finite_literal_94(Symbols),
+                            finite_literal_95(Symbols),
+                            finite_literal_96(Symbols),
+                            finite_literal_97(Symbols),
+                            finite_literal_98(Symbols),
+                            finite_literal_99(Symbols),
+                            finite_literal_100(Symbols),
+                            finite_literal_101(Symbols),
+                            finite_literal_102(Symbols),
+                            finite_literal_103(Symbols),
+                            finite_literal_104(Symbols),
+                            finite_literal_105(Symbols),
+                            finite_literal_106(Symbols)
                         ],
                         none
                     ),
@@ -8267,21 +7882,39 @@ law_the_page_label_spans_the_group_s_page_numbers__property() ->
                                 [],
                                 [
                                     finite_literal_1(Symbols),
-                                    finite_literal_6(Symbols),
+                                    finite_literal_5(Symbols),
+                                    finite_literal_7(Symbols),
+                                    finite_literal_9(Symbols),
                                     finite_literal_11(Symbols),
-                                    finite_literal_16(Symbols),
-                                    finite_literal_20(Symbols),
+                                    finite_literal_13(Symbols),
+                                    finite_literal_15(Symbols),
+                                    finite_literal_17(Symbols),
+                                    finite_literal_19(Symbols),
+                                    finite_literal_21(Symbols),
                                     finite_literal_23(Symbols),
-                                    finite_literal_26(Symbols),
+                                    finite_literal_25(Symbols),
+                                    finite_literal_27(Symbols),
                                     finite_literal_29(Symbols),
-                                    finite_literal_32(Symbols),
+                                    finite_literal_31(Symbols),
+                                    finite_literal_33(Symbols),
                                     finite_literal_35(Symbols),
+                                    finite_literal_36(Symbols),
+                                    finite_literal_37(Symbols),
                                     finite_literal_38(Symbols),
+                                    finite_literal_39(Symbols),
+                                    finite_literal_40(Symbols),
                                     finite_literal_41(Symbols),
+                                    finite_literal_42(Symbols),
+                                    finite_literal_43(Symbols),
                                     finite_literal_44(Symbols),
+                                    finite_literal_45(Symbols),
                                     finite_literal_46(Symbols),
+                                    finite_literal_47(Symbols),
                                     finite_literal_48(Symbols),
+                                    finite_literal_49(Symbols),
                                     finite_literal_50(Symbols),
+                                    finite_literal_51(Symbols),
+                                    finite_literal_36(Symbols),
                                     finite_literal_52(Symbols),
                                     finite_literal_53(Symbols),
                                     finite_literal_54(Symbols),
@@ -8298,8 +7931,8 @@ law_the_page_label_spans_the_group_s_page_numbers__property() ->
                                     finite_literal_65(Symbols),
                                     finite_literal_66(Symbols),
                                     finite_literal_67(Symbols),
+                                    finite_literal_37(Symbols),
                                     finite_literal_68(Symbols),
-                                    finite_literal_53(Symbols),
                                     finite_literal_69(Symbols),
                                     finite_literal_70(Symbols),
                                     finite_literal_71(Symbols),
@@ -8312,25 +7945,7 @@ law_the_page_label_spans_the_group_s_page_numbers__property() ->
                                     finite_literal_78(Symbols),
                                     finite_literal_79(Symbols),
                                     finite_literal_80(Symbols),
-                                    finite_literal_81(Symbols),
-                                    finite_literal_82(Symbols),
-                                    finite_literal_83(Symbols),
-                                    finite_literal_84(Symbols),
-                                    finite_literal_54(Symbols),
-                                    finite_literal_85(Symbols),
-                                    finite_literal_86(Symbols),
-                                    finite_literal_87(Symbols),
-                                    finite_literal_88(Symbols),
-                                    finite_literal_89(Symbols),
-                                    finite_literal_90(Symbols),
-                                    finite_literal_91(Symbols),
-                                    finite_literal_92(Symbols),
-                                    finite_literal_93(Symbols),
-                                    finite_literal_94(Symbols),
-                                    finite_literal_95(Symbols),
-                                    finite_literal_96(Symbols),
-                                    finite_literal_97(Symbols),
-                                    finite_literal_98(Symbols)
+                                    finite_literal_81(Symbols)
                                 ],
                                 none
                             ),
@@ -8346,13 +7961,280 @@ law_the_page_label_spans_the_group_s_page_numbers__property() ->
         [{numtests, 100}, {constraint_tries, 10000}, {max_shrinks, 1000}]
     ).
 
+-define(LAW_CANDIDATES_ON_ONE_PAGE_SHARE_A_SINGLE_PAGE_LABEL,
+    <<"cake.laws.candidates::|candidates on one page share a single-page label|">>
+).
+
+%% |candidates on one page share a single-page label| — laws/candidates.lawspec:676
+%% A group whose candidates are all on one page is labelled `PDF page N`,
+%%     however many candidates there are: never a range from N to N. Generated
+%%     page numbers rarely coincide, so this law puts one to six candidates on
+%%     the same page.
+%% for all (page :: BigUInt) (extra :: BigUInt) => match (documentMetadata (List::Cons(onPage page, allOnPage page (((extra rem 6) :: BigUInt))))) { cake.laws.candidates::type::DocumentSummary::DocumentSummary lawspecFieldtitle lawspecFieldpreview lawspecFieldpageLabel -> lawspecFieldpageLabel } = Maybe::Present(Append("PDF page ", TextOf(page))) end for all
+law_candidates_on_one_page_share_a_single_page_label(Schema, Symbols, [Page, Extra]) ->
+    lawspec_beam_runtime:assert_equal(
+        lawspec_beam_schema:match(
+            lawspec_definitions:document_metadata(
+                Schema,
+                Symbols,
+                make_cons_3(
+                    [
+                        lawspec_definitions:on_page(Schema, Symbols, Page),
+                        lawspec_definitions:all_on_page(
+                            Schema,
+                            Symbols,
+                            Page,
+                            lawspec_beam_schema:validate(
+                                lawspec_beam_scalar:convert(
+                                    lawspec_beam_scalar:remainder(
+                                        Extra,
+                                        6,
+                                        <<"BigUInt">>,
+                                        <<"Integer">>
+                                    ),
+                                    type_big_u_int(),
+                                    64
+                                ),
+                                type_big_u_int(),
+                                Schema
+                            )
+                        )
+                    ],
+                    Schema
+                )
+            ),
+            #{
+                <<"cake.laws.candidates::type::DocumentSummary::DocumentSummary">> => fun(
+                    [_Title, _Preview, PageLabel]
+                ) ->
+                    PageLabel
+                end
+            }
+        ),
+        make_present_2(
+            [
+                lawspec_beam_runtime:helper(
+                    <<"append">>,
+                    [
+                        <<"PDF page ">>,
+                        lawspec_beam_runtime:helper(<<"textOf">>, [Page], [<<"BigUInt">>], 64)
+                    ],
+                    [<<"Text">>, <<"Text">>],
+                    64
+                )
+            ],
+            Schema
+        ),
+        ?LAW_CANDIDATES_ON_ONE_PAGE_SHARE_A_SINGLE_PAGE_LABEL
+    ).
+
+law_candidates_on_one_page_share_a_single_page_label_plan() ->
+    [
+        {
+            fixed,
+            [
+                {
+                    "|candidates on one page share a single-page label| example |three candidates on page 5|",
+                    fun law_candidates_on_one_page_share_a_single_page_label__three_candidates_on_page_5/0
+                }
+            ]
+        },
+        {
+            finite,
+            {
+                branches,
+                [
+                    {
+                        {values, [fun(_Symbols) -> 0 end]},
+                        {branches, [{{values, [fun(_Symbols) -> 0 end]}, {copies, 1}}]}
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 1 end]},
+                        {branches, [{{values, [fun(_Symbols) -> 1 end]}, {copies, 1}}]}
+                    },
+                    {
+                        {values, [fun(_Symbols) -> 340282366920938463463374607431768211456 end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {
+                                        values,
+                                        [
+                                            fun(_Symbols) ->
+                                                340282366920938463463374607431768211456
+                                            end
+                                        ]
+                                    },
+                                    {copies, 1}
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            fun(CaseIndex, CaseFactories) ->
+                {
+                    lawspec_beam_finite:description(
+                        <<"|candidates on one page share a single-page label|">>,
+                        CaseIndex
+                    ),
+                    fun() ->
+                        {Schema, Symbols} = lawspec_data:context(),
+                        lawspec_beam_runtime:require(
+                            law_candidates_on_one_page_share_a_single_page_label(
+                                Schema,
+                                Symbols,
+                                lawspec_beam_finite:values(Symbols, CaseFactories)
+                            ),
+                            ?LAW_CANDIDATES_ON_ONE_PAGE_SHARE_A_SINGLE_PAGE_LABEL
+                        )
+                    end
+                }
+            end
+        },
+        {
+            fixed,
+            [
+                {
+                    "|candidates on one page share a single-page label| property",
+                    fun law_candidates_on_one_page_share_a_single_page_label__property/0
+                }
+            ]
+        }
+    ].
+
+law_candidates_on_one_page_share_a_single_page_label_test_() ->
+    lawspec_beam_finite:plan_cases(law_candidates_on_one_page_share_a_single_page_label_plan()).
+
+law_candidates_on_one_page_share_a_single_page_label_case_at(Index) ->
+    lawspec_beam_finite:case_at(law_candidates_on_one_page_share_a_single_page_label_plan(), Index).
+
+%% |candidates on one page share a single-page label| example |three candidates on page 5| — laws/candidates.lawspec:692
+law_candidates_on_one_page_share_a_single_page_label__three_candidates_on_page_5() ->
+    {Schema, Symbols} = lawspec_data:context(),
+    Page = 5,
+    Extra = 2,
+    lawspec_beam_runtime:require(
+        law_candidates_on_one_page_share_a_single_page_label(Schema, Symbols, [Page, Extra]),
+        ?LAW_CANDIDATES_ON_ONE_PAGE_SHARE_A_SINGLE_PAGE_LABEL
+    ),
+    lawspec_beam_runtime:assert_equal(
+        lawspec_beam_schema:match(
+            lawspec_definitions:document_metadata(
+                Schema,
+                Symbols,
+                make_cons_3(
+                    [
+                        lawspec_definitions:on_page(Schema, Symbols, Page),
+                        lawspec_definitions:all_on_page(
+                            Schema,
+                            Symbols,
+                            Page,
+                            lawspec_beam_schema:validate(
+                                lawspec_beam_scalar:convert(
+                                    lawspec_beam_scalar:remainder(
+                                        Extra,
+                                        6,
+                                        <<"BigUInt">>,
+                                        <<"Integer">>
+                                    ),
+                                    type_big_u_int(),
+                                    64
+                                ),
+                                type_big_u_int(),
+                                Schema
+                            )
+                        )
+                    ],
+                    Schema
+                )
+            ),
+            #{
+                <<"cake.laws.candidates::type::DocumentSummary::DocumentSummary">> => fun(
+                    [_Title, _Preview, PageLabel]
+                ) ->
+                    PageLabel
+                end
+            }
+        ),
+        make_present_2([<<"PDF page 5">>], Schema),
+        <<"|candidates on one page share a single-page label| example |three candidates on page 5| — laws/candidates.lawspec:692"/utf8>>
+    ).
+
+%% |candidates on one page share a single-page label| property — laws/candidates.lawspec:676
+law_candidates_on_one_page_share_a_single_page_label__property() ->
+    {Schema, Symbols} = lawspec_data:context(),
+    lawspec_beam_search:replay(
+        ?LAW_CANDIDATES_ON_ONE_PAGE_SHARE_A_SINGLE_PAGE_LABEL,
+        [<<"(int BigUInt 0 _)">>, <<"(int BigUInt 0 _)">>],
+        fun([Page, Extra]) ->
+            lawspec_beam_runtime:require(
+                law_candidates_on_one_page_share_a_single_page_label(
+                    Schema,
+                    Symbols,
+                    [Page, Extra]
+                ),
+                ?LAW_CANDIDATES_ON_ONE_PAGE_SHARE_A_SINGLE_PAGE_LABEL
+            )
+        end
+    ),
+    'Elixir.LawSpec.Beam.StreamData':check(
+        ?LAW_CANDIDATES_ON_ONE_PAGE_SHARE_A_SINGLE_PAGE_LABEL,
+        'Elixir.LawSpec.Beam.StreamData':forall(
+            'Elixir.LawSpec.Beam.StreamData':complete(
+                'Elixir.LawSpec.Beam.StreamData':bind(
+                    'Elixir.LawSpec.Beam.StreamData':generator(
+                        {<<"BigUInt">>, []},
+                        Schema,
+                        Symbols,
+                        [],
+                        [0, 1, 340282366920938463463374607431768211456],
+                        none
+                    ),
+                    fun(Page) ->
+                        'Elixir.LawSpec.Beam.StreamData':bind(
+                            'Elixir.LawSpec.Beam.StreamData':generator(
+                                {<<"BigUInt">>, []},
+                                Schema,
+                                Symbols,
+                                [],
+                                [0, 1, 340282366920938463463374607431768211456],
+                                none
+                            ),
+                            fun(Extra) ->
+                                'Elixir.LawSpec.Beam.StreamData':exactly([Page, Extra])
+                            end
+                        )
+                    end
+                )
+            ),
+            fun(Values) ->
+                lawspec_beam_search:guard(
+                    ?LAW_CANDIDATES_ON_ONE_PAGE_SHARE_A_SINGLE_PAGE_LABEL,
+                    [<<"(int BigUInt 0 _)">>, <<"(int BigUInt 0 _)">>],
+                    Values,
+                    fun() ->
+                        law_candidates_on_one_page_share_a_single_page_label(
+                            Schema,
+                            Symbols,
+                            Values
+                        )
+                    end
+                )
+            end
+        ),
+        [{numtests, 100}, {constraint_tries, 10000}, {max_shrinks, 1000}]
+    ).
+
 -define(LAW_EVERY_CANDIDATE_HAS_A_DOCUMENT_WHATEVER_ITS_ID,
     <<"cake.laws.candidates::|every candidate has a document, whatever its id|">>
 ).
 
-%% |every candidate has a document, whatever its id| — laws/candidates.lawspec:714
+%% |every candidate has a document, whatever its id| — laws/candidates.lawspec:701
 %% group_by_document/1 places every candidate in a group, for every id the
-%%     Citable contract allows: text or a tuple, with a source or without one.
+%%     Citable contract allows, which is any text, with a source or without
+%%     one.
 %% for all (cs :: List (cake.laws.candidates::type::Candidate)) => Length(membersOf (groupByDocument cs)) = Length(cs) end for all
 law_every_candidate_has_a_document_whatever_its_id(Schema, Symbols, [Cs]) ->
     lawspec_beam_runtime:assert_equal(
@@ -8383,8 +8265,12 @@ law_every_candidate_has_a_document_whatever_its_id_plan() ->
             fixed,
             [
                 {
-                    "|every candidate has a document, whatever its id| example |a tuple id with no source|",
-                    fun law_every_candidate_has_a_document_whatever_its_id__a_tuple_id_with_no_source/0
+                    "|every candidate has a document, whatever its id| example |an id with no source is its own document|",
+                    fun law_every_candidate_has_a_document_whatever_its_id__an_id_with_no_source_is_its_own_document/0
+                },
+                {
+                    "|every candidate has a document, whatever its id| example |an empty id is still an id|",
+                    fun law_every_candidate_has_a_document_whatever_its_id__an_empty_id_is_still_an_id/0
                 }
             ]
         },
@@ -8398,21 +8284,39 @@ law_every_candidate_has_a_document_whatever_its_id_plan() ->
                             values,
                             [
                                 fun(Symbols) -> finite_literal_1(Symbols) end,
-                                fun(Symbols) -> finite_literal_6(Symbols) end,
+                                fun(Symbols) -> finite_literal_5(Symbols) end,
+                                fun(Symbols) -> finite_literal_7(Symbols) end,
+                                fun(Symbols) -> finite_literal_9(Symbols) end,
                                 fun(Symbols) -> finite_literal_11(Symbols) end,
-                                fun(Symbols) -> finite_literal_16(Symbols) end,
-                                fun(Symbols) -> finite_literal_20(Symbols) end,
+                                fun(Symbols) -> finite_literal_13(Symbols) end,
+                                fun(Symbols) -> finite_literal_15(Symbols) end,
+                                fun(Symbols) -> finite_literal_17(Symbols) end,
+                                fun(Symbols) -> finite_literal_19(Symbols) end,
+                                fun(Symbols) -> finite_literal_21(Symbols) end,
                                 fun(Symbols) -> finite_literal_23(Symbols) end,
-                                fun(Symbols) -> finite_literal_26(Symbols) end,
+                                fun(Symbols) -> finite_literal_25(Symbols) end,
+                                fun(Symbols) -> finite_literal_27(Symbols) end,
                                 fun(Symbols) -> finite_literal_29(Symbols) end,
-                                fun(Symbols) -> finite_literal_32(Symbols) end,
+                                fun(Symbols) -> finite_literal_31(Symbols) end,
+                                fun(Symbols) -> finite_literal_33(Symbols) end,
                                 fun(Symbols) -> finite_literal_35(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_38(Symbols) end,
+                                fun(Symbols) -> finite_literal_39(Symbols) end,
+                                fun(Symbols) -> finite_literal_40(Symbols) end,
                                 fun(Symbols) -> finite_literal_41(Symbols) end,
+                                fun(Symbols) -> finite_literal_42(Symbols) end,
+                                fun(Symbols) -> finite_literal_43(Symbols) end,
                                 fun(Symbols) -> finite_literal_44(Symbols) end,
+                                fun(Symbols) -> finite_literal_45(Symbols) end,
                                 fun(Symbols) -> finite_literal_46(Symbols) end,
+                                fun(Symbols) -> finite_literal_47(Symbols) end,
                                 fun(Symbols) -> finite_literal_48(Symbols) end,
+                                fun(Symbols) -> finite_literal_49(Symbols) end,
                                 fun(Symbols) -> finite_literal_50(Symbols) end,
+                                fun(Symbols) -> finite_literal_51(Symbols) end,
+                                fun(Symbols) -> finite_literal_36(Symbols) end,
                                 fun(Symbols) -> finite_literal_52(Symbols) end,
                                 fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_54(Symbols) end,
@@ -8429,8 +8333,8 @@ law_every_candidate_has_a_document_whatever_its_id_plan() ->
                                 fun(Symbols) -> finite_literal_65(Symbols) end,
                                 fun(Symbols) -> finite_literal_66(Symbols) end,
                                 fun(Symbols) -> finite_literal_67(Symbols) end,
+                                fun(Symbols) -> finite_literal_37(Symbols) end,
                                 fun(Symbols) -> finite_literal_68(Symbols) end,
-                                fun(Symbols) -> finite_literal_53(Symbols) end,
                                 fun(Symbols) -> finite_literal_69(Symbols) end,
                                 fun(Symbols) -> finite_literal_70(Symbols) end,
                                 fun(Symbols) -> finite_literal_71(Symbols) end,
@@ -8443,25 +8347,7 @@ law_every_candidate_has_a_document_whatever_its_id_plan() ->
                                 fun(Symbols) -> finite_literal_78(Symbols) end,
                                 fun(Symbols) -> finite_literal_79(Symbols) end,
                                 fun(Symbols) -> finite_literal_80(Symbols) end,
-                                fun(Symbols) -> finite_literal_81(Symbols) end,
-                                fun(Symbols) -> finite_literal_82(Symbols) end,
-                                fun(Symbols) -> finite_literal_83(Symbols) end,
-                                fun(Symbols) -> finite_literal_84(Symbols) end,
-                                fun(Symbols) -> finite_literal_54(Symbols) end,
-                                fun(Symbols) -> finite_literal_85(Symbols) end,
-                                fun(Symbols) -> finite_literal_86(Symbols) end,
-                                fun(Symbols) -> finite_literal_87(Symbols) end,
-                                fun(Symbols) -> finite_literal_88(Symbols) end,
-                                fun(Symbols) -> finite_literal_89(Symbols) end,
-                                fun(Symbols) -> finite_literal_90(Symbols) end,
-                                fun(Symbols) -> finite_literal_91(Symbols) end,
-                                fun(Symbols) -> finite_literal_92(Symbols) end,
-                                fun(Symbols) -> finite_literal_93(Symbols) end,
-                                fun(Symbols) -> finite_literal_94(Symbols) end,
-                                fun(Symbols) -> finite_literal_95(Symbols) end,
-                                fun(Symbols) -> finite_literal_96(Symbols) end,
-                                fun(Symbols) -> finite_literal_97(Symbols) end,
-                                fun(Symbols) -> finite_literal_98(Symbols) end
+                                fun(Symbols) -> finite_literal_81(Symbols) end
                             ]
                         },
                         {copies, 1}
@@ -8505,14 +8391,14 @@ law_every_candidate_has_a_document_whatever_its_id_test_() ->
 law_every_candidate_has_a_document_whatever_its_id_case_at(Index) ->
     lawspec_beam_finite:case_at(law_every_candidate_has_a_document_whatever_its_id_plan(), Index).
 
-%% |every candidate has a document, whatever its id| example |a tuple id with no source| — laws/candidates.lawspec:733
-law_every_candidate_has_a_document_whatever_its_id__a_tuple_id_with_no_source() ->
+%% |every candidate has a document, whatever its id| example |an id with no source is its own document| — laws/candidates.lawspec:721
+law_every_candidate_has_a_document_whatever_its_id__an_id_with_no_source_is_its_own_document() ->
     {Schema, Symbols} = lawspec_data:context(),
     Cs = make_cons_3(
         [
             make_candidate(
                 [
-                    make_tuple_id([make_composite_key([<<"alpha">>, 4], Schema)], Schema),
+                    <<"9f1c2a70-5b1e-4c58-8a0e-2f6d3b7c9e11">>,
                     <<"Alpha, p. 9">>,
                     <<"Nine">>,
                     make_absent_2([], Schema),
@@ -8530,17 +8416,50 @@ law_every_candidate_has_a_document_whatever_its_id__a_tuple_id_with_no_source() 
         ?LAW_EVERY_CANDIDATE_HAS_A_DOCUMENT_WHATEVER_ITS_ID
     ),
     lawspec_beam_runtime:assert_equal(
-        lawspec_beam_runtime:helper(
-            <<"length">>,
-            [lawspec_definitions:group_by_document(Schema, Symbols, Cs)],
-            [<<"List cake.laws.candidates::type::DocumentGroup">>],
-            64
+        lawspec_definitions:doc_ids_of(
+            Schema,
+            Symbols,
+            lawspec_definitions:group_by_document(Schema, Symbols, Cs)
         ),
-        1,
-        <<"|every candidate has a document, whatever its id| example |a tuple id with no source| — laws/candidates.lawspec:733"/utf8>>
+        [<<"9f1c2a70-5b1e-4c58-8a0e-2f6d3b7c9e11">>],
+        <<"|every candidate has a document, whatever its id| example |an id with no source is its own document| — laws/candidates.lawspec:721"/utf8>>
     ).
 
-%% |every candidate has a document, whatever its id| property — laws/candidates.lawspec:714
+%% |every candidate has a document, whatever its id| example |an empty id is still an id| — laws/candidates.lawspec:733
+law_every_candidate_has_a_document_whatever_its_id__an_empty_id_is_still_an_id() ->
+    {Schema, Symbols} = lawspec_data:context(),
+    Cs = make_cons_3(
+        [
+            make_candidate(
+                [
+                    <<>>,
+                    <<"Untitled">>,
+                    <<>>,
+                    make_absent_2([], Schema),
+                    make_absent([], Schema),
+                    make_absent_2([], Schema)
+                ],
+                Schema
+            ),
+            []
+        ],
+        Schema
+    ),
+    lawspec_beam_runtime:require(
+        law_every_candidate_has_a_document_whatever_its_id(Schema, Symbols, [Cs]),
+        ?LAW_EVERY_CANDIDATE_HAS_A_DOCUMENT_WHATEVER_ITS_ID
+    ),
+    lawspec_beam_runtime:assert_equal(
+        lawspec_definitions:doc_ids_of(
+            Schema,
+            Symbols,
+            lawspec_definitions:group_by_document(Schema, Symbols, Cs)
+        ),
+        [<<>>],
+        <<"|every candidate has a document, whatever its id| example |an empty id is still an id| — laws/candidates.lawspec:733"/utf8>>
+    ).
+
+%% |every candidate has a document, whatever its id| property — laws/candidates.lawspec:701
 law_every_candidate_has_a_document_whatever_its_id__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -8555,21 +8474,39 @@ law_every_candidate_has_a_document_whatever_its_id__property() ->
                         [],
                         [
                             finite_literal_1(Symbols),
-                            finite_literal_6(Symbols),
+                            finite_literal_5(Symbols),
+                            finite_literal_7(Symbols),
+                            finite_literal_9(Symbols),
                             finite_literal_11(Symbols),
-                            finite_literal_16(Symbols),
-                            finite_literal_20(Symbols),
+                            finite_literal_13(Symbols),
+                            finite_literal_15(Symbols),
+                            finite_literal_17(Symbols),
+                            finite_literal_19(Symbols),
+                            finite_literal_21(Symbols),
                             finite_literal_23(Symbols),
-                            finite_literal_26(Symbols),
+                            finite_literal_25(Symbols),
+                            finite_literal_27(Symbols),
                             finite_literal_29(Symbols),
-                            finite_literal_32(Symbols),
+                            finite_literal_31(Symbols),
+                            finite_literal_33(Symbols),
                             finite_literal_35(Symbols),
+                            finite_literal_36(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_38(Symbols),
+                            finite_literal_39(Symbols),
+                            finite_literal_40(Symbols),
                             finite_literal_41(Symbols),
+                            finite_literal_42(Symbols),
+                            finite_literal_43(Symbols),
                             finite_literal_44(Symbols),
+                            finite_literal_45(Symbols),
                             finite_literal_46(Symbols),
+                            finite_literal_47(Symbols),
                             finite_literal_48(Symbols),
+                            finite_literal_49(Symbols),
                             finite_literal_50(Symbols),
+                            finite_literal_51(Symbols),
+                            finite_literal_36(Symbols),
                             finite_literal_52(Symbols),
                             finite_literal_53(Symbols),
                             finite_literal_54(Symbols),
@@ -8586,8 +8523,8 @@ law_every_candidate_has_a_document_whatever_its_id__property() ->
                             finite_literal_65(Symbols),
                             finite_literal_66(Symbols),
                             finite_literal_67(Symbols),
+                            finite_literal_37(Symbols),
                             finite_literal_68(Symbols),
-                            finite_literal_53(Symbols),
                             finite_literal_69(Symbols),
                             finite_literal_70(Symbols),
                             finite_literal_71(Symbols),
@@ -8600,25 +8537,7 @@ law_every_candidate_has_a_document_whatever_its_id__property() ->
                             finite_literal_78(Symbols),
                             finite_literal_79(Symbols),
                             finite_literal_80(Symbols),
-                            finite_literal_81(Symbols),
-                            finite_literal_82(Symbols),
-                            finite_literal_83(Symbols),
-                            finite_literal_84(Symbols),
-                            finite_literal_54(Symbols),
-                            finite_literal_85(Symbols),
-                            finite_literal_86(Symbols),
-                            finite_literal_87(Symbols),
-                            finite_literal_88(Symbols),
-                            finite_literal_89(Symbols),
-                            finite_literal_90(Symbols),
-                            finite_literal_91(Symbols),
-                            finite_literal_92(Symbols),
-                            finite_literal_93(Symbols),
-                            finite_literal_94(Symbols),
-                            finite_literal_95(Symbols),
-                            finite_literal_96(Symbols),
-                            finite_literal_97(Symbols),
-                            finite_literal_98(Symbols)
+                            finite_literal_81(Symbols)
                         ],
                         none
                     ),
@@ -8632,617 +8551,575 @@ law_every_candidate_has_a_document_whatever_its_id__property() ->
         [{numtests, 100}, {constraint_tries, 10000}, {max_shrinks, 1000}]
     ).
 
-finite_literal_shape_2(_Symbols, Fields) ->
-    {ls_data, <<"cake.laws.candidates::type::UnitId::TextId">>, Fields}.
+finite_literal_shape_2(_Symbols, Fields) -> {ls_data, <<"Maybe::Absent">>, Fields}.
 
 finite_literal_shape_3(_Symbols, Fields) -> {ls_data, <<"Maybe::Absent">>, Fields}.
 
-finite_literal_shape_4(_Symbols, Fields) -> {ls_data, <<"Maybe::Absent">>, Fields}.
-
-finite_literal_shape_5(_Symbols, Fields) ->
+finite_literal_shape_4(_Symbols, Fields) ->
     {ls_data, <<"cake.laws.candidates::type::Candidate::Candidate">>, Fields}.
-
-finite_literal_shape_6(_Symbols, Fields) -> {ls_data, <<"Maybe::Present">>, Fields}.
-
-finite_literal_shape_7(_Symbols, Fields) -> {ls_data, <<"Maybe::Present">>, Fields}.
 
 finite_literal_1(_Symbols) -> [].
 
-finite_literal_2(Symbols) -> finite_literal_shape_2(Symbols, [<<>>]).
+finite_literal_2(Symbols) -> finite_literal_shape_2(Symbols, []).
 
 finite_literal_3(Symbols) -> finite_literal_shape_3(Symbols, []).
 
-finite_literal_4(Symbols) -> finite_literal_shape_4(Symbols, []).
-
-finite_literal_5(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_4(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<>>,
+            <<>>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_3(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_6(Symbols) -> [finite_literal_5(Symbols)].
+finite_literal_5(Symbols) -> [finite_literal_4(Symbols)].
 
-finite_literal_7(Symbols) -> finite_literal_shape_2(Symbols, [<<"books/source-1.pdf">>]).
-
-finite_literal_8(Symbols) -> finite_literal_shape_6(Symbols, [<<"books/source-0.pdf">>]).
-
-finite_literal_9(Symbols) -> finite_literal_shape_7(Symbols, [0]).
-
-finite_literal_10(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_6(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
-            finite_literal_7(Symbols),
-            <<"books/source-1.pdf">>,
-            <<"books/source-1.pdf">>,
-            finite_literal_8(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_8(Symbols)
+            <<" ">>,
+            <<" ">>,
+            <<" ">>,
+            finite_literal_2(Symbols),
+            finite_literal_3(Symbols),
+            finite_literal_2(Symbols)
+        ]
+    ).
+
+finite_literal_7(Symbols) -> [finite_literal_6(Symbols)].
+
+finite_literal_8(Symbols) ->
+    finite_literal_shape_4(
+        Symbols,
+        [
+            <<"Hello, World!">>,
+            <<"Hello, World!">>,
+            <<"Hello, World!">>,
+            finite_literal_2(Symbols),
+            finite_literal_3(Symbols),
+            finite_literal_2(Symbols)
+        ]
+    ).
+
+finite_literal_9(Symbols) -> [finite_literal_8(Symbols)].
+
+finite_literal_10(Symbols) ->
+    finite_literal_shape_4(
+        Symbols,
+        [
+            <<"λ日本語😀"/utf8>>,
+            <<"λ日本語😀"/utf8>>,
+            <<"λ日本語😀"/utf8>>,
+            finite_literal_2(Symbols),
+            finite_literal_3(Symbols),
+            finite_literal_2(Symbols)
         ]
     ).
 
 finite_literal_11(Symbols) -> [finite_literal_10(Symbols)].
 
-finite_literal_12(Symbols) -> finite_literal_shape_2(Symbols, [<<"books/source-2.pdf">>]).
-
-finite_literal_13(Symbols) -> finite_literal_shape_6(Symbols, [<<"books/source-1.pdf">>]).
-
-finite_literal_14(Symbols) -> finite_literal_shape_7(Symbols, [1]).
-
-finite_literal_15(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_12(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
-            finite_literal_12(Symbols),
-            <<"books/source-2.pdf">>,
-            <<"books/source-2.pdf">>,
-            finite_literal_13(Symbols),
-            finite_literal_14(Symbols),
-            finite_literal_13(Symbols)
+            <<"a\n\t\"\\$\x{0}z">>,
+            <<"a\n\t\"\\$\x{0}z">>,
+            <<"a\n\t\"\\$\x{0}z">>,
+            finite_literal_2(Symbols),
+            finite_literal_3(Symbols),
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_16(Symbols) -> [finite_literal_15(Symbols)].
+finite_literal_13(Symbols) -> [finite_literal_12(Symbols)].
 
-finite_literal_17(Symbols) -> finite_literal_shape_6(Symbols, [<<"books/source-2.pdf">>]).
+finite_literal_14(Symbols) ->
+    finite_literal_shape_4(
+        Symbols,
+        [
+            <<"é"/utf8>>,
+            <<"é"/utf8>>,
+            <<"é"/utf8>>,
+            finite_literal_2(Symbols),
+            finite_literal_3(Symbols),
+            finite_literal_2(Symbols)
+        ]
+    ).
+
+finite_literal_15(Symbols) -> [finite_literal_14(Symbols)].
+
+finite_literal_16(Symbols) ->
+    finite_literal_shape_4(
+        Symbols,
+        [
+            <<"\x{0}aλ😀\x{10ffff}"/utf8>>,
+            <<"\x{0}aλ😀\x{10ffff}"/utf8>>,
+            <<"\x{0}aλ😀\x{10ffff}"/utf8>>,
+            finite_literal_2(Symbols),
+            finite_literal_3(Symbols),
+            finite_literal_2(Symbols)
+        ]
+    ).
+
+finite_literal_17(Symbols) -> [finite_literal_16(Symbols)].
 
 finite_literal_18(Symbols) ->
-    finite_literal_shape_7(Symbols, [340282366920938463463374607431768211456]).
-
-finite_literal_19(Symbols) ->
-    finite_literal_shape_5(
+    finite_literal_shape_4(
         Symbols,
         [
+            <<"books/source-[0-2][.]pdf">>,
+            <<"books/source-[0-2][.]pdf">>,
+            <<"books/source-[0-2][.]pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
-            finite_literal_17(Symbols),
-            finite_literal_18(Symbols),
-            finite_literal_17(Symbols)
+            finite_literal_3(Symbols),
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_20(Symbols) -> [finite_literal_19(Symbols)].
+finite_literal_19(Symbols) -> [finite_literal_18(Symbols)].
 
-finite_literal_21(Symbols) -> finite_literal_shape_6(Symbols, [<<>>]).
-
-finite_literal_22(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_20(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<"books/source-0.pdf">>,
+            <<"books/source-0.pdf">>,
+            <<"books/source-0.pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_21(Symbols)
+            finite_literal_2(Symbols)
+        ]
+    ).
+
+finite_literal_21(Symbols) -> [finite_literal_20(Symbols)].
+
+finite_literal_22(Symbols) ->
+    finite_literal_shape_4(
+        Symbols,
+        [
+            <<"books/source-1.pdf">>,
+            <<"books/source-1.pdf">>,
+            <<"books/source-1.pdf">>,
+            finite_literal_2(Symbols),
+            finite_literal_3(Symbols),
+            finite_literal_2(Symbols)
         ]
     ).
 
 finite_literal_23(Symbols) -> [finite_literal_22(Symbols)].
 
-finite_literal_24(Symbols) -> finite_literal_shape_6(Symbols, [<<" ">>]).
-
-finite_literal_25(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_24(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<"books/source-2.pdf">>,
+            <<"books/source-2.pdf">>,
+            <<"books/source-2.pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_24(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_26(Symbols) -> [finite_literal_25(Symbols)].
+finite_literal_25(Symbols) -> [finite_literal_24(Symbols)].
 
-finite_literal_27(Symbols) -> finite_literal_shape_6(Symbols, [<<"Hello, World!">>]).
-
-finite_literal_28(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_26(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<>>,
+            <<" ">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_27(Symbols)
+            finite_literal_2(Symbols)
+        ]
+    ).
+
+finite_literal_27(Symbols) -> [finite_literal_26(Symbols)].
+
+finite_literal_28(Symbols) ->
+    finite_literal_shape_4(
+        Symbols,
+        [
+            <<>>,
+            <<>>,
+            <<"Hello, World!">>,
+            finite_literal_2(Symbols),
+            finite_literal_3(Symbols),
+            finite_literal_2(Symbols)
         ]
     ).
 
 finite_literal_29(Symbols) -> [finite_literal_28(Symbols)].
 
-finite_literal_30(Symbols) -> finite_literal_shape_6(Symbols, [<<"λ日本語😀"/utf8>>]).
-
-finite_literal_31(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_30(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<>>,
+            <<"λ日本語😀"/utf8>>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_30(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_32(Symbols) -> [finite_literal_31(Symbols)].
+finite_literal_31(Symbols) -> [finite_literal_30(Symbols)].
 
-finite_literal_33(Symbols) -> finite_literal_shape_6(Symbols, [<<"a\n\t\"\\$\x{0}z">>]).
-
-finite_literal_34(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_32(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<>>,
+            <<"a\n\t\"\\$\x{0}z">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_33(Symbols)
+            finite_literal_2(Symbols)
+        ]
+    ).
+
+finite_literal_33(Symbols) -> [finite_literal_32(Symbols)].
+
+finite_literal_34(Symbols) ->
+    finite_literal_shape_4(
+        Symbols,
+        [
+            <<>>,
+            <<>>,
+            <<"é"/utf8>>,
+            finite_literal_2(Symbols),
+            finite_literal_3(Symbols),
+            finite_literal_2(Symbols)
         ]
     ).
 
 finite_literal_35(Symbols) -> [finite_literal_34(Symbols)].
 
-finite_literal_36(Symbols) -> finite_literal_shape_6(Symbols, [<<"é"/utf8>>]).
-
-finite_literal_37(Symbols) ->
-    finite_literal_shape_5(
-        Symbols,
-        [
-            finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
-            finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_36(Symbols)
-        ]
-    ).
-
-finite_literal_38(Symbols) -> [finite_literal_37(Symbols)].
-
-finite_literal_39(Symbols) -> finite_literal_shape_6(Symbols, [<<"\x{0}aλ😀\x{10ffff}"/utf8>>]).
-
-finite_literal_40(Symbols) ->
-    finite_literal_shape_5(
-        Symbols,
-        [
-            finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
-            finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_39(Symbols)
-        ]
-    ).
-
-finite_literal_41(Symbols) -> [finite_literal_40(Symbols)].
-
-finite_literal_42(Symbols) -> finite_literal_shape_6(Symbols, [<<"books/source-[0-2][.]pdf">>]).
-
-finite_literal_43(Symbols) ->
-    finite_literal_shape_5(
-        Symbols,
-        [
-            finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
-            finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_42(Symbols)
-        ]
-    ).
-
-finite_literal_44(Symbols) -> [finite_literal_43(Symbols)].
-
-finite_literal_45(Symbols) ->
-    finite_literal_shape_5(
-        Symbols,
-        [
-            finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
-            finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_8(Symbols)
-        ]
-    ).
+finite_literal_36(Symbols) -> [finite_literal_4(Symbols), finite_literal_4(Symbols)].
 
-finite_literal_46(Symbols) -> [finite_literal_45(Symbols)].
+finite_literal_37(Symbols) -> [finite_literal_6(Symbols), finite_literal_6(Symbols)].
 
-finite_literal_47(Symbols) ->
-    finite_literal_shape_5(
-        Symbols,
-        [
-            finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
-            finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_13(Symbols)
-        ]
-    ).
+finite_literal_38(Symbols) -> [finite_literal_8(Symbols), finite_literal_8(Symbols)].
 
-finite_literal_48(Symbols) -> [finite_literal_47(Symbols)].
+finite_literal_39(Symbols) -> [finite_literal_10(Symbols), finite_literal_10(Symbols)].
 
-finite_literal_49(Symbols) ->
-    finite_literal_shape_5(
-        Symbols,
-        [
-            finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
-            finite_literal_3(Symbols),
-            finite_literal_4(Symbols),
-            finite_literal_17(Symbols)
-        ]
-    ).
+finite_literal_40(Symbols) -> [finite_literal_12(Symbols), finite_literal_12(Symbols)].
 
-finite_literal_50(Symbols) -> [finite_literal_49(Symbols)].
+finite_literal_41(Symbols) -> [finite_literal_14(Symbols), finite_literal_14(Symbols)].
 
-finite_literal_51(Symbols) ->
-    finite_literal_shape_5(
-        Symbols,
-        [
-            finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
-            finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_3(Symbols)
-        ]
-    ).
+finite_literal_42(Symbols) -> [finite_literal_16(Symbols), finite_literal_16(Symbols)].
 
-finite_literal_52(Symbols) -> [finite_literal_51(Symbols)].
+finite_literal_43(Symbols) -> [finite_literal_18(Symbols), finite_literal_18(Symbols)].
 
-finite_literal_53(Symbols) -> [finite_literal_5(Symbols), finite_literal_5(Symbols)].
+finite_literal_44(Symbols) -> [finite_literal_20(Symbols), finite_literal_20(Symbols)].
 
-finite_literal_54(Symbols) -> [finite_literal_10(Symbols), finite_literal_10(Symbols)].
+finite_literal_45(Symbols) -> [finite_literal_22(Symbols), finite_literal_22(Symbols)].
 
-finite_literal_55(Symbols) -> [finite_literal_15(Symbols), finite_literal_15(Symbols)].
+finite_literal_46(Symbols) -> [finite_literal_24(Symbols), finite_literal_24(Symbols)].
 
-finite_literal_56(Symbols) -> [finite_literal_19(Symbols), finite_literal_19(Symbols)].
+finite_literal_47(Symbols) -> [finite_literal_26(Symbols), finite_literal_26(Symbols)].
 
-finite_literal_57(Symbols) -> [finite_literal_22(Symbols), finite_literal_22(Symbols)].
+finite_literal_48(Symbols) -> [finite_literal_28(Symbols), finite_literal_28(Symbols)].
 
-finite_literal_58(Symbols) -> [finite_literal_25(Symbols), finite_literal_25(Symbols)].
+finite_literal_49(Symbols) -> [finite_literal_30(Symbols), finite_literal_30(Symbols)].
 
-finite_literal_59(Symbols) -> [finite_literal_28(Symbols), finite_literal_28(Symbols)].
+finite_literal_50(Symbols) -> [finite_literal_32(Symbols), finite_literal_32(Symbols)].
 
-finite_literal_60(Symbols) -> [finite_literal_31(Symbols), finite_literal_31(Symbols)].
+finite_literal_51(Symbols) -> [finite_literal_34(Symbols), finite_literal_34(Symbols)].
 
-finite_literal_61(Symbols) -> [finite_literal_34(Symbols), finite_literal_34(Symbols)].
+finite_literal_52(Symbols) -> [finite_literal_4(Symbols), finite_literal_6(Symbols)].
 
-finite_literal_62(Symbols) -> [finite_literal_37(Symbols), finite_literal_37(Symbols)].
+finite_literal_53(Symbols) -> [finite_literal_4(Symbols), finite_literal_8(Symbols)].
 
-finite_literal_63(Symbols) -> [finite_literal_40(Symbols), finite_literal_40(Symbols)].
+finite_literal_54(Symbols) -> [finite_literal_4(Symbols), finite_literal_10(Symbols)].
 
-finite_literal_64(Symbols) -> [finite_literal_43(Symbols), finite_literal_43(Symbols)].
+finite_literal_55(Symbols) -> [finite_literal_4(Symbols), finite_literal_12(Symbols)].
 
-finite_literal_65(Symbols) -> [finite_literal_45(Symbols), finite_literal_45(Symbols)].
+finite_literal_56(Symbols) -> [finite_literal_4(Symbols), finite_literal_14(Symbols)].
 
-finite_literal_66(Symbols) -> [finite_literal_47(Symbols), finite_literal_47(Symbols)].
+finite_literal_57(Symbols) -> [finite_literal_4(Symbols), finite_literal_16(Symbols)].
 
-finite_literal_67(Symbols) -> [finite_literal_49(Symbols), finite_literal_49(Symbols)].
+finite_literal_58(Symbols) -> [finite_literal_4(Symbols), finite_literal_18(Symbols)].
 
-finite_literal_68(Symbols) -> [finite_literal_51(Symbols), finite_literal_51(Symbols)].
+finite_literal_59(Symbols) -> [finite_literal_4(Symbols), finite_literal_20(Symbols)].
 
-finite_literal_69(Symbols) -> [finite_literal_5(Symbols), finite_literal_10(Symbols)].
+finite_literal_60(Symbols) -> [finite_literal_4(Symbols), finite_literal_22(Symbols)].
 
-finite_literal_70(Symbols) -> [finite_literal_5(Symbols), finite_literal_15(Symbols)].
+finite_literal_61(Symbols) -> [finite_literal_4(Symbols), finite_literal_24(Symbols)].
 
-finite_literal_71(Symbols) -> [finite_literal_5(Symbols), finite_literal_19(Symbols)].
+finite_literal_62(Symbols) -> [finite_literal_4(Symbols), finite_literal_26(Symbols)].
 
-finite_literal_72(Symbols) -> [finite_literal_5(Symbols), finite_literal_22(Symbols)].
+finite_literal_63(Symbols) -> [finite_literal_4(Symbols), finite_literal_28(Symbols)].
 
-finite_literal_73(Symbols) -> [finite_literal_5(Symbols), finite_literal_25(Symbols)].
+finite_literal_64(Symbols) -> [finite_literal_4(Symbols), finite_literal_30(Symbols)].
 
-finite_literal_74(Symbols) -> [finite_literal_5(Symbols), finite_literal_28(Symbols)].
+finite_literal_65(Symbols) -> [finite_literal_4(Symbols), finite_literal_32(Symbols)].
 
-finite_literal_75(Symbols) -> [finite_literal_5(Symbols), finite_literal_31(Symbols)].
+finite_literal_66(Symbols) -> [finite_literal_4(Symbols), finite_literal_34(Symbols)].
 
-finite_literal_76(Symbols) -> [finite_literal_5(Symbols), finite_literal_34(Symbols)].
+finite_literal_67(Symbols) -> [finite_literal_6(Symbols), finite_literal_4(Symbols)].
 
-finite_literal_77(Symbols) -> [finite_literal_5(Symbols), finite_literal_37(Symbols)].
+finite_literal_68(Symbols) -> [finite_literal_6(Symbols), finite_literal_8(Symbols)].
 
-finite_literal_78(Symbols) -> [finite_literal_5(Symbols), finite_literal_40(Symbols)].
+finite_literal_69(Symbols) -> [finite_literal_6(Symbols), finite_literal_10(Symbols)].
 
-finite_literal_79(Symbols) -> [finite_literal_5(Symbols), finite_literal_43(Symbols)].
+finite_literal_70(Symbols) -> [finite_literal_6(Symbols), finite_literal_12(Symbols)].
 
-finite_literal_80(Symbols) -> [finite_literal_5(Symbols), finite_literal_45(Symbols)].
+finite_literal_71(Symbols) -> [finite_literal_6(Symbols), finite_literal_14(Symbols)].
 
-finite_literal_81(Symbols) -> [finite_literal_5(Symbols), finite_literal_47(Symbols)].
+finite_literal_72(Symbols) -> [finite_literal_6(Symbols), finite_literal_16(Symbols)].
 
-finite_literal_82(Symbols) -> [finite_literal_5(Symbols), finite_literal_49(Symbols)].
+finite_literal_73(Symbols) -> [finite_literal_6(Symbols), finite_literal_18(Symbols)].
 
-finite_literal_83(Symbols) -> [finite_literal_5(Symbols), finite_literal_51(Symbols)].
+finite_literal_74(Symbols) -> [finite_literal_6(Symbols), finite_literal_20(Symbols)].
 
-finite_literal_84(Symbols) -> [finite_literal_10(Symbols), finite_literal_5(Symbols)].
+finite_literal_75(Symbols) -> [finite_literal_6(Symbols), finite_literal_22(Symbols)].
 
-finite_literal_85(Symbols) -> [finite_literal_10(Symbols), finite_literal_15(Symbols)].
+finite_literal_76(Symbols) -> [finite_literal_6(Symbols), finite_literal_24(Symbols)].
 
-finite_literal_86(Symbols) -> [finite_literal_10(Symbols), finite_literal_19(Symbols)].
+finite_literal_77(Symbols) -> [finite_literal_6(Symbols), finite_literal_26(Symbols)].
 
-finite_literal_87(Symbols) -> [finite_literal_10(Symbols), finite_literal_22(Symbols)].
+finite_literal_78(Symbols) -> [finite_literal_6(Symbols), finite_literal_28(Symbols)].
 
-finite_literal_88(Symbols) -> [finite_literal_10(Symbols), finite_literal_25(Symbols)].
+finite_literal_79(Symbols) -> [finite_literal_6(Symbols), finite_literal_30(Symbols)].
 
-finite_literal_89(Symbols) -> [finite_literal_10(Symbols), finite_literal_28(Symbols)].
+finite_literal_80(Symbols) -> [finite_literal_6(Symbols), finite_literal_32(Symbols)].
 
-finite_literal_90(Symbols) -> [finite_literal_10(Symbols), finite_literal_31(Symbols)].
+finite_literal_81(Symbols) -> [finite_literal_6(Symbols), finite_literal_34(Symbols)].
 
-finite_literal_91(Symbols) -> [finite_literal_10(Symbols), finite_literal_34(Symbols)].
+finite_literal_82(_Symbols) -> [].
 
-finite_literal_92(Symbols) -> [finite_literal_10(Symbols), finite_literal_37(Symbols)].
+finite_literal_83(_Symbols) -> [0, 1].
 
-finite_literal_93(Symbols) -> [finite_literal_10(Symbols), finite_literal_40(Symbols)].
+finite_literal_84(_Symbols) -> [1, 0].
 
-finite_literal_94(Symbols) -> [finite_literal_10(Symbols), finite_literal_43(Symbols)].
+finite_literal_85(_Symbols) -> [0].
 
-finite_literal_95(Symbols) -> [finite_literal_10(Symbols), finite_literal_45(Symbols)].
+finite_literal_86(_Symbols) -> [0, 0].
 
-finite_literal_96(Symbols) -> [finite_literal_10(Symbols), finite_literal_47(Symbols)].
+finite_literal_87(_Symbols) -> [1].
 
-finite_literal_97(Symbols) -> [finite_literal_10(Symbols), finite_literal_49(Symbols)].
+finite_literal_88(_Symbols) -> [1, 1].
 
-finite_literal_98(Symbols) -> [finite_literal_10(Symbols), finite_literal_51(Symbols)].
+finite_literal_89(_Symbols) -> [340282366920938463463374607431768211456].
 
-finite_literal_99(_Symbols) -> [].
-
-finite_literal_100(_Symbols) -> [0, 1].
-
-finite_literal_101(_Symbols) -> [1, 0].
-
-finite_literal_102(_Symbols) -> [0].
-
-finite_literal_103(_Symbols) -> [0, 0].
-
-finite_literal_104(_Symbols) -> [1].
-
-finite_literal_105(_Symbols) -> [1, 1].
-
-finite_literal_106(_Symbols) -> [340282366920938463463374607431768211456].
-
-finite_literal_107(_Symbols) ->
+finite_literal_90(_Symbols) ->
     [340282366920938463463374607431768211456, 340282366920938463463374607431768211456].
 
-finite_literal_108(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_91(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<>>,
+            <<"\x{0}aλ😀\x{10ffff}"/utf8>>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_21(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_109(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_92(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<>>,
+            <<"books/source-[0-2][.]pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_24(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_110(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_93(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<>>,
+            <<"books/source-0.pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_27(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_111(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_94(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<>>,
+            <<"books/source-1.pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_30(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_112(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_95(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<>>,
+            <<"books/source-2.pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_33(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_113(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_96(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<>>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_36(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_114(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_97(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<" ">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_39(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_115(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_98(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<"Hello, World!">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_42(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_116(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_99(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<"λ日本語😀"/utf8>>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_8(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_117(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_100(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<"a\n\t\"\\$\x{0}z">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_13(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_118(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_101(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<"é"/utf8>>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_9(Symbols),
-            finite_literal_17(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_119(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_102(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<"\x{0}aλ😀\x{10ffff}"/utf8>>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_14(Symbols),
-            finite_literal_3(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_120(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_103(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<"books/source-[0-2][.]pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_14(Symbols),
-            finite_literal_21(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_121(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_104(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<"books/source-0.pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_14(Symbols),
-            finite_literal_24(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_122(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_105(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<"books/source-1.pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_14(Symbols),
-            finite_literal_27(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
-finite_literal_123(Symbols) ->
-    finite_literal_shape_5(
+finite_literal_106(Symbols) ->
+    finite_literal_shape_4(
         Symbols,
         [
+            <<>>,
+            <<" ">>,
+            <<"books/source-2.pdf">>,
             finite_literal_2(Symbols),
-            <<>>,
-            <<>>,
             finite_literal_3(Symbols),
-            finite_literal_14(Symbols),
-            finite_literal_30(Symbols)
+            finite_literal_2(Symbols)
         ]
     ).
 
@@ -9260,8 +9137,6 @@ type_list_candidate() -> {<<"List">>, [{<<"cake.laws.candidates::type::Candidate
 
 type_list_document_group() -> {<<"List">>, [{<<"cake.laws.candidates::type::DocumentGroup">>, []}]}.
 
-type_list_unit_id() -> {<<"List">>, [{<<"cake.laws.candidates::type::UnitId">>, []}]}.
-
 type_maybe_big_u_int() -> {<<"Maybe">>, [{<<"BigUInt">>, []}]}.
 
 type_maybe_text() -> {<<"Maybe">>, [{<<"Text">>, []}]}.
@@ -9270,11 +9145,7 @@ type_text() -> {<<"Text">>, []}.
 
 type_candidate() -> {<<"cake.laws.candidates::type::Candidate">>, []}.
 
-type_composite_key() -> {<<"cake.laws.candidates::type::CompositeKey">>, []}.
-
 type_document_summary() -> {<<"cake.laws.candidates::type::DocumentSummary">>, []}.
-
-type_unit_id() -> {<<"cake.laws.candidates::type::UnitId">>, []}.
 
 make_cons(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Cons">>, Fields, type_list_big_u_int(), Schema).
@@ -9294,12 +9165,6 @@ make_cons_3(Fields, Schema) ->
 make_nil_3(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_candidate(), Schema).
 
-make_cons_4(Fields, Schema) ->
-    lawspec_beam_schema:construct(<<"List::Cons">>, Fields, type_list_unit_id(), Schema).
-
-make_nil_4(Fields, Schema) ->
-    lawspec_beam_schema:construct(<<"List::Nil">>, Fields, type_list_unit_id(), Schema).
-
 make_absent(Fields, Schema) ->
     lawspec_beam_schema:construct(<<"Maybe::Absent">>, Fields, type_maybe_big_u_int(), Schema).
 
@@ -9317,29 +9182,5 @@ make_candidate(Fields, Schema) ->
         <<"cake.laws.candidates::type::Candidate::Candidate">>,
         Fields,
         type_candidate(),
-        Schema
-    ).
-
-make_composite_key(Fields, Schema) ->
-    lawspec_beam_schema:construct(
-        <<"cake.laws.candidates::type::CompositeKey::CompositeKey">>,
-        Fields,
-        type_composite_key(),
-        Schema
-    ).
-
-make_text_id(Fields, Schema) ->
-    lawspec_beam_schema:construct(
-        <<"cake.laws.candidates::type::UnitId::TextId">>,
-        Fields,
-        type_unit_id(),
-        Schema
-    ).
-
-make_tuple_id(Fields, Schema) ->
-    lawspec_beam_schema:construct(
-        <<"cake.laws.candidates::type::UnitId::TupleId">>,
-        Fields,
-        type_unit_id(),
         Schema
     ).

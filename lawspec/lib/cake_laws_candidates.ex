@@ -6,15 +6,14 @@ defmodule Cake.Laws.Candidates do
   Each generated candidate becomes what `Cake.Conversation` broadcasts: a
   `Cake.Search.Result` whose retrieval unit is a `Cake.Laws.FakeUnit` carrying
   the candidate's `Cake.Citable` metadata. The fake is built directly, not
-  with `FakeUnit.new/2`, because a candidate has `:extras` and its `:id` may
-  be a tuple. Groups go back to Cake as the `{doc_id, results}` pairs
+  with `FakeUnit.new/2`, because a candidate has `:extras`. Groups go back to
+  Cake as the `{doc_id, results}` pairs
   `group_by_document/1` returns, and what Cake returns is read back through
   `Cake.Citable.metadata/1` into records the laws can compare.
 
   The translation is strict on purpose, so a shape the specification does
-  not name fails the law instead of passing through: a document id or a title
-  that is not a binary, or a chunk id that is neither a binary nor a
-  `{binary, integer}` tuple, has no clause here.
+  not name fails the law instead of passing through: a document id, a title
+  or a chunk id that is not a binary has no clause here.
   """
 
   alias Cake.Candidates
@@ -22,11 +21,8 @@ defmodule Cake.Laws.Candidates do
   alias Cake.Search.Provenance
   alias Cake.Search.Result
   alias LawSpec.Data.Candidate
-  alias LawSpec.Data.CompositeKey
   alias LawSpec.Data.DocumentGroup
   alias LawSpec.Data.DocumentSummary
-  alias LawSpec.Data.UnitIdTextId
-  alias LawSpec.Data.UnitIdTupleId
 
   @doc "`Candidates.group_by_document/1` of `candidates`, as group records."
   @spec group_by_document([LawSpec.Data.candidate()]) :: [LawSpec.Data.document_group()]
@@ -48,30 +44,28 @@ defmodule Cake.Laws.Candidates do
     to_summary(title, preview, page_label)
   end
 
-  @doc "`Candidates.expand_to_chunk_ids/2` of `selection` over `groups`, as unit ids."
-  @spec expand_to_chunk_ids([binary()], [LawSpec.Data.document_group()]) :: [
-          LawSpec.Data.unit_id()
-        ]
+  @doc "`Candidates.expand_to_chunk_ids/2` of `selection` over `groups`."
+  @spec expand_to_chunk_ids([binary()], [LawSpec.Data.document_group()]) :: [binary()]
   def expand_to_chunk_ids(selection, groups) when is_list(selection) and is_list(groups) do
     selection
     |> Candidates.expand_to_chunk_ids(Enum.map(groups, &from_group/1))
-    |> Enum.map(&to_unit_id/1)
+    |> Enum.map(&to_id/1)
   end
 
-  @doc "`Candidates.all_chunk_ids/1` of `groups`, as unit ids."
-  @spec all_chunk_ids([LawSpec.Data.document_group()]) :: [LawSpec.Data.unit_id()]
+  @doc "`Candidates.all_chunk_ids/1` of `groups`."
+  @spec all_chunk_ids([LawSpec.Data.document_group()]) :: [binary()]
   def all_chunk_ids(groups) when is_list(groups) do
     groups
     |> Enum.map(&from_group/1)
     |> Candidates.all_chunk_ids()
-    |> Enum.map(&to_unit_id/1)
+    |> Enum.map(&to_id/1)
   end
 
   defp to_result(%Candidate{} = candidate) do
     %Result{
       retrieval_unit: %FakeUnit{
         metadata: %{
-          id: from_unit_id(candidate.id),
+          id: candidate.id,
           label: candidate.label,
           preview: candidate.preview,
           source_ref: from_maybe(candidate.source_ref),
@@ -89,7 +83,7 @@ defmodule Cake.Laws.Candidates do
     metadata = Cake.Citable.metadata(unit)
 
     %Candidate{
-      id: to_unit_id(metadata.id),
+      id: to_id(metadata.id),
       label: metadata.label,
       preview: metadata.preview,
       source_ref: to_maybe(metadata.source_ref),
@@ -110,15 +104,7 @@ defmodule Cake.Laws.Candidates do
     %DocumentSummary{title: title, preview: preview, page_label: to_maybe(page_label)}
   end
 
-  defp from_unit_id(%UnitIdTextId{value: text}), do: text
-
-  defp from_unit_id(%UnitIdTupleId{value: %CompositeKey{book: book, position: position}}),
-    do: {book, position}
-
-  defp to_unit_id(id) when is_binary(id), do: %UnitIdTextId{value: id}
-
-  defp to_unit_id({book, position}) when is_binary(book) and is_integer(position),
-    do: %UnitIdTupleId{value: %CompositeKey{book: book, position: position}}
+  defp to_id(id) when is_binary(id), do: id
 
   # An absent extra is a missing key, as in a retrieval unit that has none.
   defp to_extras(page, book_title) do

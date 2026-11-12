@@ -99,6 +99,15 @@ defmodule Cake.CandidatesTest do
       assert Candidates.document_metadata(results).page_label == "PDF page 7"
     end
 
+    test "several chunks on one page render a single-page label, not a range" do
+      results = [
+        result(chunk("c1", "doc-A", %{page_number: 5})),
+        result(chunk("c2", "doc-A", %{page_number: 5}))
+      ]
+
+      assert Candidates.document_metadata(results).page_label == "PDF page 5"
+    end
+
     test "no page numbers renders no page label" do
       results = [result(chunk("c1", "doc-A"))]
       assert Candidates.document_metadata(results).page_label == nil

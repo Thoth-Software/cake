@@ -67,6 +67,7 @@ defmodule Cake.CitablePropertyTest do
 
       assert Enum.sort(Map.keys(metadata)) == [:extras, :id, :label, :preview, :source_ref]
       assert metadata.id == unit.id
+      assert is_binary(metadata.id)
       assert is_binary(metadata.label)
       assert is_binary(metadata.preview)
       assert is_binary(metadata.source_ref) or is_nil(metadata.source_ref)

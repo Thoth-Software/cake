@@ -12,10 +12,6 @@ defmodule LawSpec.Data do
 
   @type regex() :: LawSpec.Data.Regex.t()
 
-  @type composite_key() :: LawSpec.Data.CompositeKey.t()
-
-  @type unit_id() :: LawSpec.Data.UnitIdTextId.t() | LawSpec.Data.UnitIdTupleId.t()
-
   @type candidate() :: LawSpec.Data.Candidate.t()
 
   @type document_group() :: LawSpec.Data.DocumentGroup.t()

@@ -3,7 +3,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
   use ExUnit.Case, async: false
   import LawSpec.Beam.ExUnitCases
 
-  # |candidates are grouped by document, in first-seen order| — laws/candidates.lawspec:343
+  # |candidates are grouped by document, in first-seen order| — laws/candidates.lawspec:325
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_candidates_are_grouped_by_document_in_first_seen,
@@ -11,7 +11,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |every group is one document's candidates| — laws/candidates.lawspec:396
+  # |every group is one document's candidates| — laws/candidates.lawspec:367
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_every_group_is_one_document_s_candidates,
@@ -19,7 +19,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |flattening the groups gives a permutation of the input| — laws/candidates.lawspec:409
+  # |flattening the groups gives a permutation of the input| — laws/candidates.lawspec:380
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_flattening_the_groups_gives_a_permutation_of_the,
@@ -27,7 +27,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |all chunk ids are every candidate's id, group after group| — laws/candidates.lawspec:424
+  # |all chunk ids are every candidate's id, group after group| — laws/candidates.lawspec:395
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_all_chunk_ids_are_every_candidate_s_id_group,
@@ -35,7 +35,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |a selection expands to its documents' chunk ids, in selection order| — laws/candidates.lawspec:459
+  # |a selection expands to its documents' chunk ids, in selection order| — laws/candidates.lawspec:428
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_a_selection_expands_to_its_documents_chunk_ids,
@@ -43,7 +43,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |selecting every document gives every chunk id| — laws/candidates.lawspec:505
+  # |selecting every document gives every chunk id| — laws/candidates.lawspec:473
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_selecting_every_document_gives_every_chunk_id,
@@ -51,7 +51,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |an empty selection gives no chunk ids| — laws/candidates.lawspec:519
+  # |an empty selection gives no chunk ids| — laws/candidates.lawspec:486
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_an_empty_selection_gives_no_chunk_ids,
@@ -59,7 +59,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |expansion distributes over appending selections| — laws/candidates.lawspec:530
+  # |expansion distributes over appending selections| — laws/candidates.lawspec:497
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_expansion_distributes_over_appending_selections,
@@ -67,7 +67,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |the summary's title is the first candidate's book title, or its label| — laws/candidates.lawspec:556
+  # |the summary's title is the first candidate's book title, or its label| — laws/candidates.lawspec:521
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_the_summary_s_title_is_the_first_candidate_s,
@@ -75,7 +75,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |the summary's preview is the first candidate's, cut to 100 characters| — laws/candidates.lawspec:591
+  # |the summary's preview is the first candidate's, cut to 100 characters| — laws/candidates.lawspec:556
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_the_summary_s_preview_is_the_first_candidate_s,
@@ -83,7 +83,7 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |the page label spans the group's page numbers| — laws/candidates.lawspec:628
+  # |the page label spans the group's page numbers| — laws/candidates.lawspec:593
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_the_page_label_spans_the_group_s_page_numbers,
@@ -91,7 +91,15 @@ defmodule Cake.Laws.Candidates.LawSpecTest do
     600_000
   )
 
-  # |every candidate has a document, whatever its id| — laws/candidates.lawspec:714
+  # |candidates on one page share a single-page label| — laws/candidates.lawspec:676
+  law(
+    :cake_laws_candidates_lawspec_cases,
+    :law_candidates_on_one_page_share_a_single_page_label,
+    "cake.laws.candidates",
+    600_000
+  )
+
+  # |every candidate has a document, whatever its id| — laws/candidates.lawspec:701
   law(
     :cake_laws_candidates_lawspec_cases,
     :law_every_candidate_has_a_document_whatever_its_id,

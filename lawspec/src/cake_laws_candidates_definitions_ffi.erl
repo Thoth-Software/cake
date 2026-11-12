@@ -3,17 +3,18 @@
 -export([
     added/3,
     all_belong_to/2,
+    all_on_page/2,
     chunk_ids_for/2,
     distinct_texts/1,
     doc_id_of/1,
     doc_ids_of/1,
-    documented/1,
     groups_from/2,
     groups_of/1,
     ids_of/1,
     largest/2,
     members_for/2,
     members_of/1,
+    on_page/1,
     page_label_of/1,
     pages_of/1,
     permutes/2,
@@ -28,7 +29,7 @@
     without_first/2
 ]).
 
-%% added — laws/candidates.lawspec:124
+%% added — laws/candidates.lawspec:92
 added(Groups, D, C) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -52,7 +53,7 @@ added(Groups, D, C) ->
         Schema
     ).
 
-%% allBelongTo — laws/candidates.lawspec:182
+%% allBelongTo — laws/candidates.lawspec:146
 all_belong_to(D, Cs) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -71,7 +72,22 @@ all_belong_to(D, Cs) ->
         Schema
     ).
 
-%% chunkIdsFor — laws/candidates.lawspec:231
+%% allOnPage — laws/candidates.lawspec:311
+all_on_page(Page, Count) ->
+    Symbols = make_ref(),
+    Schema = lawspec_data:schema(Symbols),
+    lawspec_beam_schema:to_native(
+        lawspec_definitions:all_on_page(
+            Schema,
+            Symbols,
+            lawspec_beam_schema:from_native(Page, {<<"BigUInt">>, []}, Schema),
+            lawspec_beam_schema:from_native(Count, {<<"BigUInt">>, []}, Schema)
+        ),
+        {<<"List">>, [{<<"cake.laws.candidates::type::Candidate">>, []}]},
+        Schema
+    ).
+
+%% chunkIdsFor — laws/candidates.lawspec:195
 chunk_ids_for(Selection, Groups) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -86,14 +102,14 @@ chunk_ids_for(Selection, Groups) ->
                 Schema
             )
         ),
-        {<<"List">>, [{<<"cake.laws.candidates::type::UnitId">>, []}]},
+        {<<"List">>, [{<<"Text">>, []}]},
         Schema
     ).
 
-%% distinctTexts — laws/candidates.lawspec:175
+%% distinctTexts — laws/candidates.lawspec:139
 distinct_texts(Items) -> lawspec_typed:distinct_texts(Items).
 
-%% docIdOf — laws/candidates.lawspec:96
+%% docIdOf — laws/candidates.lawspec:81
 doc_id_of(C) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -107,11 +123,11 @@ doc_id_of(C) ->
                 Schema
             )
         ),
-        {<<"Maybe">>, [{<<"Text">>, []}]},
+        {<<"Text">>, []},
         Schema
     ).
 
-%% docIdsOf — laws/candidates.lawspec:161
+%% docIdsOf — laws/candidates.lawspec:125
 doc_ids_of(Groups) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -129,25 +145,7 @@ doc_ids_of(Groups) ->
         Schema
     ).
 
-%% documented — laws/candidates.lawspec:109
-documented(Cs) ->
-    Symbols = make_ref(),
-    Schema = lawspec_data:schema(Symbols),
-    lawspec_beam_schema:to_native(
-        lawspec_definitions:documented(
-            Schema,
-            Symbols,
-            lawspec_beam_schema:from_native(
-                Cs,
-                {<<"List">>, [{<<"cake.laws.candidates::type::Candidate">>, []}]},
-                Schema
-            )
-        ),
-        {<<"List">>, [{<<"cake.laws.candidates::type::Candidate">>, []}]},
-        Schema
-    ).
-
-%% groupsFrom — laws/candidates.lawspec:135
+%% groupsFrom — laws/candidates.lawspec:103
 groups_from(Cs, Groups) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -170,7 +168,7 @@ groups_from(Cs, Groups) ->
         Schema
     ).
 
-%% groupsOf — laws/candidates.lawspec:149
+%% groupsOf — laws/candidates.lawspec:113
 groups_of(Cs) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -188,7 +186,7 @@ groups_of(Cs) ->
         Schema
     ).
 
-%% idsOf — laws/candidates.lawspec:168
+%% idsOf — laws/candidates.lawspec:132
 ids_of(Cs) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -202,11 +200,11 @@ ids_of(Cs) ->
                 Schema
             )
         ),
-        {<<"List">>, [{<<"cake.laws.candidates::type::UnitId">>, []}]},
+        {<<"List">>, [{<<"Text">>, []}]},
         Schema
     ).
 
-%% largest — laws/candidates.lawspec:309
+%% largest — laws/candidates.lawspec:273
 largest(P, Pages) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -221,7 +219,7 @@ largest(P, Pages) ->
         Schema
     ).
 
-%% membersFor — laws/candidates.lawspec:220
+%% membersFor — laws/candidates.lawspec:184
 members_for(D, Groups) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -240,7 +238,7 @@ members_for(D, Groups) ->
         Schema
     ).
 
-%% membersOf — laws/candidates.lawspec:154
+%% membersOf — laws/candidates.lawspec:118
 members_of(Groups) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -258,7 +256,21 @@ members_of(Groups) ->
         Schema
     ).
 
-%% pageLabelOf — laws/candidates.lawspec:320
+%% onPage — laws/candidates.lawspec:300
+on_page(Page) ->
+    Symbols = make_ref(),
+    Schema = lawspec_data:schema(Symbols),
+    lawspec_beam_schema:to_native(
+        lawspec_definitions:on_page(
+            Schema,
+            Symbols,
+            lawspec_beam_schema:from_native(Page, {<<"BigUInt">>, []}, Schema)
+        ),
+        {<<"cake.laws.candidates::type::Candidate">>, []},
+        Schema
+    ).
+
+%% pageLabelOf — laws/candidates.lawspec:284
 page_label_of(Pages) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -272,7 +284,7 @@ page_label_of(Pages) ->
         Schema
     ).
 
-%% pagesOf — laws/candidates.lawspec:290
+%% pagesOf — laws/candidates.lawspec:254
 pages_of(Cs) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -290,7 +302,7 @@ pages_of(Cs) ->
         Schema
     ).
 
-%% permutes — laws/candidates.lawspec:210
+%% permutes — laws/candidates.lawspec:174
 permutes(Xs, Ys) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -313,7 +325,7 @@ permutes(Xs, Ys) ->
         Schema
     ).
 
-%% previewOf — laws/candidates.lawspec:272
+%% previewOf — laws/candidates.lawspec:236
 preview_of(Tens, Tail) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -328,7 +340,7 @@ preview_of(Tens, Tail) ->
         Schema
     ).
 
-%% previewing — laws/candidates.lawspec:279
+%% previewing — laws/candidates.lawspec:243
 previewing(Preview) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -342,7 +354,7 @@ previewing(Preview) ->
         Schema
     ).
 
-%% repeated — laws/candidates.lawspec:265
+%% repeated — laws/candidates.lawspec:229
 repeated(Text, Times) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -357,7 +369,7 @@ repeated(Text, Times) ->
         Schema
     ).
 
-%% selectedFrom — laws/candidates.lawspec:240
+%% selectedFrom — laws/candidates.lawspec:204
 selected_from(DocIds, Count, Picks) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -373,7 +385,7 @@ selected_from(DocIds, Count, Picks) ->
         Schema
     ).
 
-%% selectionOf — laws/candidates.lawspec:257
+%% selectionOf — laws/candidates.lawspec:221
 selection_of(Groups, Picks) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -392,7 +404,7 @@ selection_of(Groups, Picks) ->
         Schema
     ).
 
-%% smallest — laws/candidates.lawspec:301
+%% smallest — laws/candidates.lawspec:265
 smallest(P, Pages) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -407,7 +419,7 @@ smallest(P, Pages) ->
         Schema
     ).
 
-%% titleOf — laws/candidates.lawspec:334
+%% titleOf — laws/candidates.lawspec:316
 title_of(C) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -425,7 +437,7 @@ title_of(C) ->
         Schema
     ).
 
-%% wellFormed — laws/candidates.lawspec:190
+%% wellFormed — laws/candidates.lawspec:154
 well_formed(Groups) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -443,7 +455,7 @@ well_formed(Groups) ->
         Schema
     ).
 
-%% withoutFirst — laws/candidates.lawspec:200
+%% withoutFirst — laws/candidates.lawspec:164
 without_first(C, Cs) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),

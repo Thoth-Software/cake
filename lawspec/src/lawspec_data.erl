@@ -143,92 +143,13 @@ schema(_Symbols) ->
                 ]
             },
             #{
-                name => <<"cake.laws.candidates::type::CompositeKey">>,
-                parameters => 0,
-                constructors => [
-                    #{
-                        tag => <<"cake.laws.candidates::type::CompositeKey::CompositeKey">>,
-                        fields => [
-                            {<<"book">>, {<<"Text">>, []}},
-                            {<<"position">>, {<<"BigUInt">>, []}}
-                        ],
-                        encode => fun([Book, Position]) ->
-                            #{
-                                '__struct__' => 'Elixir.LawSpec.Data.CompositeKey',
-                                book => Book,
-                                position => Position
-                            }
-                        end,
-                        decode =>
-                            fun
-                                (
-                                    #{
-                                        '__struct__' := 'Elixir.LawSpec.Data.CompositeKey',
-                                        book := Book,
-                                        position := Position
-                                    }
-                                ) ->
-                                    {ok, [Book, Position]};
-                                (_) ->
-                                    no_match
-                            end
-                    }
-                ]
-            },
-            #{
-                name => <<"cake.laws.candidates::type::UnitId">>,
-                parameters => 0,
-                constructors => [
-                    #{
-                        tag => <<"cake.laws.candidates::type::UnitId::TextId">>,
-                        fields => [{<<"value">>, {<<"Text">>, []}}],
-                        encode => fun([Value]) ->
-                            #{'__struct__' => 'Elixir.LawSpec.Data.UnitIdTextId', value => Value}
-                        end,
-                        decode =>
-                            fun
-                                (
-                                    #{
-                                        '__struct__' := 'Elixir.LawSpec.Data.UnitIdTextId',
-                                        value := Value
-                                    }
-                                ) ->
-                                    {ok, [Value]};
-                                (_) ->
-                                    no_match
-                            end
-                    },
-                    #{
-                        tag => <<"cake.laws.candidates::type::UnitId::TupleId">>,
-                        fields => [
-                            {<<"value">>, {<<"cake.laws.candidates::type::CompositeKey">>, []}}
-                        ],
-                        encode => fun([Value]) ->
-                            #{'__struct__' => 'Elixir.LawSpec.Data.UnitIdTupleId', value => Value}
-                        end,
-                        decode =>
-                            fun
-                                (
-                                    #{
-                                        '__struct__' := 'Elixir.LawSpec.Data.UnitIdTupleId',
-                                        value := Value
-                                    }
-                                ) ->
-                                    {ok, [Value]};
-                                (_) ->
-                                    no_match
-                            end
-                    }
-                ]
-            },
-            #{
                 name => <<"cake.laws.candidates::type::Candidate">>,
                 parameters => 0,
                 constructors => [
                     #{
                         tag => <<"cake.laws.candidates::type::Candidate::Candidate">>,
                         fields => [
-                            {<<"id">>, {<<"cake.laws.candidates::type::UnitId">>, []}},
+                            {<<"id">>, {<<"Text">>, []}},
                             {<<"label">>, {<<"Text">>, []}},
                             {<<"preview">>, {<<"Text">>, []}},
                             {<<"sourceRef">>, {<<"Maybe">>, [{<<"Text">>, []}]}},
