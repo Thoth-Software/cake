@@ -22,27 +22,41 @@
     lawspec_matchers_matchers_same_items_list_integer_list_integer/2,
     plain_entries/1,
     with_bad_dependency/2,
+    exchanges_of/1,
+    last_ten/1,
+    recent_exchanges/1,
+    scored_only/1,
     from_dynamic_entry/1,
     from_dynamic_entry_integer_entry/1,
     from_dynamic_key_val_integer_entry/1,
     from_dynamic_list_entry/1,
     from_dynamic_list_entry_integer_entry/1,
+    from_dynamic_list_message/1,
     from_dynamic_list_node/1,
+    from_dynamic_list_scored_result/1,
     from_dynamic_maybe_integer/1,
     from_dynamic_maybe_list_integer/1,
+    from_dynamic_message/1,
     from_dynamic_node/1,
     from_dynamic_regex/1,
+    from_dynamic_role/1,
+    from_dynamic_scored_result/1,
     from_native_key_val_integer_entry/1,
     to_dynamic_entry/1,
     to_dynamic_entry_integer_entry/1,
     to_dynamic_key_val_integer_entry/1,
     to_dynamic_list_entry/1,
     to_dynamic_list_entry_integer_entry/1,
+    to_dynamic_list_message/1,
     to_dynamic_list_node/1,
+    to_dynamic_list_scored_result/1,
     to_dynamic_maybe_integer/1,
     to_dynamic_maybe_list_integer/1,
+    to_dynamic_message/1,
     to_dynamic_node/1,
     to_dynamic_regex/1,
+    to_dynamic_role/1,
+    to_dynamic_scored_result/1,
     to_native_key_val_integer_entry/1
 ]).
 
@@ -387,6 +401,71 @@ with_bad_dependency(Entries, Dep) ->
             [Value_2 | Selection_2]
     end.
 
+%% exchangesOf — laws/prompt_context.lawspec:215
+exchanges_of(History) ->
+    case History of
+        [] ->
+            [];
+        [Selection | Selection_2] ->
+            case Selection_2 of
+                [] ->
+                    [];
+                [MatchSelection | MatchSelection_2] ->
+                    [
+                        #{
+                            '__struct__' => 'Elixir.LawSpec.Data.Message',
+                            role => #{'__struct__' => 'Elixir.LawSpec.Data.RoleUser'},
+                            content => Selection
+                        }
+                        | [
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Message',
+                                role => #{'__struct__' => 'Elixir.LawSpec.Data.RoleAssistant'},
+                                content => MatchSelection
+                            }
+                            | exchanges_of(MatchSelection_2)
+                        ]
+                    ]
+            end
+    end.
+
+%% lastTen — laws/prompt_context.lawspec:230
+last_ten(Messages) ->
+    case (length(Messages) =< 10) of
+        true ->
+            Messages;
+        false ->
+            lawspec_beam_fast:slice_list(Messages, (length(Messages) - 10), 9223372036854775807)
+    end.
+
+%% recentExchanges — laws/prompt_context.lawspec:237
+recent_exchanges(History) ->
+    last_ten(exchanges_of(History)).
+
+%% scoredOnly — laws/prompt_context.lawspec:134
+scored_only(Rs) ->
+    case Rs of
+        [] ->
+            [];
+        [Selection | Selection_2] ->
+            Value =
+                case Selection of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.ScoredResult',
+                        context := _,
+                        score := Score
+                    } ->
+                        Score
+                end,
+            It = Value,
+            case It of
+                absent ->
+                    scored_only(Selection_2);
+                {present, _} ->
+                    [Selection | scored_only(Selection_2)]
+            end
+    end.
+
 %% From the dynamic value of cake.laws.decomposition::type::Entry
 from_dynamic_entry(
     {ls_data, <<"cake.laws.decomposition::type::Entry::Entry">>, [Question, DependsOn]}
@@ -416,9 +495,17 @@ from_dynamic_list_entry(Values) ->
 from_dynamic_list_entry_integer_entry(Values) ->
     [from_dynamic_entry_integer_entry(Item) || Item <- Values].
 
+%% From the dynamic value of List (cake.laws.prompt_context::type::Message)
+from_dynamic_list_message(Values) ->
+    [from_dynamic_message(Item) || Item <- Values].
+
 %% From the dynamic value of List (cake.laws.decomposition::type::Node)
 from_dynamic_list_node(Values) ->
     [from_dynamic_node(Item) || Item <- Values].
+
+%% From the dynamic value of List (cake.laws.prompt_context::type::ScoredResult)
+from_dynamic_list_scored_result(Values) ->
+    [from_dynamic_scored_result(Item) || Item <- Values].
 
 %% From the dynamic value of Maybe (Integer)
 from_dynamic_maybe_integer({ls_data, <<"Maybe::Absent">>, []}) ->
@@ -486,9 +573,17 @@ to_dynamic_list_entry(Values) ->
 to_dynamic_list_entry_integer_entry(Values) ->
     [to_dynamic_entry_integer_entry(Item) || Item <- Values].
 
+%% To the dynamic value of List (cake.laws.prompt_context::type::Message)
+to_dynamic_list_message(Values) ->
+    [to_dynamic_message(Item) || Item <- Values].
+
 %% To the dynamic value of List (cake.laws.decomposition::type::Node)
 to_dynamic_list_node(Values) ->
     [to_dynamic_node(Item) || Item <- Values].
+
+%% To the dynamic value of List (cake.laws.prompt_context::type::ScoredResult)
+to_dynamic_list_scored_result(Values) ->
+    [to_dynamic_scored_result(Item) || Item <- Values].
 
 %% To the dynamic value of Maybe (Integer)
 to_dynamic_maybe_integer(absent) ->
@@ -530,6 +625,16 @@ from_dynamic_entry_integer_entry(
         value => from_dynamic_entry(Value)
     }.
 
+%% From the dynamic value of cake.laws.prompt_context::type::Message
+from_dynamic_message(
+    {ls_data, <<"cake.laws.prompt_context::type::Message::Message">>, [Role, Content]}
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.Message',
+        role => from_dynamic_role(Role),
+        content => Content
+    }.
+
 %% From the dynamic value of cake.laws.decomposition::type::Node
 from_dynamic_node({ls_data, <<"cake.laws.decomposition::type::Node::Node">>, [Rank, Picks]}) ->
     #{
@@ -538,11 +643,31 @@ from_dynamic_node({ls_data, <<"cake.laws.decomposition::type::Node::Node">>, [Ra
         picks => Picks
     }.
 
+%% From the dynamic value of cake.laws.prompt_context::type::ScoredResult
+from_dynamic_scored_result(
+    {ls_data, <<"cake.laws.prompt_context::type::ScoredResult::ScoredResult">>, [Context, Score]}
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.ScoredResult',
+        context => Context,
+        score => from_dynamic_maybe_integer(Score)
+    }.
+
 %% To the dynamic value of lawspec.collections::type::Entry (Integer) (cake.laws.decomposition::type::Entry)
 to_dynamic_entry_integer_entry(
     #{'__struct__' := 'Elixir.LawSpec.Data.LawspecCollectionsTypeEntry', key := Key, value := Value}
 ) ->
     {ls_data, <<"lawspec.collections::type::Entry::Entry">>, [Key, to_dynamic_entry(Value)]}.
+
+%% To the dynamic value of cake.laws.prompt_context::type::Message
+to_dynamic_message(
+    #{'__struct__' := 'Elixir.LawSpec.Data.Message', role := Role, content := Content}
+) ->
+    {
+        ls_data,
+        <<"cake.laws.prompt_context::type::Message::Message">>,
+        [to_dynamic_role(Role), Content]
+    }.
 
 %% To the dynamic value of cake.laws.decomposition::type::Node
 to_dynamic_node(
@@ -553,3 +678,29 @@ to_dynamic_node(
     }
 ) ->
     {ls_data, <<"cake.laws.decomposition::type::Node::Node">>, [Rank, Picks]}.
+
+%% To the dynamic value of cake.laws.prompt_context::type::ScoredResult
+to_dynamic_scored_result(
+    #{'__struct__' := 'Elixir.LawSpec.Data.ScoredResult', context := Context, score := Score}
+) ->
+    {
+        ls_data,
+        <<"cake.laws.prompt_context::type::ScoredResult::ScoredResult">>,
+        [Context, to_dynamic_maybe_integer(Score)]
+    }.
+
+%% From the dynamic value of cake.laws.prompt_context::type::Role
+from_dynamic_role({ls_data, <<"cake.laws.prompt_context::type::Role::System">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.RoleSystem'};
+from_dynamic_role({ls_data, <<"cake.laws.prompt_context::type::Role::User">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.RoleUser'};
+from_dynamic_role({ls_data, <<"cake.laws.prompt_context::type::Role::Assistant">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.RoleAssistant'}.
+
+%% To the dynamic value of cake.laws.prompt_context::type::Role
+to_dynamic_role(#{'__struct__' := 'Elixir.LawSpec.Data.RoleSystem'}) ->
+    {ls_data, <<"cake.laws.prompt_context::type::Role::System">>, []};
+to_dynamic_role(#{'__struct__' := 'Elixir.LawSpec.Data.RoleUser'}) ->
+    {ls_data, <<"cake.laws.prompt_context::type::Role::User">>, []};
+to_dynamic_role(#{'__struct__' := 'Elixir.LawSpec.Data.RoleAssistant'}) ->
+    {ls_data, <<"cake.laws.prompt_context::type::Role::Assistant">>, []}.

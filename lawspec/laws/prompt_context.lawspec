@@ -1,0 +1,591 @@
+unit cake.laws.prompt_context
+
+-- Laws for context assembly in Cake.Prompt (lib/cake/prompt.ex):
+-- `prepare_context/2`, `format_chunk/1`, `history_messages/1` and `build/4`.
+--
+-- `prepare_context/2` takes the scored search results of a turn, keeps the
+-- ones at or above the relevance floor, cuts them to the chunk ceiling and
+-- numbers the survivors from 1. `build/4` turns the numbered chunks, the
+-- conversation history and the question into the messages the LLM is sent.
+--
+-- `Cake.Prompt`'s other concern, token budgets and the self-ask and IRCoT
+-- driver protocols, is the `cake.laws.prompt_drivers` unit's.
+--
+-- No law here measures the length of a text, so generated text is not
+-- restricted to ASCII (lawspec/README.md, "Generating text: four caveats").
+
+-- A relevance score or a relevance floor in hundredths: 30 is 0.30. Cake
+-- holds both as floats, and LawSpec's `Float64` has no portable order.
+-- `prepare_context/2` only compares them, so the laws generate whole
+-- hundredths and the adapter divides by 100. A score and a floor from the
+-- same hundredth are the same float, so a score exactly at the floor is
+-- generated often.
+refinement Hundredths is
+  (n :: Integer where n >= 0 && n <= 100)
+end refinement
+
+-- A chunk ceiling of at most twelve. `max_chunks` may be any whole number,
+-- but generated lists are short, and a ceiling drawn from all of them is
+-- almost never below a list's length. One drawn from 0 to 12 often is.
+refinement SmallCeiling is
+  (n :: Whole where n <= 12)
+end refinement
+
+-- One scored search result, a `Cake.Search.Result`: the prompt context of
+-- its retrieval unit (`Cake.Promptable.prompt_context/1`) and its
+-- `relevance_score`. An absent score is `nil`: `Result` allows it, and it is
+-- what a result holds until `Cake.Search.normalize_and_combine/1` has run.
+type ScoredResult is a record
+{
+  context :: Text
+  score :: Maybe Hundredths
+}
+end type
+
+-- One indexed chunk, `{index, result}`: the tuple's index, and the
+-- `prompt_index` the result itself carries.
+type PromptChunk is a record
+{
+  index :: Whole
+  promptIndex :: Maybe Whole
+  result :: ScoredResult
+}
+end type
+
+-- `:good` or `:none`.
+type ContextQuality is one of
+  | Good
+  | None
+end type
+
+-- What `prepare_context/2` returns: `{indexed_chunks, context_quality}`.
+type PreparedContext is a record
+{
+  chunks :: List PromptChunk
+  quality :: ContextQuality
+}
+end type
+
+type Role is one of
+  | System
+  | User
+  | Assistant
+end type
+
+-- One chat message: `%{role: role, content: content}`.
+type Message is a record
+{
+  role :: Role
+  content :: Text
+}
+end type
+
+-- Adapter over Cake.Prompt (lawspec/lib/cake_laws_prompt_context.ex).
+
+-- `Prompt.prepare_context/2` of the results, with `max_chunks` and with
+-- `min_relevance` as the floor divided by 100.
+prepareContext :: Whole -> Hundredths -> List ScoredResult -> PreparedContext
+
+-- `Prompt.prepare_context/2` of the results, with no options.
+prepareContextByDefault :: List ScoredResult -> PreparedContext
+
+-- `Prompt.format_chunk/1` of `{index, result}`.
+formatChunk :: Whole -> ScoredResult -> Text
+
+-- `Prompt.history_messages/1` of the flat `[question, answer, ...]` history.
+historyMessages :: List Text -> List Message
+
+-- `Prompt.build/4` of the chunks, the question and the history, with no
+-- options.
+build :: List PromptChunk -> Text -> List Text -> List Message
+
+-- `Prompt.system_message_with_context/1` of the formatted chunks.
+systemMessageWithContext :: List Text -> Text
+
+-- `Prompt.system_message_no_context/0`. It takes no argument; a LawSpec
+-- function needs an input, so this one takes the unit value.
+systemMessageNoContext :: Unit -> Text
+
+-- The reference model.
+
+-- Preparing context.
+
+-- Whether the result's score is at or above the floor. A result with no
+-- score is not: it has no relevance to compare.
+function meetsFloor (floor :: Hundredths) (r :: ScoredResult) -> Bool is
+  first matching case of r.score :
+    when Absent then false
+    when Present s then s >= floor
+  end case
+end function
+
+-- The results at or above the floor, in input order.
+function atOrAbove (floor :: Hundredths) (rs :: List ScoredResult) -> List
+  ScoredResult is
+  first matching case of rs :
+    when Nil then []
+    when Cons r rest then
+      if meetsFloor floor r then Cons r (atOrAbove floor rest)
+      else atOrAbove floor rest end if
+  end case
+end function
+
+-- The results that have a score, in input order.
+function scoredOnly (rs :: List ScoredResult) -> List ScoredResult is
+  first matching case of rs :
+    when Nil then []
+    when Cons r rest then
+      first matching case of r.score :
+        when Absent then scoredOnly rest
+        when Present s then Cons r (scoredOnly rest)
+      end case
+  end case
+end function
+
+-- The results as indexed chunks numbered from `i`, each result carrying its
+-- own number as its prompt index.
+function indexedFrom (rs :: List ScoredResult) (i :: Whole) -> List
+  PromptChunk is
+  first matching case of rs :
+    when Nil then []
+    when Cons r rest then
+      Cons (PromptChunk record{index = i, promptIndex = Present i, result = r})
+        (indexedFrom rest (i + 1))
+  end case
+end function
+
+-- The results as `prepare_context/2` numbers them: dense from 1.
+function indexed (rs :: List ScoredResult) -> List PromptChunk is
+  indexedFrom rs 1
+end function
+
+function qualityOf (chunks :: List PromptChunk) -> ContextQuality is
+  first matching case of chunks :
+    when Nil then None
+    when Cons chunk rest then Good
+  end case
+end function
+
+-- The first `maxChunks` of the results at or above the floor, in input
+-- order, numbered from 1. The floor applies before the ceiling.
+function preparedOf (maxChunks :: Whole) (floor :: Hundredths) (rs ::
+  List
+  ScoredResult) -> PreparedContext is
+  PreparedContext record{
+    chunks = indexed (prelude.take maxChunks (atOrAbove floor rs)),
+    quality = qualityOf (indexed (prelude.take maxChunks (atOrAbove floor rs)))}
+end function
+
+-- The chunks' results, in order, without their numbers.
+function resultsOf (chunks :: List PromptChunk) -> List ScoredResult is
+  first matching case of chunks :
+    when Nil then []
+    when Cons chunk rest then Cons chunk.result (resultsOf rest)
+  end case
+end function
+
+-- The results end to end, `times` times. Generated lists are short, so this
+-- is what takes a list past the default ceiling of ten chunks.
+function manyOf (rs :: List ScoredResult) (times :: Whole) -> List
+  ScoredResult is
+  if times <= 0 then [] else rs ++ manyOf rs (times - 1) end if
+end function
+
+-- Formatting chunks.
+
+-- One numbered context entry: the index in brackets, a space, and the
+-- result's prompt context.
+function entryOf (index :: Whole) (r :: ScoredResult) -> Text is
+  "[" ++ prelude.textOf index ++ "] " ++ r.context
+end function
+
+function entriesOf (chunks :: List PromptChunk) -> List Text is
+  first matching case of chunks :
+    when Nil then []
+    when Cons chunk rest then
+      Cons (entryOf chunk.index chunk.result) (entriesOf rest)
+  end case
+end function
+
+-- History.
+
+-- The flat history as messages: each question a user message, and the
+-- answer after it an assistant message. A last question with no answer is
+-- dropped.
+function exchangesOf (history :: List Text) -> List Message is
+  first matching case of history :
+    when Nil then []
+    when Cons question answered then
+      first matching case of answered :
+        when Nil then []
+        when Cons answer rest then
+          Cons (Message record{role = User, content = question})
+            (Cons (Message record{role = Assistant, content = answer})
+              (exchangesOf rest))
+      end case
+  end case
+end function
+
+-- The last ten of the messages, which is the last five exchanges.
+function lastTen (messages :: List Message) -> List Message is
+  if prelude.length messages <= 10 then messages
+  else prelude.drop (prelude.length messages - 10) messages end if
+end function
+
+-- The history the model is shown: the last five complete exchanges, oldest
+-- first.
+function recentExchanges (history :: List Text) -> List Message is
+  lastTen (exchangesOf history)
+end function
+
+-- The history end to end, `times` times: generated lists are short, and the
+-- cut to five exchanges needs more than ten entries.
+function historyTimes (history :: List Text) (times :: Whole) -> List Text is
+  if times <= 0 then [] else history ++ historyTimes history (times - 1)
+  end if
+end function
+
+-- Laws: prepare_context/2.
+
+law "|prepared context is bounded, numbered from 1, and none only when empty|
+  is
+  description :
+    "prepare_context/2 never returns more chunks than max_chunks, nor more
+    than it was given. The chunks are numbered 1 to N with no gaps, in order,
+    and each result's prompt_index is the number it was given. The context
+    quality is none exactly when no chunk is returned, and good otherwise."
+  end description
+  definition :
+    for all
+      (maxChunks :: SmallCeiling)
+      (floor :: Hundredths)
+      (rs :: List ScoredResult)
+    =>
+      prelude.length (prepareContext maxChunks floor rs).chunks <= maxChunks and
+      prelude.length (prepareContext maxChunks floor rs).chunks <=
+        prelude.length rs and (prepareContext maxChunks floor rs).chunks =
+          indexed (resultsOf (prepareContext maxChunks floor rs).chunks) and
+      (prepareContext maxChunks floor rs).quality = qualityOf
+        (prepareContext maxChunks floor rs).chunks
+    end for all
+  end definition
+  example "|no results| :
+    maxChunks = 10
+    floor = 30
+    rs = []
+    expect prepareContext maxChunks floor rs = PreparedContext record{
+      chunks = [],
+      quality = None}
+  end example
+end law
+
+law "|prepared context is the first max_chunks results at or above the floor|
+  is
+  description :
+    "Over results that all have a relevance score, prepare_context/2 returns
+    the results whose score is at or above min_relevance, in input order, cut
+    to the first max_chunks of them and numbered from 1. A score exactly at
+    the floor passes. The floor applies before the ceiling, so a result below
+    the floor never takes a place from one that passes."
+  end description
+  definition :
+    for all
+      (maxChunks :: SmallCeiling)
+      (floor :: Hundredths)
+      (rs :: List ScoredResult)
+    =>
+      prepareContext maxChunks floor (scoredOnly rs) = preparedOf maxChunks
+        floor (scoredOnly rs)
+    end for all
+  end definition
+  example "|the floor applies before the ceiling| :
+    maxChunks = 2
+    floor = 30
+    rs = [
+    ScoredResult record{context = "below", score = Present 10},
+    ScoredResult record{context = "first", score = Present 90},
+    ScoredResult record{context = "also below", score = Present 29},
+    ScoredResult record{context = "second", score = Present 50},
+    ScoredResult record{context = "third", score = Present 70}]
+    expect prepareContext maxChunks floor rs = PreparedContext record{
+      chunks = [
+      PromptChunk record{
+        index = 1,
+        promptIndex = Present 1,
+        result = ScoredResult record{context = "first", score = Present 90}},
+      PromptChunk record{
+        index = 2,
+        promptIndex = Present 2,
+        result = ScoredResult record{context = "second", score = Present 50}}],
+      quality = Good}
+  end example
+  example "|a score exactly at the floor passes| :
+    maxChunks = 10
+    floor = 30
+    rs = [ScoredResult record{context = "at the floor", score = Present 30}]
+    expect prepareContext maxChunks floor rs = PreparedContext record{
+      chunks = [
+      PromptChunk record{
+        index = 1,
+        promptIndex = Present 1,
+        result = ScoredResult record{
+          context = "at the floor",
+          score = Present 30}}],
+      quality = Good}
+  end example
+  example "|every result below the floor| :
+    maxChunks = 10
+    floor = 30
+    rs = [
+    ScoredResult record{context = "a", score = Present 10},
+    ScoredResult record{context = "b", score = Present 29}]
+    expect prepareContext maxChunks floor rs = PreparedContext record{
+      chunks = [],
+      quality = None}
+  end example
+  example "|a ceiling of zero keeps nothing| :
+    maxChunks = 0
+    floor = 0
+    rs = [ScoredResult record{context = "a", score = Present 100}]
+    expect prepareContext maxChunks floor rs = PreparedContext record{
+      chunks = [],
+      quality = None}
+  end example
+end law
+
+-- B3 (#330). `prepare_context/2` filtered with `score >= min_relevance`. In
+-- Erlang's term order every atom is greater than every number, so
+-- `nil >= 0.3` is true, and a result with no relevance score passed any
+-- floor.
+
+law "|a result with no relevance score never passes the floor| is
+  description :
+    "prepare_context/2 treats a result with no relevance score as if it were
+    not there: the output is what the scored results alone would give,
+    whatever the floor, a floor of zero included. No score is not a score of
+    zero."
+  end description
+  definition :
+    for all
+      (maxChunks :: SmallCeiling)
+      (floor :: Hundredths)
+      (rs :: List ScoredResult)
+    =>
+      prepareContext maxChunks floor rs = prepareContext maxChunks floor
+        (scoredOnly rs)
+    end for all
+  end definition
+  example "|an unscored result alone gives no context| :
+    maxChunks = 10
+    floor = 30
+    rs = [ScoredResult record{context = "unscored", score = Absent}]
+    expect prepareContext maxChunks floor rs = PreparedContext record{
+      chunks = [],
+      quality = None}
+  end example
+  example "|a floor of zero does not let it through| :
+    maxChunks = 10
+    floor = 0
+    rs = [ScoredResult record{context = "unscored", score = Absent}]
+    expect prepareContext maxChunks floor rs = PreparedContext record{
+      chunks = [],
+      quality = None}
+  end example
+  example "|it takes no number from the results around it| :
+    maxChunks = 10
+    floor = 30
+    rs = [
+    ScoredResult record{context = "first", score = Present 80},
+    ScoredResult record{context = "unscored", score = Absent},
+    ScoredResult record{context = "second", score = Present 40}]
+    expect prepareContext maxChunks floor rs = PreparedContext record{
+      chunks = [
+      PromptChunk record{
+        index = 1,
+        promptIndex = Present 1,
+        result = ScoredResult record{context = "first", score = Present 80}},
+      PromptChunk record{
+        index = 2,
+        promptIndex = Present 2,
+        result = ScoredResult record{context = "second", score = Present 40}}],
+      quality = Good}
+  end example
+end law
+
+law "|with no options the ceiling is ten chunks and the floor is 0.30| is
+  description :
+    "prepare_context/2 with no options is prepare_context/2 with max_chunks
+    10 and min_relevance 0.3. Generated lists are short, so the law repeats
+    the results up to four times over to take them past ten."
+  end description
+  definition :
+    for all (rs :: List ScoredResult) (times :: Whole) =>
+      prepareContextByDefault (manyOf rs (prelude.rem times 5)) = prepareContext
+        10 30 (manyOf rs (prelude.rem times 5))
+    end for all
+  end definition
+  example "|eleven passing results lose the last| :
+    rs = [ScoredResult record{context = "kept", score = Present 30}]
+    times = 11
+    expect prelude.length (prepareContextByDefault (manyOf rs 11)).chunks = 10
+  end example
+  example "|a score of 0.29 is below the default floor| :
+    rs = [ScoredResult record{context = "dropped", score = Present 29}]
+    times = 1
+    expect prepareContextByDefault (manyOf rs (prelude.rem times 5)) =
+      PreparedContext record{chunks = [], quality = None}
+  end example
+end law
+
+-- Laws: format_chunk/1.
+
+law "|a formatted chunk is its index in brackets, then its prompt context|
+  is
+  description :
+    "format_chunk/1 renders an indexed chunk as `[N] ` followed by the
+    retrieval unit's Cake.Promptable prompt context, verbatim."
+  end description
+  definition :
+    for all (index :: Whole) (r :: ScoredResult) =>
+      formatChunk (index + 1) r = entryOf (index + 1) r
+    end for all
+  end definition
+  example "|the third chunk| :
+    index = 2
+    r = ScoredResult record{
+      context = "Pattern matching is",
+      score = Present 80}
+    expect formatChunk (index + 1) r = "[3] Pattern matching is"
+  end example
+end law
+
+-- Laws: history_messages/1.
+
+law "|history is the last five complete exchanges, oldest first| is
+  description :
+    "history_messages/1 turns the flat question, answer, question, answer
+    history into alternating user and assistant messages, keeps only the last
+    five exchanges, and drops a last question that has no answer. So it
+    always returns an even number of messages, and at most ten. Generated
+    lists are short, so the law repeats the history up to five times over to
+    take it past five exchanges."
+  end description
+  definition :
+    for all (history :: List Text) (times :: Whole) =>
+      historyMessages (historyTimes history (prelude.rem times 6)) =
+        recentExchanges (historyTimes history (prelude.rem times 6)) and
+      prelude.rem (prelude.length (historyMessages (historyTimes history
+        (prelude.rem times 6)))) 2 = 0 and prelude.length (historyMessages
+          (historyTimes history (prelude.rem times 6))) <= 10
+    end for all
+  end definition
+  example "|one exchange and an unanswered question| :
+    history = ["q1", "a1", "q2"]
+    times = 1
+    expect historyMessages (historyTimes history (prelude.rem times 6)) = [
+      Message record{role = User, content = "q1"},
+      Message record{role = Assistant, content = "a1"}]
+  end example
+  example "|six exchanges lose the oldest| :
+    history = [
+    "q1", "a1", "q2", "a2", "q3", "a3", "q4", "a4", "q5", "a5", "q6", "a6"]
+    times = 1
+    expect historyMessages (historyTimes history (prelude.rem times 6)) = [
+      Message record{role = User, content = "q2"},
+      Message record{role = Assistant, content = "a2"},
+      Message record{role = User, content = "q3"},
+      Message record{role = Assistant, content = "a3"},
+      Message record{role = User, content = "q4"},
+      Message record{role = Assistant, content = "a4"},
+      Message record{role = User, content = "q5"},
+      Message record{role = Assistant, content = "a5"},
+      Message record{role = User, content = "q6"},
+      Message record{role = Assistant, content = "a6"}]
+  end example
+  example "|no history| :
+    history = []
+    times = 1
+    expect prelude.length (historyMessages (historyTimes history (prelude.rem
+      times 6))) = 0
+  end example
+end law
+
+-- Laws: build/4.
+
+law "|a prompt with context is the context, the recent history, the question|
+  is
+  description :
+    "With at least one chunk, build/4 returns a system message, then the
+    history as history_messages/1 gives it, then the question as the last
+    message, a user message, verbatim. The system message is
+    system_message_with_context/1 of the chunks, each formatted as
+    format_chunk/1 formats it, in the order given."
+  end description
+  definition :
+    for all
+      (first :: ScoredResult)
+      (rest :: List ScoredResult)
+      (question :: Text)
+      (history :: List Text)
+    =>
+      build (indexed (Cons first rest)) question history = Cons (Message record{
+        role = System, content = systemMessageWithContext (entriesOf (indexed
+          (Cons first rest)))}) (historyMessages history ++ [ Message
+            record{role = User, content = question}])
+    end for all
+  end definition
+  example "|a first turn ends with the question| :
+    first = ScoredResult record{context = "Flow is laminar", score = Present 90}
+    rest = []
+    question = "What is the flow rate?"
+    history = []
+    expect prelude.at 1 (build (indexed (Cons first rest)) question history) =
+      Present (Message record{role = User, content = "What is the flow rate?"})
+  end example
+end law
+
+law "|a prompt with no context says so, then the recent history, the question|
+  is
+  description :
+    "With no chunks, build/4 returns the no-context system message, then the
+    history as history_messages/1 gives it, then the question as the last
+    message, a user message, verbatim. The no-context system message has no
+    context block."
+  end description
+  definition :
+    for all (question :: Text) (history :: List Text) =>
+      build [] question history = Cons (Message record{role = System, content =
+          systemMessageNoContext ()}) (historyMessages history ++ [ Message
+            record{role = User, content = question}]) and not
+      (systemMessageNoContext () contains "Context:")
+    end for all
+  end definition
+  example "|a later turn keeps its history| :
+    question = "And the pressure?"
+    history = ["What is the flow rate?", "I could not find that."]
+    expect prelude.length (build [] question history) = 4
+    expect prelude.at 3 (build [] question history) = Present (Message record{
+      role = User,
+      content = "And the pressure?"})
+  end example
+end law
+
+law "|the context block lists the formatted chunks in order| is
+  description :
+    "system_message_with_context/1 ends with a context block: the line
+    `Context:`, then the formatted chunks in the order given, separated by
+    lines of three hyphens, then a newline."
+  end description
+  definition :
+    for all (formatted :: List Text) =>
+      prelude.endsWith (systemMessageWithContext formatted) ("Context:\n" ++
+        prelude.join "\n---\n" formatted ++ "\n")
+    end for all
+  end definition
+  example "|two chunks| :
+    formatted = ["[1] One", "[2] Two"]
+    expect prelude.endsWith (systemMessageWithContext formatted)
+      "Context:\n[1] One\n---\n[2] Two\n" = true
+  end example
+end law
+end unit

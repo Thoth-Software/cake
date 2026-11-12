@@ -37,6 +37,20 @@ defmodule LawSpec.Data do
 
   @type cake_laws_decomposition_type_node() :: LawSpec.Data.CakeLawsDecompositionTypeNode.t()
 
+  @type scored_result() :: LawSpec.Data.ScoredResult.t()
+
+  @type prompt_chunk() :: LawSpec.Data.PromptChunk.t()
+
+  @type context_quality() ::
+          LawSpec.Data.ContextQualityGood.t() | LawSpec.Data.ContextQualityNone.t()
+
+  @type prepared_context() :: LawSpec.Data.PreparedContext.t()
+
+  @type role() ::
+          LawSpec.Data.RoleSystem.t() | LawSpec.Data.RoleUser.t() | LawSpec.Data.RoleAssistant.t()
+
+  @type message() :: LawSpec.Data.Message.t()
+
   @type cited() :: LawSpec.Data.Cited.t()
 
   @type action_kind() ::

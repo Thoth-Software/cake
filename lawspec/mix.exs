@@ -20,6 +20,7 @@ defmodule CakeLaws.MixProject do
                     "lib/cake/citable.ex",
                     "lib/cake/citations.ex",
                     "lib/cake/decomposition/result.ex",
+                    "lib/cake/prompt.ex",
                     "lib/cake/promptable.ex",
                     "lib/cake/responses.ex",
                     "lib/cake/responses/behaviour.ex",
