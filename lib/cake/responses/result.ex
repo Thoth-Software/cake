@@ -9,8 +9,10 @@ defmodule Cake.Responses.Result do
       rewriting, and whitespace cleanup.
     * `chunk_map` — integer index → `Cake.Citable.metadata()`. Built from
       `indexed_chunks` at the top of the pipeline.
-    * `citations` — ordered, deduplicated citation records with both
-      old_index (what the LLM wrote) and new_index (what the user sees).
+    * `citations` — one record per cited retrieval unit (deduplicated by
+      `Cake.Citable` `:id`), in order of first appearance, with both
+      old_index (what the LLM wrote) and new_index (what the user sees,
+      `1..K` with no gaps).
     * `media` — image items selected for display. `select_media` is
       currently a stub, so this is always empty today.
     * `actions` — download buttons, external links, etc. Currently one
@@ -24,7 +26,8 @@ defmodule Cake.Responses.Result do
   @typedoc """
   One surviving citation: the index the model wrote (`old_index`), the
   renumbered index the user sees (`new_index`), and the `Cake.Citable` metadata
-  it resolves to.
+  it resolves to. When the model cites one unit under several indices,
+  `old_index` is the index of the marker that appears first.
   """
   @type citation :: %{
           old_index: pos_integer(),

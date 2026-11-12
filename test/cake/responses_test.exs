@@ -113,6 +113,22 @@ defmodule Cake.ResponsesTest do
       assert Enum.map(result.citations, & &1.new_index) == [1, 2, 3]
     end
 
+    test "a hallucinated marker before a valid one leaves no gap in new_index" do
+      indexed = indexed_override([], %{1 => @meta_a})
+      result = Responses.process("[99] then [1].", indexed)
+
+      assert [%{old_index: 1, new_index: 1}] = result.citations
+      assert result.final_text == "then [1]."
+    end
+
+    test "two indices that resolve to the same :id give one citation" do
+      indexed = indexed_override([], %{1 => @meta_a, 2 => @meta_b, 3 => @meta_a})
+      result = Responses.process("[3] and [2], and [1] again.", indexed)
+
+      assert Enum.map(result.citations, &{&1.old_index, &1.new_index, &1.id}) ==
+               [{3, 1, @meta_a.id}, {2, 2, @meta_b.id}]
+    end
+
     test "text with no citations yields an empty citations list" do
       indexed = indexed_override([], %{1 => @meta_a})
       result = Responses.process("No citations here.", indexed)
@@ -128,6 +144,13 @@ defmodule Cake.ResponsesTest do
 
       assert result.final_text == "[1] foo [2] bar"
       assert result.raw_text == "[3] foo [5] bar"
+    end
+
+    test "markers that resolve to the same :id show the same number" do
+      indexed = indexed_override([], %{1 => @meta_a, 2 => @meta_b, 3 => @meta_a})
+      result = Responses.process("[3] and [2], and [1] again.", indexed)
+
+      assert result.final_text == "[1] and [2], and [1] again."
     end
 
     test "hallucinated tokens are stripped and extra spaces collapse" do

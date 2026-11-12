@@ -3,7 +3,7 @@ defmodule Cake.Laws.Citations.LawSpecTest do
   use ExUnit.Case, async: false
   import LawSpec.Beam.ExUnitCases
 
-  # |valid citations come in first-appearance order with their metadata| — laws/citations.lawspec:163
+  # |valid citations come in first-appearance order with their metadata| — laws/citations.lawspec:167
   law(
     :cake_laws_citations_lawspec_cases,
     :law_valid_citations_come_in_first_appearance_order,
@@ -11,7 +11,7 @@ defmodule Cake.Laws.Citations.LawSpecTest do
     600_000
   )
 
-  # |hallucinated indices come in first-appearance order| — laws/citations.lawspec:198
+  # |hallucinated indices come in first-appearance order| — laws/citations.lawspec:202
   law(
     :cake_laws_citations_lawspec_cases,
     :law_hallucinated_indices_come_in_first_appearance,
@@ -19,7 +19,7 @@ defmodule Cake.Laws.Citations.LawSpecTest do
     600_000
   )
 
-  # |extract is total and deterministic| — laws/citations.lawspec:217
+  # |extract is total and deterministic| — laws/citations.lawspec:221
   law(
     :cake_laws_citations_lawspec_cases,
     :law_extract_is_total_and_deterministic,
@@ -27,7 +27,7 @@ defmodule Cake.Laws.Citations.LawSpecTest do
     600_000
   )
 
-  # |leading zeros do not change the index| — laws/citations.lawspec:229
+  # |leading zeros do not change the index| — laws/citations.lawspec:233
   law(
     :cake_laws_citations_lawspec_cases,
     :law_leading_zeros_do_not_change_the_index,
@@ -35,7 +35,7 @@ defmodule Cake.Laws.Citations.LawSpecTest do
     600_000
   )
 
-  # |[0] is always hallucinated against a prompt map| — laws/citations.lawspec:264
+  # |[0] is always hallucinated against a prompt map| — laws/citations.lawspec:268
   law(
     :cake_laws_citations_lawspec_cases,
     :law_law_0_is_always_hallucinated_against_a_prompt_map,

@@ -98,6 +98,10 @@ function promptMapOf (metas :: List CitableMeta) -> KeyVal Whole CitableMeta is
 end function
 
 -- The reference model.
+--
+-- `seen contains n`, not `n in seen`: other units import these definitions,
+-- and LawSpec 0.32.0 cannot copy a definition that uses `in` into an
+-- importer (lawspec/README.md, "Shared types and fakes").
 
 function markersFrom (segments :: List Segment) (seen :: List Whole) -> List
   Whole is
@@ -107,7 +111,7 @@ function markersFrom (segments :: List Segment) (seen :: List Whole) -> List
       first matching case of segment :
         when shared.Plain t then markersFrom rest seen
         when shared.Marker n then
-          if n in seen then markersFrom rest seen
+          if seen contains n then markersFrom rest seen
           else markersFrom rest (seen ++ [n]) end if
       end case
   end case

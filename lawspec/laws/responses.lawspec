@@ -1,0 +1,769 @@
+unit cake.laws.responses
+import cake.laws.shared as shared (CitableMeta, Segment, render)
+import cake.laws.citations as citations (Citation, fold16, small, promptMapOf,
+distinctMarkers, citationsOf, missingFrom)
+
+-- Laws for Cake.Responses.process/3 and build_citation_map/1
+-- (lib/cake/responses.ex).
+--
+-- `process/3` takes the LLM's raw text and the prompt-numbered chunks it was
+-- generated over. It resolves the `[N]` markers against the chunks, keeps one
+-- citation per cited retrieval unit, renumbers the citations 1..K by first
+-- appearance, rewrites the markers to match, removes hallucinated markers
+-- and reports them as warnings, derives the download actions, and tidies the
+-- whitespace.
+--
+-- The laws build the text from segments (`cake.laws.shared`), as the
+-- citations unit does, and reuse that unit's reference model of which
+-- markers are valid and which are hallucinated.
+
+-- What `process/3` returns (lib/cake/responses/result.ex).
+
+-- One citation: the index the model wrote, the index the user sees, and the
+-- metadata of the unit it cites.
+type Cited is a record
+{
+  oldIndex :: Whole
+  newIndex :: Whole
+  meta :: CitableMeta
+}
+end type
+
+type ActionKind is one of
+  | Download
+  | ExternalLink
+end type
+
+type Action is a record
+{
+  kind :: ActionKind
+  label :: Text
+  sourceRef :: Text
+}
+end type
+
+type Warning is one of
+  | HallucinatedCitation of type Whole
+end type
+
+-- `assigns` is left out: `process/3` never writes it. `mediaCount` is the
+-- length of `media`, which no stage fills yet.
+type Processed is a record
+{
+  rawText :: Text
+  finalText :: Text
+  chunkMap :: KeyVal Whole CitableMeta
+  citations :: List Cited
+  mediaCount :: Whole
+  actions :: List Action
+  warnings :: List Warning
+}
+end type
+
+-- One entry of `indexed_chunks`: a prompt index and the metadata of the
+-- retrieval unit the search result at that index carries.
+type IndexedChunk is a record
+{
+  index :: Whole
+  meta :: CitableMeta
+}
+end type
+
+-- Adapter over Cake.Responses (lawspec/lib/cake_laws_responses.ex).
+
+-- `Responses.process/3` of the text over the chunks, with no options.
+process :: Text -> List IndexedChunk -> Processed
+
+-- `Responses.build_citation_map/1` of the chunks.
+citationMap :: List IndexedChunk -> KeyVal Whole CitableMeta
+
+-- Building retrieved context.
+--
+-- The context is a list of picks from a pool of retrieval units. Two picks of
+-- the same pool entry put one unit at two prompt indices, with the same id
+-- and the same metadata, which is the case deduplication by id exists for.
+-- A unit's source is folded into three, so different units often share a
+-- source file, as two pages of one book do.
+
+type RetrievalUnit is a record
+{
+  label :: Text
+  preview :: Text
+  source :: Maybe Whole
+}
+end type
+
+function sourceRefOf (source :: Maybe Whole) -> Maybe Text is
+  first matching case of source :
+    when Absent then Absent
+    when Present n then
+      Present ("books/source-" ++ prelude.textOf (prelude.rem n 3) ++ ".pdf")
+  end case
+end function
+
+function metasFrom (pool :: List RetrievalUnit) (position :: Whole) -> List
+  CitableMeta is
+  first matching case of pool :
+    when Nil then []
+    when Cons entry rest then
+      Cons
+        (CitableMeta record{
+          id = "unit-" ++ prelude.textOf position,
+          label = entry.label,
+          preview = entry.preview,
+          sourceRef = sourceRefOf entry.source})
+        (metasFrom rest (position + 1))
+  end case
+end function
+
+function pickedFrom (metas :: List CitableMeta) (size :: Whole) (picks ::
+  List Whole) -> List CitableMeta is
+  first matching case of picks :
+    when Nil then []
+    when Cons pick rest then
+      if size >= 1 then
+        first matching case of prelude.at (prelude.rem pick size) metas :
+          when Present meta then Cons meta (pickedFrom metas size rest)
+          when Absent then pickedFrom metas size rest
+        end case
+      else [] end if
+  end case
+end function
+
+-- The metadata of the retrieved units, in prompt order: pick `p` is pool
+-- entry `p` modulo the pool's size, and an empty pool gives no context.
+function contextOf (pool :: List RetrievalUnit) (picks :: List Whole) -> List
+  CitableMeta is
+  pickedFrom (metasFrom pool 0) (prelude.length pool) picks
+end function
+
+function numberedFrom (metas :: List CitableMeta) (i :: Whole) -> List
+  IndexedChunk is
+  first matching case of metas :
+    when Nil then []
+    when Cons meta rest then
+      Cons (IndexedChunk record{index = i, meta = meta})
+        (numberedFrom rest (i + 1))
+  end case
+end function
+
+-- `indexed_chunks` as Cake.Prompt numbers it: dense from 1.
+function chunksOf (metas :: List CitableMeta) -> List IndexedChunk is
+  numberedFrom metas 1
+end function
+
+-- Building text whose whitespace the laws can follow.
+--
+-- `process/3` collapses runs of spaces, collapses three or more newlines to
+-- two, and trims. LawSpec has no text replacement, so the laws that pin the
+-- final text build it from pieces: a word (ASCII, no whitespace, no
+-- brackets), one space, one newline, or a citation marker. The expected text
+-- is then computed piece by piece.
+
+refinement WordText is
+  (t :: Text where not (t contains "[") && not (t contains "]") && t matches
+    regex "[a-zA-Z0-9.,;:!?'-]{1,8}")
+end refinement
+
+type Piece is one of
+  | Word of type WordText
+  | Space
+  | Newline
+  | Cite of type Whole
+end type
+
+-- The pieces with every marker's index folded into 0..15, as
+-- `citations.small` folds segments.
+function smallPieces (pieces :: List Piece) -> List Piece is
+  first matching case of pieces :
+    when Nil then []
+    when Cons piece rest then
+      Cons
+      (first matching case of piece :
+        when Word w then Word w
+        when Space then Space
+        when Newline then Newline
+        when Cite n then Cite (fold16 n)
+      end case)
+        (smallPieces rest)
+  end case
+end function
+
+function segmentsOf (pieces :: List Piece) -> List Segment is
+  first matching case of pieces :
+    when Nil then []
+    when Cons piece rest then
+      Cons
+      (first matching case of piece :
+        when Word w then shared.Plain w
+        when Space then shared.Plain " "
+        when Newline then shared.Plain "\n"
+        when Cite n then shared.Marker n
+      end case)
+        (segmentsOf rest)
+  end case
+end function
+
+function textOf (pieces :: List Piece) -> Text is render (segmentsOf pieces)
+end function
+
+-- The reference model.
+
+-- Citations.
+
+function unnumbered (cited :: List Cited) -> List Citation is
+  first matching case of cited :
+    when Nil then []
+    when Cons c rest then
+      Cons (Citation record{index = c.oldIndex, metadata = c.meta})
+        (unnumbered rest)
+  end case
+end function
+
+function firstPerUnitFrom (valid :: List Citation) (seen :: List Text) -> List
+  Citation is
+  first matching case of valid :
+    when Nil then []
+    when Cons c rest then
+      if seen contains c.metadata.id then firstPerUnitFrom rest seen
+      else Cons c (firstPerUnitFrom rest (seen ++ [c.metadata.id])) end if
+  end case
+end function
+
+-- The valid citations less every later citation of an already cited unit.
+function firstPerUnit (valid :: List Citation) -> List Citation is
+  firstPerUnitFrom valid []
+end function
+
+function newIndicesOf (cited :: List Cited) -> List Whole is
+  first matching case of cited :
+    when Nil then []
+    when Cons c rest then Cons c.newIndex (newIndicesOf rest)
+  end case
+end function
+
+-- `count` consecutive numbers starting at `i`.
+function countingFrom (i :: Whole) (count :: Whole) -> List Whole is
+  if count <= 0 then [] else Cons i (countingFrom (i + 1) (count - 1)) end if
+end function
+
+function distinct (items :: List Whole) -> Bool is
+  first matching case of items :
+    when Nil then true
+    when Cons item rest then not (rest contains item) && distinct rest
+  end case
+end function
+
+function allResolve (cited :: List Cited) (chunkMap :: KeyVal Whole
+  CitableMeta) -> Bool is
+  first matching case of cited :
+    when Nil then true
+    when Cons c rest then
+      prelude.lookup c.oldIndex chunkMap = Present c.meta && allResolve rest
+        chunkMap
+  end case
+end function
+
+-- Warnings.
+
+function warningsOf (indices :: List Whole) -> List Warning is
+  first matching case of indices :
+    when Nil then []
+    when Cons n rest then Cons (HallucinatedCitation n) (warningsOf rest)
+  end case
+end function
+
+-- Actions.
+
+function downloadsFrom (valid :: List Citation) (seen :: List Text) -> List
+  Action is
+  first matching case of valid :
+    when Nil then []
+    when Cons c rest then
+      first matching case of c.metadata.sourceRef :
+        when Absent then downloadsFrom rest seen
+        when Present ref then
+          if seen contains ref then downloadsFrom rest seen
+          else
+            Cons
+              (Action record{
+                kind = Download,
+                label = c.metadata.label,
+                sourceRef = ref})
+              (downloadsFrom rest (seen ++ [ref]))
+          end if
+      end case
+  end case
+end function
+
+-- One download per distinct source among the valid citations, in order of
+-- first citation, labelled as the first citation of that source is.
+function downloadsOf (valid :: List Citation) -> List Action is
+  downloadsFrom valid []
+end function
+
+-- Final text.
+
+function shownAs (id :: Text) (cited :: List Cited) -> Maybe Whole is
+  first matching case of cited :
+    when Nil then Absent
+    when Cons c rest then
+      if c.meta.id = id then Present c.newIndex else shownAs id rest end if
+  end case
+end function
+
+-- The number marker `n` shows as: the new index of the citation of the unit
+-- at prompt index `n`. Absent when `n` is hallucinated.
+function shown (n :: Whole) (chunkMap :: KeyVal Whole CitableMeta) (cited ::
+  List Cited) -> Maybe Whole is
+  first matching case of prelude.lookup n chunkMap :
+    when Absent then Absent
+    when Present meta then shownAs meta.id cited
+  end case
+end function
+
+-- Every marker rewritten to the number it shows as, or removed.
+function rewritten (pieces :: List Piece) (chunkMap :: KeyVal Whole
+  CitableMeta) (cited :: List Cited) -> List Piece is
+  first matching case of pieces :
+    when Nil then []
+    when Cons piece rest then
+      first matching case of piece :
+        when Word w then Cons (Word w) (rewritten rest chunkMap cited)
+        when Space then Cons Space (rewritten rest chunkMap cited)
+        when Newline then Cons Newline (rewritten rest chunkMap cited)
+        when Cite n then
+          first matching case of shown n chunkMap cited :
+            when Present k then Cons (Cite k) (rewritten rest chunkMap cited)
+            when Absent then rewritten rest chunkMap cited
+          end case
+      end case
+  end case
+end function
+
+function squeezedAfter (pieces :: List Piece) (afterSpace :: Bool) -> List
+  Piece is
+  first matching case of pieces :
+    when Nil then []
+    when Cons piece rest then
+      first matching case of piece :
+        when Space then
+          if afterSpace then squeezedAfter rest true
+          else Cons Space (squeezedAfter rest true) end if
+        when Word w then Cons piece (squeezedAfter rest false)
+        when Newline then Cons piece (squeezedAfter rest false)
+        when Cite n then Cons piece (squeezedAfter rest false)
+      end case
+  end case
+end function
+
+-- Every run of spaces as one space.
+function squeezed (pieces :: List Piece) -> List Piece is
+  squeezedAfter pieces false
+end function
+
+function calmedAfter (pieces :: List Piece) (run :: Whole) -> List Piece is
+  first matching case of pieces :
+    when Nil then []
+    when Cons piece rest then
+      first matching case of piece :
+        when Newline then
+          if run >= 2 then calmedAfter rest run
+          else Cons Newline (calmedAfter rest (run + 1)) end if
+        when Word w then Cons piece (calmedAfter rest 0)
+        when Space then Cons piece (calmedAfter rest 0)
+        when Cite n then Cons piece (calmedAfter rest 0)
+      end case
+  end case
+end function
+
+-- Every run of three or more newlines as two. `run` counts the newlines
+-- just kept.
+function calmed (pieces :: List Piece) -> List Piece is calmedAfter pieces 0
+end function
+
+function isBlank (piece :: Piece) -> Bool is
+  first matching case of piece :
+    when Space then true
+    when Newline then true
+    when Word w then false
+    when Cite n then false
+  end case
+end function
+
+function allBlank (pieces :: List Piece) -> Bool is
+  first matching case of pieces :
+    when Nil then true
+    when Cons piece rest then isBlank piece && allBlank rest
+  end case
+end function
+
+function withoutLeadingBlanks (pieces :: List Piece) -> List Piece is
+  first matching case of pieces :
+    when Nil then []
+    when Cons piece rest then
+      if isBlank piece then withoutLeadingBlanks rest else pieces end if
+  end case
+end function
+
+function withoutTrailingBlanks (pieces :: List Piece) -> List Piece is
+  first matching case of pieces :
+    when Nil then []
+    when Cons piece rest then
+      if allBlank pieces then [] else Cons piece (withoutTrailingBlanks rest)
+      end if
+  end case
+end function
+
+-- No spaces or newlines at either end.
+function trimmed (pieces :: List Piece) -> List Piece is
+  withoutTrailingBlanks (withoutLeadingBlanks pieces)
+end function
+
+-- The final text for `pieces`, given the citations `process/3` returned:
+-- markers rewritten or removed, then spaces squeezed, newlines calmed and the
+-- ends trimmed, in the order `process/3` applies them.
+function finalTextOf (pieces :: List Piece) (chunkMap :: KeyVal Whole
+  CitableMeta) (cited :: List Cited) -> Text is
+  textOf (trimmed (calmed (squeezed (rewritten pieces chunkMap cited))))
+end function
+
+-- Laws.
+
+law "|the chunk map holds each chunk's metadata at its prompt index| is
+  description :
+    "The citation map's keys are exactly the prompt indices of the chunks, and
+    each value is that chunk's Citable metadata. process/3 returns the same
+    map as its chunk map, whatever the text."
+  end description
+  definition :
+    for all
+      (text :: Text)
+      (pool :: List RetrievalUnit)
+      (picks :: List Whole)
+    =>
+      citationMap (chunksOf (contextOf pool picks)) = promptMapOf (contextOf
+        pool picks) and (process text (chunksOf (contextOf pool
+          picks))).chunkMap = promptMapOf (contextOf pool picks)
+    end for all
+  end definition
+  example "|two chunks| :
+    text = "no markers"
+    pool = [
+    RetrievalUnit record{
+      label = "Programming Elixir — Page 1",
+      preview = "One",
+      source = Present 0},
+    RetrievalUnit record{
+      label = "Elixir in Action — Page 3",
+      preview = "Processes",
+      source = Absent}]
+    picks = [0, 1]
+    expect prelude.keys (citationMap (chunksOf (contextOf pool picks))) = [1, 2]
+    expect prelude.values (citationMap (chunksOf (contextOf pool picks))) = [
+      CitableMeta record{
+        id = "unit-0",
+        label = "Programming Elixir — Page 1",
+        preview = "One",
+        sourceRef = Present "books/source-0.pdf"},
+      CitableMeta record{
+        id = "unit-1",
+        label = "Elixir in Action — Page 3",
+        preview = "Processes",
+        sourceRef = Absent}]
+  end example
+end law
+
+law "|raw text is never modified| is
+  description :
+    "The result's raw text is the text process/3 was given, for any text at
+    all."
+  end description
+  definition :
+    for all
+      (text :: Text)
+      (pool :: List RetrievalUnit)
+      (picks :: List Whole)
+    =>
+      (process text (chunksOf (contextOf pool picks))).rawText = text
+    end for all
+  end definition
+  example "|markers and untidy whitespace stay in the raw text| :
+    text = "  See [2]   and [9].\n\n\n\n"
+    pool = [RetrievalUnit record{label = "A", preview = "a", source = Absent}]
+    picks = [0, 0]
+    expect (process text (chunksOf (contextOf pool picks))).rawText =
+      "  See [2]   and [9].\n\n\n\n"
+  end example
+end law
+
+law "|media is always empty| is
+  description :
+    "Media selection is a stub, so no input produces a media item."
+  end description
+  definition :
+    for all
+      (segments :: List Segment)
+      (pool :: List RetrievalUnit)
+      (picks :: List Whole)
+    =>
+      (process (render (small segments)) (chunksOf (contextOf pool
+        picks))).mediaCount = 0
+    end for all
+  end definition
+end law
+
+law "|warnings are the hallucinated indices, in order| is
+  description :
+    "The warnings are exactly one hallucinated-citation warning per marker
+    index that is not a prompt index, in order of first appearance, and no
+    other warning."
+  end description
+  definition :
+    for all
+      (segments :: List Segment)
+      (pool :: List RetrievalUnit)
+      (picks :: List Whole)
+    =>
+      (process (render (small segments)) (chunksOf (contextOf pool
+        picks))).warnings = warningsOf (missingFrom (distinctMarkers (small
+          segments)) (promptMapOf (contextOf pool picks)))
+    end for all
+  end definition
+  example "|later markers stay later, and [0] is hallucinated| :
+    segments = [shared.Marker 9, shared.Plain " ", shared.Marker 1,
+    shared.Plain " ", shared.Marker 0, shared.Plain " ", shared.Marker 9]
+    pool = [RetrievalUnit record{label = "A", preview = "a", source = Absent}]
+    picks = [0]
+    expect render segments = "[9] [1] [0] [9]"
+    expect (process (render segments) (chunksOf (contextOf pool
+      picks))).warnings = [HallucinatedCitation 9, HallucinatedCitation 0]
+  end example
+end law
+
+law "|every citation resolves through the chunk map| is
+  description :
+    "Each citation's old index is a prompt index, its metadata is the chunk
+    map's metadata for that index, and no two citations share a new index."
+  end description
+  definition :
+    for all
+      (segments :: List Segment)
+      (pool :: List RetrievalUnit)
+      (picks :: List Whole)
+    =>
+      allResolve (process (render (small segments)) (chunksOf (contextOf pool
+        picks))).citations (promptMapOf (contextOf pool picks)) and distinct
+          (newIndicesOf (process (render (small segments)) (chunksOf (contextOf
+            pool picks))).citations)
+    end for all
+  end definition
+end law
+
+law "|new indices count from 1 in citation order| is
+  description :
+    "The citations' new indices are exactly 1..K for K citations, in the order
+    the citations are listed: no gaps, even when a hallucinated marker comes
+    before a valid one."
+  end description
+  definition :
+    for all
+      (segments :: List Segment)
+      (pool :: List RetrievalUnit)
+      (picks :: List Whole)
+    =>
+      newIndicesOf (process (render (small segments)) (chunksOf (contextOf pool
+        picks))).citations = countingFrom 1 (prelude.length (process (render
+          (small segments)) (chunksOf (contextOf pool picks))).citations)
+    end for all
+  end definition
+  example "|a hallucinated marker before a valid one leaves no gap| :
+    segments = [shared.Marker 9, shared.Plain " then ", shared.Marker 1,
+    shared.Plain "."]
+    pool = [
+    RetrievalUnit record{
+      label = "Programming Elixir — Page 1",
+      preview = "One",
+      source = Absent}]
+    picks = [0]
+    expect render segments = "[9] then [1]."
+    expect (process (render segments) (chunksOf (contextOf pool
+      picks))).citations = [
+      Cited record{
+        oldIndex = 1,
+        newIndex = 1,
+        meta = CitableMeta record{
+          id = "unit-0",
+          label = "Programming Elixir — Page 1",
+          preview = "One",
+          sourceRef = Absent}}]
+    expect (process (render segments) (chunksOf (contextOf pool
+      picks))).finalText = "then [1]."
+  end example
+end law
+
+law "|one citation per retrieval unit, in first-appearance order| is
+  description :
+    "The citations are the valid markers in order of first appearance, less
+    every later marker that resolves to an already cited unit's id: two prompt
+    indices that hold the same unit give one citation, which keeps the old
+    index of the marker that appeared first."
+  end description
+  definition :
+    for all
+      (segments :: List Segment)
+      (pool :: List RetrievalUnit)
+      (picks :: List Whole)
+    =>
+      unnumbered (process (render (small segments)) (chunksOf (contextOf pool
+        picks))).citations = firstPerUnit (citationsOf (distinctMarkers (small
+          segments)) (promptMapOf (contextOf pool picks)))
+    end for all
+  end definition
+  example "|one unit at two prompt indices is cited once| :
+    segments = [shared.Marker 2, shared.Plain " and ", shared.Marker 1]
+    pool = [
+    RetrievalUnit record{
+      label = "Programming Elixir — Page 1",
+      preview = "One",
+      source = Present 0}]
+    picks = [0, 0]
+    expect render segments = "[2] and [1]"
+    expect (process (render segments) (chunksOf (contextOf pool
+      picks))).citations = [
+      Cited record{
+        oldIndex = 2,
+        newIndex = 1,
+        meta = CitableMeta record{
+          id = "unit-0",
+          label = "Programming Elixir — Page 1",
+          preview = "One",
+          sourceRef = Present "books/source-0.pdf"}}]
+  end example
+  example "|different units keep their own citations| :
+    segments = [shared.Marker 2, shared.Plain " and ", shared.Marker 1,
+    shared.Plain " again ", shared.Marker 2]
+    pool = [
+    RetrievalUnit record{label = "A", preview = "a", source = Absent},
+    RetrievalUnit record{label = "B", preview = "b", source = Absent}]
+    picks = [0, 1]
+    expect unnumbered (process (render segments) (chunksOf (contextOf pool
+      picks))).citations = [
+      Citation record{
+        index = 2,
+        metadata = CitableMeta record{
+          id = "unit-1", label = "B", preview = "b", sourceRef = Absent}},
+      Citation record{
+        index = 1,
+        metadata = CitableMeta record{
+          id = "unit-0", label = "A", preview = "a", sourceRef = Absent}}]
+  end example
+end law
+
+law "|final text shows each marker as its citation's new index| is
+  description :
+    "In the final text every valid marker is rewritten to the new index of
+    the citation of the unit it resolves to, so two markers for one unit show
+    the same number, and every hallucinated marker is removed. Runs of spaces
+    then become one space, three or more newlines become two, and the ends
+    are trimmed. Words are unchanged."
+  end description
+  definition :
+    for all
+      (pieces :: List Piece)
+      (pool :: List RetrievalUnit)
+      (picks :: List Whole)
+    =>
+      (process (textOf (smallPieces pieces)) (chunksOf (contextOf pool
+        picks))).finalText = finalTextOf (smallPieces pieces) (promptMapOf
+          (contextOf pool picks)) (process (textOf (smallPieces pieces))
+            (chunksOf (contextOf pool picks))).citations
+    end for all
+  end definition
+  example "|renumbered, stripped and tidied| :
+    pieces = [Space, Word "See", Space, Cite 2, Space, Word "and", Space,
+    Space, Cite 1, Word ".", Newline, Newline, Newline, Newline, Word "Again",
+    Space, Cite 2, Space, Cite 9, Newline]
+    pool = [
+    RetrievalUnit record{label = "A", preview = "a", source = Absent},
+    RetrievalUnit record{label = "B", preview = "b", source = Absent}]
+    picks = [0, 1]
+    expect textOf pieces = " See [2] and  [1].\n\n\n\nAgain [2] [9]\n"
+    expect (process (textOf pieces) (chunksOf (contextOf pool
+      picks))).finalText = "See [1] and [2].\n\nAgain [1]"
+  end example
+  example "|two markers for one unit show the same number| :
+    pieces = [Cite 1, Space, Word "and", Space, Cite 2, Word "."]
+    pool = [RetrievalUnit record{label = "A", preview = "a", source = Absent}]
+    picks = [0, 0]
+    expect textOf pieces = "[1] and [2]."
+    expect (process (textOf pieces) (chunksOf (contextOf pool
+      picks))).finalText = "[1] and [1]."
+  end example
+end law
+
+law "|final text is tidy for any input| is
+  description :
+    "Whatever the text, the final text has no double space and no triple
+    newline, and neither starts nor ends with a space or a newline."
+  end description
+  definition :
+    for all
+      (text :: Text)
+      (pool :: List RetrievalUnit)
+      (picks :: List Whole)
+    =>
+      not ((process text (chunksOf (contextOf pool picks))).finalText contains
+        "  ") and not ((process text (chunksOf (contextOf pool
+          picks))).finalText contains "\n\n\n") and not ((process text (chunksOf
+            (contextOf pool picks))).finalText starts with " ") and not
+      ((process text (chunksOf (contextOf pool picks))).finalText starts
+      with "\n") and not ((process text (chunksOf (contextOf pool
+        picks))).finalText ends with " ") and not ((process text
+          (chunksOf (contextOf pool picks))).finalText ends with "\n")
+    end for all
+  end definition
+end law
+
+law "|one download per cited source, in first-citation order| is
+  description :
+    "The actions are one download per distinct source among the valid
+    citations, in order of first citation, each labelled as the first citation
+    of its source is. A citation with no source gives no action."
+  end description
+  definition :
+    for all
+      (segments :: List Segment)
+      (pool :: List RetrievalUnit)
+      (picks :: List Whole)
+    =>
+      (process (render (small segments)) (chunksOf (contextOf pool
+        picks))).actions = downloadsOf (citationsOf (distinctMarkers (small
+          segments)) (promptMapOf (contextOf pool picks)))
+    end for all
+  end definition
+  example "|two pages of one book, cited after another book| :
+    segments = [shared.Marker 3, shared.Plain " ", shared.Marker 1,
+    shared.Plain " ", shared.Marker 4, shared.Plain " ", shared.Marker 2]
+    pool = [
+    RetrievalUnit record{
+      label = "Alpha, p. 1", preview = "a", source = Present 0},
+    RetrievalUnit record{label = "Notes", preview = "n", source = Absent},
+    RetrievalUnit record{
+      label = "Beta, p. 2", preview = "b", source = Present 1},
+    RetrievalUnit record{
+      label = "Alpha, p. 3", preview = "c", source = Present 0}]
+    picks = [0, 1, 2, 3]
+    expect (process (render segments) (chunksOf (contextOf pool
+      picks))).actions = [
+      Action record{
+        kind = Download,
+        label = "Beta, p. 2",
+        sourceRef = "books/source-1.pdf"},
+      Action record{
+        kind = Download,
+        label = "Alpha, p. 1",
+        sourceRef = "books/source-0.pdf"}]
+  end example
+end law
+end unit

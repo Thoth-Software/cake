@@ -9,6 +9,7 @@ Elixir these are StreamData properties inside ExUnit.
 | --- | --- |
 | `laws/decomposition.lawspec` | `Cake.Decomposition.Result`: `new/2` and `topological_order/1` |
 | `laws/citations.lawspec` | `Cake.Citations.extract/2`: valid citations and hallucinated indices, each in first-appearance order against a reference model; totality; leading zeros; and `[0]`, which is always hallucinated because `Cake.Prompt` numbers from 1 |
+| `laws/responses.lawspec` | `Cake.Responses.process/3` and `build_citation_map/1`: the chunk map; one citation per retrieval unit, numbered `1..K` by first appearance; the final text against a reference model of marker rewriting and whitespace tidying; warnings, download actions, and the untouched `raw_text` and empty `media` |
 | `laws/fakes.lawspec` | `Cake.Laws.FakeUnit`, the test retrieval unit: it carries generated data through `Cake.Citable` and `Cake.Promptable` unchanged, and meets the five-key `Citable` contract |
 | `laws/shared.lawspec` | no laws: types and checked definitions other specifications import (see "Shared types" below) |
 
@@ -57,7 +58,7 @@ report-only backlog, #206); this project is test-only and never deployed.
 | `laws/*.lawspec` | you | the specifications |
 | `lawspec.edn` | you | the manifest: sources, verification layers, the Elixir target, and its native failure mappings |
 | `lib/cake_laws_<unit>.ex` | you | adapters: each translates LawSpec's generated data to and from the Cake module it covers |
-| `lib/cake_laws/*.ex` | you | support modules adapters share, such as `Cake.Laws.FakeUnit` |
+| `lib/cake_laws/*.ex` | you | support modules adapters share: `Cake.Laws.FakeUnit`, and `Cake.Laws.Quiet`, which silences the warnings Cake logs on generated input |
 | `mix.exs`, `test/test_helper.exs` | you | the Mix project, set up as LawSpec's Elixir target guide asks |
 | `.lawspec/generated.json` | LawSpec | the ownership manifest; commit it |
 | everything else in `lib/` (including `lib/cake_laws_<unit>_definitions.ex`), `src/`, `test/` | LawSpec | generated; never edit by hand |
@@ -95,6 +96,14 @@ Add a type here once a second specification needs it. `CitableMeta` and
 `Segment` are here already because the citations and responses units (#327,
 #328) both build on them.
 
+**Importing another unit.** Any unit's types and checked definitions can be
+imported the same way, not only the shared unit's: `laws/responses.lawspec`
+imports the citations unit's reference model (`distinctMarkers`,
+`citationsOf`, `missingFrom`) instead of restating it. One limit, as of
+LawSpec 0.32.0: a definition that tests list membership with `in` cannot be
+copied into an importer (`unknown value: lawspecCollections.setMember`).
+Write `items contains item` in any definition another unit may import.
+
 **Fake retrieval units.** Cake code that dispatches through `Cake.Citable` or
 `Cake.Promptable` (`Citations`, `Responses`, `Candidates`, `Prompt`,
 `Conversation`) needs a struct implementing both. Adapters use
@@ -105,7 +114,7 @@ returns exactly what it was given, so a specification that uses it tests
 Cake's code, not the fake. Construct the struct directly when an adapter
 needs `:extras` or a non-text `:id`.
 
-## Generating text: two caveats
+## Generating text: three caveats
 
 - **Code points, not graphemes.** LawSpec's `prelude.length` and text
   operations count Unicode code points; Elixir's `String.length/1` and
@@ -113,6 +122,11 @@ needs `:extras` or a non-text `:id`.
   emoji sequences and `"\r\n"`. A law about a length or a slice of generated
   text holds only if the text is restricted (to ASCII, say) or the adapter
   binds a native length.
+- **No replace, no trim.** LawSpec's text operations join, slice and test
+  for a substring; none rewrites text. To pin text that Cake rewrites, build
+  the input from pieces and compute the expected text piece by piece, as
+  `laws/responses.lawspec` does for `final_text`: a word, a space, a newline
+  or a marker, each of which the whitespace rules treat as one item.
 - **Float64.** LawSpec's `Float64` has no portable order, and exact laws
   over float arithmetic are rarely true. Where Cake only compares or stores a
   float (relevance scores, boosts), generate an exact number such as

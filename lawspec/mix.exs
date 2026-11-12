@@ -19,7 +19,12 @@ defmodule CakeLaws.MixProject do
                     "lib/cake/citable.ex",
                     "lib/cake/citations.ex",
                     "lib/cake/decomposition/result.ex",
-                    "lib/cake/promptable.ex"
+                    "lib/cake/promptable.ex",
+                    "lib/cake/responses.ex",
+                    "lib/cake/responses/behaviour.ex",
+                    "lib/cake/responses/result.ex",
+                    "lib/cake/search/provenance.ex",
+                    "lib/cake/search/result.ex"
                   ],
                   &Path.join(@cake_root, &1)
                 )
