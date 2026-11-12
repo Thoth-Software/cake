@@ -9,8 +9,9 @@ defprotocol Cake.Citable do
   `metadata/1` returns a map with exactly five keys:
 
     * `:id` — stable unique identifier for the unit, as a string (both
-      implementations use the record's UUID). Responses deduplicates on it
-      when the LLM cites the same unit under two different indices,
+      implementations use the record's `Ecto.UUID.t()`, which a record has
+      once it is persisted). Responses deduplicates on it when the LLM cites
+      the same unit under two different indices,
       `Cake.Conversation.select_docs/2` accepts it back as a candidate id,
       and `Cake.Candidates` uses it as the document id of a unit with no
       `:source_ref`.

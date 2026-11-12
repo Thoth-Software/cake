@@ -65,7 +65,7 @@ defmodule Cake.Candidates do
   `results` must not be empty: the title and the preview are the first
   result's.
   """
-  @spec document_metadata([Result.t()]) :: %{
+  @spec document_metadata([Result.t(), ...]) :: %{
           title: String.t() | nil,
           preview: String.t(),
           page_label: String.t() | nil
