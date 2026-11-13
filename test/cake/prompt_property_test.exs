@@ -156,10 +156,12 @@ defmodule Cake.PromptPropertyTest do
   # prepare_context/2 generators
   # ---------------------------------------------------------------------------
 
+  # A result holds no relevance score until `Search.normalize_and_combine/1`
+  # has run, so some generated results have none (#330).
   defp scored_result_for_context do
     gen all(
           text <- prompt_text(),
-          score <- float(min: 0.0, max: 1.0)
+          score <- frequency([{4, float(min: 0.0, max: 1.0)}, {1, constant(nil)}])
         ) do
       %Result{
         retrieval_unit: %ConvoChunk{
@@ -200,7 +202,9 @@ defmodule Cake.PromptPropertyTest do
     end
   end
 
-  property "prepare_context/2 all output results meet the relevance floor" do
+  # `is_number/1` first: a bare `>=` holds for `nil` against any number, which
+  # is how an unscored result once passed every floor (#330).
+  property "prepare_context/2 all output results have a score that meets the relevance floor" do
     check all(
             results <- list_of(scored_result_for_context(), max_length: 15),
             opts <- context_opts()
@@ -209,8 +213,26 @@ defmodule Cake.PromptPropertyTest do
       min_relevance = Keyword.get(opts, :min_relevance)
 
       Enum.each(indexed, fn {_idx, result} ->
+        assert is_number(result.relevance_score)
         assert result.relevance_score >= min_relevance
       end)
+    end
+  end
+
+  property "prepare_context/2 keeps every scored result that meets the floor, in order, up to max_chunks" do
+    check all(
+            results <- list_of(scored_result_for_context(), max_length: 15),
+            opts <- context_opts()
+          ) do
+      {indexed, _quality} = Prompt.prepare_context(results, opts)
+      min_relevance = Keyword.get(opts, :min_relevance)
+
+      expected =
+        results
+        |> Enum.filter(&(is_number(&1.relevance_score) and &1.relevance_score >= min_relevance))
+        |> Enum.take(Keyword.get(opts, :max_chunks))
+
+      assert Enum.map(indexed, fn {_idx, result} -> %{result | prompt_index: nil} end) == expected
     end
   end
 

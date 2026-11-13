@@ -582,6 +582,247 @@ schema(_Symbols) ->
                 ]
             },
             #{
+                name => <<"cake.laws.prompt_context::type::ScoredResult">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_context::type::ScoredResult::ScoredResult">>,
+                        fields => [
+                            {<<"context">>, {<<"Text">>, []}},
+                            {<<"score">>, {<<"Maybe">>, [{<<"Integer">>, []}]}}
+                        ],
+                        encode => fun([Context, Score]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.ScoredResult',
+                                context => Context,
+                                score => Score
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.ScoredResult',
+                                        context := Context,
+                                        score := Score
+                                    }
+                                ) ->
+                                    {ok, [Context, Score]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_schema:match(
+                                    lists:nth(2, _Fields),
+                                    #{
+                                        <<"Maybe::Absent">> => fun([]) -> true end,
+                                        <<"Maybe::Present">> => fun([Element]) ->
+                                            (((Element >= 0) andalso (Element =< 100)) andalso true)
+                                        end
+                                    }
+                                )
+                            end
+                        ]
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_context::type::PromptChunk">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_context::type::PromptChunk::PromptChunk">>,
+                        fields => [
+                            {<<"index">>, {<<"BigUInt">>, []}},
+                            {<<"promptIndex">>, {<<"Maybe">>, [{<<"BigUInt">>, []}]}},
+                            {<<"result">>, {<<"cake.laws.prompt_context::type::ScoredResult">>, []}}
+                        ],
+                        encode => fun([Index, PromptIndex, Result]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.PromptChunk',
+                                index => Index,
+                                prompt_index => PromptIndex,
+                                result => Result
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.PromptChunk',
+                                        index := Index,
+                                        prompt_index := PromptIndex,
+                                        result := Result
+                                    }
+                                ) ->
+                                    {ok, [Index, PromptIndex, Result]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_context::type::ContextQuality">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_context::type::ContextQuality::Good">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.ContextQualityGood'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.ContextQualityGood'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_context::type::ContextQuality::None">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.ContextQualityNone'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.ContextQualityNone'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_context::type::PreparedContext">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag =>
+                            <<"cake.laws.prompt_context::type::PreparedContext::PreparedContext">>,
+                        fields => [
+                            {
+                                <<"chunks">>,
+                                {
+                                    <<"List">>,
+                                    [{<<"cake.laws.prompt_context::type::PromptChunk">>, []}]
+                                }
+                            },
+                            {
+                                <<"quality">>,
+                                {<<"cake.laws.prompt_context::type::ContextQuality">>, []}
+                            }
+                        ],
+                        encode => fun([Chunks, Quality]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.PreparedContext',
+                                chunks => Chunks,
+                                quality => Quality
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.PreparedContext',
+                                        chunks := Chunks,
+                                        quality := Quality
+                                    }
+                                ) ->
+                                    {ok, [Chunks, Quality]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_context::type::Role">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_context::type::Role::System">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.RoleSystem'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.RoleSystem'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_context::type::Role::User">>,
+                        fields => [],
+                        encode => fun([]) -> #{'__struct__' => 'Elixir.LawSpec.Data.RoleUser'} end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.RoleUser'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_context::type::Role::Assistant">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.RoleAssistant'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.RoleAssistant'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_context::type::Message">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_context::type::Message::Message">>,
+                        fields => [
+                            {<<"role">>, {<<"cake.laws.prompt_context::type::Role">>, []}},
+                            {<<"content">>, {<<"Text">>, []}}
+                        ],
+                        encode => fun([Role, Content]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Message',
+                                role => Role,
+                                content => Content
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Message',
+                                        role := Role,
+                                        content := Content
+                                    }
+                                ) ->
+                                    {ok, [Role, Content]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
                 name => <<"cake.laws.responses::type::Cited">>,
                 parameters => 0,
                 constructors => [

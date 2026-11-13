@@ -81,6 +81,28 @@
     metadata_keys/3,
     prompt_context/4,
     cake_laws_shared_render_2/3,
+    prepare_context/5,
+    prepare_context_by_default/3,
+    format_chunk/4,
+    history_messages/3,
+    build/5,
+    system_message_with_context/3,
+    system_message_no_context/3,
+    at_or_above/4,
+    entries_of/3,
+    entry_of/4,
+    exchanges_of/3,
+    history_times/4,
+    indexed/3,
+    indexed_from/4,
+    last_ten/3,
+    many_of/4,
+    meets_floor/4,
+    prepared_of/5,
+    quality_of/3,
+    recent_exchanges/3,
+    results_of/3,
+    scored_only/3,
     process/4,
     citation_map/3,
     all_blank/3,
@@ -3434,6 +3456,685 @@ cake_laws_shared_render_2(Schema, Symbols, Segments) ->
                         }
                     )
                 end
+            )
+        end
+    ).
+
+%% prepareContext — laws/prompt_context.lawspec:87
+prepare_context(Schema, _Symbols, BigUInt, Integer, ListScoredResult) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::prepareContext">>,
+        fun() ->
+            lawspec_beam_runtime:require(
+                ((Integer >= 0) andalso (Integer =< 100)),
+                <<"precondition">>
+            ),
+            NativeBigUInt = lawspec_beam_schema:to_native(BigUInt, {<<"BigUInt">>, []}, Schema),
+            NativeInteger = lawspec_beam_schema:to_native(Integer, {<<"Integer">>, []}, Schema),
+            NativeListScoredResult = lawspec_beam_schema:to_native(
+                ListScoredResult,
+                {<<"List">>, [{<<"cake.laws.prompt_context::type::ScoredResult">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.PromptContext':prepare_context(
+                    NativeBigUInt,
+                    NativeInteger,
+                    NativeListScoredResult
+                ),
+                {<<"cake.laws.prompt_context::type::PreparedContext">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% prepareContextByDefault — laws/prompt_context.lawspec:90
+prepare_context_by_default(Schema, _Symbols, ListScoredResult) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::prepareContextByDefault">>,
+        fun() ->
+            NativeListScoredResult = lawspec_beam_schema:to_native(
+                ListScoredResult,
+                {<<"List">>, [{<<"cake.laws.prompt_context::type::ScoredResult">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.PromptContext':prepare_context_by_default(NativeListScoredResult),
+                {<<"cake.laws.prompt_context::type::PreparedContext">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% formatChunk — laws/prompt_context.lawspec:93
+format_chunk(Schema, _Symbols, BigUInt, ScoredResult) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::formatChunk">>,
+        fun() ->
+            NativeBigUInt = lawspec_beam_schema:to_native(BigUInt, {<<"BigUInt">>, []}, Schema),
+            NativeScoredResult = lawspec_beam_schema:to_native(
+                ScoredResult,
+                {<<"cake.laws.prompt_context::type::ScoredResult">>, []},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.PromptContext':format_chunk(NativeBigUInt, NativeScoredResult),
+                {<<"Text">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% historyMessages — laws/prompt_context.lawspec:96
+history_messages(Schema, _Symbols, ListText) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::historyMessages">>,
+        fun() ->
+            NativeListText = lawspec_beam_schema:to_native(
+                ListText,
+                {<<"List">>, [{<<"Text">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.PromptContext':history_messages(NativeListText),
+                {<<"List">>, [{<<"cake.laws.prompt_context::type::Message">>, []}]},
+                Schema
+            )
+        end
+    ).
+
+%% build — laws/prompt_context.lawspec:100
+build(Schema, _Symbols, ListPromptChunk, Text, ListText) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::build">>,
+        fun() ->
+            NativeListPromptChunk = lawspec_beam_schema:to_native(
+                ListPromptChunk,
+                {<<"List">>, [{<<"cake.laws.prompt_context::type::PromptChunk">>, []}]},
+                Schema
+            ),
+            NativeText = lawspec_beam_schema:to_native(Text, {<<"Text">>, []}, Schema),
+            NativeListText = lawspec_beam_schema:to_native(
+                ListText,
+                {<<"List">>, [{<<"Text">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.PromptContext':build(
+                    NativeListPromptChunk,
+                    NativeText,
+                    NativeListText
+                ),
+                {<<"List">>, [{<<"cake.laws.prompt_context::type::Message">>, []}]},
+                Schema
+            )
+        end
+    ).
+
+%% systemMessageWithContext — laws/prompt_context.lawspec:103
+system_message_with_context(Schema, _Symbols, ListText) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::systemMessageWithContext">>,
+        fun() ->
+            NativeListText = lawspec_beam_schema:to_native(
+                ListText,
+                {<<"List">>, [{<<"Text">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.PromptContext':system_message_with_context(NativeListText),
+                {<<"Text">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% systemMessageNoContext — laws/prompt_context.lawspec:107
+system_message_no_context(Schema, _Symbols, Unit) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::systemMessageNoContext">>,
+        fun() ->
+            NativeUnit = lawspec_beam_schema:to_native(Unit, {<<"Unit">>, []}, Schema),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.PromptContext':system_message_no_context(NativeUnit),
+                {<<"Text">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% atOrAbove — laws/prompt_context.lawspec:123
+at_or_above(Schema, Symbols, Floor, Rs) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::atOrAbove">>,
+        fun() ->
+            lawspec_beam_runtime:require(((Floor >= 0) andalso (Floor =< 100)), <<"precondition">>),
+            lawspec_beam_runtime:bind(
+                Rs,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case
+                                    lawspec_definitions:meets_floor(
+                                        Schema,
+                                        Symbols,
+                                        Floor,
+                                        Selection
+                                    )
+                                of
+                                    true ->
+                                        lawspec_beam_schema:construct(
+                                            <<"List::Cons">>,
+                                            [
+                                                Selection,
+                                                lawspec_definitions:at_or_above(
+                                                    Schema,
+                                                    Symbols,
+                                                    Floor,
+                                                    Selection_2
+                                                )
+                                            ],
+                                            {
+                                                <<"List">>,
+                                                [
+                                                    {
+                                                        <<"cake.laws.prompt_context::type::ScoredResult">>,
+                                                        []
+                                                    }
+                                                ]
+                                            },
+                                            Schema
+                                        );
+                                    false ->
+                                        lawspec_definitions:at_or_above(
+                                            Schema,
+                                            Symbols,
+                                            Floor,
+                                            Selection_2
+                                        )
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% entriesOf — laws/prompt_context.lawspec:202
+entries_of(Schema, Symbols, Chunks) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::entriesOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Chunks,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_definitions:entry_of(
+                                            Schema,
+                                            Symbols,
+                                            lawspec_beam_schema:match(
+                                                Selection,
+                                                #{
+                                                    <<"cake.laws.prompt_context::type::PromptChunk::PromptChunk">> => fun(
+                                                        [Index, _PromptIndex, _Result_2]
+                                                    ) ->
+                                                        Index
+                                                    end
+                                                }
+                                            ),
+                                            lawspec_beam_schema:match(
+                                                Selection,
+                                                #{
+                                                    <<"cake.laws.prompt_context::type::PromptChunk::PromptChunk">> => fun(
+                                                        [_Index_2, _PromptIndex_2, Result_3]
+                                                    ) ->
+                                                        Result_3
+                                                    end
+                                                }
+                                            )
+                                        ),
+                                        lawspec_definitions:entries_of(Schema, Symbols, Selection_2)
+                                    ],
+                                    {<<"List">>, [{<<"Text">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% entryOf — laws/prompt_context.lawspec:198
+entry_of(_Schema, _Symbols, Index, R) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::entryOf">>,
+        fun() ->
+            lawspec_beam_runtime:helper(
+                <<"append">>,
+                [
+                    lawspec_beam_runtime:helper(
+                        <<"append">>,
+                        [
+                            lawspec_beam_runtime:helper(
+                                <<"append">>,
+                                [
+                                    <<"[">>,
+                                    lawspec_beam_runtime:helper(
+                                        <<"textOf">>,
+                                        [Index],
+                                        [<<"BigUInt">>],
+                                        64
+                                    )
+                                ],
+                                [<<"Text">>, <<"Text">>],
+                                64
+                            ),
+                            <<"] ">>
+                        ],
+                        [<<"Text">>, <<"Text">>],
+                        64
+                    ),
+                    lawspec_beam_schema:match(
+                        R,
+                        #{
+                            <<"cake.laws.prompt_context::type::ScoredResult::ScoredResult">> => fun(
+                                [Context_2, _Score]
+                            ) ->
+                                Context_2
+                            end
+                        }
+                    )
+                ],
+                [<<"Text">>, <<"Text">>],
+                64
+            )
+        end
+    ).
+
+%% exchangesOf — laws/prompt_context.lawspec:215
+exchanges_of(_Schema, _Symbols, History) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::exchangesOf">>,
+        fun() -> lawspec_typed:to_dynamic_list_message(lawspec_typed:exchanges_of(History)) end
+    ).
+
+%% historyTimes — laws/prompt_context.lawspec:243
+history_times(Schema, Symbols, History, Times) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::historyTimes">>,
+        fun() ->
+            case (Times =< 0) of
+                true ->
+                    [];
+                false ->
+                    lawspec_beam_runtime:helper(
+                        <<"append">>,
+                        [
+                            History,
+                            lawspec_definitions:history_times(
+                                Schema,
+                                Symbols,
+                                History,
+                                lawspec_beam_schema:validate(
+                                    lawspec_beam_scalar:convert(
+                                        (Times - 1),
+                                        {<<"BigUInt">>, []},
+                                        64
+                                    ),
+                                    {<<"BigUInt">>, []},
+                                    Schema
+                                )
+                            )
+                        ],
+                        [<<"List Text">>, <<"List Text">>],
+                        64
+                    )
+            end
+        end
+    ).
+
+%% indexed — laws/prompt_context.lawspec:158
+indexed(Schema, Symbols, Rs) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::indexed">>,
+        fun() -> lawspec_definitions:indexed_from(Schema, Symbols, Rs, 1) end
+    ).
+
+%% indexedFrom — laws/prompt_context.lawspec:147
+indexed_from(Schema, Symbols, Rs, I) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::indexedFrom">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Rs,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_runtime:bind(
+                                            I,
+                                            fun(RecordField) ->
+                                                lawspec_beam_runtime:bind(
+                                                    lawspec_beam_schema:construct(
+                                                        <<"Maybe::Present">>,
+                                                        [I],
+                                                        {<<"Maybe">>, [{<<"BigUInt">>, []}]},
+                                                        Schema
+                                                    ),
+                                                    fun(RecordField_2) ->
+                                                        lawspec_beam_runtime:bind(
+                                                            Selection,
+                                                            fun(RecordField_3) ->
+                                                                lawspec_beam_schema:construct(
+                                                                    <<"cake.laws.prompt_context::type::PromptChunk::PromptChunk">>,
+                                                                    [
+                                                                        RecordField,
+                                                                        RecordField_2,
+                                                                        RecordField_3
+                                                                    ],
+                                                                    {
+                                                                        <<"cake.laws.prompt_context::type::PromptChunk">>,
+                                                                        []
+                                                                    },
+                                                                    Schema
+                                                                )
+                                                            end
+                                                        )
+                                                    end
+                                                )
+                                            end
+                                        ),
+                                        lawspec_definitions:indexed_from(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2,
+                                            lawspec_beam_schema:validate(
+                                                lawspec_beam_scalar:convert(
+                                                    (I + 1),
+                                                    {<<"BigUInt">>, []},
+                                                    64
+                                                ),
+                                                {<<"BigUInt">>, []},
+                                                Schema
+                                            )
+                                        )
+                                    ],
+                                    {
+                                        <<"List">>,
+                                        [{<<"cake.laws.prompt_context::type::PromptChunk">>, []}]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% lastTen — laws/prompt_context.lawspec:230
+last_ten(_Schema, _Symbols, Messages) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::lastTen">>,
+        fun() ->
+            lawspec_typed:to_dynamic_list_message(
+                lawspec_typed:last_ten(lawspec_typed:from_dynamic_list_message(Messages))
+            )
+        end
+    ).
+
+%% manyOf — laws/prompt_context.lawspec:189
+many_of(Schema, Symbols, Rs, Times) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::manyOf">>,
+        fun() ->
+            case (Times =< 0) of
+                true ->
+                    [];
+                false ->
+                    lawspec_beam_runtime:helper(
+                        <<"append">>,
+                        [
+                            Rs,
+                            lawspec_definitions:many_of(
+                                Schema,
+                                Symbols,
+                                Rs,
+                                lawspec_beam_schema:validate(
+                                    lawspec_beam_scalar:convert(
+                                        (Times - 1),
+                                        {<<"BigUInt">>, []},
+                                        64
+                                    ),
+                                    {<<"BigUInt">>, []},
+                                    Schema
+                                )
+                            )
+                        ],
+                        [
+                            <<"List cake.laws.prompt_context::type::ScoredResult">>,
+                            <<"List cake.laws.prompt_context::type::ScoredResult">>
+                        ],
+                        64
+                    )
+            end
+        end
+    ).
+
+%% meetsFloor — laws/prompt_context.lawspec:115
+meets_floor(_Schema, _Symbols, Floor, R) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::meetsFloor">>,
+        fun() ->
+            lawspec_beam_runtime:require(((Floor >= 0) andalso (Floor =< 100)), <<"precondition">>),
+            lawspec_beam_runtime:bind(
+                lawspec_beam_schema:match(
+                    R,
+                    #{
+                        <<"cake.laws.prompt_context::type::ScoredResult::ScoredResult">> => fun(
+                            [_Context_2, Score]
+                        ) ->
+                            Score
+                        end
+                    }
+                ),
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Maybe::Absent">> => fun([]) -> false end,
+                            <<"Maybe::Present">> => fun([Selection]) -> (Selection >= Floor) end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% preparedOf — laws/prompt_context.lawspec:171
+prepared_of(Schema, Symbols, MaxChunks, Floor, Rs) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::preparedOf">>,
+        fun() ->
+            lawspec_beam_runtime:require(((Floor >= 0) andalso (Floor =< 100)), <<"precondition">>),
+            lawspec_beam_runtime:bind(
+                lawspec_definitions:indexed(
+                    Schema,
+                    Symbols,
+                    lawspec_beam_runtime:helper(
+                        <<"slice">>,
+                        [
+                            lawspec_definitions:at_or_above(Schema, Symbols, Floor, Rs),
+                            0,
+                            lawspec_beam_schema:validate(
+                                lawspec_beam_scalar:convert(MaxChunks, {<<"Integer">>, []}, 64),
+                                {<<"Integer">>, []},
+                                Schema
+                            )
+                        ],
+                        [
+                            <<"List cake.laws.prompt_context::type::ScoredResult">>,
+                            <<"Integer">>,
+                            <<"Integer">>
+                        ],
+                        64
+                    )
+                ),
+                fun(RecordField) ->
+                    lawspec_beam_runtime:bind(
+                        lawspec_definitions:quality_of(
+                            Schema,
+                            Symbols,
+                            lawspec_definitions:indexed(
+                                Schema,
+                                Symbols,
+                                lawspec_beam_runtime:helper(
+                                    <<"slice">>,
+                                    [
+                                        lawspec_definitions:at_or_above(Schema, Symbols, Floor, Rs),
+                                        0,
+                                        lawspec_beam_schema:validate(
+                                            lawspec_beam_scalar:convert(
+                                                MaxChunks,
+                                                {<<"Integer">>, []},
+                                                64
+                                            ),
+                                            {<<"Integer">>, []},
+                                            Schema
+                                        )
+                                    ],
+                                    [
+                                        <<"List cake.laws.prompt_context::type::ScoredResult">>,
+                                        <<"Integer">>,
+                                        <<"Integer">>
+                                    ],
+                                    64
+                                )
+                            )
+                        ),
+                        fun(RecordField_2) ->
+                            lawspec_beam_schema:construct(
+                                <<"cake.laws.prompt_context::type::PreparedContext::PreparedContext">>,
+                                [RecordField, RecordField_2],
+                                {<<"cake.laws.prompt_context::type::PreparedContext">>, []},
+                                Schema
+                            )
+                        end
+                    )
+                end
+            )
+        end
+    ).
+
+%% qualityOf — laws/prompt_context.lawspec:162
+quality_of(Schema, _Symbols, Chunks) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::qualityOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Chunks,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"cake.laws.prompt_context::type::ContextQuality::None">>,
+                                    [],
+                                    {<<"cake.laws.prompt_context::type::ContextQuality">>, []},
+                                    Schema
+                                )
+                            end,
+                            <<"List::Cons">> => fun([_Selection, _Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"cake.laws.prompt_context::type::ContextQuality::Good">>,
+                                    [],
+                                    {<<"cake.laws.prompt_context::type::ContextQuality">>, []},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% recentExchanges — laws/prompt_context.lawspec:237
+recent_exchanges(_Schema, _Symbols, History) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::recentExchanges">>,
+        fun() -> lawspec_typed:to_dynamic_list_message(lawspec_typed:recent_exchanges(History)) end
+    ).
+
+%% resultsOf — laws/prompt_context.lawspec:180
+results_of(Schema, Symbols, Chunks) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::resultsOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Chunks,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_schema:match(
+                                            Selection,
+                                            #{
+                                                <<"cake.laws.prompt_context::type::PromptChunk::PromptChunk">> => fun(
+                                                    [_Index, _PromptIndex, Result_2]
+                                                ) ->
+                                                    Result_2
+                                                end
+                                            }
+                                        ),
+                                        lawspec_definitions:results_of(Schema, Symbols, Selection_2)
+                                    ],
+                                    {
+                                        <<"List">>,
+                                        [{<<"cake.laws.prompt_context::type::ScoredResult">>, []}]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% scoredOnly — laws/prompt_context.lawspec:134
+scored_only(_Schema, _Symbols, Rs) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_context::scoredOnly">>,
+        fun() ->
+            lawspec_typed:to_dynamic_list_scored_result(
+                lawspec_typed:scored_only(lawspec_typed:from_dynamic_list_scored_result(Rs))
             )
         end
     ).

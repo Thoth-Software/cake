@@ -11,6 +11,7 @@ Elixir these are StreamData properties inside ExUnit.
 | `laws/citations.lawspec` | `Cake.Citations.extract/2`: valid citations and hallucinated indices, each in first-appearance order against a reference model; totality; leading zeros; and `[0]`, which is always hallucinated because `Cake.Prompt` numbers from 1 |
 | `laws/responses.lawspec` | `Cake.Responses.process/3` and `build_citation_map/1`: the chunk map; one citation per retrieval unit, numbered `1..K` by first appearance; the final text against a reference model of marker rewriting and whitespace tidying; warnings, download actions, and the untouched `raw_text` and empty `media` |
 | `laws/candidates.lawspec` | `Cake.Candidates`: `group_by_document/1` against a reference model (one group per document id, in first-seen order, candidates in input order, text keys) and as a permutation of its input; `all_chunk_ids/1` and `expand_to_chunk_ids/2` against a reference model of a selection, with expansion distributing over appended selections; `document_metadata/1`'s title, 100-character preview and page label, which counts distinct pages; and a group for every candidate whatever its `Cake.Citable` id |
+| `laws/prompt_context.lawspec` | `Cake.Prompt`'s context assembly: `prepare_context/2` against a reference model (the first `max_chunks` results at or above the relevance floor, in input order, numbered from 1), its bounds, dense numbering and context quality, its defaults (ten chunks, a floor of 0.30), and a result with no relevance score, which never passes the floor; `format_chunk/1`; `history_messages/1` as the last five complete exchanges; `build/4` as the system message, the recent history, then the question; and the context block that ends `system_message_with_context/1` |
 | `laws/fakes.lawspec` | `Cake.Laws.FakeUnit`, the test retrieval unit: it carries generated data through `Cake.Citable` and `Cake.Promptable` unchanged, and meets the five-key `Citable` contract |
 | `laws/shared.lawspec` | no laws: types and checked definitions other specifications import (see "Shared types" below) |
 
@@ -230,7 +231,7 @@ Commit the specification, the regenerated files and `.lawspec/generated.json`
 together. CI fails on an unformatted specification (`lawspec fmt --check`)
 and on stale generated files (`lawspec generate --check`).
 
-Three things `npm run check` and `npm run generate` are strict or quiet
+Six things `npm run check` and `npm run generate` are strict or quiet
 about:
 
 - **Definition names are global.** Two units that each define a function of
@@ -244,6 +245,23 @@ about:
   record and on the law's own variable.
 - **An example's expected value is a literal.** The right-hand side of
   `expect ... = ...` takes a constructor or a literal, not a function call.
+- **A function needs an input.** An adapter signature with no argument, for
+  a Cake function of arity zero, fails `check` with `functions require one
+  or more concrete value inputs and a value result`. Declare it
+  `Unit -> Text` and call it with the unit value, `f ()`; the adapter
+  receives `:ok`. `laws/prompt_context.lawspec` does this for
+  `Cake.Prompt.system_message_no_context/0`.
+- **Prelude argument order is not checked for you.** The compiler lists
+  prelude names without signatures, and `prelude.endsWith` type-checks with
+  its two texts in either order. It takes the text first and the suffix
+  second; the other way round is a law that is false, not an error.
+- **A bound drawn from every whole number rarely bites.** A refinement's
+  bounds narrow what is generated instead of filtering it, so refine a
+  ceiling the law must reach. Measured on the prompt context unit: with
+  `max_chunks` generated as any `Whole`, the property passed when
+  `Cake.Prompt` was broken to apply the ceiling before the floor; with the
+  ceiling refined to 0..12 (`SmallCeiling`) it failed, as it should. Check
+  that such a law bites by breaking the Cake code and watching it fail.
 
 A new specification for another module follows the same steps:
 

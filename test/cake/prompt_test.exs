@@ -102,6 +102,23 @@ defmodule Cake.PromptTest do
       assert quality == :good
       assert length(indexed) == 5
     end
+
+    # B3 (#330): `nil >= 0.3` is true in Erlang term order, where every atom
+    # sorts above every number, so an unscored result passed any floor.
+    test "a result with no relevance score never passes the floor" do
+      chunks = [scored_result(0.9), scored_result(nil), scored_result(0.5)]
+      {indexed, quality} = Cake.Prompt.prepare_context(chunks, min_relevance: 0.3)
+
+      assert Enum.map(indexed, fn {idx, result} -> {idx, result.relevance_score} end) ==
+               [{1, 0.9}, {2, 0.5}]
+
+      assert quality == :good
+    end
+
+    test "unscored results alone return :none, even at a zero floor" do
+      chunks = [scored_result(nil), scored_result(nil)]
+      assert {[], :none} = Cake.Prompt.prepare_context(chunks, min_relevance: 0.0)
+    end
   end
 
   describe "build/4" do

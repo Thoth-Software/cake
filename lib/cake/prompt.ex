@@ -73,6 +73,10 @@ defmodule Cake.Prompt do
   #{@default_max_chunks}), assigns dense 1..N prompt indices (populating
   each Result's `prompt_index`), and reports context quality — `:none`
   when nothing survives the filter, `:good` otherwise.
+
+  A result with no relevance score (`nil`, as it is until
+  `Cake.Search.normalize_and_combine/1` has run) never passes the floor,
+  whatever the floor: no score is not a score of zero.
   """
   @spec prepare_context([Result.t()], keyword()) ::
           {[indexed_chunk()], context_quality()}
@@ -82,7 +86,7 @@ defmodule Cake.Prompt do
 
     indexed =
       scored_results
-      |> Enum.filter(fn %Result{relevance_score: score} -> score >= min_relevance end)
+      |> Enum.filter(&meets_floor?(&1, min_relevance))
       |> Enum.take(max_chunks)
       |> Enum.with_index(1)
       |> Enum.map(fn {result, idx} -> {idx, %{result | prompt_index: idx}} end)
@@ -90,6 +94,14 @@ defmodule Cake.Prompt do
     context_quality = if indexed == [], do: :none, else: :good
     {indexed, context_quality}
   end
+
+  # The nil clause is not optional: Erlang's term order puts every atom above
+  # every number, so `nil >= 0.3` is true and a bare comparison lets an
+  # unscored result through any floor (#330).
+  defp meets_floor?(%Result{relevance_score: nil}, _min_relevance), do: false
+
+  defp meets_floor?(%Result{relevance_score: score}, min_relevance) when is_number(score),
+    do: score >= min_relevance
 
   @doc """
   Builds the messages list for the LLM: a system message carrying the
