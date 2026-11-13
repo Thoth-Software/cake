@@ -231,7 +231,7 @@ Commit the specification, the regenerated files and `.lawspec/generated.json`
 together. CI fails on an unformatted specification (`lawspec fmt --check`)
 and on stale generated files (`lawspec generate --check`).
 
-Three things `npm run check` and `npm run generate` are strict or quiet
+Six things `npm run check` and `npm run generate` are strict or quiet
 about:
 
 - **Definition names are global.** Two units that each define a function of
@@ -245,6 +245,23 @@ about:
   record and on the law's own variable.
 - **An example's expected value is a literal.** The right-hand side of
   `expect ... = ...` takes a constructor or a literal, not a function call.
+- **A function needs an input.** An adapter signature with no argument, for
+  a Cake function of arity zero, fails `check` with `functions require one
+  or more concrete value inputs and a value result`. Declare it
+  `Unit -> Text` and call it with the unit value, `f ()`; the adapter
+  receives `:ok`. `laws/prompt_context.lawspec` does this for
+  `Cake.Prompt.system_message_no_context/0`.
+- **Prelude argument order is not checked for you.** The compiler lists
+  prelude names without signatures, and `prelude.endsWith` type-checks with
+  its two texts in either order. It takes the text first and the suffix
+  second; the other way round is a law that is false, not an error.
+- **A bound drawn from every whole number rarely bites.** A refinement's
+  bounds narrow what is generated instead of filtering it, so refine a
+  ceiling the law must reach. Measured on the prompt context unit: with
+  `max_chunks` generated as any `Whole`, the property passed when
+  `Cake.Prompt` was broken to apply the ceiling before the floor; with the
+  ceiling refined to 0..12 (`SmallCeiling`) it failed, as it should. Check
+  that such a law bites by breaking the Cake code and watching it fail.
 
 A new specification for another module follows the same steps:
 

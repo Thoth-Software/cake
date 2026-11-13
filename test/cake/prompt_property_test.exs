@@ -202,7 +202,7 @@ defmodule Cake.PromptPropertyTest do
     end
   end
 
-  # `is_float/1` first: a bare `>=` holds for `nil` against any number, which
+  # `is_number/1` first: a bare `>=` holds for `nil` against any number, which
   # is how an unscored result once passed every floor (#330).
   property "prepare_context/2 all output results have a score that meets the relevance floor" do
     check all(
@@ -213,7 +213,7 @@ defmodule Cake.PromptPropertyTest do
       min_relevance = Keyword.get(opts, :min_relevance)
 
       Enum.each(indexed, fn {_idx, result} ->
-        assert is_float(result.relevance_score)
+        assert is_number(result.relevance_score)
         assert result.relevance_score >= min_relevance
       end)
     end
@@ -229,7 +229,7 @@ defmodule Cake.PromptPropertyTest do
 
       expected =
         results
-        |> Enum.filter(&(is_float(&1.relevance_score) and &1.relevance_score >= min_relevance))
+        |> Enum.filter(&(is_number(&1.relevance_score) and &1.relevance_score >= min_relevance))
         |> Enum.take(Keyword.get(opts, :max_chunks))
 
       assert Enum.map(indexed, fn {_idx, result} -> %{result | prompt_index: nil} end) == expected
