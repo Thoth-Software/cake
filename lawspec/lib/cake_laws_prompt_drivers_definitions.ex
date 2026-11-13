@@ -152,10 +152,11 @@ defmodule Cake.Laws.PromptDrivers.Definitions do
     :cake_laws_prompt_drivers_definitions_ffi.kept_steps(steps, budget)
   end
 
-  @spec contexts_within([binary()], binary()) :: boolean()
+  @spec closes_block([binary()], [LawSpec.Data.reasoning_step()], non_neg_integer(), binary()) ::
+          boolean()
 
-  def contexts_within(contexts, text) do
-    :cake_laws_prompt_drivers_definitions_ffi.contexts_within(contexts, text)
+  def closes_block(contexts, rest, next, text) do
+    :cake_laws_prompt_drivers_definitions_ffi.closes_block(contexts, rest, next, text)
   end
 
   @spec steps_within_from([LawSpec.Data.reasoning_step()], non_neg_integer(), binary()) ::

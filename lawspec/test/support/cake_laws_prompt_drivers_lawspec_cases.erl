@@ -39,7 +39,7 @@
     <<"cake.laws.prompt_drivers::|a token estimate is the length over four, rounded up|">>
 ).
 
-%% |a token estimate is the length over four, rounded up| — laws/prompt_drivers.lawspec:706
+%% |a token estimate is the length over four, rounded up| — laws/prompt_drivers.lawspec:722
 %% estimate_tokens/1 is the number of characters in the text divided by
 %%     four, rounded up: the least number of four-character tokens that cover
 %%     the text. So the empty text costs nothing, and one character costs a
@@ -208,7 +208,7 @@ law_a_token_estimate_is_the_length_over_four_rounded_test_() ->
 law_a_token_estimate_is_the_length_over_four_rounded_case_at(Index) ->
     lawspec_beam_finite:case_at(law_a_token_estimate_is_the_length_over_four_rounded_plan(), Index).
 
-%% |a token estimate is the length over four, rounded up| example |the empty text costs nothing| — laws/prompt_drivers.lawspec:725
+%% |a token estimate is the length over four, rounded up| example |the empty text costs nothing| — laws/prompt_drivers.lawspec:741
 law_a_token_estimate_is_the_length_over_four_rounded__the_empty_text_costs_nothing() ->
     {Schema, Symbols} = lawspec_data:context(),
     Fill = 0,
@@ -224,10 +224,10 @@ law_a_token_estimate_is_the_length_over_four_rounded__the_empty_text_costs_nothi
             lawspec_definitions:lengthened(Schema, Symbols, Fill, Tail)
         ),
         0,
-        <<"|a token estimate is the length over four, rounded up| example |the empty text costs nothing| — laws/prompt_drivers.lawspec:725"/utf8>>
+        <<"|a token estimate is the length over four, rounded up| example |the empty text costs nothing| — laws/prompt_drivers.lawspec:741"/utf8>>
     ).
 
-%% |a token estimate is the length over four, rounded up| example |one character costs a token| — laws/prompt_drivers.lawspec:730
+%% |a token estimate is the length over four, rounded up| example |one character costs a token| — laws/prompt_drivers.lawspec:746
 law_a_token_estimate_is_the_length_over_four_rounded__one_character_costs_a_token() ->
     {Schema, Symbols} = lawspec_data:context(),
     Fill = 0,
@@ -243,10 +243,10 @@ law_a_token_estimate_is_the_length_over_four_rounded__one_character_costs_a_toke
             lawspec_definitions:lengthened(Schema, Symbols, Fill, Tail)
         ),
         1,
-        <<"|a token estimate is the length over four, rounded up| example |one character costs a token| — laws/prompt_drivers.lawspec:730"/utf8>>
+        <<"|a token estimate is the length over four, rounded up| example |one character costs a token| — laws/prompt_drivers.lawspec:746"/utf8>>
     ).
 
-%% |a token estimate is the length over four, rounded up| example |four characters are one token| — laws/prompt_drivers.lawspec:735
+%% |a token estimate is the length over four, rounded up| example |four characters are one token| — laws/prompt_drivers.lawspec:751
 law_a_token_estimate_is_the_length_over_four_rounded__four_characters_are_one_token() ->
     {Schema, Symbols} = lawspec_data:context(),
     Fill = 0,
@@ -262,10 +262,10 @@ law_a_token_estimate_is_the_length_over_four_rounded__four_characters_are_one_to
             lawspec_definitions:lengthened(Schema, Symbols, Fill, Tail)
         ),
         1,
-        <<"|a token estimate is the length over four, rounded up| example |four characters are one token| — laws/prompt_drivers.lawspec:735"/utf8>>
+        <<"|a token estimate is the length over four, rounded up| example |four characters are one token| — laws/prompt_drivers.lawspec:751"/utf8>>
     ).
 
-%% |a token estimate is the length over four, rounded up| example |a fifth character starts a second token| — laws/prompt_drivers.lawspec:740
+%% |a token estimate is the length over four, rounded up| example |a fifth character starts a second token| — laws/prompt_drivers.lawspec:756
 law_a_token_estimate_is_the_length_over_four_rounded__a_fifth_character_starts_a_second_token() ->
     {Schema, Symbols} = lawspec_data:context(),
     Fill = 0,
@@ -281,10 +281,10 @@ law_a_token_estimate_is_the_length_over_four_rounded__a_fifth_character_starts_a
             lawspec_definitions:lengthened(Schema, Symbols, Fill, Tail)
         ),
         2,
-        <<"|a token estimate is the length over four, rounded up| example |a fifth character starts a second token| — laws/prompt_drivers.lawspec:740"/utf8>>
+        <<"|a token estimate is the length over four, rounded up| example |a fifth character starts a second token| — laws/prompt_drivers.lawspec:756"/utf8>>
     ).
 
-%% |a token estimate is the length over four, rounded up| example |eight characters are two tokens| — laws/prompt_drivers.lawspec:745
+%% |a token estimate is the length over four, rounded up| example |eight characters are two tokens| — laws/prompt_drivers.lawspec:761
 law_a_token_estimate_is_the_length_over_four_rounded__eight_characters_are_two_tokens() ->
     {Schema, Symbols} = lawspec_data:context(),
     Fill = 0,
@@ -300,10 +300,10 @@ law_a_token_estimate_is_the_length_over_four_rounded__eight_characters_are_two_t
             lawspec_definitions:lengthened(Schema, Symbols, Fill, Tail)
         ),
         2,
-        <<"|a token estimate is the length over four, rounded up| example |eight characters are two tokens| — laws/prompt_drivers.lawspec:745"/utf8>>
+        <<"|a token estimate is the length over four, rounded up| example |eight characters are two tokens| — laws/prompt_drivers.lawspec:761"/utf8>>
     ).
 
-%% |a token estimate is the length over four, rounded up| property — laws/prompt_drivers.lawspec:706
+%% |a token estimate is the length over four, rounded up| property — laws/prompt_drivers.lawspec:722
 law_a_token_estimate_is_the_length_over_four_rounded__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -425,7 +425,7 @@ law_a_token_estimate_is_the_length_over_four_rounded__property() ->
     <<"cake.laws.prompt_drivers::|the surviving pairs are the newest that fit the budget|">>
 ).
 
-%% |the surviving pairs are the newest that fit the budget| — laws/prompt_drivers.lawspec:751
+%% |the surviving pairs are the newest that fit the budget| — laws/prompt_drivers.lawspec:767
 %% fit_answer_pairs/2 evicts the oldest pairs, one at a time, until what is
 %%     left costs no more than the budget. A pair costs the token estimate of
 %%     its question plus that of its answer. The survivors come back unchanged
@@ -687,7 +687,7 @@ law_the_surviving_pairs_are_the_newest_that_fit_the_test_() ->
 law_the_surviving_pairs_are_the_newest_that_fit_the_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_surviving_pairs_are_the_newest_that_fit_the_plan(), Index).
 
-%% |the surviving pairs are the newest that fit the budget| example |a budget for the newest pair alone evicts the older one| — laws/prompt_drivers.lawspec:774
+%% |the surviving pairs are the newest that fit the budget| example |a budget for the newest pair alone evicts the older one| — laws/prompt_drivers.lawspec:790
 law_the_surviving_pairs_are_the_newest_that_fit_the__a_budget_for_the_newest_pair_alone_evicts_the() ->
     {Schema, Symbols} = lawspec_data:context(),
     Seeds = make_cons_4(
@@ -715,7 +715,7 @@ law_the_surviving_pairs_are_the_newest_that_fit_the__a_budget_for_the_newest_pai
             lawspec_definitions:pairs_of(Schema, Symbols, Seeds)
         ),
         24,
-        <<"|the surviving pairs are the newest that fit the budget| example |a budget for the newest pair alone evicts the older one| — laws/prompt_drivers.lawspec:774"/utf8>>
+        <<"|the surviving pairs are the newest that fit the budget| example |a budget for the newest pair alone evicts the older one| — laws/prompt_drivers.lawspec:790"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:fit_answer_pairs(
@@ -728,10 +728,10 @@ law_the_surviving_pairs_are_the_newest_that_fit_the__a_budget_for_the_newest_pai
             [make_answer_pair([<<"last sub-question">>, <<"newest answer">>], Schema), []],
             Schema
         ),
-        <<"|the surviving pairs are the newest that fit the budget| example |a budget for the newest pair alone evicts the older one| — laws/prompt_drivers.lawspec:775"/utf8>>
+        <<"|the surviving pairs are the newest that fit the budget| example |a budget for the newest pair alone evicts the older one| — laws/prompt_drivers.lawspec:791"/utf8>>
     ).
 
-%% |the surviving pairs are the newest that fit the budget| example |one token short of the newest pair keeps nothing| — laws/prompt_drivers.lawspec:791
+%% |the surviving pairs are the newest that fit the budget| example |one token short of the newest pair keeps nothing| — laws/prompt_drivers.lawspec:807
 law_the_surviving_pairs_are_the_newest_that_fit_the__one_token_short_of_the_newest_pair_keeps_nothing() ->
     {Schema, Symbols} = lawspec_data:context(),
     Seeds = make_cons_4(
@@ -767,10 +767,10 @@ law_the_surviving_pairs_are_the_newest_that_fit_the__one_token_short_of_the_newe
             64
         ),
         0,
-        <<"|the surviving pairs are the newest that fit the budget| example |one token short of the newest pair keeps nothing| — laws/prompt_drivers.lawspec:791"/utf8>>
+        <<"|the surviving pairs are the newest that fit the budget| example |one token short of the newest pair keeps nothing| — laws/prompt_drivers.lawspec:807"/utf8>>
     ).
 
-%% |the surviving pairs are the newest that fit the budget| example |a budget for everything keeps everything| — laws/prompt_drivers.lawspec:798
+%% |the surviving pairs are the newest that fit the budget| example |a budget for everything keeps everything| — laws/prompt_drivers.lawspec:814
 law_the_surviving_pairs_are_the_newest_that_fit_the__a_budget_for_everything_keeps_everything() ->
     {Schema, Symbols} = lawspec_data:context(),
     Seeds = make_cons_4(
@@ -799,10 +799,10 @@ law_the_surviving_pairs_are_the_newest_that_fit_the__a_budget_for_everything_kee
             ],
             Schema
         ),
-        <<"|the surviving pairs are the newest that fit the budget| example |a budget for everything keeps everything| — laws/prompt_drivers.lawspec:798"/utf8>>
+        <<"|the surviving pairs are the newest that fit the budget| example |a budget for everything keeps everything| — laws/prompt_drivers.lawspec:814"/utf8>>
     ).
 
-%% |the surviving pairs are the newest that fit the budget| property — laws/prompt_drivers.lawspec:751
+%% |the surviving pairs are the newest that fit the budget| property — laws/prompt_drivers.lawspec:767
 law_the_surviving_pairs_are_the_newest_that_fit_the__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -926,7 +926,7 @@ law_the_surviving_pairs_are_the_newest_that_fit_the__property() ->
     <<"cake.laws.prompt_drivers::|no longer run of the newest pairs would fit|">>
 ).
 
-%% |no longer run of the newest pairs would fit| — laws/prompt_drivers.lawspec:804
+%% |no longer run of the newest pairs would fit| — laws/prompt_drivers.lawspec:820
 %% On a budget that is not zero, what fit_answer_pairs/2 returns is the
 %%     longest run of the newest pairs that fits: it is the newest pairs, it
 %%     costs no more than the budget, and either every pair survived or the
@@ -1036,7 +1036,7 @@ law_no_longer_run_of_the_newest_pairs_would_fit_test_() ->
 law_no_longer_run_of_the_newest_pairs_would_fit_case_at(Index) ->
     lawspec_beam_finite:case_at(law_no_longer_run_of_the_newest_pairs_would_fit_plan(), Index).
 
-%% |no longer run of the newest pairs would fit| example |pairs that cost nothing all fit a budget of one| — laws/prompt_drivers.lawspec:823
+%% |no longer run of the newest pairs would fit| example |pairs that cost nothing all fit a budget of one| — laws/prompt_drivers.lawspec:839
 law_no_longer_run_of_the_newest_pairs_would_fit__pairs_that_cost_nothing_all_fit_a_budget_of_one() ->
     {Schema, Symbols} = lawspec_data:context(),
     Seeds = make_cons_4(
@@ -1066,10 +1066,10 @@ law_no_longer_run_of_the_newest_pairs_would_fit__pairs_that_cost_nothing_all_fit
             64
         ),
         2,
-        <<"|no longer run of the newest pairs would fit| example |pairs that cost nothing all fit a budget of one| — laws/prompt_drivers.lawspec:823"/utf8>>
+        <<"|no longer run of the newest pairs would fit| example |pairs that cost nothing all fit a budget of one| — laws/prompt_drivers.lawspec:839"/utf8>>
     ).
 
-%% |no longer run of the newest pairs would fit| property — laws/prompt_drivers.lawspec:804
+%% |no longer run of the newest pairs would fit| property — laws/prompt_drivers.lawspec:820
 law_no_longer_run_of_the_newest_pairs_would_fit__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -1203,7 +1203,7 @@ law_no_longer_run_of_the_newest_pairs_would_fit__property() ->
     <<"cake.laws.prompt_drivers::|a budget of zero keeps no pair|">>
 ).
 
-%% |a budget of zero keeps no pair| — laws/prompt_drivers.lawspec:827
+%% |a budget of zero keeps no pair| — laws/prompt_drivers.lawspec:843
 %% fit_answer_pairs/2 with a budget of zero returns no pairs, whatever it
 %%     is given. That includes pairs that cost nothing: a zero budget switches
 %%     the accumulated answers off, it does not admit the ones that are free.
@@ -1355,7 +1355,7 @@ law_a_budget_of_zero_keeps_no_pair_test_() ->
 law_a_budget_of_zero_keeps_no_pair_case_at(Index) ->
     lawspec_beam_finite:case_at(law_a_budget_of_zero_keeps_no_pair_plan(), Index).
 
-%% |a budget of zero keeps no pair| example |a pair that costs nothing is still evicted| — laws/prompt_drivers.lawspec:840
+%% |a budget of zero keeps no pair| example |a pair that costs nothing is still evicted| — laws/prompt_drivers.lawspec:856
 law_a_budget_of_zero_keeps_no_pair__a_pair_that_costs_nothing_is_still_evicted() ->
     {Schema, Symbols} = lawspec_data:context(),
     Seeds = make_cons_4([make_pair_seed([<<>>, <<>>, 0], Schema), []], Schema),
@@ -1370,7 +1370,7 @@ law_a_budget_of_zero_keeps_no_pair__a_pair_that_costs_nothing_is_still_evicted()
             lawspec_definitions:pairs_of(Schema, Symbols, Seeds)
         ),
         0,
-        <<"|a budget of zero keeps no pair| example |a pair that costs nothing is still evicted| — laws/prompt_drivers.lawspec:840"/utf8>>
+        <<"|a budget of zero keeps no pair| example |a pair that costs nothing is still evicted| — laws/prompt_drivers.lawspec:856"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -1387,10 +1387,10 @@ law_a_budget_of_zero_keeps_no_pair__a_pair_that_costs_nothing_is_still_evicted()
             64
         ),
         0,
-        <<"|a budget of zero keeps no pair| example |a pair that costs nothing is still evicted| — laws/prompt_drivers.lawspec:841"/utf8>>
+        <<"|a budget of zero keeps no pair| example |a pair that costs nothing is still evicted| — laws/prompt_drivers.lawspec:857"/utf8>>
     ).
 
-%% |a budget of zero keeps no pair| property — laws/prompt_drivers.lawspec:827
+%% |a budget of zero keeps no pair| property — laws/prompt_drivers.lawspec:843
 law_a_budget_of_zero_keeps_no_pair__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -1484,7 +1484,7 @@ law_a_budget_of_zero_keeps_no_pair__property() ->
     <<"cake.laws.prompt_drivers::|with no surviving pair, the prompt is build/4's|">>
 ).
 
-%% |with no surviving pair, the prompt is build/4's| — laws/prompt_drivers.lawspec:847
+%% |with no surviving pair, the prompt is build/4's| — laws/prompt_drivers.lawspec:863
 %% build_with_prior_answers/5 returns exactly what build/4 returns for the
 %%     same chunks, question and history whenever no pair survives the budget:
 %%     when there are no pairs, when the budget is zero, and when not even the
@@ -3763,7 +3763,7 @@ law_with_no_surviving_pair_the_prompt_is_build_4_s_test_() ->
 law_with_no_surviving_pair_the_prompt_is_build_4_s_case_at(Index) ->
     lawspec_beam_finite:case_at(law_with_no_surviving_pair_the_prompt_is_build_4_s_plan(), Index).
 
-%% |with no surviving pair, the prompt is build/4's| example |a newest pair that does not fit leaves build/4's prompt| — laws/prompt_drivers.lawspec:880
+%% |with no surviving pair, the prompt is build/4's| example |a newest pair that does not fit leaves build/4's prompt| — laws/prompt_drivers.lawspec:896
 law_with_no_surviving_pair_the_prompt_is_build_4_s__a_newest_pair_that_does_not_fit_leaves_build_4_s() ->
     {Schema, Symbols} = lawspec_data:context(),
     Contexts = [<<"Flow is laminar">>],
@@ -3797,7 +3797,7 @@ law_with_no_surviving_pair_the_prompt_is_build_4_s__a_newest_pair_that_does_not_
             64
         ),
         0,
-        <<"|with no surviving pair, the prompt is build/4's| example |a newest pair that does not fit leaves build/4's prompt| — laws/prompt_drivers.lawspec:880"/utf8>>
+        <<"|with no surviving pair, the prompt is build/4's| example |a newest pair that does not fit leaves build/4's prompt| — laws/prompt_drivers.lawspec:896"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -3817,10 +3817,10 @@ law_with_no_surviving_pair_the_prompt_is_build_4_s__a_newest_pair_that_does_not_
             64
         ),
         4,
-        <<"|with no surviving pair, the prompt is build/4's| example |a newest pair that does not fit leaves build/4's prompt| — laws/prompt_drivers.lawspec:881"/utf8>>
+        <<"|with no surviving pair, the prompt is build/4's| example |a newest pair that does not fit leaves build/4's prompt| — laws/prompt_drivers.lawspec:897"/utf8>>
     ).
 
-%% |with no surviving pair, the prompt is build/4's| property — laws/prompt_drivers.lawspec:847
+%% |with no surviving pair, the prompt is build/4's| property — laws/prompt_drivers.lawspec:863
 law_with_no_surviving_pair_the_prompt_is_build_4_s__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -4046,7 +4046,7 @@ law_with_no_surviving_pair_the_prompt_is_build_4_s__property() ->
     <<"cake.laws.prompt_drivers::|the prompt folds in the surviving pairs and no others|">>
 ).
 
-%% |the prompt folds in the surviving pairs and no others| — laws/prompt_drivers.lawspec:886
+%% |the prompt folds in the surviving pairs and no others| — laws/prompt_drivers.lawspec:902
 %% build_with_prior_answers/5 is build/4's prompt with the surviving pairs
 %%     added to the end of its system message. The messages after the system
 %%     message are build/4's, the system message starts with build/4's, and it
@@ -6397,7 +6397,7 @@ law_the_prompt_folds_in_the_surviving_pairs_and_no_test_() ->
 law_the_prompt_folds_in_the_surviving_pairs_and_no_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_prompt_folds_in_the_surviving_pairs_and_no_plan(), Index).
 
-%% |the prompt folds in the surviving pairs and no others| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:931
+%% |the prompt folds in the surviving pairs and no others| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:947
 law_the_prompt_folds_in_the_surviving_pairs_and_no__the_newest_pair_is_folded_in_and_the_evicted_one() ->
     {Schema, Symbols} = lawspec_data:context(),
     Contexts = [<<"Flow is laminar">>],
@@ -6448,7 +6448,7 @@ law_the_prompt_folds_in_the_surviving_pairs_and_no__the_newest_pair_is_folded_in
             64
         ),
         true,
-        <<"|the prompt folds in the surviving pairs and no others| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:931"/utf8>>
+        <<"|the prompt folds in the surviving pairs and no others| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:947"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -6473,7 +6473,7 @@ law_the_prompt_folds_in_the_surviving_pairs_and_no__the_newest_pair_is_folded_in
             64
         ),
         false,
-        <<"|the prompt folds in the surviving pairs and no others| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:933"/utf8>>
+        <<"|the prompt folds in the surviving pairs and no others| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:949"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -6498,10 +6498,10 @@ law_the_prompt_folds_in_the_surviving_pairs_and_no__the_newest_pair_is_folded_in
             64
         ),
         true,
-        <<"|the prompt folds in the surviving pairs and no others| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:935"/utf8>>
+        <<"|the prompt folds in the surviving pairs and no others| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:951"/utf8>>
     ).
 
-%% |the prompt folds in the surviving pairs and no others| property — laws/prompt_drivers.lawspec:886
+%% |the prompt folds in the surviving pairs and no others| property — laws/prompt_drivers.lawspec:902
 law_the_prompt_folds_in_the_surviving_pairs_and_no__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -6727,7 +6727,7 @@ law_the_prompt_folds_in_the_surviving_pairs_and_no__property() ->
     <<"cake.laws.prompt_drivers::|the self-ask prompt is its instructions, the surviving pairs, the question|">>
 ).
 
-%% |the self-ask prompt is its instructions, the surviving pairs, the question| — laws/prompt_drivers.lawspec:942
+%% |the self-ask prompt is its instructions, the surviving pairs, the question| — laws/prompt_drivers.lawspec:958
 %% self_ask_prompt/3 returns two messages: a system message, then the
 %%     question as a user message, verbatim. The system message starts with the
 %%     self-ask instructions, which name both markers the parser classifies by,
@@ -7483,7 +7483,7 @@ law_the_self_ask_prompt_is_its_instructions_the_test_() ->
 law_the_self_ask_prompt_is_its_instructions_the_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_self_ask_prompt_is_its_instructions_the_plan(), Index).
 
-%% |the self-ask prompt is its instructions, the surviving pairs, the question| example |a budget of zero gives the instructions alone| — laws/prompt_drivers.lawspec:981
+%% |the self-ask prompt is its instructions, the surviving pairs, the question| example |a budget of zero gives the instructions alone| — laws/prompt_drivers.lawspec:997
 law_the_self_ask_prompt_is_its_instructions_the__a_budget_of_zero_gives_the_instructions_alone() ->
     {Schema, Symbols} = lawspec_data:context(),
     Question = <<"final?">>,
@@ -7517,7 +7517,7 @@ law_the_self_ask_prompt_is_its_instructions_the__a_budget_of_zero_gives_the_inst
             )
         ),
         <<>>,
-        <<"|the self-ask prompt is its instructions, the surviving pairs, the question| example |a budget of zero gives the instructions alone| — laws/prompt_drivers.lawspec:981"/utf8>>
+        <<"|the self-ask prompt is its instructions, the surviving pairs, the question| example |a budget of zero gives the instructions alone| — laws/prompt_drivers.lawspec:997"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -7535,10 +7535,10 @@ law_the_self_ask_prompt_is_its_instructions_the__a_budget_of_zero_gives_the_inst
             64
         ),
         2,
-        <<"|the self-ask prompt is its instructions, the surviving pairs, the question| example |a budget of zero gives the instructions alone| — laws/prompt_drivers.lawspec:983"/utf8>>
+        <<"|the self-ask prompt is its instructions, the surviving pairs, the question| example |a budget of zero gives the instructions alone| — laws/prompt_drivers.lawspec:999"/utf8>>
     ).
 
-%% |the self-ask prompt is its instructions, the surviving pairs, the question| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:997
+%% |the self-ask prompt is its instructions, the surviving pairs, the question| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:1013
 law_the_self_ask_prompt_is_its_instructions_the__the_newest_pair_is_folded_in_and_the_evicted_one() ->
     {Schema, Symbols} = lawspec_data:context(),
     Question = <<"final?">>,
@@ -7581,7 +7581,7 @@ law_the_self_ask_prompt_is_its_instructions_the__the_newest_pair_is_folded_in_an
             64
         ),
         true,
-        <<"|the self-ask prompt is its instructions, the surviving pairs, the question| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:997"/utf8>>
+        <<"|the self-ask prompt is its instructions, the surviving pairs, the question| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:1013"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -7604,10 +7604,10 @@ law_the_self_ask_prompt_is_its_instructions_the__the_newest_pair_is_folded_in_an
             64
         ),
         false,
-        <<"|the self-ask prompt is its instructions, the surviving pairs, the question| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:999"/utf8>>
+        <<"|the self-ask prompt is its instructions, the surviving pairs, the question| example |the newest pair is folded in and the evicted one is not| — laws/prompt_drivers.lawspec:1015"/utf8>>
     ).
 
-%% |the self-ask prompt is its instructions, the surviving pairs, the question| property — laws/prompt_drivers.lawspec:942
+%% |the self-ask prompt is its instructions, the surviving pairs, the question| property — laws/prompt_drivers.lawspec:958
 law_the_self_ask_prompt_is_its_instructions_the__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -7757,7 +7757,7 @@ law_the_self_ask_prompt_is_its_instructions_the__property() ->
     <<"cake.laws.prompt_drivers::|a self-ask reply is its last final answer, or else its last follow-up|">>
 ).
 
-%% |a self-ask reply is its last final answer, or else its last follow-up| — laws/prompt_drivers.lawspec:1006
+%% |a self-ask reply is its last final answer, or else its last follow-up| — laws/prompt_drivers.lawspec:1022
 %% parse_self_ask_response/1 classifies a reply by its markers. If the
 %%     reply has the final-answer marker, it is the final answer: everything
 %%     after the last such marker, trimmed. Otherwise, if it has the follow-up
@@ -9029,7 +9029,7 @@ law_a_self_ask_reply_is_its_last_final_answer_or_test_() ->
 law_a_self_ask_reply_is_its_last_final_answer_or_case_at(Index) ->
     lawspec_beam_finite:case_at(law_a_self_ask_reply_is_its_last_final_answer_or_plan(), Index).
 
-%% |a self-ask reply is its last final answer, or else its last follow-up| example |a final-answer line after some thinking| — laws/prompt_drivers.lawspec:1036
+%% |a self-ask reply is its last final answer, or else its last follow-up| example |a final-answer line after some thinking| — laws/prompt_drivers.lawspec:1052
 law_a_self_ask_reply_is_its_last_final_answer_or__a_final_answer_line_after_some_thinking() ->
     {Schema, Symbols} = lawspec_data:context(),
     Lead = make_no_margin([], Schema),
@@ -9066,7 +9066,7 @@ law_a_self_ask_reply_is_its_last_final_answer_or__a_final_answer_line_after_some
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:reply_text(Schema, Symbols, Lead, Lines, Trail),
         <<"Thinking it through.\nSo the final answer is: The warranty is 5 years.">>,
-        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |a final-answer line after some thinking| — laws/prompt_drivers.lawspec:1036"/utf8>>
+        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |a final-answer line after some thinking| — laws/prompt_drivers.lawspec:1052"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:parse_self_ask(
@@ -9075,10 +9075,10 @@ law_a_self_ask_reply_is_its_last_final_answer_or__a_final_answer_line_after_some
             lawspec_definitions:reply_text(Schema, Symbols, Lead, Lines, Trail)
         ),
         make_final_answer([<<"The warranty is 5 years.">>], Schema),
-        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |a final-answer line after some thinking| — laws/prompt_drivers.lawspec:1038"/utf8>>
+        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |a final-answer line after some thinking| — laws/prompt_drivers.lawspec:1054"/utf8>>
     ).
 
-%% |a self-ask reply is its last final answer, or else its last follow-up| example |a follow-up line is its question, less the rest of the reply| — laws/prompt_drivers.lawspec:1052
+%% |a self-ask reply is its last final answer, or else its last follow-up| example |a follow-up line is its question, less the rest of the reply| — laws/prompt_drivers.lawspec:1068
 law_a_self_ask_reply_is_its_last_final_answer_or__a_follow_up_line_is_its_question_less_the_rest() ->
     {Schema, Symbols} = lawspec_data:context(),
     Lead = make_no_margin([], Schema),
@@ -9119,10 +9119,10 @@ law_a_self_ask_reply_is_its_last_final_answer_or__a_follow_up_line_is_its_questi
             lawspec_definitions:reply_text(Schema, Symbols, Lead, Lines, Trail)
         ),
         make_follow_up([<<"Which pump does the RO-400 use?">>], Schema),
-        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |a follow-up line is its question, less the rest of the reply| — laws/prompt_drivers.lawspec:1052"/utf8>>
+        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |a follow-up line is its question, less the rest of the reply| — laws/prompt_drivers.lawspec:1068"/utf8>>
     ).
 
-%% |a self-ask reply is its last final answer, or else its last follow-up| example |no marker makes the whole reply the final answer, trimmed| — laws/prompt_drivers.lawspec:1059
+%% |a self-ask reply is its last final answer, or else its last follow-up| example |no marker makes the whole reply the final answer, trimmed| — laws/prompt_drivers.lawspec:1075
 law_a_self_ask_reply_is_its_last_final_answer_or__no_marker_makes_the_whole_reply_the_final_answer() ->
     {Schema, Symbols} = lawspec_data:context(),
     Lead = make_space_margin([], Schema),
@@ -9139,10 +9139,10 @@ law_a_self_ask_reply_is_its_last_final_answer_or__no_marker_makes_the_whole_repl
             lawspec_definitions:reply_text(Schema, Symbols, Lead, Lines, Trail)
         ),
         make_final_answer([<<"A direct answer.">>], Schema),
-        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |no marker makes the whole reply the final answer, trimmed| — laws/prompt_drivers.lawspec:1059"/utf8>>
+        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |no marker makes the whole reply the final answer, trimmed| — laws/prompt_drivers.lawspec:1075"/utf8>>
     ).
 
-%% |a self-ask reply is its last final answer, or else its last follow-up| example |a follow-up marker trailed by nothing is not a follow-up| — laws/prompt_drivers.lawspec:1068
+%% |a self-ask reply is its last final answer, or else its last follow-up| example |a follow-up marker trailed by nothing is not a follow-up| — laws/prompt_drivers.lawspec:1084
 law_a_self_ask_reply_is_its_last_final_answer_or__a_follow_up_marker_trailed_by_nothing_is_not_a() ->
     {Schema, Symbols} = lawspec_data:context(),
     Lead = make_no_margin([], Schema),
@@ -9179,10 +9179,10 @@ law_a_self_ask_reply_is_its_last_final_answer_or__a_follow_up_marker_trailed_by_
             lawspec_definitions:reply_text(Schema, Symbols, Lead, Lines, Trail)
         ),
         make_final_answer([<<"I cannot decide what to ask.\nFollow up:">>], Schema),
-        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |a follow-up marker trailed by nothing is not a follow-up| — laws/prompt_drivers.lawspec:1068"/utf8>>
+        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |a follow-up marker trailed by nothing is not a follow-up| — laws/prompt_drivers.lawspec:1084"/utf8>>
     ).
 
-%% |a self-ask reply is its last final answer, or else its last follow-up| example |a final-answer marker trailed by nothing gives the whole reply| — laws/prompt_drivers.lawspec:1077
+%% |a self-ask reply is its last final answer, or else its last follow-up| example |a final-answer marker trailed by nothing gives the whole reply| — laws/prompt_drivers.lawspec:1093
 law_a_self_ask_reply_is_its_last_final_answer_or__a_final_answer_marker_trailed_by_nothing_gives() ->
     {Schema, Symbols} = lawspec_data:context(),
     Lead = make_no_margin([], Schema),
@@ -9219,10 +9219,10 @@ law_a_self_ask_reply_is_its_last_final_answer_or__a_final_answer_marker_trailed_
             lawspec_definitions:reply_text(Schema, Symbols, Lead, Lines, Trail)
         ),
         make_final_answer([<<"The answer is 5 years.\nSo the final answer is:">>], Schema),
-        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |a final-answer marker trailed by nothing gives the whole reply| — laws/prompt_drivers.lawspec:1077"/utf8>>
+        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |a final-answer marker trailed by nothing gives the whole reply| — laws/prompt_drivers.lawspec:1093"/utf8>>
     ).
 
-%% |a self-ask reply is its last final answer, or else its last follow-up| example |an answer that starts on the line after its marker| — laws/prompt_drivers.lawspec:1086
+%% |a self-ask reply is its last final answer, or else its last follow-up| example |an answer that starts on the line after its marker| — laws/prompt_drivers.lawspec:1102
 law_a_self_ask_reply_is_its_last_final_answer_or__an_answer_that_starts_on_the_line_after_its() ->
     {Schema, Symbols} = lawspec_data:context(),
     Lead = make_no_margin([], Schema),
@@ -9248,10 +9248,10 @@ law_a_self_ask_reply_is_its_last_final_answer_or__an_answer_that_starts_on_the_l
             lawspec_definitions:reply_text(Schema, Symbols, Lead, Lines, Trail)
         ),
         make_final_answer([<<"The warranty is 5 years.">>], Schema),
-        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |an answer that starts on the line after its marker| — laws/prompt_drivers.lawspec:1086"/utf8>>
+        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |an answer that starts on the line after its marker| — laws/prompt_drivers.lawspec:1102"/utf8>>
     ).
 
-%% |a self-ask reply is its last final answer, or else its last follow-up| example |an empty reply is an empty final answer| — laws/prompt_drivers.lawspec:1093
+%% |a self-ask reply is its last final answer, or else its last follow-up| example |an empty reply is an empty final answer| — laws/prompt_drivers.lawspec:1109
 law_a_self_ask_reply_is_its_last_final_answer_or__an_empty_reply_is_an_empty_final_answer() ->
     {Schema, Symbols} = lawspec_data:context(),
     Lead = make_space_margin([], Schema),
@@ -9268,10 +9268,10 @@ law_a_self_ask_reply_is_its_last_final_answer_or__an_empty_reply_is_an_empty_fin
             lawspec_definitions:reply_text(Schema, Symbols, Lead, Lines, Trail)
         ),
         make_final_answer([<<>>], Schema),
-        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |an empty reply is an empty final answer| — laws/prompt_drivers.lawspec:1093"/utf8>>
+        <<"|a self-ask reply is its last final answer, or else its last follow-up| example |an empty reply is an empty final answer| — laws/prompt_drivers.lawspec:1109"/utf8>>
     ).
 
-%% |a self-ask reply is its last final answer, or else its last follow-up| property — laws/prompt_drivers.lawspec:1006
+%% |a self-ask reply is its last final answer, or else its last follow-up| property — laws/prompt_drivers.lawspec:1022
 law_a_self_ask_reply_is_its_last_final_answer_or__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -9390,7 +9390,7 @@ law_a_self_ask_reply_is_its_last_final_answer_or__property() ->
     <<"cake.laws.prompt_drivers::|the final-answer marker wins over a follow-up|">>
 ).
 
-%% |the final-answer marker wins over a follow-up| — laws/prompt_drivers.lawspec:1097
+%% |the final-answer marker wins over a follow-up| — laws/prompt_drivers.lawspec:1113
 %% A reply that has the final-answer marker anywhere is the final answer,
 %%     whatever surrounds the marker: follow-up markers before it, after it, or
 %%     on both sides. A model that answers in one breath has answered.
@@ -9720,7 +9720,7 @@ law_the_final_answer_marker_wins_over_a_follow_up_test_() ->
 law_the_final_answer_marker_wins_over_a_follow_up_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_final_answer_marker_wins_over_a_follow_up_plan(), Index).
 
-%% |the final-answer marker wins over a follow-up| example |a follow-up and then the answer| — laws/prompt_drivers.lawspec:1116
+%% |the final-answer marker wins over a follow-up| example |a follow-up and then the answer| — laws/prompt_drivers.lawspec:1132
 law_the_final_answer_marker_wins_over_a_follow_up__a_follow_up_and_then_the_answer() ->
     {Schema, Symbols} = lawspec_data:context(),
     Before = <<>>,
@@ -9770,10 +9770,10 @@ law_the_final_answer_marker_wins_over_a_follow_up__a_follow_up_and_then_the_answ
             )
         ),
         make_final_answer([<<"The warranty is 5 years.">>], Schema),
-        <<"|the final-answer marker wins over a follow-up| example |a follow-up and then the answer| — laws/prompt_drivers.lawspec:1116"/utf8>>
+        <<"|the final-answer marker wins over a follow-up| example |a follow-up and then the answer| — laws/prompt_drivers.lawspec:1132"/utf8>>
     ).
 
-%% |the final-answer marker wins over a follow-up| property — laws/prompt_drivers.lawspec:1097
+%% |the final-answer marker wins over a follow-up| property — laws/prompt_drivers.lawspec:1113
 law_the_final_answer_marker_wins_over_a_follow_up__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -9879,7 +9879,7 @@ law_the_final_answer_marker_wins_over_a_follow_up__property() ->
     <<"cake.laws.prompt_drivers::|the last follow-up wins when there are several|">>
 ).
 
-%% |the last follow-up wins when there are several| — laws/prompt_drivers.lawspec:1122
+%% |the last follow-up wins when there are several| — laws/prompt_drivers.lawspec:1138
 %% In a reply with no final-answer marker and two or more follow-up
 %%     markers, the last follow-up marker decides: the reply is that marker's
 %%     question, whatever the earlier follow-ups asked, since the model was
@@ -13630,7 +13630,7 @@ law_the_last_follow_up_wins_when_there_are_several_test_() ->
 law_the_last_follow_up_wins_when_there_are_several_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_last_follow_up_wins_when_there_are_several_plan(), Index).
 
-%% |the last follow-up wins when there are several| example |two follow-ups around an intermediate answer| — laws/prompt_drivers.lawspec:1157
+%% |the last follow-up wins when there are several| example |two follow-ups around an intermediate answer| — laws/prompt_drivers.lawspec:1173
 law_the_last_follow_up_wins_when_there_are_several__two_follow_ups_around_an_intermediate_answer() ->
     {Schema, Symbols} = lawspec_data:context(),
     Lead = make_no_margin([], Schema),
@@ -13677,10 +13677,10 @@ law_the_last_follow_up_wins_when_there_are_several__two_follow_ups_around_an_int
             )
         ),
         make_follow_up([<<"What is the warranty on the P-100?">>], Schema),
-        <<"|the last follow-up wins when there are several| example |two follow-ups around an intermediate answer| — laws/prompt_drivers.lawspec:1157"/utf8>>
+        <<"|the last follow-up wins when there are several| example |two follow-ups around an intermediate answer| — laws/prompt_drivers.lawspec:1173"/utf8>>
     ).
 
-%% |the last follow-up wins when there are several| property — laws/prompt_drivers.lawspec:1122
+%% |the last follow-up wins when there are several| property — laws/prompt_drivers.lawspec:1138
 law_the_last_follow_up_wins_when_there_are_several__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -13967,7 +13967,7 @@ law_the_last_follow_up_wins_when_there_are_several__property() ->
     <<"cake.laws.prompt_drivers::|every reply is a final answer or a follow-up, taken from the reply|">>
 ).
 
-%% |every reply is a final answer or a follow-up, taken from the reply| — laws/prompt_drivers.lawspec:1162
+%% |every reply is a final answer or a follow-up, taken from the reply| — laws/prompt_drivers.lawspec:1178
 %% parse_self_ask_response/1 classifies any text at all, with or without
 %%     markers, and never invents text. A final answer is part of the reply. A
 %%     follow-up is part of a reply that has the follow-up marker and no
@@ -14413,7 +14413,7 @@ law_every_reply_is_a_final_answer_or_a_follow_up_test_() ->
 law_every_reply_is_a_final_answer_or_a_follow_up_case_at(Index) ->
     lawspec_beam_finite:case_at(law_every_reply_is_a_final_answer_or_a_follow_up_plan(), Index).
 
-%% |every reply is a final answer or a follow-up, taken from the reply| property — laws/prompt_drivers.lawspec:1162
+%% |every reply is a final answer or a follow-up, taken from the reply| property — laws/prompt_drivers.lawspec:1178
 law_every_reply_is_a_final_answer_or_a_follow_up__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -14519,7 +14519,7 @@ law_every_reply_is_a_final_answer_or_a_follow_up__property() ->
     <<"cake.laws.prompt_drivers::|the IRCoT prompt folds in the newest steps that fit the budget|">>
 ).
 
-%% |the IRCoT prompt folds in the newest steps that fit the budget| — laws/prompt_drivers.lawspec:1187
+%% |the IRCoT prompt folds in the newest steps that fit the budget| — laws/prompt_drivers.lawspec:1203
 %% ircot_prompt/3 returns two messages: a system message, then the
 %%     question as a user message, verbatim. The system message starts with the
 %%     IRCoT instructions and holds the steps that survive the budget, each with
@@ -14662,6 +14662,10 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that_plan() ->
                 {
                     "|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes|",
                     fun law_the_ircot_prompt_folds_in_the_newest_steps_that__the_newest_step_survives_with_its_context_the/0
+                },
+                {
+                    "|the IRCoT prompt folds in the newest steps that fit the budget| example |two surviving steps each keep their own contexts|",
+                    fun law_the_ircot_prompt_folds_in_the_newest_steps_that__two_surviving_steps_each_keep_their_own_contexts/0
                 },
                 {
                     "|the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost|",
@@ -15225,7 +15229,7 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that_test_() ->
 law_the_ircot_prompt_folds_in_the_newest_steps_that_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_ircot_prompt_folds_in_the_newest_steps_that_plan(), Index).
 
-%% |the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1229
+%% |the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1245
 law_the_ircot_prompt_folds_in_the_newest_steps_that__the_newest_step_survives_with_its_context_the() ->
     {Schema, Symbols} = lawspec_data:context(),
     Question = <<"final?">>,
@@ -15264,7 +15268,7 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that__the_newest_step_survives_wi
             lawspec_definitions:steps_of(Schema, Symbols, Seeds)
         ),
         23,
-        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1229"/utf8>>
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1245"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -15287,7 +15291,7 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that__the_newest_step_survives_wi
             64
         ),
         true,
-        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1230"/utf8>>
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1246"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -15310,7 +15314,7 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that__the_newest_step_survives_wi
             64
         ),
         true,
-        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1232"/utf8>>
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1248"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -15333,7 +15337,7 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that__the_newest_step_survives_wi
             64
         ),
         false,
-        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1234"/utf8>>
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1250"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -15356,10 +15360,89 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that__the_newest_step_survives_wi
             64
         ),
         false,
-        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1236"/utf8>>
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |the newest step survives with its context, the older one goes| — laws/prompt_drivers.lawspec:1252"/utf8>>
     ).
 
-%% |the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost| — laws/prompt_drivers.lawspec:1253
+%% |the IRCoT prompt folds in the newest steps that fit the budget| example |two surviving steps each keep their own contexts| — laws/prompt_drivers.lawspec:1269
+law_the_ircot_prompt_folds_in_the_newest_steps_that__two_surviving_steps_each_keep_their_own_contexts() ->
+    {Schema, Symbols} = lawspec_data:context(),
+    Question = <<"final?">>,
+    Seeds = make_cons_6(
+        [
+            make_step_seed([<<"abcd">>, 0, [<<"old text">>, <<"older text">>], 0], Schema),
+            make_cons_6(
+                [make_step_seed([<<"efgh">>, 0, [<<"new chunk text">>], 0], Schema), []],
+                Schema
+            )
+        ],
+        Schema
+    ),
+    Budget = 12,
+    lawspec_beam_runtime:require(
+        law_the_ircot_prompt_folds_in_the_newest_steps_that(
+            Schema,
+            Symbols,
+            [Question, Seeds, Budget]
+        ),
+        ?LAW_THE_IRCOT_PROMPT_FOLDS_IN_THE_NEWEST_STEPS_THAT
+    ),
+    lawspec_beam_runtime:assert_equal(
+        lawspec_definitions:steps_cost(
+            Schema,
+            Symbols,
+            lawspec_definitions:steps_of(Schema, Symbols, Seeds)
+        ),
+        11,
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |two surviving steps each keep their own contexts| — laws/prompt_drivers.lawspec:1269"/utf8>>
+    ),
+    lawspec_beam_runtime:assert_equal(
+        lawspec_beam_runtime:helper(
+            <<"textContains">>,
+            [
+                lawspec_definitions:system_of(
+                    Schema,
+                    Symbols,
+                    lawspec_definitions:ircot_prompt(
+                        Schema,
+                        Symbols,
+                        Question,
+                        lawspec_definitions:steps_of(Schema, Symbols, Seeds),
+                        Budget
+                    )
+                ),
+                <<"old text\n---\nolder text\nStep 2: efgh">>
+            ],
+            [<<"Text">>, <<"Text">>],
+            64
+        ),
+        true,
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |two surviving steps each keep their own contexts| — laws/prompt_drivers.lawspec:1270"/utf8>>
+    ),
+    lawspec_beam_runtime:assert_equal(
+        lawspec_beam_runtime:helper(
+            <<"endsWith">>,
+            [
+                lawspec_definitions:system_of(
+                    Schema,
+                    Symbols,
+                    lawspec_definitions:ircot_prompt(
+                        Schema,
+                        Symbols,
+                        Question,
+                        lawspec_definitions:steps_of(Schema, Symbols, Seeds),
+                        Budget
+                    )
+                ),
+                <<"new chunk text">>
+            ],
+            [<<"Text">>, <<"Text">>],
+            64
+        ),
+        true,
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |two surviving steps each keep their own contexts| — laws/prompt_drivers.lawspec:1272"/utf8>>
+    ).
+
+%% |the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost| — laws/prompt_drivers.lawspec:1289
 law_the_ircot_prompt_folds_in_the_newest_steps_that__contexts_count_toward_a_step_s_cost() ->
     {Schema, Symbols} = lawspec_data:context(),
     Question = <<"final?">>,
@@ -15389,7 +15472,7 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that__contexts_count_toward_a_ste
             lawspec_definitions:steps_of(Schema, Symbols, Seeds)
         ),
         10,
-        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost| — laws/prompt_drivers.lawspec:1253"/utf8>>
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost| — laws/prompt_drivers.lawspec:1289"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -15412,7 +15495,7 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that__contexts_count_toward_a_ste
             64
         ),
         true,
-        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost| — laws/prompt_drivers.lawspec:1254"/utf8>>
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost| — laws/prompt_drivers.lawspec:1290"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -15435,7 +15518,7 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that__contexts_count_toward_a_ste
             64
         ),
         false,
-        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost| — laws/prompt_drivers.lawspec:1256"/utf8>>
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost| — laws/prompt_drivers.lawspec:1292"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -15458,10 +15541,10 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that__contexts_count_toward_a_ste
             64
         ),
         false,
-        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost| — laws/prompt_drivers.lawspec:1258"/utf8>>
+        <<"|the IRCoT prompt folds in the newest steps that fit the budget| example |contexts count toward a step's cost| — laws/prompt_drivers.lawspec:1294"/utf8>>
     ).
 
-%% |the IRCoT prompt folds in the newest steps that fit the budget| property — laws/prompt_drivers.lawspec:1187
+%% |the IRCoT prompt folds in the newest steps that fit the budget| property — laws/prompt_drivers.lawspec:1203
 law_the_ircot_prompt_folds_in_the_newest_steps_that__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -15611,7 +15694,7 @@ law_the_ircot_prompt_folds_in_the_newest_steps_that__property() ->
     <<"cake.laws.prompt_drivers::|with no surviving step, the IRCoT prompt is its instructions alone|">>
 ).
 
-%% |with no surviving step, the IRCoT prompt is its instructions alone| — laws/prompt_drivers.lawspec:1263
+%% |with no surviving step, the IRCoT prompt is its instructions alone| — laws/prompt_drivers.lawspec:1299
 %% ircot_prompt/3 returns exactly the IRCoT instructions and the question
 %%     whenever no step survives the budget: when there are no steps, when the
 %%     budget is zero, and when not even the newest step fits. A zero budget
@@ -16263,7 +16346,7 @@ law_with_no_surviving_step_the_ircot_prompt_is_its_test_() ->
 law_with_no_surviving_step_the_ircot_prompt_is_its_case_at(Index) ->
     lawspec_beam_finite:case_at(law_with_no_surviving_step_the_ircot_prompt_is_its_plan(), Index).
 
-%% |with no surviving step, the IRCoT prompt is its instructions alone| example |a step that costs nothing is not folded in on a zero budget| — laws/prompt_drivers.lawspec:1291
+%% |with no surviving step, the IRCoT prompt is its instructions alone| example |a step that costs nothing is not folded in on a zero budget| — laws/prompt_drivers.lawspec:1327
 law_with_no_surviving_step_the_ircot_prompt_is_its__a_step_that_costs_nothing_is_not_folded_in_on_a() ->
     {Schema, Symbols} = lawspec_data:context(),
     Question = <<"final?">>,
@@ -16284,7 +16367,7 @@ law_with_no_surviving_step_the_ircot_prompt_is_its__a_step_that_costs_nothing_is
             lawspec_definitions:steps_of(Schema, Symbols, Seeds)
         ),
         0,
-        <<"|with no surviving step, the IRCoT prompt is its instructions alone| example |a step that costs nothing is not folded in on a zero budget| — laws/prompt_drivers.lawspec:1291"/utf8>>
+        <<"|with no surviving step, the IRCoT prompt is its instructions alone| example |a step that costs nothing is not folded in on a zero budget| — laws/prompt_drivers.lawspec:1327"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:folded_after(
@@ -16304,10 +16387,10 @@ law_with_no_surviving_step_the_ircot_prompt_is_its__a_step_that_costs_nothing_is
             )
         ),
         <<>>,
-        <<"|with no surviving step, the IRCoT prompt is its instructions alone| example |a step that costs nothing is not folded in on a zero budget| — laws/prompt_drivers.lawspec:1292"/utf8>>
+        <<"|with no surviving step, the IRCoT prompt is its instructions alone| example |a step that costs nothing is not folded in on a zero budget| — laws/prompt_drivers.lawspec:1328"/utf8>>
     ).
 
-%% |with no surviving step, the IRCoT prompt is its instructions alone| property — laws/prompt_drivers.lawspec:1263
+%% |with no surviving step, the IRCoT prompt is its instructions alone| property — laws/prompt_drivers.lawspec:1299
 law_with_no_surviving_step_the_ircot_prompt_is_its__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -16457,15 +16540,16 @@ law_with_no_surviving_step_the_ircot_prompt_is_its__property() ->
     <<"cake.laws.prompt_drivers::|the IRCoT context folded into the prompt has no [N] marker|">>
 ).
 
-%% |the IRCoT context folded into the prompt has no [N] marker| — laws/prompt_drivers.lawspec:1297
-%% What ircot_prompt/3 folds in after its instructions holds each step's
-%%     retrieved contexts verbatim and unnumbered. Each retrieval round numbers
-%%     its chunks from 1, so the numbers of two steps collide, and none of them
-%%     matches the merged numbering the final answer cites. Over steps whose
-%%     reasoning and contexts have no square bracket, the folded text has none
-%%     either, so it has no [N] marker for the model to copy. The budget is the
-%%     default, 4096 tokens, which every generated step fits.
-%% for all (question :: Text) (seeds :: List (cake.laws.prompt_drivers::type::StepSeed)) => not ((foldedAfter (ircotSystemMessage unitValue) (systemOf (ircotPrompt question (stepsOf seeds) 4096)) contains "[") = true) and not ((foldedAfter (ircotSystemMessage unitValue) (systemOf (ircotPrompt question (stepsOf seeds) 4096)) contains "]") = true) and holdsExactly (stepsOf seeds) (foldedAfter (ircotSystemMessage unitValue) (systemOf (ircotPrompt question (stepsOf seeds) 4096))) = true end for all
+%% |the IRCoT context folded into the prompt has no [N] marker| — laws/prompt_drivers.lawspec:1333
+%% What ircot_prompt/3 folds in after its instructions holds each
+%%     surviving step's retrieved contexts verbatim and unnumbered. Each
+%%     retrieval round numbers its chunks from 1, so the numbers of two steps
+%%     collide, and none of them matches the merged numbering the final answer
+%%     cites. Over steps whose reasoning and contexts have no square bracket,
+%%     the folded text has none either, so it has no [N] marker for the model
+%%     to copy. The budget is the default, 4096 tokens: far more than any
+%%     generated step costs, so the survivors are in practice every step.
+%% for all (question :: Text) (seeds :: List (cake.laws.prompt_drivers::type::StepSeed)) => not ((foldedAfter (ircotSystemMessage unitValue) (systemOf (ircotPrompt question (stepsOf seeds) 4096)) contains "[") = true) and not ((foldedAfter (ircotSystemMessage unitValue) (systemOf (ircotPrompt question (stepsOf seeds) 4096)) contains "]") = true) and holdsExactly (keptSteps (stepsOf seeds) 4096) (foldedAfter (ircotSystemMessage unitValue) (systemOf (ircotPrompt question (stepsOf seeds) 4096))) = true end for all
 law_the_ircot_context_folded_into_the_prompt_has_no(Schema, Symbols, [Question, Seeds]) ->
     lawspec_beam_runtime:assert_equal(
         (((not lawspec_beam_scalar:equal(
@@ -16527,7 +16611,12 @@ law_the_ircot_context_folded_into_the_prompt_has_no(Schema, Symbols, [Question, 
                 lawspec_definitions:holds_exactly(
                     Schema,
                     Symbols,
-                    lawspec_definitions:steps_of(Schema, Symbols, Seeds),
+                    lawspec_definitions:kept_steps(
+                        Schema,
+                        Symbols,
+                        lawspec_definitions:steps_of(Schema, Symbols, Seeds),
+                        4096
+                    ),
                     lawspec_definitions:folded_after(
                         Schema,
                         Symbols,
@@ -17386,7 +17475,7 @@ law_the_ircot_context_folded_into_the_prompt_has_no_test_() ->
 law_the_ircot_context_folded_into_the_prompt_has_no_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_ircot_context_folded_into_the_prompt_has_no_plan(), Index).
 
-%% |the IRCoT context folded into the prompt has no [N] marker| example |two chunks of one step are folded in without their numbers| — laws/prompt_drivers.lawspec:1325
+%% |the IRCoT context folded into the prompt has no [N] marker| example |two chunks of one step are folded in without their numbers| — laws/prompt_drivers.lawspec:1362
 law_the_ircot_context_folded_into_the_prompt_has_no__two_chunks_of_one_step_are_folded_in_without() ->
     {Schema, Symbols} = lawspec_data:context(),
     Question = <<"What is the warranty?">>,
@@ -17430,7 +17519,7 @@ law_the_ircot_context_folded_into_the_prompt_has_no__two_chunks_of_one_step_are_
             64
         ),
         true,
-        <<"|the IRCoT context folded into the prompt has no [N] marker| example |two chunks of one step are folded in without their numbers| — laws/prompt_drivers.lawspec:1325"/utf8>>
+        <<"|the IRCoT context folded into the prompt has no [N] marker| example |two chunks of one step are folded in without their numbers| — laws/prompt_drivers.lawspec:1362"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -17453,7 +17542,7 @@ law_the_ircot_context_folded_into_the_prompt_has_no__two_chunks_of_one_step_are_
             64
         ),
         false,
-        <<"|the IRCoT context folded into the prompt has no [N] marker| example |two chunks of one step are folded in without their numbers| — laws/prompt_drivers.lawspec:1327"/utf8>>
+        <<"|the IRCoT context folded into the prompt has no [N] marker| example |two chunks of one step are folded in without their numbers| — laws/prompt_drivers.lawspec:1364"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_runtime:helper(
@@ -17476,10 +17565,10 @@ law_the_ircot_context_folded_into_the_prompt_has_no__two_chunks_of_one_step_are_
             64
         ),
         false,
-        <<"|the IRCoT context folded into the prompt has no [N] marker| example |two chunks of one step are folded in without their numbers| — laws/prompt_drivers.lawspec:1329"/utf8>>
+        <<"|the IRCoT context folded into the prompt has no [N] marker| example |two chunks of one step are folded in without their numbers| — laws/prompt_drivers.lawspec:1366"/utf8>>
     ).
 
-%% |the IRCoT context folded into the prompt has no [N] marker| property — laws/prompt_drivers.lawspec:1297
+%% |the IRCoT context folded into the prompt has no [N] marker| property — laws/prompt_drivers.lawspec:1333
 law_the_ircot_context_folded_into_the_prompt_has_no__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -17601,7 +17690,7 @@ law_the_ircot_context_folded_into_the_prompt_has_no__property() ->
     <<"cake.laws.prompt_drivers::|a null or blank retrieval query means done, any other continues|">>
 ).
 
-%% |a null or blank retrieval query means done, any other continues| — laws/prompt_drivers.lawspec:1336
+%% |a null or blank retrieval query means done, any other continues| — laws/prompt_drivers.lawspec:1373
 %% parse_ircot_response/1 classifies a step by its retrieval query. With no
 %%     query, or a query that is only whitespace, the chain is done and the
 %%     reasoning is the final answer. With any other query the chain continues
@@ -18082,7 +18171,7 @@ law_a_null_or_blank_retrieval_query_means_done_any_test_() ->
 law_a_null_or_blank_retrieval_query_means_done_any_case_at(Index) ->
     lawspec_beam_finite:case_at(law_a_null_or_blank_retrieval_query_means_done_any_plan(), Index).
 
-%% |a null or blank retrieval query means done, any other continues| example |a query continues the chain| — laws/prompt_drivers.lawspec:1359
+%% |a null or blank retrieval query means done, any other continues| example |a query continues the chain| — laws/prompt_drivers.lawspec:1396
 law_a_null_or_blank_retrieval_query_means_done_any__a_query_continues_the_chain() ->
     {Schema, Symbols} = lawspec_data:context(),
     Reasoning = make_field(
@@ -18129,10 +18218,10 @@ law_a_null_or_blank_retrieval_query_means_done_any__a_query_continues_the_chain(
             ],
             Schema
         ),
-        <<"|a null or blank retrieval query means done, any other continues| example |a query continues the chain| — laws/prompt_drivers.lawspec:1359"/utf8>>
+        <<"|a null or blank retrieval query means done, any other continues| example |a query continues the chain| — laws/prompt_drivers.lawspec:1396"/utf8>>
     ).
 
-%% |a null or blank retrieval query means done, any other continues| example |a null query is done| — laws/prompt_drivers.lawspec:1370
+%% |a null or blank retrieval query means done, any other continues| example |a null query is done| — laws/prompt_drivers.lawspec:1407
 law_a_null_or_blank_retrieval_query_means_done_any__a_null_query_is_done() ->
     {Schema, Symbols} = lawspec_data:context(),
     Reasoning = make_field(
@@ -18152,10 +18241,10 @@ law_a_null_or_blank_retrieval_query_means_done_any__a_null_query_is_done() ->
             lawspec_definitions:query_text(Schema, Symbols, Query)
         ),
         make_done([<<"The warranty is 5 years.">>], Schema),
-        <<"|a null or blank retrieval query means done, any other continues| example |a null query is done| — laws/prompt_drivers.lawspec:1370"/utf8>>
+        <<"|a null or blank retrieval query means done, any other continues| example |a null query is done| — laws/prompt_drivers.lawspec:1407"/utf8>>
     ).
 
-%% |a null or blank retrieval query means done, any other continues| example |a blank query is done, not a search for whitespace| — laws/prompt_drivers.lawspec:1380
+%% |a null or blank retrieval query means done, any other continues| example |a blank query is done, not a search for whitespace| — laws/prompt_drivers.lawspec:1417
 law_a_null_or_blank_retrieval_query_means_done_any__a_blank_query_is_done_not_a_search_for() ->
     {Schema, Symbols} = lawspec_data:context(),
     Reasoning = make_field(
@@ -18178,10 +18267,10 @@ law_a_null_or_blank_retrieval_query_means_done_any__a_blank_query_is_done_not_a_
             lawspec_definitions:query_text(Schema, Symbols, Query)
         ),
         make_done([<<"The warranty is 5 years.">>], Schema),
-        <<"|a null or blank retrieval query means done, any other continues| example |a blank query is done, not a search for whitespace| — laws/prompt_drivers.lawspec:1380"/utf8>>
+        <<"|a null or blank retrieval query means done, any other continues| example |a blank query is done, not a search for whitespace| — laws/prompt_drivers.lawspec:1417"/utf8>>
     ).
 
-%% |a null or blank retrieval query means done, any other continues| example |the reasoning and the query are trimmed| — laws/prompt_drivers.lawspec:1391
+%% |a null or blank retrieval query means done, any other continues| example |the reasoning and the query are trimmed| — laws/prompt_drivers.lawspec:1428
 law_a_null_or_blank_retrieval_query_means_done_any__the_reasoning_and_the_query_are_trimmed() ->
     {Schema, Symbols} = lawspec_data:context(),
     Reasoning = make_field(
@@ -18209,10 +18298,10 @@ law_a_null_or_blank_retrieval_query_means_done_any__the_reasoning_and_the_query_
             lawspec_definitions:query_text(Schema, Symbols, Query)
         ),
         make_continues([make_retrieval([<<"step one">>, <<"a query">>], Schema)], Schema),
-        <<"|a null or blank retrieval query means done, any other continues| example |the reasoning and the query are trimmed| — laws/prompt_drivers.lawspec:1391"/utf8>>
+        <<"|a null or blank retrieval query means done, any other continues| example |the reasoning and the query are trimmed| — laws/prompt_drivers.lawspec:1428"/utf8>>
     ).
 
-%% |a null or blank retrieval query means done, any other continues| property — laws/prompt_drivers.lawspec:1336
+%% |a null or blank retrieval query means done, any other continues| property — laws/prompt_drivers.lawspec:1373
 law_a_null_or_blank_retrieval_query_means_done_any__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     'Elixir.LawSpec.Beam.StreamData':check(
@@ -18323,7 +18412,7 @@ law_a_null_or_blank_retrieval_query_means_done_any__property() ->
     <<"cake.laws.prompt_drivers::|every IRCoT step is done or continues with a query it was given|">>
 ).
 
-%% |every IRCoT step is done or continues with a query it was given| — laws/prompt_drivers.lawspec:1396
+%% |every IRCoT step is done or continues with a query it was given| — laws/prompt_drivers.lawspec:1433
 %% parse_ircot_response/1 classifies any reasoning text with any retrieval
 %%     query or none, and never invents text. The reasoning it returns is part
 %%     of the reasoning it was given. A step with no query is always done. A
@@ -18506,7 +18595,7 @@ law_every_ircot_step_is_done_or_continues_with_a_test_() ->
 law_every_ircot_step_is_done_or_continues_with_a_case_at(Index) ->
     lawspec_beam_finite:case_at(law_every_ircot_step_is_done_or_continues_with_a_plan(), Index).
 
-%% |every IRCoT step is done or continues with a query it was given| property — laws/prompt_drivers.lawspec:1396
+%% |every IRCoT step is done or continues with a query it was given| property — laws/prompt_drivers.lawspec:1433
 law_every_ircot_step_is_done_or_continues_with_a__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(

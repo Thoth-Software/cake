@@ -497,27 +497,44 @@ defmodule LawSpec.Remote.Cake.Laws.PromptDrivers do
     )
   end
 
-  @spec contexts_within(LawSpec.Network.node_handle(), binary(), [binary()], binary()) ::
-          boolean()
+  @spec closes_block(
+          LawSpec.Network.node_handle(),
+          binary(),
+          [binary()],
+          [LawSpec.Data.reasoning_step()],
+          non_neg_integer(),
+          binary()
+        ) :: boolean()
 
-  def contexts_within(node, address, contexts, text) do
-    :lawspec_remote_cake_laws_prompt_drivers.contexts_within(node, address, contexts, text)
+  def closes_block(node, address, contexts, rest, next, text) do
+    :lawspec_remote_cake_laws_prompt_drivers.closes_block(
+      node,
+      address,
+      contexts,
+      rest,
+      next,
+      text
+    )
   end
 
-  @spec contexts_within_with_timeout(
+  @spec closes_block_with_timeout(
           LawSpec.Network.node_handle(),
           binary(),
           integer(),
           [binary()],
+          [LawSpec.Data.reasoning_step()],
+          non_neg_integer(),
           binary()
         ) :: boolean()
 
-  def contexts_within_with_timeout(node, address, timeout_milliseconds, contexts, text) do
-    :lawspec_remote_cake_laws_prompt_drivers.contexts_within_with_timeout(
+  def closes_block_with_timeout(node, address, timeout_milliseconds, contexts, rest, next, text) do
+    :lawspec_remote_cake_laws_prompt_drivers.closes_block_with_timeout(
       node,
       address,
       timeout_milliseconds,
       contexts,
+      rest,
+      next,
       text
     )
   end

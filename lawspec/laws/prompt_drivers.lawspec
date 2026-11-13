@@ -21,8 +21,9 @@ import cake.laws.prompt_context as context (Role, Message)
 --
 -- The laws pin which accumulated context a prompt carries, not the wording
 -- around it: a prompt's instructions come from the adapter, and what is
--- folded in after them is checked by what it contains. The one wording they
--- rely on is the `Step N:` label of an IRCoT step.
+-- folded in after them is checked by what it contains. The wording they
+-- rely on is the `Step N:` label of an IRCoT step and the line of three
+-- hyphens between two of its contexts.
 --
 -- Every law about a token count measures text, so that text is ASCII
 -- (lawspec/README.md, "Generating text: four caveats"). It is printable
@@ -352,22 +353,37 @@ function keptSteps (steps :: List ReasoningStep) (budget :: Whole) -> List
   if budget = 0 then [] else fittingSteps steps budget end if
 end function
 
-function contextsWithin (contexts :: List Text) (text :: Text) -> Bool is
+-- Whether a step's contexts close its own block: in order, separated by
+-- lines of three hyphens, and followed at once by the label and reasoning
+-- of the step after it, or by the end of the text when the step is the
+-- last. `next` is the number of the step after it. A context under another
+-- step's label fails this. A step with no context is not checked here: what
+-- stands in for its contexts is wording.
+function closesBlock (contexts :: List Text) (rest :: List ReasoningStep)
+  (next :: Whole) (text :: Text) -> Bool is
   first matching case of contexts :
     when Nil then true
-    when Cons c rest then text contains c && contextsWithin rest text
+    when Cons c more then
+      first matching case of rest :
+        when Nil then
+          prelude.endsWith text (prelude.join "\n---\n" contexts)
+        when Cons s later then
+          text contains (prelude.join "\n---\n" contexts ++ "\nStep " ++
+            prelude.textOf next ++ ": " ++ s.reasoning)
+      end case
   end case
 end function
 
 -- Whether the text holds every step, labelled from `i`: `Step i:` and the
--- step's reasoning, and each of the step's contexts.
+-- step's reasoning, and the step's contexts closing its block.
 function stepsWithinFrom (steps :: List ReasoningStep) (i :: Whole) (text ::
   Text) -> Bool is
   first matching case of steps :
     when Nil then true
     when Cons s rest then
       text contains ("Step " ++ prelude.textOf i ++ ": " ++ s.reasoning) &&
-        contextsWithin s.contexts text && stepsWithinFrom rest (i + 1) text
+        closesBlock s.contexts rest (i + 1) text && stepsWithinFrom rest
+          (i + 1) text
   end case
 end function
 
@@ -1236,6 +1252,26 @@ law "|the IRCoT prompt folds in the newest steps that fit the budget| is
     expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
       "old chunk text" = false
   end example
+  example "|two surviving steps each keep their own contexts| :
+    question = "final?"
+    seeds = [
+    StepSeed record{
+      reasoning = "abcd",
+      fill = 0,
+      contexts = ["old text", "older text"],
+      contextFill = 0},
+    StepSeed record{
+      reasoning = "efgh",
+      fill = 0,
+      contexts = ["new chunk text"],
+      contextFill = 0}]
+    budget = 12
+    expect stepsCost (stepsOf seeds) = 11
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "old text\n---\nolder text\nStep 2: efgh" = true
+    expect prelude.endsWith (systemOf (ircotPrompt question (stepsOf seeds)
+      budget)) "new chunk text" = true
+  end example
   example "|contexts count toward a step's cost| :
     question = "final?"
     seeds = [
@@ -1296,22 +1332,23 @@ end law
 
 law "|the IRCoT context folded into the prompt has no [N] marker| is
   description :
-    "What ircot_prompt/3 folds in after its instructions holds each step's
-    retrieved contexts verbatim and unnumbered. Each retrieval round numbers
-    its chunks from 1, so the numbers of two steps collide, and none of them
-    matches the merged numbering the final answer cites. Over steps whose
-    reasoning and contexts have no square bracket, the folded text has none
-    either, so it has no [N] marker for the model to copy. The budget is the
-    default, 4096 tokens, which every generated step fits."
+    "What ircot_prompt/3 folds in after its instructions holds each
+    surviving step's retrieved contexts verbatim and unnumbered. Each
+    retrieval round numbers its chunks from 1, so the numbers of two steps
+    collide, and none of them matches the merged numbering the final answer
+    cites. Over steps whose reasoning and contexts have no square bracket,
+    the folded text has none either, so it has no [N] marker for the model
+    to copy. The budget is the default, 4096 tokens: far more than any
+    generated step costs, so the survivors are in practice every step."
   end description
   definition :
     for all (question :: Text) (seeds :: List StepSeed) =>
       not (foldedAfter (ircotSystemMessage ()) (systemOf (ircotPrompt question
         (stepsOf seeds) 4096)) contains "[") and not (foldedAfter
           (ircotSystemMessage ()) (systemOf (ircotPrompt question (stepsOf
-            seeds) 4096)) contains "]") and holdsExactly (stepsOf seeds)
-              (foldedAfter (ircotSystemMessage ()) (systemOf (ircotPrompt
-                question (stepsOf seeds) 4096)))
+            seeds) 4096)) contains "]") and holdsExactly (keptSteps (stepsOf
+              seeds) 4096) (foldedAfter (ircotSystemMessage ()) (systemOf
+                (ircotPrompt question (stepsOf seeds) 4096)))
     end for all
   end definition
   example "|two chunks of one step are folded in without their numbers| :

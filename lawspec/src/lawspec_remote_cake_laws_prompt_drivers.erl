@@ -41,8 +41,8 @@
     fitting_steps_with_timeout/5,
     kept_steps/4,
     kept_steps_with_timeout/5,
-    contexts_within/4,
-    contexts_within_with_timeout/5,
+    closes_block/6,
+    closes_block_with_timeout/7,
     steps_within_from/5,
     steps_within_from_with_timeout/6,
     holds_exactly/4,
@@ -759,29 +759,44 @@ kept_steps_with_timeout(Node, Address, TimeoutMilliseconds, Steps, Budget) ->
         Schema
     ).
 
--spec contexts_within(lawspec_network:node_handle(), binary(), [binary()], binary()) -> boolean().
+-spec closes_block(
+    lawspec_network:node_handle(),
+    binary(),
+    [binary()],
+    [lawspec_data:reasoning_step()],
+    non_neg_integer(),
+    binary()
+) -> boolean().
 
-contexts_within(Node, Address, Contexts, Text) ->
-    contexts_within_with_timeout(Node, Address, 5000, Contexts, Text).
+closes_block(Node, Address, Contexts, Rest, Next, Text) ->
+    closes_block_with_timeout(Node, Address, 5000, Contexts, Rest, Next, Text).
 
--spec contexts_within_with_timeout(
+-spec closes_block_with_timeout(
     lawspec_network:node_handle(),
     binary(),
     integer(),
     [binary()],
+    [lawspec_data:reasoning_step()],
+    non_neg_integer(),
     binary()
 ) -> boolean().
 
-contexts_within_with_timeout(Node, Address, TimeoutMilliseconds, Contexts, Text) ->
+closes_block_with_timeout(Node, Address, TimeoutMilliseconds, Contexts, Rest, Next, Text) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
     lawspec_beam_schema:to_native(
         lawspec_remote:evaluate(
             Node,
             Address,
-            <<"cake.laws.prompt_drivers::contextsWithin">>,
+            <<"cake.laws.prompt_drivers::closesBlock">>,
             [
                 lawspec_beam_schema:from_native(Contexts, {<<"List">>, [{<<"Text">>, []}]}, Schema),
+                lawspec_beam_schema:from_native(
+                    Rest,
+                    {<<"List">>, [{<<"cake.laws.prompt_drivers::type::ReasoningStep">>, []}]},
+                    Schema
+                ),
+                lawspec_beam_schema:from_native(Next, {<<"BigUInt">>, []}, Schema),
                 lawspec_beam_schema:from_native(Text, {<<"Text">>, []}, Schema)
             ],
             TimeoutMilliseconds
