@@ -823,6 +823,888 @@ schema(_Symbols) ->
                 ]
             },
             #{
+                name => <<"cake.laws.prompt_drivers::type::PairSeed">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::PairSeed::PairSeed">>,
+                        fields => [
+                            {<<"question">>, {<<"Text">>, []}},
+                            {<<"answer">>, {<<"Text">>, []}},
+                            {<<"fill">>, {<<"BigUInt">>, []}}
+                        ],
+                        encode => fun([Question, Answer, Fill]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.PairSeed',
+                                question => Question,
+                                answer => Answer,
+                                fill => Fill
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.PairSeed',
+                                        question := Question,
+                                        answer := Answer,
+                                        fill := Fill
+                                    }
+                                ) ->
+                                    {ok, [Question, Answer, Fill]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_runtime:helper(
+                                    <<"regexMatches">>,
+                                    [<<"[ -~]*">>, lists:nth(1, _Fields)],
+                                    [
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        ),
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        )
+                                    ],
+                                    64
+                                )
+                            end,
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_runtime:helper(
+                                    <<"regexMatches">>,
+                                    [<<"[ -~]*">>, lists:nth(2, _Fields)],
+                                    [
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        ),
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        )
+                                    ],
+                                    64
+                                )
+                            end
+                        ],
+                        generators => #{
+                            1 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {
+                                    [],
+                                    [
+                                        <<>>,
+                                        <<"=7f{0O">>,
+                                        <<"e+r.P">>,
+                                        <<"e">>,
+                                        <<")">>,
+                                        <<"r!a">>,
+                                        <<"o|">>,
+                                        <<"JI">>,
+                                        <<"*ABznQ">>,
+                                        <<"=K\\">>,
+                                        <<"u">>,
+                                        <<"@Z">>,
+                                        <<"}">>,
+                                        <<"1">>,
+                                        <<"7gx*1(">>,
+                                        <<"|)O">>,
+                                        <<"\"'">>,
+                                        <<"xk,O">>,
+                                        <<"wZ(e7R">>,
+                                        <<"{^Dk~">>,
+                                        <<"UX<Ba">>
+                                    ]
+                                }
+                            end,
+                            2 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {
+                                    [],
+                                    [
+                                        <<>>,
+                                        <<"=7f{0O">>,
+                                        <<"e+r.P">>,
+                                        <<"e">>,
+                                        <<")">>,
+                                        <<"r!a">>,
+                                        <<"o|">>,
+                                        <<"JI">>,
+                                        <<"*ABznQ">>,
+                                        <<"=K\\">>,
+                                        <<"u">>,
+                                        <<"@Z">>,
+                                        <<"}">>,
+                                        <<"1">>,
+                                        <<"7gx*1(">>,
+                                        <<"|)O">>,
+                                        <<"\"'">>,
+                                        <<"xk,O">>,
+                                        <<"wZ(e7R">>,
+                                        <<"{^Dk~">>,
+                                        <<"UX<Ba">>
+                                    ]
+                                }
+                            end
+                        }
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::AnswerPair">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::AnswerPair::AnswerPair">>,
+                        fields => [
+                            {<<"question">>, {<<"Text">>, []}},
+                            {<<"answer">>, {<<"Text">>, []}}
+                        ],
+                        encode => fun([Question, Answer]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.AnswerPair',
+                                question => Question,
+                                answer => Answer
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.AnswerPair',
+                                        question := Question,
+                                        answer := Answer
+                                    }
+                                ) ->
+                                    {ok, [Question, Answer]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::StepSeed">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::StepSeed::StepSeed">>,
+                        fields => [
+                            {<<"reasoning">>, {<<"Text">>, []}},
+                            {<<"fill">>, {<<"BigUInt">>, []}},
+                            {<<"contexts">>, {<<"List">>, [{<<"Text">>, []}]}}
+                        ],
+                        encode => fun([Reasoning, Fill, Contexts]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.StepSeed',
+                                reasoning => Reasoning,
+                                fill => Fill,
+                                contexts => Contexts
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.StepSeed',
+                                        reasoning := Reasoning,
+                                        fill := Fill,
+                                        contexts := Contexts
+                                    }
+                                ) ->
+                                    {ok, [Reasoning, Fill, Contexts]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_runtime:helper(
+                                    <<"regexMatches">>,
+                                    [<<"[a-zA-Z0-9 .,;?!'-]*">>, lists:nth(1, _Fields)],
+                                    [
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        ),
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        )
+                                    ],
+                                    64
+                                )
+                            end,
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lists:all(
+                                    fun(Element) ->
+                                        (lawspec_beam_runtime:helper(
+                                            <<"regexMatches">>,
+                                            [<<"[a-zA-Z0-9 .,;?!'-]*">>, Element],
+                                            [
+                                                lawspec_beam_schema:type_key(
+                                                    lawspec_beam_schema:substitute(
+                                                        {<<"Text">>, []},
+                                                        _Known
+                                                    )
+                                                ),
+                                                lawspec_beam_schema:type_key(
+                                                    lawspec_beam_schema:substitute(
+                                                        {<<"Text">>, []},
+                                                        _Known
+                                                    )
+                                                )
+                                            ],
+                                            64
+                                        ) andalso true)
+                                    end,
+                                    lists:nth(3, _Fields)
+                                )
+                            end
+                        ],
+                        generators => #{
+                            1 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {
+                                    [],
+                                    [
+                                        <<>>,
+                                        <<"VKbrw?">>,
+                                        <<"aIs3y">>,
+                                        <<"8">>,
+                                        <<"L">>,
+                                        <<"nr ">>,
+                                        <<"a'">>,
+                                        <<"x;">>,
+                                        <<" e8btQ">>,
+                                        <<"GFR">>,
+                                        <<"b">>,
+                                        <<"Ey">>,
+                                        <<"7">>,
+                                        <<"d">>,
+                                        <<",cP9E2">>,
+                                        <<"J8s">>,
+                                        <<"Oi">>,
+                                        <<"KWsJ">>,
+                                        <<"sZoBZv">>,
+                                        <<"XnIRz">>,
+                                        <<"ZwFzW">>
+                                    ]
+                                }
+                            end
+                        }
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::ReasoningStep">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::ReasoningStep::ReasoningStep">>,
+                        fields => [
+                            {<<"reasoning">>, {<<"Text">>, []}},
+                            {<<"contexts">>, {<<"List">>, [{<<"Text">>, []}]}}
+                        ],
+                        encode => fun([Reasoning, Contexts]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.ReasoningStep',
+                                reasoning => Reasoning,
+                                contexts => Contexts
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.ReasoningStep',
+                                        reasoning := Reasoning,
+                                        contexts := Contexts
+                                    }
+                                ) ->
+                                    {ok, [Reasoning, Contexts]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::SelfAskStep">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::SelfAskStep::FinalAnswer">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.SelfAskStepFinalAnswer',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::SelfAskStep::FollowUp">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFollowUp',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.SelfAskStepFollowUp',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::Retrieval">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Retrieval::Retrieval">>,
+                        fields => [
+                            {<<"reasoning">>, {<<"Text">>, []}},
+                            {<<"query">>, {<<"Text">>, []}}
+                        ],
+                        encode => fun([Reasoning, Query]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Retrieval',
+                                reasoning => Reasoning,
+                                query => Query
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Retrieval',
+                                        reasoning := Reasoning,
+                                        query := Query
+                                    }
+                                ) ->
+                                    {ok, [Reasoning, Query]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::IrcotVerdict">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::IrcotVerdict::Continues">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.prompt_drivers::type::Retrieval">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.IrcotVerdictContinues',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.IrcotVerdictContinues',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::IrcotVerdict::Done">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.IrcotVerdictDone',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.IrcotVerdictDone',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::Gap">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Gap::NoGap">>,
+                        fields => [],
+                        encode => fun([]) -> #{'__struct__' => 'Elixir.LawSpec.Data.GapNoGap'} end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.GapNoGap'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Gap::OneSpace">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.GapOneSpace'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.GapOneSpace'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Gap::TwoSpaces">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.GapTwoSpaces'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.GapTwoSpaces'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Gap::OneTab">>,
+                        fields => [],
+                        encode => fun([]) -> #{'__struct__' => 'Elixir.LawSpec.Data.GapOneTab'} end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.GapOneTab'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::Margin">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Margin::NoMargin">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.MarginNoMargin'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.MarginNoMargin'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Margin::SpaceMargin">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.MarginSpaceMargin'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.MarginSpaceMargin'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Margin::NewlineMargin">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.MarginNewlineMargin'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.MarginNewlineMargin'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Margin::BlankLineMargin">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.MarginBlankLineMargin'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.MarginBlankLineMargin'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::Marked">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Marked::Marked">>,
+                        fields => [
+                            {<<"gap">>, {<<"cake.laws.prompt_drivers::type::Gap">>, []}},
+                            {<<"text">>, {<<"Text">>, []}},
+                            {<<"trail">>, {<<"cake.laws.prompt_drivers::type::Gap">>, []}}
+                        ],
+                        encode => fun([Gap, Text, Trail]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Marked',
+                                gap => Gap,
+                                text => Text,
+                                trail => Trail
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Marked',
+                                        gap := Gap,
+                                        text := Text,
+                                        trail := Trail
+                                    }
+                                ) ->
+                                    {ok, [Gap, Text, Trail]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_runtime:helper(
+                                    <<"regexMatches">>,
+                                    [
+                                        <<"([a-zA-Z0-9.,?!'-]{1,12}( [a-zA-Z0-9.,?!'-]{1,12}){0,7})?">>,
+                                        lists:nth(2, _Fields)
+                                    ],
+                                    [
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        ),
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        )
+                                    ],
+                                    64
+                                )
+                            end
+                        ],
+                        generators => #{
+                            2 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {
+                                    [],
+                                    [
+                                        <<>>,
+                                        <<"Gv9QCy! OH4Pi 4b p'HrXH arICS">>,
+                                        <<"WiPmP RK9MQl9">>,
+                                        <<"AG 5MMeb">>,
+                                        <<"No P6akiz! 8!X-UXk ,ZJYTe QwE.kJ">>,
+                                        <<"qzo r3rZ HoG p!C OGzH. z8 4BmuOtN">>,
+                                        <<"EFVvL RBJbG! 6gIO .R jP">>,
+                                        <<"o">>,
+                                        <<"bdnO 8v WN 1QPPe Sl">>,
+                                        <<".C 4v bJ Jy6RPS g">>,
+                                        <<"mtiPmRk V UtCBIj iJTj7 uuoKoll zAXZ1K">>,
+                                        <<"3m90cm NMxXWPx J81S">>,
+                                        <<"SDfq Xb!zKM">>,
+                                        <<"YOFf9su WT.'Wp G5vt EPox 4,GB f!x zId">>,
+                                        <<"A9aAa J">>,
+                                        <<"S X3DUHc oJ5tT MzOik Lxl5z 'V3Zh2R 9Ix2X'">>
+                                    ]
+                                }
+                            end
+                        }
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::ReplyLine">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::ReplyLine::Prose">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.ReplyLineProse', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.ReplyLineProse',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_runtime:helper(
+                                    <<"regexMatches">>,
+                                    [
+                                        <<"[a-zA-Z0-9.,?!'-]{1,12}( [a-zA-Z0-9.,?!'-]{1,12}){0,7}">>,
+                                        lists:nth(1, _Fields)
+                                    ],
+                                    [
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        ),
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        )
+                                    ],
+                                    64
+                                )
+                            end
+                        ],
+                        generators => #{
+                            1 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {
+                                    [],
+                                    [
+                                        <<"!">>,
+                                        <<"Q QCy!'Z H4Pisa PNp'Hr TTarIC AE!S'zJ !Hm">>,
+                                        <<"T mP0aO 9MQl9me P ThDUap">>,
+                                        <<"P5rVCdQ zMlq 62 7b x CN'">>,
+                                        <<"kcW0.7 Vf">>,
+                                        <<"mm qsi'NI0 bL1KbOd">>,
+                                        <<"FA x5MMe g1GOx, -y9m">>,
+                                        <<"FNo2 6aki MF8!X-">>,
+                                        <<"r">>,
+                                        <<"cqz 'r3 1 oG1">>,
+                                        <<"5 ugon Bqa c1vsFB">>,
+                                        <<"FEF RtG">>,
+                                        <<"1o3JvwW wtmXx6q T!KJ N,KDE GI">>,
+                                        <<"Ubdn">>,
+                                        <<"2n jBaqI XjMoP JqDy'Vs">>,
+                                        <<"s.C 4v bJ Jy6RPS g">>,
+                                        <<"Hm mRkXTL gUtC j7E Tj7iM oKoll zAXZ1K">>,
+                                        <<"-3 c IBN XWP 2 1 lNuK">>,
+                                        <<"NSDfqsF !zK 9bX vLTVD4 kU? -cuQQ-">>,
+                                        <<"fYOF">>,
+                                        <<"KA9 lI OlG">>,
+                                        <<",SQ8o UHcNFoJ T5 zOik Lxl5z">>,
+                                        <<"slg4'xB B6i? 6,gHrf">>,
+                                        <<"frE6-I JJgi67 ,6Ebw? WDpHu">>,
+                                        <<"fsLn1R rk">>
+                                    ]
+                                }
+                            end
+                        }
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::ReplyLine::Asks">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.prompt_drivers::type::Marked">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.ReplyLineAsks', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.ReplyLineAsks',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::ReplyLine::Concludes">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.prompt_drivers::type::Marked">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.ReplyLineConcludes',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.ReplyLineConcludes',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.prompt_drivers::type::Field">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.prompt_drivers::type::Field::Field">>,
+                        fields => [
+                            {<<"lead">>, {<<"cake.laws.prompt_drivers::type::Margin">>, []}},
+                            {<<"body">>, {<<"Text">>, []}},
+                            {<<"trail">>, {<<"cake.laws.prompt_drivers::type::Margin">>, []}}
+                        ],
+                        encode => fun([Lead, Body, Trail]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Field',
+                                lead => Lead,
+                                body => Body,
+                                trail => Trail
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Field',
+                                        lead := Lead,
+                                        body := Body,
+                                        trail := Trail
+                                    }
+                                ) ->
+                                    {ok, [Lead, Body, Trail]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_runtime:helper(
+                                    <<"regexMatches">>,
+                                    [
+                                        <<"([a-zA-Z0-9.,?!'-]{1,12}( [a-zA-Z0-9.,?!'-]{1,12}){0,7})?">>,
+                                        lists:nth(2, _Fields)
+                                    ],
+                                    [
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        ),
+                                        lawspec_beam_schema:type_key(
+                                            lawspec_beam_schema:substitute({<<"Text">>, []}, _Known)
+                                        )
+                                    ],
+                                    64
+                                )
+                            end
+                        ],
+                        generators => #{
+                            2 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {
+                                    [],
+                                    [
+                                        <<>>,
+                                        <<"Gv9QCy! OH4Pi 4b p'HrXH arICS">>,
+                                        <<"WiPmP RK9MQl9">>,
+                                        <<"AG 5MMeb">>,
+                                        <<"No P6akiz! 8!X-UXk ,ZJYTe QwE.kJ">>,
+                                        <<"qzo r3rZ HoG p!C OGzH. z8 4BmuOtN">>,
+                                        <<"EFVvL RBJbG! 6gIO .R jP">>,
+                                        <<"o">>,
+                                        <<"bdnO 8v WN 1QPPe Sl">>,
+                                        <<".C 4v bJ Jy6RPS g">>,
+                                        <<"mtiPmRk V UtCBIj iJTj7 uuoKoll zAXZ1K">>,
+                                        <<"3m90cm NMxXWPx J81S">>,
+                                        <<"SDfq Xb!zKM">>,
+                                        <<"YOFf9su WT.'Wp G5vt EPox 4,GB f!x zId">>,
+                                        <<"A9aAa J">>,
+                                        <<"S X3DUHc oJ5tT MzOik Lxl5z 'V3Zh2R 9Ix2X'">>
+                                    ]
+                                }
+                            end
+                        }
+                    }
+                ]
+            },
+            #{
                 name => <<"cake.laws.responses::type::Cited">>,
                 parameters => 0,
                 constructors => [

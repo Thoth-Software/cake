@@ -51,6 +51,43 @@ defmodule LawSpec.Data do
 
   @type message() :: LawSpec.Data.Message.t()
 
+  @type pair_seed() :: LawSpec.Data.PairSeed.t()
+
+  @type answer_pair() :: LawSpec.Data.AnswerPair.t()
+
+  @type step_seed() :: LawSpec.Data.StepSeed.t()
+
+  @type reasoning_step() :: LawSpec.Data.ReasoningStep.t()
+
+  @type self_ask_step() ::
+          LawSpec.Data.SelfAskStepFinalAnswer.t() | LawSpec.Data.SelfAskStepFollowUp.t()
+
+  @type retrieval() :: LawSpec.Data.Retrieval.t()
+
+  @type ircot_verdict() ::
+          LawSpec.Data.IrcotVerdictContinues.t() | LawSpec.Data.IrcotVerdictDone.t()
+
+  @type gap() ::
+          LawSpec.Data.GapNoGap.t()
+          | LawSpec.Data.GapOneSpace.t()
+          | LawSpec.Data.GapTwoSpaces.t()
+          | LawSpec.Data.GapOneTab.t()
+
+  @type margin() ::
+          LawSpec.Data.MarginNoMargin.t()
+          | LawSpec.Data.MarginSpaceMargin.t()
+          | LawSpec.Data.MarginNewlineMargin.t()
+          | LawSpec.Data.MarginBlankLineMargin.t()
+
+  @type marked() :: LawSpec.Data.Marked.t()
+
+  @type reply_line() ::
+          LawSpec.Data.ReplyLineProse.t()
+          | LawSpec.Data.ReplyLineAsks.t()
+          | LawSpec.Data.ReplyLineConcludes.t()
+
+  @type field() :: LawSpec.Data.Field.t()
+
   @type cited() :: LawSpec.Data.Cited.t()
 
   @type action_kind() ::
