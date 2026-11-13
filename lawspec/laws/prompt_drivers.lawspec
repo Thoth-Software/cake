@@ -272,14 +272,52 @@ function leadsWithSystem (messages :: List Message) -> Bool is
   end case
 end function
 
--- Whether the text holds every pair's question and answer.
-function pairsWithin (ps :: List AnswerPair) (text :: Text) -> Bool is
-  first matching case of ps :
+-- What follows `needle` at the first place it occurs in `text` at or after
+-- position `skip`, trying `left` more positions after that one.
+function afterAt (needle :: Text) (text :: Text) (skip :: Whole) (left ::
+  Whole) -> Maybe Text is
+  if prelude.startsWith (prelude.slice skip (prelude.length text) text) needle
+    then
+    Present
+      (prelude.slice (skip + prelude.length needle) (prelude.length text) text)
+  else
+    if left <= 0 then Absent else afterAt needle text (skip + 1) (left - 1)
+    end if
+  end if
+end function
+
+-- What follows the first place `needle` occurs in `text`, and absent when
+-- it occurs nowhere.
+function afterFirst (needle :: Text) (text :: Text) -> Maybe Text is
+  afterAt needle text 0 (prelude.length text)
+end function
+
+-- Whether the pieces occur in the text one after another, in the order
+-- given, none overlapping the one before it.
+function inOrder (pieces :: List Text) (text :: Text) -> Bool is
+  first matching case of pieces :
     when Nil then true
-    when Cons p rest then
-      text contains p.question && text contains p.answer && pairsWithin rest
-        text
+    when Cons piece rest then
+      first matching case of afterFirst piece text :
+        when Absent then false
+        when Present remainder then inOrder rest remainder
+      end case
   end case
+end function
+
+-- Each pair's question and then its answer, pair after pair.
+function questionsAndAnswers (ps :: List AnswerPair) -> List Text is
+  first matching case of ps :
+    when Nil then []
+    when Cons p rest then
+      Cons p.question (Cons p.answer (questionsAndAnswers rest))
+  end case
+end function
+
+-- Whether the text holds the pairs, oldest first, each question followed by
+-- its own answer. It says nothing of the wording between them.
+function pairsWithin (ps :: List AnswerPair) (text :: Text) -> Bool is
+  inOrder (questionsAndAnswers ps) text
 end function
 
 -- What follows a prompt's instructions: the system message less its first
@@ -904,7 +942,8 @@ law "|the prompt folds in the surviving pairs and no others| is
     "build_with_prior_answers/5 is build/4's prompt with the surviving pairs
     added to the end of its system message. The messages after the system
     message are build/4's, the system message starts with build/4's, and it
-    holds the question and the answer of every surviving pair. An evicted
+    holds the surviving pairs after it, oldest first, each question
+    followed by its own answer. An evicted
     pair leaves no trace: the prompt is the one the survivors alone would
     give."
   end description
@@ -926,8 +965,10 @@ law "|the prompt folds in the surviving pairs and no others| is
                     (promptWithPriorAnswers contexts question (pairsOf seeds)
                       history budget)) (systemOf (plainPrompt contexts question
                         history)) and pairsWithin (keptPairs (pairsOf seeds)
-                          budget) (systemOf (promptWithPriorAnswers contexts
-                            question (pairsOf seeds) history budget))
+                          budget) (foldedAfter (systemOf (plainPrompt contexts
+                            question history)) (systemOf (promptWithPriorAnswers
+                              contexts question (pairsOf seeds) history
+                              budget)))
     end for all
   end definition
   example "|the newest pair is folded in and the evicted one is not| :
@@ -951,6 +992,26 @@ law "|the prompt folds in the surviving pairs and no others| is
     expect systemOf (promptWithPriorAnswers contexts question (pairsOf seeds)
       history budget) contains "[1] Flow is laminar" = true
   end example
+  example "|two surviving pairs keep their order and their own answers| :
+    contexts = ["Flow is laminar"]
+    question = "final?"
+    seeds = [
+    PairSeed record{question = "q-old", answer = "a-old", fill = 0},
+    PairSeed record{question = "q-new", answer = "a-new", fill = 0}]
+    history = []
+    budget = 8
+    expect inOrder ["q-old", "a-old", "q-new", "a-new"] (systemOf
+      (promptWithPriorAnswers contexts question (pairsOf seeds) history
+        budget)) = true
+    expect inOrder ["q-new", "a-new", "q-old", "a-old"] (systemOf
+      (promptWithPriorAnswers contexts question (pairsOf seeds) history
+        budget)) = false
+    expect inOrder ["q-old", "a-new", "q-new", "a-old"] (systemOf
+      (promptWithPriorAnswers contexts question (pairsOf seeds) history
+        budget)) = false
+    expect inOrder ["a-old", "q-old"] (systemOf (promptWithPriorAnswers contexts
+      question (pairsOf seeds) history budget)) = false
+  end example
 end law
 
 -- Laws: self_ask_prompt/3.
@@ -961,8 +1022,8 @@ law "|the self-ask prompt is its instructions, the surviving pairs, the question
     "self_ask_prompt/3 returns two messages: a system message, then the
     question as a user message, verbatim. The system message starts with the
     self-ask instructions, which name both markers the parser classifies by,
-    and holds the follow-up and the answer of every pair that survives the
-    budget. With no surviving pair it is the instructions alone. An evicted
+    and holds after them the pairs that survive the budget, oldest first,
+    each follow-up followed by its own answer. With no surviving pair it is the instructions alone. An evicted
     pair leaves no trace: the prompt is the one the survivors alone would
     give."
   end description
@@ -979,13 +1040,14 @@ law "|the self-ask prompt is its instructions, the surviving pairs, the question
               record{role = User, content = question}] and prelude.startsWith
                 (systemOf (selfAskPrompt question (pairsOf seeds) budget))
                 (selfAskSystemMessage ()) and pairsWithin (keptPairs (pairsOf
-                  seeds) budget) (systemOf (selfAskPrompt question (pairsOf
-                    seeds) budget)) and (prelude.length (keptPairs (pairsOf
-                      seeds) budget) = 0 implies systemOf (selfAskPrompt
-                        question (pairsOf seeds) budget) =
-                        selfAskSystemMessage ()) and selfAskSystemMessage ()
-                          contains "Follow up:" and selfAskSystemMessage ()
-                            contains "So the final answer is:"
+                  seeds) budget) (foldedAfter (selfAskSystemMessage ())
+                    (systemOf (selfAskPrompt question (pairsOf seeds)
+                      budget))) and (prelude.length (keptPairs (pairsOf seeds)
+                        budget) = 0 implies systemOf (selfAskPrompt question
+                          (pairsOf seeds) budget) = selfAskSystemMessage ())
+      and selfAskSystemMessage () contains "Follow up:"
+      and selfAskSystemMessage () contains
+        "So the final answer is:"
     end for all
   end definition
   example "|a budget of zero gives the instructions alone| :
@@ -1014,6 +1076,17 @@ law "|the self-ask prompt is its instructions, the surviving pairs, the question
       "newest answer" = true
     expect systemOf (selfAskPrompt question (pairsOf seeds) budget) contains
       "the very first intermediate answer" = false
+  end example
+  example "|two surviving pairs keep their order and their own answers| :
+    question = "final?"
+    seeds = [
+    PairSeed record{question = "q-old", answer = "a-old", fill = 0},
+    PairSeed record{question = "q-new", answer = "a-new", fill = 0}]
+    budget = 8
+    expect inOrder ["q-old", "a-old", "q-new", "a-new"] (systemOf
+      (selfAskPrompt question (pairsOf seeds) budget)) = true
+    expect inOrder ["q-new", "a-new", "q-old", "a-old"] (systemOf
+      (selfAskPrompt question (pairsOf seeds) budget)) = false
   end example
 end law
 

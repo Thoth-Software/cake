@@ -127,6 +127,10 @@
     system_of/3,
     after_system/3,
     leads_with_system/3,
+    after_at/6,
+    after_first/4,
+    in_order/4,
+    questions_and_answers/3,
     pairs_within/4,
     folded_after/4,
     contexts_of/3,
@@ -4890,23 +4894,203 @@ leads_with_system(_Schema, _Symbols, Messages) ->
         end
     ).
 
-%% pairsWithin — laws/prompt_drivers.lawspec:276
-pairs_within(_Schema, _Symbols, Ps, Text) ->
+%% afterAt — laws/prompt_drivers.lawspec:277
+after_at(Schema, Symbols, Needle, Text, Skip, Left) ->
     lawspec_beam_runtime:contextual(
-        <<"cake.laws.prompt_drivers::pairsWithin">>,
+        <<"cake.laws.prompt_drivers::afterAt">>,
         fun() ->
-            lawspec_typed:pairs_within(lawspec_typed:from_dynamic_list_answer_pair(Ps), Text)
+            case
+                lawspec_beam_runtime:helper(
+                    <<"startsWith">>,
+                    [
+                        lawspec_beam_runtime:helper(
+                            <<"slice">>,
+                            [
+                                Text,
+                                lawspec_beam_schema:validate(
+                                    lawspec_beam_scalar:convert(Skip, {<<"Integer">>, []}, 64),
+                                    {<<"Integer">>, []},
+                                    Schema
+                                ),
+                                lawspec_beam_runtime:helper(<<"length">>, [Text], [<<"Text">>], 64)
+                            ],
+                            [<<"Text">>, <<"Integer">>, <<"Integer">>],
+                            64
+                        ),
+                        Needle
+                    ],
+                    [<<"Text">>, <<"Text">>],
+                    64
+                )
+            of
+                true ->
+                    lawspec_beam_schema:construct(
+                        <<"Maybe::Present">>,
+                        [
+                            lawspec_beam_runtime:helper(
+                                <<"slice">>,
+                                [
+                                    Text,
+                                    (Skip +
+                                        lawspec_beam_runtime:helper(
+                                            <<"length">>,
+                                            [Needle],
+                                            [<<"Text">>],
+                                            64
+                                        )),
+                                    lawspec_beam_runtime:helper(
+                                        <<"length">>,
+                                        [Text],
+                                        [<<"Text">>],
+                                        64
+                                    )
+                                ],
+                                [<<"Text">>, <<"Integer">>, <<"Integer">>],
+                                64
+                            )
+                        ],
+                        {<<"Maybe">>, [{<<"Text">>, []}]},
+                        Schema
+                    );
+                false ->
+                    case (Left =< 0) of
+                        true ->
+                            lawspec_beam_schema:construct(
+                                <<"Maybe::Absent">>,
+                                [],
+                                {<<"Maybe">>, [{<<"Text">>, []}]},
+                                Schema
+                            );
+                        false ->
+                            lawspec_definitions:after_at(
+                                Schema,
+                                Symbols,
+                                Needle,
+                                Text,
+                                lawspec_beam_schema:validate(
+                                    lawspec_beam_scalar:convert(
+                                        (Skip + 1),
+                                        {<<"BigUInt">>, []},
+                                        64
+                                    ),
+                                    {<<"BigUInt">>, []},
+                                    Schema
+                                ),
+                                lawspec_beam_schema:validate(
+                                    lawspec_beam_scalar:convert(
+                                        (Left - 1),
+                                        {<<"BigUInt">>, []},
+                                        64
+                                    ),
+                                    {<<"BigUInt">>, []},
+                                    Schema
+                                )
+                            )
+                    end
+            end
         end
     ).
 
-%% foldedAfter — laws/prompt_drivers.lawspec:287
+%% afterFirst — laws/prompt_drivers.lawspec:291
+after_first(Schema, Symbols, Needle, Text) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_drivers::afterFirst">>,
+        fun() ->
+            lawspec_definitions:after_at(
+                Schema,
+                Symbols,
+                Needle,
+                Text,
+                0,
+                lawspec_beam_schema:validate(
+                    lawspec_beam_scalar:convert(
+                        lawspec_beam_runtime:helper(<<"length">>, [Text], [<<"Text">>], 64),
+                        {<<"BigUInt">>, []},
+                        64
+                    ),
+                    {<<"BigUInt">>, []},
+                    Schema
+                )
+            )
+        end
+    ).
+
+%% inOrder — laws/prompt_drivers.lawspec:297
+in_order(Schema, Symbols, Pieces, Text) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_drivers::inOrder">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Pieces,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> true end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_definitions:after_first(
+                                        Schema,
+                                        Symbols,
+                                        Selection,
+                                        Text
+                                    ),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"Maybe::Absent">> => fun([]) -> false end,
+                                                <<"Maybe::Present">> => fun([MatchSelection]) ->
+                                                    lawspec_definitions:in_order(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2,
+                                                        MatchSelection
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% questionsAndAnswers — laws/prompt_drivers.lawspec:309
+questions_and_answers(_Schema, _Symbols, Ps) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_drivers::questionsAndAnswers">>,
+        fun() ->
+            lawspec_typed:questions_and_answers(lawspec_typed:from_dynamic_list_answer_pair(Ps))
+        end
+    ).
+
+%% pairsWithin — laws/prompt_drivers.lawspec:319
+pairs_within(Schema, Symbols, Ps, Text) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.prompt_drivers::pairsWithin">>,
+        fun() ->
+            lawspec_definitions:in_order(
+                Schema,
+                Symbols,
+                lawspec_definitions:questions_and_answers(Schema, Symbols, Ps),
+                Text
+            )
+        end
+    ).
+
+%% foldedAfter — laws/prompt_drivers.lawspec:325
 folded_after(_Schema, _Symbols, Instructions, System) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::foldedAfter">>,
         fun() -> lawspec_typed:folded_after(Instructions, System) end
     ).
 
-%% contextsOf — laws/prompt_drivers.lawspec:298
+%% contextsOf — laws/prompt_drivers.lawspec:336
 contexts_of(Schema, Symbols, Seed) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::contextsOf">>,
@@ -4993,7 +5177,7 @@ contexts_of(Schema, Symbols, Seed) ->
         end
     ).
 
-%% stepsOf — laws/prompt_drivers.lawspec:305
+%% stepsOf — laws/prompt_drivers.lawspec:343
 steps_of(Schema, Symbols, Seeds) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::stepsOf">>,
@@ -5081,7 +5265,7 @@ steps_of(Schema, Symbols, Seeds) ->
         end
     ).
 
-%% contextsCost — laws/prompt_drivers.lawspec:317
+%% contextsCost — laws/prompt_drivers.lawspec:355
 contexts_cost(Schema, Symbols, Contexts) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::contextsCost">>,
@@ -5120,7 +5304,7 @@ contexts_cost(Schema, Symbols, Contexts) ->
         end
     ).
 
-%% stepCost — laws/prompt_drivers.lawspec:326
+%% stepCost — laws/prompt_drivers.lawspec:364
 step_cost(Schema, Symbols, S) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::stepCost">>,
@@ -5164,7 +5348,7 @@ step_cost(Schema, Symbols, S) ->
         end
     ).
 
-%% stepsCost — laws/prompt_drivers.lawspec:330
+%% stepsCost — laws/prompt_drivers.lawspec:368
 steps_cost(Schema, Symbols, Steps) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::stepsCost">>,
@@ -5203,7 +5387,7 @@ steps_cost(Schema, Symbols, Steps) ->
         end
     ).
 
-%% fittingSteps — laws/prompt_drivers.lawspec:337
+%% fittingSteps — laws/prompt_drivers.lawspec:375
 fitting_steps(Schema, Symbols, Steps, Budget) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::fittingSteps">>,
@@ -5235,7 +5419,7 @@ fitting_steps(Schema, Symbols, Steps, Budget) ->
         end
     ).
 
-%% keptSteps — laws/prompt_drivers.lawspec:351
+%% keptSteps — laws/prompt_drivers.lawspec:389
 kept_steps(Schema, Symbols, Steps, Budget) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::keptSteps">>,
@@ -5249,7 +5433,7 @@ kept_steps(Schema, Symbols, Steps, Budget) ->
         end
     ).
 
-%% closesBlock — laws/prompt_drivers.lawspec:362
+%% closesBlock — laws/prompt_drivers.lawspec:400
 closes_block(_Schema, _Symbols, Contexts, Rest, Next, Text) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::closesBlock">>,
@@ -5377,7 +5561,7 @@ closes_block(_Schema, _Symbols, Contexts, Rest, Next, Text) ->
         end
     ).
 
-%% stepsWithinFrom — laws/prompt_drivers.lawspec:379
+%% stepsWithinFrom — laws/prompt_drivers.lawspec:417
 steps_within_from(Schema, Symbols, Steps, I, Text) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::stepsWithinFrom">>,
@@ -5485,7 +5669,7 @@ steps_within_from(Schema, Symbols, Steps, I, Text) ->
         end
     ).
 
-%% holdsExactly — laws/prompt_drivers.lawspec:393
+%% holdsExactly — laws/prompt_drivers.lawspec:431
 holds_exactly(Schema, Symbols, Steps, Text) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::holdsExactly">>,
@@ -5539,56 +5723,56 @@ holds_exactly(Schema, Symbols, Steps, Text) ->
         end
     ).
 
-%% gapText — laws/prompt_drivers.lawspec:434
+%% gapText — laws/prompt_drivers.lawspec:472
 gap_text(_Schema, _Symbols, G) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::gapText">>,
         fun() -> lawspec_typed:gap_text(lawspec_typed:from_dynamic_gap(G)) end
     ).
 
-%% marginText — laws/prompt_drivers.lawspec:443
+%% marginText — laws/prompt_drivers.lawspec:481
 margin_text(_Schema, _Symbols, M) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::marginText">>,
         fun() -> lawspec_typed:margin_text(lawspec_typed:from_dynamic_margin(M)) end
     ).
 
-%% afterMarker — laws/prompt_drivers.lawspec:471
+%% afterMarker — laws/prompt_drivers.lawspec:509
 after_marker(_Schema, _Symbols, M) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::afterMarker">>,
         fun() -> lawspec_typed:after_marker(lawspec_typed:from_dynamic_marked(M)) end
     ).
 
-%% afterMarkerTrimmed — laws/prompt_drivers.lawspec:476
+%% afterMarkerTrimmed — laws/prompt_drivers.lawspec:514
 after_marker_trimmed(_Schema, _Symbols, M) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::afterMarkerTrimmed">>,
         fun() -> lawspec_typed:after_marker_trimmed(lawspec_typed:from_dynamic_marked(M)) end
     ).
 
-%% lineText — laws/prompt_drivers.lawspec:480
+%% lineText — laws/prompt_drivers.lawspec:518
 line_text(_Schema, _Symbols, Line) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::lineText">>,
         fun() -> lawspec_typed:line_text(lawspec_typed:from_dynamic_reply_line(Line)) end
     ).
 
-%% lineTrimmed — laws/prompt_drivers.lawspec:489
+%% lineTrimmed — laws/prompt_drivers.lawspec:527
 line_trimmed(_Schema, _Symbols, Line) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::lineTrimmed">>,
         fun() -> lawspec_typed:line_trimmed(lawspec_typed:from_dynamic_reply_line(Line)) end
     ).
 
-%% lineTexts — laws/prompt_drivers.lawspec:497
+%% lineTexts — laws/prompt_drivers.lawspec:535
 line_texts(_Schema, _Symbols, Lines) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::lineTexts">>,
         fun() -> lawspec_typed:line_texts(lawspec_typed:from_dynamic_list_reply_line(Lines)) end
     ).
 
-%% replyText — laws/prompt_drivers.lawspec:505
+%% replyText — laws/prompt_drivers.lawspec:543
 reply_text(_Schema, _Symbols, Lead, Lines, Trail) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::replyText">>,
@@ -5601,7 +5785,7 @@ reply_text(_Schema, _Symbols, Lead, Lines, Trail) ->
         end
     ).
 
-%% trimmedLineTexts — laws/prompt_drivers.lawspec:510
+%% trimmedLineTexts — laws/prompt_drivers.lawspec:548
 trimmed_line_texts(_Schema, _Symbols, Lines) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::trimmedLineTexts">>,
@@ -5610,14 +5794,14 @@ trimmed_line_texts(_Schema, _Symbols, Lines) ->
         end
     ).
 
-%% linesTrimmed — laws/prompt_drivers.lawspec:523
+%% linesTrimmed — laws/prompt_drivers.lawspec:561
 lines_trimmed(_Schema, _Symbols, Lines) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::linesTrimmed">>,
         fun() -> lawspec_typed:lines_trimmed(lawspec_typed:from_dynamic_list_reply_line(Lines)) end
     ).
 
-%% answerFrom — laws/prompt_drivers.lawspec:529
+%% answerFrom — laws/prompt_drivers.lawspec:567
 answer_from(_Schema, _Symbols, M, Rest) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::answerFrom">>,
@@ -5629,7 +5813,7 @@ answer_from(_Schema, _Symbols, M, Rest) ->
         end
     ).
 
-%% finalAnswerOf — laws/prompt_drivers.lawspec:540
+%% finalAnswerOf — laws/prompt_drivers.lawspec:578
 final_answer_of(_Schema, _Symbols, Lines) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::finalAnswerOf">>,
@@ -5640,7 +5824,7 @@ final_answer_of(_Schema, _Symbols, Lines) ->
         end
     ).
 
-%% followUpOf — laws/prompt_drivers.lawspec:558
+%% followUpOf — laws/prompt_drivers.lawspec:596
 follow_up_of(_Schema, _Symbols, Lines) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::followUpOf">>,
@@ -5651,7 +5835,7 @@ follow_up_of(_Schema, _Symbols, Lines) ->
         end
     ).
 
-%% classified — laws/prompt_drivers.lawspec:579
+%% classified — laws/prompt_drivers.lawspec:617
 classified(_Schema, _Symbols, Lines) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::classified">>,
@@ -5662,7 +5846,7 @@ classified(_Schema, _Symbols, Lines) ->
         end
     ).
 
-%% withoutFinals — laws/prompt_drivers.lawspec:595
+%% withoutFinals — laws/prompt_drivers.lawspec:633
 without_finals(_Schema, _Symbols, Lines) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::withoutFinals">>,
@@ -5673,7 +5857,7 @@ without_finals(_Schema, _Symbols, Lines) ->
         end
     ).
 
-%% proseOnly — laws/prompt_drivers.lawspec:608
+%% proseOnly — laws/prompt_drivers.lawspec:646
 prose_only(_Schema, _Symbols, Lines) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::proseOnly">>,
@@ -5684,7 +5868,7 @@ prose_only(_Schema, _Symbols, Lines) ->
         end
     ).
 
-%% severalAsks — laws/prompt_drivers.lawspec:623
+%% severalAsks — laws/prompt_drivers.lawspec:661
 several_asks(_Schema, _Symbols, Earlier, Between, Last, After) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::severalAsks">>,
@@ -5700,7 +5884,7 @@ several_asks(_Schema, _Symbols, Earlier, Between, Last, After) ->
         end
     ).
 
-%% decidedBy — laws/prompt_drivers.lawspec:632
+%% decidedBy — laws/prompt_drivers.lawspec:670
 decided_by(_Schema, _Symbols, Last, Lines) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::decidedBy">>,
@@ -5714,28 +5898,28 @@ decided_by(_Schema, _Symbols, Last, Lines) ->
         end
     ).
 
-%% isFinal — laws/prompt_drivers.lawspec:637
+%% isFinal — laws/prompt_drivers.lawspec:675
 is_final(_Schema, _Symbols, Step) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::isFinal">>,
         fun() -> lawspec_typed:is_final(lawspec_typed:from_dynamic_self_ask_step(Step)) end
     ).
 
-%% soundStep — laws/prompt_drivers.lawspec:648
+%% soundStep — laws/prompt_drivers.lawspec:686
 sound_step(_Schema, _Symbols, Reply, Step) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::soundStep">>,
         fun() -> lawspec_typed:sound_step(Reply, lawspec_typed:from_dynamic_self_ask_step(Step)) end
     ).
 
-%% fieldText — laws/prompt_drivers.lawspec:670
+%% fieldText — laws/prompt_drivers.lawspec:708
 field_text(_Schema, _Symbols, F) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::fieldText">>,
         fun() -> lawspec_typed:field_text(lawspec_typed:from_dynamic_field(F)) end
     ).
 
-%% queryText — laws/prompt_drivers.lawspec:674
+%% queryText — laws/prompt_drivers.lawspec:712
 query_text(_Schema, _Symbols, Query) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::queryText">>,
@@ -5746,7 +5930,7 @@ query_text(_Schema, _Symbols, Query) ->
         end
     ).
 
-%% verdictOf — laws/prompt_drivers.lawspec:684
+%% verdictOf — laws/prompt_drivers.lawspec:722
 verdict_of(_Schema, _Symbols, Reasoning, Query) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::verdictOf">>,
@@ -5760,14 +5944,14 @@ verdict_of(_Schema, _Symbols, Reasoning, Query) ->
         end
     ).
 
-%% isDone — laws/prompt_drivers.lawspec:696
+%% isDone — laws/prompt_drivers.lawspec:734
 is_done(_Schema, _Symbols, Verdict) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::isDone">>,
         fun() -> lawspec_typed:is_done(lawspec_typed:from_dynamic_ircot_verdict(Verdict)) end
     ).
 
-%% soundVerdict — laws/prompt_drivers.lawspec:707
+%% soundVerdict — laws/prompt_drivers.lawspec:745
 sound_verdict(_Schema, _Symbols, Reasoning, Query, Verdict) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.prompt_drivers::soundVerdict">>,

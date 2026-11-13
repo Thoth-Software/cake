@@ -27,6 +27,14 @@
     after_system_with_timeout/4,
     leads_with_system/3,
     leads_with_system_with_timeout/4,
+    after_at/6,
+    after_at_with_timeout/7,
+    after_first/4,
+    after_first_with_timeout/5,
+    in_order/4,
+    in_order_with_timeout/5,
+    questions_and_answers/3,
+    questions_and_answers_with_timeout/4,
     pairs_within/4,
     pairs_within_with_timeout/5,
     folded_after/4,
@@ -508,6 +516,151 @@ leads_with_system_with_timeout(Node, Address, TimeoutMilliseconds, Messages) ->
             TimeoutMilliseconds
         ),
         {<<"Bool">>, []},
+        Schema
+    ).
+
+-spec after_at(
+    lawspec_network:node_handle(),
+    binary(),
+    binary(),
+    binary(),
+    non_neg_integer(),
+    non_neg_integer()
+) -> absent | {present, binary()}.
+
+after_at(Node, Address, Needle, Text, Skip, Left) ->
+    after_at_with_timeout(Node, Address, 5000, Needle, Text, Skip, Left).
+
+-spec after_at_with_timeout(
+    lawspec_network:node_handle(),
+    binary(),
+    integer(),
+    binary(),
+    binary(),
+    non_neg_integer(),
+    non_neg_integer()
+) -> absent | {present, binary()}.
+
+after_at_with_timeout(Node, Address, TimeoutMilliseconds, Needle, Text, Skip, Left) ->
+    Symbols = make_ref(),
+    Schema = lawspec_data:schema(Symbols),
+    lawspec_beam_schema:to_native(
+        lawspec_remote:evaluate(
+            Node,
+            Address,
+            <<"cake.laws.prompt_drivers::afterAt">>,
+            [
+                lawspec_beam_schema:from_native(Needle, {<<"Text">>, []}, Schema),
+                lawspec_beam_schema:from_native(Text, {<<"Text">>, []}, Schema),
+                lawspec_beam_schema:from_native(Skip, {<<"BigUInt">>, []}, Schema),
+                lawspec_beam_schema:from_native(Left, {<<"BigUInt">>, []}, Schema)
+            ],
+            TimeoutMilliseconds
+        ),
+        {<<"Maybe">>, [{<<"Text">>, []}]},
+        Schema
+    ).
+
+-spec after_first(
+    lawspec_network:node_handle(),
+    binary(),
+    binary(),
+    binary()
+) -> absent | {present, binary()}.
+
+after_first(Node, Address, Needle, Text) ->
+    after_first_with_timeout(Node, Address, 5000, Needle, Text).
+
+-spec after_first_with_timeout(
+    lawspec_network:node_handle(),
+    binary(),
+    integer(),
+    binary(),
+    binary()
+) -> absent | {present, binary()}.
+
+after_first_with_timeout(Node, Address, TimeoutMilliseconds, Needle, Text) ->
+    Symbols = make_ref(),
+    Schema = lawspec_data:schema(Symbols),
+    lawspec_beam_schema:to_native(
+        lawspec_remote:evaluate(
+            Node,
+            Address,
+            <<"cake.laws.prompt_drivers::afterFirst">>,
+            [
+                lawspec_beam_schema:from_native(Needle, {<<"Text">>, []}, Schema),
+                lawspec_beam_schema:from_native(Text, {<<"Text">>, []}, Schema)
+            ],
+            TimeoutMilliseconds
+        ),
+        {<<"Maybe">>, [{<<"Text">>, []}]},
+        Schema
+    ).
+
+-spec in_order(lawspec_network:node_handle(), binary(), [binary()], binary()) -> boolean().
+
+in_order(Node, Address, Pieces, Text) -> in_order_with_timeout(Node, Address, 5000, Pieces, Text).
+
+-spec in_order_with_timeout(
+    lawspec_network:node_handle(),
+    binary(),
+    integer(),
+    [binary()],
+    binary()
+) -> boolean().
+
+in_order_with_timeout(Node, Address, TimeoutMilliseconds, Pieces, Text) ->
+    Symbols = make_ref(),
+    Schema = lawspec_data:schema(Symbols),
+    lawspec_beam_schema:to_native(
+        lawspec_remote:evaluate(
+            Node,
+            Address,
+            <<"cake.laws.prompt_drivers::inOrder">>,
+            [
+                lawspec_beam_schema:from_native(Pieces, {<<"List">>, [{<<"Text">>, []}]}, Schema),
+                lawspec_beam_schema:from_native(Text, {<<"Text">>, []}, Schema)
+            ],
+            TimeoutMilliseconds
+        ),
+        {<<"Bool">>, []},
+        Schema
+    ).
+
+-spec questions_and_answers(
+    lawspec_network:node_handle(),
+    binary(),
+    [lawspec_data:answer_pair()]
+) -> [binary()].
+
+questions_and_answers(Node, Address, Ps) ->
+    questions_and_answers_with_timeout(Node, Address, 5000, Ps).
+
+-spec questions_and_answers_with_timeout(
+    lawspec_network:node_handle(),
+    binary(),
+    integer(),
+    [lawspec_data:answer_pair()]
+) -> [binary()].
+
+questions_and_answers_with_timeout(Node, Address, TimeoutMilliseconds, Ps) ->
+    Symbols = make_ref(),
+    Schema = lawspec_data:schema(Symbols),
+    lawspec_beam_schema:to_native(
+        lawspec_remote:evaluate(
+            Node,
+            Address,
+            <<"cake.laws.prompt_drivers::questionsAndAnswers">>,
+            [
+                lawspec_beam_schema:from_native(
+                    Ps,
+                    {<<"List">>, [{<<"cake.laws.prompt_drivers::type::AnswerPair">>, []}]},
+                    Schema
+                )
+            ],
+            TimeoutMilliseconds
+        ),
+        {<<"List">>, [{<<"Text">>, []}]},
         Schema
     ).
 

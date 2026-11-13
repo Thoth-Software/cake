@@ -94,6 +94,31 @@ defmodule Cake.Laws.PromptDrivers.Definitions do
     :cake_laws_prompt_drivers_definitions_ffi.leads_with_system(messages)
   end
 
+  @spec after_at(binary(), binary(), non_neg_integer(), non_neg_integer()) ::
+          :absent | {:present, binary()}
+
+  def after_at(needle, text, skip, left) do
+    :cake_laws_prompt_drivers_definitions_ffi.after_at(needle, text, skip, left)
+  end
+
+  @spec after_first(binary(), binary()) :: :absent | {:present, binary()}
+
+  def after_first(needle, text) do
+    :cake_laws_prompt_drivers_definitions_ffi.after_first(needle, text)
+  end
+
+  @spec in_order([binary()], binary()) :: boolean()
+
+  def in_order(pieces, text) do
+    :cake_laws_prompt_drivers_definitions_ffi.in_order(pieces, text)
+  end
+
+  @spec questions_and_answers([LawSpec.Data.answer_pair()]) :: [binary()]
+
+  def questions_and_answers(ps) do
+    :cake_laws_prompt_drivers_definitions_ffi.questions_and_answers(ps)
+  end
+
   @spec pairs_within([LawSpec.Data.answer_pair()], binary()) :: boolean()
 
   def pairs_within(ps, text) do

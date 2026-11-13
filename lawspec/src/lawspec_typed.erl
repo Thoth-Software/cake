@@ -29,7 +29,7 @@
     system_of/1,
     after_system/1,
     leads_with_system/1,
-    pairs_within/2,
+    questions_and_answers/1,
     folded_after/2,
     gap_text/1,
     margin_text/1,
@@ -557,11 +557,11 @@ leads_with_system(Messages) ->
             (Value =:= #{'__struct__' => 'Elixir.LawSpec.Data.RoleSystem'})
     end.
 
-%% pairsWithin — laws/prompt_drivers.lawspec:276
-pairs_within(Ps, Text) ->
+%% questionsAndAnswers — laws/prompt_drivers.lawspec:309
+questions_and_answers(Ps) ->
     case Ps of
         [] ->
-            true;
+            [];
         [Selection | Selection_2] ->
             Value =
                 case Selection of
@@ -572,26 +572,19 @@ pairs_within(Ps, Text) ->
                     } ->
                         Question
                 end,
-            Logic =
-                case lawspec_beam_fast:contains(Text, Value) of
-                    true ->
-                        Value_2 =
-                            case Selection of
-                                #{
-                                    '__struct__' := 'Elixir.LawSpec.Data.AnswerPair',
-                                    question := _,
-                                    answer := Answer
-                                } ->
-                                    Answer
-                            end,
-                        lawspec_beam_fast:contains(Text, Value_2);
-                    false ->
-                        false
+            Value_2 =
+                case Selection of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.AnswerPair',
+                        question := _,
+                        answer := Answer
+                    } ->
+                        Answer
                 end,
-            (Logic andalso pairs_within(Selection_2, Text))
+            [Value | [Value_2 | questions_and_answers(Selection_2)]]
     end.
 
-%% foldedAfter — laws/prompt_drivers.lawspec:287
+%% foldedAfter — laws/prompt_drivers.lawspec:325
 folded_after(Instructions, System) ->
     lawspec_beam_fast:slice_text(
         System,
@@ -599,7 +592,7 @@ folded_after(Instructions, System) ->
         lawspec_beam_fast:text_length(System)
     ).
 
-%% gapText — laws/prompt_drivers.lawspec:434
+%% gapText — laws/prompt_drivers.lawspec:472
 gap_text(G) ->
     case G of
         #{'__struct__' := 'Elixir.LawSpec.Data.GapNoGap'} ->
@@ -612,7 +605,7 @@ gap_text(G) ->
             <<"\t">>
     end.
 
-%% marginText — laws/prompt_drivers.lawspec:443
+%% marginText — laws/prompt_drivers.lawspec:481
 margin_text(M) ->
     case M of
         #{'__struct__' := 'Elixir.LawSpec.Data.MarginNoMargin'} ->
@@ -625,7 +618,7 @@ margin_text(M) ->
             <<" \n\t\n">>
     end.
 
-%% afterMarker — laws/prompt_drivers.lawspec:471
+%% afterMarker — laws/prompt_drivers.lawspec:509
 after_marker(M) ->
     Value =
         case M of
@@ -644,7 +637,7 @@ after_marker(M) ->
         end,
     <<(<<(gap_text(Value))/binary, (Value_2)/binary>>)/binary, (gap_text(Value_3))/binary>>.
 
-%% afterMarkerTrimmed — laws/prompt_drivers.lawspec:476
+%% afterMarkerTrimmed — laws/prompt_drivers.lawspec:514
 after_marker_trimmed(M) ->
     Value =
         case M of
@@ -678,7 +671,7 @@ after_marker_trimmed(M) ->
             <<(gap_text(Value_2))/binary, (Value_3)/binary>>
     end.
 
-%% lineText — laws/prompt_drivers.lawspec:480
+%% lineText — laws/prompt_drivers.lawspec:518
 line_text(Line) ->
     case Line of
         #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineProse', value := Selection} ->
@@ -689,7 +682,7 @@ line_text(Line) ->
             <<(<<"So the final answer is:">>)/binary, (after_marker(Selection_3))/binary>>
     end.
 
-%% lineTrimmed — laws/prompt_drivers.lawspec:489
+%% lineTrimmed — laws/prompt_drivers.lawspec:527
 line_trimmed(Line) ->
     case Line of
         #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineProse', value := Selection} ->
@@ -700,7 +693,7 @@ line_trimmed(Line) ->
             <<(<<"So the final answer is:">>)/binary, (after_marker_trimmed(Selection_3))/binary>>
     end.
 
-%% lineTexts — laws/prompt_drivers.lawspec:497
+%% lineTexts — laws/prompt_drivers.lawspec:535
 line_texts(Lines) ->
     case Lines of
         [] ->
@@ -709,7 +702,7 @@ line_texts(Lines) ->
             [line_text(Selection) | line_texts(Selection_2)]
     end.
 
-%% replyText — laws/prompt_drivers.lawspec:505
+%% replyText — laws/prompt_drivers.lawspec:543
 reply_text(Lead, Lines, Trail) ->
     <<
         (<<
@@ -719,7 +712,7 @@ reply_text(Lead, Lines, Trail) ->
         (margin_text(Trail))/binary
     >>.
 
-%% trimmedLineTexts — laws/prompt_drivers.lawspec:510
+%% trimmedLineTexts — laws/prompt_drivers.lawspec:548
 trimmed_line_texts(Lines) ->
     case Lines of
         [] ->
@@ -733,11 +726,11 @@ trimmed_line_texts(Lines) ->
             end
     end.
 
-%% linesTrimmed — laws/prompt_drivers.lawspec:523
+%% linesTrimmed — laws/prompt_drivers.lawspec:561
 lines_trimmed(Lines) ->
     lawspec_beam_fast:join(<<"\n">>, trimmed_line_texts(Lines)).
 
-%% answerFrom — laws/prompt_drivers.lawspec:529
+%% answerFrom — laws/prompt_drivers.lawspec:567
 answer_from(M, Rest) ->
     case Rest of
         [] ->
@@ -795,7 +788,7 @@ answer_from(M, Rest) ->
             end
     end.
 
-%% finalAnswerOf — laws/prompt_drivers.lawspec:540
+%% finalAnswerOf — laws/prompt_drivers.lawspec:578
 final_answer_of(Lines) ->
     case Lines of
         [] ->
@@ -820,7 +813,7 @@ final_answer_of(Lines) ->
             end
     end.
 
-%% followUpOf — laws/prompt_drivers.lawspec:558
+%% followUpOf — laws/prompt_drivers.lawspec:596
 follow_up_of(Lines) ->
     case Lines of
         [] ->
@@ -855,7 +848,7 @@ follow_up_of(Lines) ->
             end
     end.
 
-%% classified — laws/prompt_drivers.lawspec:579
+%% classified — laws/prompt_drivers.lawspec:617
 classified(Lines) ->
     It = final_answer_of(Lines),
     case It of
@@ -896,7 +889,7 @@ classified(Lines) ->
             end
     end.
 
-%% withoutFinals — laws/prompt_drivers.lawspec:595
+%% withoutFinals — laws/prompt_drivers.lawspec:633
 without_finals(Lines) ->
     case Lines of
         [] ->
@@ -912,7 +905,7 @@ without_finals(Lines) ->
             end
     end.
 
-%% proseOnly — laws/prompt_drivers.lawspec:608
+%% proseOnly — laws/prompt_drivers.lawspec:646
 prose_only(Lines) ->
     case Lines of
         [] ->
@@ -928,7 +921,7 @@ prose_only(Lines) ->
             end
     end.
 
-%% severalAsks — laws/prompt_drivers.lawspec:623
+%% severalAsks — laws/prompt_drivers.lawspec:661
 several_asks(Earlier, Between, Last, After) ->
     ([
         #{'__struct__' => 'Elixir.LawSpec.Data.ReplyLineAsks', value => Earlier}
@@ -937,7 +930,7 @@ several_asks(Earlier, Between, Last, After) ->
         #{'__struct__' => 'Elixir.LawSpec.Data.ReplyLineAsks', value => Last} | prose_only(After)
     ]).
 
-%% decidedBy — laws/prompt_drivers.lawspec:632
+%% decidedBy — laws/prompt_drivers.lawspec:670
 decided_by(Last, Lines) ->
     Value =
         case Last of
@@ -964,7 +957,7 @@ decided_by(Last, Lines) ->
             #{'__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFollowUp', value => Value_2}
     end.
 
-%% isFinal — laws/prompt_drivers.lawspec:637
+%% isFinal — laws/prompt_drivers.lawspec:675
 is_final(Step) ->
     case Step of
         #{'__struct__' := 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer', value := _} ->
@@ -973,7 +966,7 @@ is_final(Step) ->
             false
     end.
 
-%% soundStep — laws/prompt_drivers.lawspec:648
+%% soundStep — laws/prompt_drivers.lawspec:686
 sound_step(Reply, Step) ->
     case Step of
         #{'__struct__' := 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer', value := Selection} ->
@@ -996,7 +989,7 @@ sound_step(Reply, Step) ->
                 ) >= 1)) andalso (not lawspec_beam_fast:contains(Selection_2, <<"\n">>)))
     end.
 
-%% fieldText — laws/prompt_drivers.lawspec:670
+%% fieldText — laws/prompt_drivers.lawspec:708
 field_text(F) ->
     Value =
         case F of
@@ -1015,7 +1008,7 @@ field_text(F) ->
         end,
     <<(<<(margin_text(Value))/binary, (Value_2)/binary>>)/binary, (margin_text(Value_3))/binary>>.
 
-%% queryText — laws/prompt_drivers.lawspec:674
+%% queryText — laws/prompt_drivers.lawspec:712
 query_text(Query) ->
     case Query of
         absent ->
@@ -1024,7 +1017,7 @@ query_text(Query) ->
             {present, field_text(Selection)}
     end.
 
-%% verdictOf — laws/prompt_drivers.lawspec:684
+%% verdictOf — laws/prompt_drivers.lawspec:722
 verdict_of(Reasoning, Query) ->
     case Query of
         absent ->
@@ -1097,7 +1090,7 @@ verdict_of(Reasoning, Query) ->
             end
     end.
 
-%% isDone — laws/prompt_drivers.lawspec:696
+%% isDone — laws/prompt_drivers.lawspec:734
 is_done(Verdict) ->
     case Verdict of
         #{'__struct__' := 'Elixir.LawSpec.Data.IrcotVerdictDone', value := _} ->
@@ -1106,7 +1099,7 @@ is_done(Verdict) ->
             false
     end.
 
-%% soundVerdict — laws/prompt_drivers.lawspec:707
+%% soundVerdict — laws/prompt_drivers.lawspec:745
 sound_verdict(Reasoning, Query, Verdict) ->
     case Verdict of
         #{'__struct__' := 'Elixir.LawSpec.Data.IrcotVerdictDone', value := Selection} ->

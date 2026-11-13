@@ -322,6 +322,116 @@ defmodule LawSpec.Remote.Cake.Laws.PromptDrivers do
     )
   end
 
+  @spec after_at(
+          LawSpec.Network.node_handle(),
+          binary(),
+          binary(),
+          binary(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) :: :absent | {:present, binary()}
+
+  def after_at(node, address, needle, text, skip, left) do
+    :lawspec_remote_cake_laws_prompt_drivers.after_at(node, address, needle, text, skip, left)
+  end
+
+  @spec after_at_with_timeout(
+          LawSpec.Network.node_handle(),
+          binary(),
+          integer(),
+          binary(),
+          binary(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) :: :absent | {:present, binary()}
+
+  def after_at_with_timeout(node, address, timeout_milliseconds, needle, text, skip, left) do
+    :lawspec_remote_cake_laws_prompt_drivers.after_at_with_timeout(
+      node,
+      address,
+      timeout_milliseconds,
+      needle,
+      text,
+      skip,
+      left
+    )
+  end
+
+  @spec after_first(LawSpec.Network.node_handle(), binary(), binary(), binary()) ::
+          :absent | {:present, binary()}
+
+  def after_first(node, address, needle, text) do
+    :lawspec_remote_cake_laws_prompt_drivers.after_first(node, address, needle, text)
+  end
+
+  @spec after_first_with_timeout(
+          LawSpec.Network.node_handle(),
+          binary(),
+          integer(),
+          binary(),
+          binary()
+        ) :: :absent | {:present, binary()}
+
+  def after_first_with_timeout(node, address, timeout_milliseconds, needle, text) do
+    :lawspec_remote_cake_laws_prompt_drivers.after_first_with_timeout(
+      node,
+      address,
+      timeout_milliseconds,
+      needle,
+      text
+    )
+  end
+
+  @spec in_order(LawSpec.Network.node_handle(), binary(), [binary()], binary()) :: boolean()
+
+  def in_order(node, address, pieces, text) do
+    :lawspec_remote_cake_laws_prompt_drivers.in_order(node, address, pieces, text)
+  end
+
+  @spec in_order_with_timeout(
+          LawSpec.Network.node_handle(),
+          binary(),
+          integer(),
+          [binary()],
+          binary()
+        ) :: boolean()
+
+  def in_order_with_timeout(node, address, timeout_milliseconds, pieces, text) do
+    :lawspec_remote_cake_laws_prompt_drivers.in_order_with_timeout(
+      node,
+      address,
+      timeout_milliseconds,
+      pieces,
+      text
+    )
+  end
+
+  @spec questions_and_answers(
+          LawSpec.Network.node_handle(),
+          binary(),
+          [LawSpec.Data.answer_pair()]
+        ) :: [binary()]
+
+  def questions_and_answers(node, address, ps) do
+    :lawspec_remote_cake_laws_prompt_drivers.questions_and_answers(node, address, ps)
+  end
+
+  @spec questions_and_answers_with_timeout(
+          LawSpec.Network.node_handle(),
+          binary(),
+          integer(),
+          [LawSpec.Data.answer_pair()]
+        ) :: [binary()]
+
+  def questions_and_answers_with_timeout(node, address, timeout_milliseconds, ps) do
+    :lawspec_remote_cake_laws_prompt_drivers.questions_and_answers_with_timeout(
+      node,
+      address,
+      timeout_milliseconds,
+      ps
+    )
+  end
+
   @spec pairs_within(
           LawSpec.Network.node_handle(),
           binary(),

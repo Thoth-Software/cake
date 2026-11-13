@@ -3,7 +3,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
   use ExUnit.Case, async: false
   import LawSpec.Beam.ExUnitCases
 
-  # |a token estimate is the length over four, rounded up| — laws/prompt_drivers.lawspec:722
+  # |a token estimate is the length over four, rounded up| — laws/prompt_drivers.lawspec:760
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_a_token_estimate_is_the_length_over_four_rounded,
@@ -11,7 +11,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |the surviving pairs are the newest that fit the budget| — laws/prompt_drivers.lawspec:767
+  # |the surviving pairs are the newest that fit the budget| — laws/prompt_drivers.lawspec:805
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_the_surviving_pairs_are_the_newest_that_fit_the,
@@ -19,7 +19,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |no longer run of the newest pairs would fit| — laws/prompt_drivers.lawspec:820
+  # |no longer run of the newest pairs would fit| — laws/prompt_drivers.lawspec:858
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_no_longer_run_of_the_newest_pairs_would_fit,
@@ -27,7 +27,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |a budget of zero keeps no pair| — laws/prompt_drivers.lawspec:843
+  # |a budget of zero keeps no pair| — laws/prompt_drivers.lawspec:881
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_a_budget_of_zero_keeps_no_pair,
@@ -35,7 +35,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |with no surviving pair, the prompt is build/4's| — laws/prompt_drivers.lawspec:863
+  # |with no surviving pair, the prompt is build/4's| — laws/prompt_drivers.lawspec:901
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_with_no_surviving_pair_the_prompt_is_build_4_s,
@@ -43,7 +43,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |the prompt folds in the surviving pairs and no others| — laws/prompt_drivers.lawspec:902
+  # |the prompt folds in the surviving pairs and no others| — laws/prompt_drivers.lawspec:940
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_the_prompt_folds_in_the_surviving_pairs_and_no,
@@ -51,7 +51,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |the self-ask prompt is its instructions, the surviving pairs, the question| — laws/prompt_drivers.lawspec:958
+  # |the self-ask prompt is its instructions, the surviving pairs, the question| — laws/prompt_drivers.lawspec:1019
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_the_self_ask_prompt_is_its_instructions_the,
@@ -59,7 +59,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |a self-ask reply is its last final answer, or else its last follow-up| — laws/prompt_drivers.lawspec:1022
+  # |a self-ask reply is its last final answer, or else its last follow-up| — laws/prompt_drivers.lawspec:1095
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_a_self_ask_reply_is_its_last_final_answer_or,
@@ -67,7 +67,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |the final-answer marker wins over a follow-up| — laws/prompt_drivers.lawspec:1113
+  # |the final-answer marker wins over a follow-up| — laws/prompt_drivers.lawspec:1186
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_the_final_answer_marker_wins_over_a_follow_up,
@@ -75,7 +75,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |the last follow-up wins when there are several| — laws/prompt_drivers.lawspec:1138
+  # |the last follow-up wins when there are several| — laws/prompt_drivers.lawspec:1211
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_the_last_follow_up_wins_when_there_are_several,
@@ -83,7 +83,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |every reply is a final answer or a follow-up, taken from the reply| — laws/prompt_drivers.lawspec:1178
+  # |every reply is a final answer or a follow-up, taken from the reply| — laws/prompt_drivers.lawspec:1251
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_every_reply_is_a_final_answer_or_a_follow_up,
@@ -91,7 +91,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |the IRCoT prompt folds in the newest steps that fit the budget| — laws/prompt_drivers.lawspec:1203
+  # |the IRCoT prompt folds in the newest steps that fit the budget| — laws/prompt_drivers.lawspec:1276
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_the_ircot_prompt_folds_in_the_newest_steps_that,
@@ -99,7 +99,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |with no surviving step, the IRCoT prompt is its instructions alone| — laws/prompt_drivers.lawspec:1299
+  # |with no surviving step, the IRCoT prompt is its instructions alone| — laws/prompt_drivers.lawspec:1372
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_with_no_surviving_step_the_ircot_prompt_is_its,
@@ -107,7 +107,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |the IRCoT context folded into the prompt has no [N] marker| — laws/prompt_drivers.lawspec:1333
+  # |the IRCoT context folded into the prompt has no [N] marker| — laws/prompt_drivers.lawspec:1406
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_the_ircot_context_folded_into_the_prompt_has_no,
@@ -115,7 +115,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |a null or blank retrieval query means done, any other continues| — laws/prompt_drivers.lawspec:1373
+  # |a null or blank retrieval query means done, any other continues| — laws/prompt_drivers.lawspec:1446
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_a_null_or_blank_retrieval_query_means_done_any,
@@ -123,7 +123,7 @@ defmodule Cake.Laws.PromptDrivers.LawSpecTest do
     600_000
   )
 
-  # |every IRCoT step is done or continues with a query it was given| — laws/prompt_drivers.lawspec:1433
+  # |every IRCoT step is done or continues with a query it was given| — laws/prompt_drivers.lawspec:1506
   law(
     :cake_laws_prompt_drivers_lawspec_cases,
     :law_every_ircot_step_is_done_or_continues_with_a,
