@@ -1,0 +1,1521 @@
+unit cake.laws.prompt_drivers
+import cake.laws.prompt_context as context (Role, Message)
+
+-- Laws for token budgets and the driver protocols in Cake.Prompt
+-- (lib/cake/prompt.ex): `estimate_tokens/1`, `fit_answer_pairs/2`,
+-- `build_with_prior_answers/5`, `self_ask_prompt/3`,
+-- `parse_self_ask_response/1`, `ircot_prompt/3` and
+-- `parse_ircot_response/1`.
+--
+-- A decomposed turn accumulates context as it goes: the answers to earlier
+-- sub-questions, or the earlier steps of an IRCoT chain. `Cake.Prompt` folds
+-- that context into the next prompt, and keeps it within a token budget by
+-- evicting the oldest of it first. It also classifies what the model says
+-- back: a self-ask reply is a follow-up question or the final answer, and an
+-- IRCoT step either names the next retrieval query or is done.
+-- `Cake.Conversation`'s "oldest pairs evicted first" and "a zero budget
+-- keeps nothing" come from here.
+--
+-- `Cake.Prompt`'s other concern, context assembly, is the
+-- `cake.laws.prompt_context` unit's.
+--
+-- The laws pin which accumulated context a prompt carries, not the wording
+-- around it: a prompt's instructions come from the adapter, and what is
+-- folded in after them is checked by what it contains. The wording they
+-- rely on is the `Step N:` label of an IRCoT step and the line of three
+-- hyphens between two of its contexts.
+--
+-- Every law about a token count measures text, so that text is ASCII
+-- (lawspec/README.md, "Generating text: four caveats"). It is printable
+-- ASCII, without a carriage return: Elixir counts "\r\n" as one character.
+
+-- Printable ASCII.
+refinement Ascii is
+  (t :: Text where t matches regex "[ -~]*")
+end refinement
+
+-- ASCII with no square bracket, so it can never form a `[N]` marker, and no
+-- colon, so it can never form a `Step N:` label.
+refinement Unmarked is
+  (t :: Text where t matches regex "[a-zA-Z0-9 .,;?!'-]*")
+end refinement
+
+-- A token budget of at most twelve. `max_context_tokens` may be any whole
+-- number, but the text the laws build costs a few tokens, and a budget drawn
+-- from all of them almost never evicts anything.
+refinement SmallBudget is
+  (n :: Whole where n <= 12)
+end refinement
+
+-- A budget that is not zero.
+refinement PositiveBudget is
+  (n :: Whole where n >= 1 && n <= 12)
+end refinement
+
+-- What a law generates for one answer pair. Generated text is short, so
+-- `fill` lengthens the answer (`pairsOf`).
+type PairSeed is a record
+{
+  question :: Ascii
+  answer :: Ascii
+  fill :: Whole
+}
+end type
+
+-- One resolved sub-question and its answer, `{question, answer}`. A list of
+-- them is oldest first.
+type AnswerPair is a record
+{
+  question :: Text
+  answer :: Text
+}
+end type
+
+-- What a law generates for one IRCoT step. `fill` lengthens the reasoning,
+-- and `contextFill` adds a context of some length (`stepsOf`).
+type StepSeed is a record
+{
+  reasoning :: Unmarked
+  fill :: Whole
+  contexts :: List Unmarked
+  contextFill :: Whole
+}
+end type
+
+-- One completed IRCoT round, `{reasoning, indexed_chunks}`: the reasoning
+-- step, and the prompt context of each chunk retrieved for the query it
+-- emitted. A list of them is oldest first.
+type ReasoningStep is a record
+{
+  reasoning :: Text
+  contexts :: List Text
+}
+end type
+
+-- What `parse_self_ask_response/1` returns: `{:final, answer}` or
+-- `{:follow_up, question}`.
+type SelfAskStep is one of
+  | FinalAnswer of type Text
+  | FollowUp of type Text
+end type
+
+-- The payload of `{:continue, reasoning, query}`.
+type Retrieval is a record
+{
+  reasoning :: Text
+  query :: Text
+}
+end type
+
+-- What `parse_ircot_response/1` returns: `{:continue, reasoning, query}` or
+-- `{:done, reasoning}`.
+type IrcotVerdict is one of
+  | Continues of type Retrieval
+  | Done of type Text
+end type
+
+-- Adapter over Cake.Prompt (lawspec/lib/cake_laws_prompt_drivers.ex).
+--
+-- Each function that takes a budget passes it as `max_context_tokens`. Each
+-- one that takes contexts numbers them from 1, as `prepare_context/2` does.
+
+-- `Prompt.estimate_tokens/1` of the text.
+estimateTokens :: Text -> Whole
+
+-- `Prompt.fit_answer_pairs/2` of the pairs and the budget.
+fitAnswerPairs :: List AnswerPair -> Whole -> List AnswerPair
+
+-- `Prompt.build/4` of the contexts, the question and the history, with no
+-- options.
+plainPrompt :: List Text -> Text -> List Text -> List Message
+
+-- `Prompt.build_with_prior_answers/5` of the contexts, the question, the
+-- pairs, the history and the budget.
+promptWithPriorAnswers :: List Text -> Text -> List AnswerPair -> List Text ->
+Whole -> List Message
+
+-- `Prompt.self_ask_prompt/3` of the question, the pairs and the budget.
+selfAskPrompt :: Text -> List AnswerPair -> Whole -> List Message
+
+-- `Prompt.self_ask_system_message/0`. It takes no argument; a LawSpec
+-- function needs an input, so this one takes the unit value.
+selfAskSystemMessage :: Unit -> Text
+
+-- `Prompt.parse_self_ask_response/1` of the reply.
+parseSelfAsk :: Text -> SelfAskStep
+
+-- `Prompt.ircot_prompt/3` of the question, the steps and the budget. Each
+-- step's contexts are numbered from 1, so the numbers of two steps collide,
+-- as the numbers of two retrieval rounds do.
+ircotPrompt :: Text -> List ReasoningStep -> Whole -> List Message
+
+-- `Prompt.ircot_system_message/0`, of the unit value.
+ircotSystemMessage :: Unit -> Text
+
+-- `Prompt.parse_ircot_response/1` of the map a schema-valid reply parses to:
+-- the reasoning, and the retrieval query, which is `nil` when absent.
+parseIrcot :: Text -> Maybe Text -> IrcotVerdict
+
+-- The reference model.
+
+-- Token estimates.
+
+-- `n` over four, rounded up.
+function quarterUp (n :: Whole) -> Whole is
+  if prelude.rem n 4 = 0 then prelude.quot n 4 else prelude.quot n 4 + 1 end if
+end function
+
+-- The token estimate of a text: its length over four, rounded up.
+function tokensOf (t :: Text) -> Whole is quarterUp (prelude.length t)
+end function
+
+-- "abc", `times` times over.
+function letters (times :: Whole) -> Text is
+  if times <= 0 then "" else "abc" ++ letters (times - 1) end if
+end function
+
+-- Up to 21 letters and then `tail`. Generated text is rarely longer than
+-- twenty characters and is often empty, so this is what gives a text a
+-- length worth measuring. The letters come three at a time, so the lengths
+-- cover every remainder of four.
+function lengthened (fill :: Whole) (tail :: Text) -> Text is
+  letters (prelude.rem fill 8) ++ tail
+end function
+
+-- Answer pairs.
+
+-- The pairs the seeds stand for: each answer lengthened by its fill.
+function pairsOf (seeds :: List PairSeed) -> List AnswerPair is
+  first matching case of seeds :
+    when Nil then []
+    when Cons seed rest then
+      Cons
+        (AnswerPair record{
+          question = seed.question,
+          answer = lengthened seed.fill seed.answer})
+        (pairsOf rest)
+  end case
+end function
+
+-- What a pair costs: the tokens of its question and of its answer.
+function pairCost (p :: AnswerPair) -> Whole is
+  tokensOf p.question + tokensOf p.answer
+end function
+
+function pairsCost (ps :: List AnswerPair) -> Whole is
+  first matching case of ps :
+    when Nil then 0
+    when Cons p rest then pairCost p + pairsCost rest
+  end case
+end function
+
+-- The pairs less the oldest of them, one at a time, until what is left
+-- costs no more than the budget.
+function fittingPairs (ps :: List AnswerPair) (budget :: Whole) -> List
+  AnswerPair is
+  if pairsCost ps <= budget then ps
+  else
+    first matching case of ps :
+      when Nil then []
+      when Cons oldest rest then fittingPairs rest budget
+    end case
+  end if
+end function
+
+-- The pairs that survive the budget: the longest run of the newest pairs
+-- that costs no more than the budget, and none at all on a budget of zero.
+function keptPairs (ps :: List AnswerPair) (budget :: Whole) -> List
+  AnswerPair is
+  if budget = 0 then [] else fittingPairs ps budget end if
+end function
+
+-- The newest `count` of the pairs.
+function newestPairs (count :: Whole) (ps :: List AnswerPair) -> List
+  AnswerPair is
+  if count >= prelude.length ps then ps
+  else prelude.drop (prelude.length ps - count) ps end if
+end function
+
+-- Whether `kept` is the longest run of the newest of `ps` that fits the
+-- budget: it is the newest pairs, it costs no more than the budget, and
+-- either it is all of `ps` or one more pair would cost too much. This says
+-- what `keptPairs` computes without evicting anything.
+function isLongestFit (kept :: List AnswerPair) (ps :: List AnswerPair)
+  (budget :: Whole) -> Bool is
+  prelude.length kept <= prelude.length ps && kept = newestPairs
+    (prelude.length kept) ps && pairsCost kept <= budget &&
+    (prelude.length kept = prelude.length ps || pairsCost (newestPairs
+      (prelude.length kept + 1) ps) > budget)
+end function
+
+-- Messages.
+
+-- The content of the first message, which is the system message.
+function systemOf (messages :: List Message) -> Text is
+  first matching case of messages :
+    when Nil then ""
+    when Cons m rest then m.content
+  end case
+end function
+
+function afterSystem (messages :: List Message) -> List Message is
+  first matching case of messages :
+    when Nil then []
+    when Cons m rest then rest
+  end case
+end function
+
+function leadsWithSystem (messages :: List Message) -> Bool is
+  first matching case of messages :
+    when Nil then false
+    when Cons m rest then m.role = System
+  end case
+end function
+
+-- What follows `needle` at the first place it occurs in `text` at or after
+-- position `skip`, trying `left` more positions after that one.
+function afterAt (needle :: Text) (text :: Text) (skip :: Whole) (left ::
+  Whole) -> Maybe Text is
+  if prelude.startsWith (prelude.slice skip (prelude.length text) text) needle
+    then
+    Present
+      (prelude.slice (skip + prelude.length needle) (prelude.length text) text)
+  else
+    if left <= 0 then Absent else afterAt needle text (skip + 1) (left - 1)
+    end if
+  end if
+end function
+
+-- What follows the first place `needle` occurs in `text`, and absent when
+-- it occurs nowhere.
+function afterFirst (needle :: Text) (text :: Text) -> Maybe Text is
+  afterAt needle text 0 (prelude.length text)
+end function
+
+-- Whether the pieces occur in the text one after another, in the order
+-- given, none overlapping the one before it.
+function inOrder (pieces :: List Text) (text :: Text) -> Bool is
+  first matching case of pieces :
+    when Nil then true
+    when Cons piece rest then
+      first matching case of afterFirst piece text :
+        when Absent then false
+        when Present remainder then inOrder rest remainder
+      end case
+  end case
+end function
+
+-- Each pair's question and then its answer, pair after pair.
+function questionsAndAnswers (ps :: List AnswerPair) -> List Text is
+  first matching case of ps :
+    when Nil then []
+    when Cons p rest then
+      Cons p.question (Cons p.answer (questionsAndAnswers rest))
+  end case
+end function
+
+-- Whether the text holds the pairs, oldest first, each question followed by
+-- its own answer. It says nothing of the wording between them.
+function pairsWithin (ps :: List AnswerPair) (text :: Text) -> Bool is
+  inOrder (questionsAndAnswers ps) text
+end function
+
+-- What follows a prompt's instructions: the system message less its first
+-- `prelude.length instructions` characters.
+function foldedAfter (instructions :: Text) (system :: Text) -> Text is
+  prelude.slice (prelude.length instructions) (prelude.length system) system
+end function
+
+-- IRCoT steps.
+
+-- The contexts retrieved for the step a seed stands for: the seed's own,
+-- after one of up to 21 letters. Generated text is often empty and
+-- generated lists often are, so without that one context a step's contexts
+-- would rarely cost anything. One seed in eight keeps only its own, so a
+-- step with no context at all is still generated.
+function contextsOf (seed :: StepSeed) -> List Text is
+  if prelude.rem seed.contextFill 8 = 0 then seed.contexts
+  else Cons (letters (prelude.rem seed.contextFill 8)) seed.contexts end if
+end function
+
+-- The steps the seeds stand for: each reasoning lengthened by its fill, with
+-- the contexts `contextsOf` gives it.
+function stepsOf (seeds :: List StepSeed) -> List ReasoningStep is
+  first matching case of seeds :
+    when Nil then []
+    when Cons seed rest then
+      Cons
+        (ReasoningStep record{
+          reasoning = lengthened seed.fill seed.reasoning,
+          contexts = contextsOf seed})
+        (stepsOf rest)
+  end case
+end function
+
+function contextsCost (contexts :: List Text) -> Whole is
+  first matching case of contexts :
+    when Nil then 0
+    when Cons c rest then tokensOf c + contextsCost rest
+  end case
+end function
+
+-- What a step costs: the tokens of its reasoning and of every context
+-- retrieved for it. A step is kept or evicted whole.
+function stepCost (s :: ReasoningStep) -> Whole is
+  tokensOf s.reasoning + contextsCost s.contexts
+end function
+
+function stepsCost (steps :: List ReasoningStep) -> Whole is
+  first matching case of steps :
+    when Nil then 0
+    when Cons s rest then stepCost s + stepsCost rest
+  end case
+end function
+
+function fittingSteps (steps :: List ReasoningStep) (budget :: Whole) -> List
+  ReasoningStep is
+  if stepsCost steps <= budget then steps
+  else
+    first matching case of steps :
+      when Nil then []
+      when Cons oldest rest then fittingSteps rest budget
+    end case
+  end if
+end function
+
+-- The steps that survive the budget, by the rule `keptPairs` follows: the
+-- longest run of the newest steps that costs no more than the budget, and
+-- none at all on a budget of zero.
+function keptSteps (steps :: List ReasoningStep) (budget :: Whole) -> List
+  ReasoningStep is
+  if budget = 0 then [] else fittingSteps steps budget end if
+end function
+
+-- Whether a step's contexts close its own block: in order, separated by
+-- lines of three hyphens, and followed at once by the label and reasoning
+-- of the step after it, or by the end of the text when the step is the
+-- last. `next` is the number of the step after it. A context under another
+-- step's label fails this. A step with no context is not checked here: what
+-- stands in for its contexts is wording.
+function closesBlock (contexts :: List Text) (rest :: List ReasoningStep)
+  (next :: Whole) (text :: Text) -> Bool is
+  first matching case of contexts :
+    when Nil then true
+    when Cons c more then
+      first matching case of rest :
+        when Nil then
+          prelude.endsWith text (prelude.join "\n---\n" contexts)
+        when Cons s later then
+          text contains (prelude.join "\n---\n" contexts ++ "\nStep " ++
+            prelude.textOf next ++ ": " ++ s.reasoning)
+      end case
+  end case
+end function
+
+-- Whether the text holds every step, labelled from `i`: `Step i:` and the
+-- step's reasoning, and the step's contexts closing its block.
+function stepsWithinFrom (steps :: List ReasoningStep) (i :: Whole) (text ::
+  Text) -> Bool is
+  first matching case of steps :
+    when Nil then true
+    when Cons s rest then
+      text contains ("Step " ++ prelude.textOf i ++ ": " ++ s.reasoning) &&
+        closesBlock s.contexts rest (i + 1) text && stepsWithinFrom rest
+          (i + 1) text
+  end case
+end function
+
+-- Whether the text holds exactly these steps, labelled from 1: every one of
+-- them, and no label for a step after the last. No step's text has a colon,
+-- so a label can only be one the prompt wrote.
+function holdsExactly (steps :: List ReasoningStep) (text :: Text) -> Bool is
+  stepsWithinFrom steps 1 text && not
+    (text contains ("Step " ++ prelude.textOf (prelude.length steps + 1) ++
+      ":"))
+end function
+
+-- Self-ask replies.
+--
+-- LawSpec cannot trim text, so the laws that pin what the parser extracts
+-- build the reply from lines whose whitespace they know: a phrase has none
+-- at either end, and the whitespace around it is generated apart from it.
+
+-- Words with single spaces between them: no whitespace at either end, no
+-- newline, and no colon, so a phrase never holds either marker.
+refinement Phrase is
+  (t :: Text where t matches regex
+    "[a-zA-Z0-9.,?!'-]{1,12}( [a-zA-Z0-9.,?!'-]{1,12}){0,7}")
+end refinement
+
+-- A phrase, or nothing at all.
+refinement Wording is
+  (t :: Text where t matches regex
+    "([a-zA-Z0-9.,?!'-]{1,12}( [a-zA-Z0-9.,?!'-]{1,12}){0,7})?")
+end refinement
+
+-- Whitespace inside a line: none, a space, two spaces, or a tab.
+type Gap is one of
+  | NoGap
+  | OneSpace
+  | TwoSpaces
+  | OneTab
+end type
+
+-- Whitespace around a whole text, newlines included.
+type Margin is one of
+  | NoMargin
+  | SpaceMargin
+  | NewlineMargin
+  | BlankLineMargin
+end type
+
+function gapText (g :: Gap) -> Text is
+  first matching case of g :
+    when NoGap then ""
+    when OneSpace then " "
+    when TwoSpaces then "  "
+    when OneTab then "\t"
+  end case
+end function
+
+function marginText (m :: Margin) -> Text is
+  first matching case of m :
+    when NoMargin then ""
+    when SpaceMargin then " "
+    when NewlineMargin then "\n"
+    when BlankLineMargin then " \n\t\n"
+  end case
+end function
+
+-- What follows a marker on its line: a gap, the text, a gap. With empty
+-- text the marker is trailed by nothing. (The text is not a `Maybe Phrase`:
+-- LawSpec 0.32.0 generates that as `Absent` every time.)
+type Marked is a record
+{
+  gap :: Gap
+  text :: Wording
+  trail :: Gap
+}
+end type
+
+-- One line of a driver reply: prose that holds neither marker, a
+-- `Follow up:` line, or a `So the final answer is:` line.
+type ReplyLine is one of
+  | Prose of type Phrase
+  | Asks of type Marked
+  | Concludes of type Marked
+end type
+
+function afterMarker (m :: Marked) -> Text is
+  gapText m.gap ++ m.text ++ gapText m.trail
+end function
+
+-- What follows a marker, less the whitespace at its end.
+function afterMarkerTrimmed (m :: Marked) -> Text is
+  if m.text = "" then "" else gapText m.gap ++ m.text end if
+end function
+
+function lineText (line :: ReplyLine) -> Text is
+  first matching case of line :
+    when Prose p then p
+    when Asks m then "Follow up:" ++ afterMarker m
+    when Concludes m then "So the final answer is:" ++ afterMarker m
+  end case
+end function
+
+-- The line less the whitespace at its end. No line starts with whitespace.
+function lineTrimmed (line :: ReplyLine) -> Text is
+  first matching case of line :
+    when Prose p then p
+    when Asks m then "Follow up:" ++ afterMarkerTrimmed m
+    when Concludes m then "So the final answer is:" ++ afterMarkerTrimmed m
+  end case
+end function
+
+function lineTexts (lines :: List ReplyLine) -> List Text is
+  first matching case of lines :
+    when Nil then []
+    when Cons line rest then Cons (lineText line) (lineTexts rest)
+  end case
+end function
+
+-- The reply the model sent: the lines, one per line, inside the margins.
+function replyText (lead :: Margin) (lines :: List ReplyLine) (trail ::
+  Margin) -> Text is
+  marginText lead ++ prelude.join "\n" (lineTexts lines) ++ marginText trail
+end function
+
+function trimmedLineTexts (lines :: List ReplyLine) -> List Text is
+  first matching case of lines :
+    when Nil then []
+    when Cons line rest then
+      first matching case of rest :
+        when Nil then [lineTrimmed line]
+        when Cons next more then Cons (lineText line) (trimmedLineTexts rest)
+      end case
+  end case
+end function
+
+-- The lines as text with no whitespace at either end: what trimming the
+-- reply, or the end of it from one of these lines on, leaves.
+function linesTrimmed (lines :: List ReplyLine) -> Text is
+  prelude.join "\n" (trimmedLineTexts lines)
+end function
+
+-- What follows a final-answer marker to the end of the reply, trimmed: the
+-- text on the marker's own line and every line after it.
+function answerFrom (m :: Marked) (rest :: List ReplyLine) -> Text is
+  first matching case of rest :
+    when Nil then m.text
+    when Cons next more then
+      if m.text = "" then linesTrimmed rest
+      else m.text ++ gapText m.trail ++ "\n" ++ linesTrimmed rest end if
+  end case
+end function
+
+-- The answer after the last final-answer marker, and absent when no line
+-- has that marker.
+function finalAnswerOf (lines :: List ReplyLine) -> Maybe Text is
+  first matching case of lines :
+    when Nil then Absent
+    when Cons line rest then
+      first matching case of finalAnswerOf rest :
+        when Present later then Present later
+        when Absent then
+          first matching case of line :
+            when Prose p then Absent
+            when Asks m then Absent
+            when Concludes m then Present (answerFrom m rest)
+          end case
+      end case
+  end case
+end function
+
+-- The question on the line of the last follow-up marker: absent when no
+-- line has that marker, and empty when the last one is trailed by nothing.
+function followUpOf (lines :: List ReplyLine) -> Maybe Text is
+  first matching case of lines :
+    when Nil then Absent
+    when Cons line rest then
+      first matching case of followUpOf rest :
+        when Present later then Present later
+        when Absent then
+          first matching case of line :
+            when Prose p then Absent
+            when Concludes m then Absent
+            when Asks m then Present m.text
+          end case
+      end case
+  end case
+end function
+
+-- What a reply of these lines is. A final-answer marker makes it the final
+-- answer, whatever else it holds: the text after the last such marker.
+-- Otherwise a follow-up marker makes it a follow-up: the question on the
+-- line of the last such marker. A marker trailed by nothing, like no marker
+-- at all, makes the whole reply the final answer.
+function classified (lines :: List ReplyLine) -> SelfAskStep is
+  first matching case of finalAnswerOf lines :
+    when Present answer then
+      if answer = "" then FinalAnswer (linesTrimmed lines)
+      else FinalAnswer answer end if
+    when Absent then
+      first matching case of followUpOf lines :
+        when Absent then FinalAnswer (linesTrimmed lines)
+        when Present question then
+          if question = "" then FinalAnswer (linesTrimmed lines)
+          else FollowUp question end if
+      end case
+  end case
+end function
+
+-- The lines less every final-answer line.
+function withoutFinals (lines :: List ReplyLine) -> List ReplyLine is
+  first matching case of lines :
+    when Nil then []
+    when Cons line rest then
+      first matching case of line :
+        when Prose p then Cons line (withoutFinals rest)
+        when Asks m then Cons line (withoutFinals rest)
+        when Concludes m then withoutFinals rest
+      end case
+  end case
+end function
+
+-- The lines less every line that has a marker.
+function proseOnly (lines :: List ReplyLine) -> List ReplyLine is
+  first matching case of lines :
+    when Nil then []
+    when Cons line rest then
+      first matching case of line :
+        when Prose p then Cons line (proseOnly rest)
+        when Asks m then proseOnly rest
+        when Concludes m then proseOnly rest
+      end case
+  end case
+end function
+
+-- A reply with no final-answer line and at least two follow-up lines: one,
+-- then `between` less its final-answer lines, then the last follow-up line,
+-- then the prose of `after`.
+function severalAsks (earlier :: Marked) (between :: List ReplyLine) (last ::
+  Marked) (after :: List ReplyLine) -> List ReplyLine is
+  Cons (Asks earlier) (withoutFinals between) ++ Cons (Asks last)
+    (proseOnly after)
+end function
+
+-- What a reply of these lines is when `last` is its last follow-up line and
+-- it has no final-answer line: that line's question, or the whole reply as
+-- the final answer when the marker is trailed by nothing.
+function decidedBy (last :: Marked) (lines :: List ReplyLine) -> SelfAskStep is
+  if last.text = "" then FinalAnswer (linesTrimmed lines)
+  else FollowUp last.text end if
+end function
+
+function isFinal (step :: SelfAskStep) -> Bool is
+  first matching case of step :
+    when FinalAnswer answer then true
+    when FollowUp question then false
+  end case
+end function
+
+-- What holds of the parser's answer for any reply at all. A final answer is
+-- text from the reply. A follow-up is text from a reply that has the
+-- follow-up marker and not the final-answer marker, and it is one line and
+-- not empty.
+function soundStep (reply :: Text) (step :: SelfAskStep) -> Bool is
+  first matching case of step :
+    when FinalAnswer answer then reply contains answer
+    when FollowUp question then
+      reply contains question && reply contains "Follow up:" && not
+        (reply contains "So the final answer is:") && prelude.length question
+          >= 1 && not (question contains "\n")
+  end case
+end function
+
+-- IRCoT replies.
+
+-- A field of an IRCoT reply: its text inside whitespace. With an empty body
+-- the field is blank.
+type Field is a record
+{
+  lead :: Margin
+  body :: Wording
+  trail :: Margin
+}
+end type
+
+function fieldText (f :: Field) -> Text is
+  marginText f.lead ++ f.body ++ marginText f.trail
+end function
+
+function queryText (query :: Maybe Field) -> Maybe Text is
+  first matching case of query :
+    when Absent then Absent
+    when Present f then Present (fieldText f)
+  end case
+end function
+
+-- What a step with this reasoning and this retrieval query is. With no
+-- query, or a blank one, the chain is done and the reasoning is the answer.
+-- Any other query continues the chain. Both come back trimmed.
+function verdictOf (reasoning :: Field) (query :: Maybe Field) -> IrcotVerdict
+  is
+  first matching case of query :
+    when Absent then Done reasoning.body
+    when Present f then
+      if f.body = "" then Done reasoning.body
+      else
+        Continues (Retrieval record{reasoning = reasoning.body, query = f.body})
+      end if
+  end case
+end function
+
+function isDone (verdict :: IrcotVerdict) -> Bool is
+  first matching case of verdict :
+    when Done answer then true
+    when Continues next then false
+  end case
+end function
+
+-- What holds of the parser's answer for any reasoning and query at all.
+-- Either way the reasoning is text from the reply's reasoning. A step that
+-- continues was given a query, and continues with text from it that is not
+-- empty.
+function soundVerdict (reasoning :: Text) (query :: Maybe Text) (verdict ::
+  IrcotVerdict) -> Bool is
+  first matching case of verdict :
+    when Done answer then reasoning contains answer
+    when Continues next then
+      reasoning contains next.reasoning && prelude.length next.query >= 1 &&
+      (first matching case of query :
+        when Absent then false
+        when Present q then q contains next.query
+      end case)
+  end case
+end function
+
+-- Laws: estimate_tokens/1.
+
+law "|a token estimate is the length over four, rounded up| is
+  description :
+    "estimate_tokens/1 is the number of characters in the text divided by
+    four, rounded up: the least number of four-character tokens that cover
+    the text. So the empty text costs nothing, and one character costs a
+    whole token. Generated text is short, so the law lengthens it by up to 21
+    letters."
+  end description
+  definition :
+    for all (fill :: Whole) (tail :: Ascii) =>
+      estimateTokens (lengthened fill tail) = quarterUp (prelude.length
+        (lengthened fill tail)) and 4 * estimateTokens (lengthened fill tail) >=
+          prelude.length (lengthened fill tail) and 4 * estimateTokens
+            (lengthened fill tail) < prelude.length (lengthened fill tail) + 4
+    end for all
+  end definition
+  example "|the empty text costs nothing| :
+    fill = 0
+    tail = ""
+    expect estimateTokens (lengthened fill tail) = 0
+  end example
+  example "|one character costs a token| :
+    fill = 0
+    tail = "a"
+    expect estimateTokens (lengthened fill tail) = 1
+  end example
+  example "|four characters are one token| :
+    fill = 0
+    tail = "abcd"
+    expect estimateTokens (lengthened fill tail) = 1
+  end example
+  example "|a fifth character starts a second token| :
+    fill = 0
+    tail = "abcde"
+    expect estimateTokens (lengthened fill tail) = 2
+  end example
+  example "|eight characters are two tokens| :
+    fill = 0
+    tail = "abcdefgh"
+    expect estimateTokens (lengthened fill tail) = 2
+  end example
+end law
+
+-- Laws: fit_answer_pairs/2.
+
+law "|the surviving pairs are the newest that fit the budget| is
+  description :
+    "fit_answer_pairs/2 evicts the oldest pairs, one at a time, until what is
+    left costs no more than the budget. A pair costs the token estimate of
+    its question plus that of its answer. The survivors come back unchanged
+    and in order."
+  end description
+  definition :
+    for all (seeds :: List PairSeed) (budget :: SmallBudget) =>
+      fitAnswerPairs (pairsOf seeds) budget = keptPairs (pairsOf seeds) budget
+    end for all
+  end definition
+  example "|a budget for the newest pair alone evicts the older one| :
+    seeds = [
+    PairSeed record{
+      question = "first sub-question asked",
+      answer = "the very first intermediate answer",
+      fill = 0},
+    PairSeed record{
+      question = "last sub-question",
+      answer = "newest answer",
+      fill = 0}]
+    budget = 9
+    expect pairsCost (pairsOf seeds) = 24
+    expect fitAnswerPairs (pairsOf seeds) budget = [
+      AnswerPair record{
+        question = "last sub-question",
+        answer = "newest answer"}]
+  end example
+  example "|one token short of the newest pair keeps nothing| :
+    seeds = [
+    PairSeed record{
+      question = "first sub-question asked",
+      answer = "the very first intermediate answer",
+      fill = 0},
+    PairSeed record{
+      question = "last sub-question",
+      answer = "newest answer",
+      fill = 0}]
+    budget = 8
+    expect prelude.length (fitAnswerPairs (pairsOf seeds) budget) = 0
+  end example
+  example "|a budget for everything keeps everything| :
+    seeds = [
+    PairSeed record{question = "q-old", answer = "a-old", fill = 0},
+    PairSeed record{question = "q-new", answer = "a-new", fill = 0}]
+    budget = 8
+    expect fitAnswerPairs (pairsOf seeds) budget = [
+      AnswerPair record{question = "q-old", answer = "a-old"},
+      AnswerPair record{question = "q-new", answer = "a-new"}]
+  end example
+end law
+
+law "|no longer run of the newest pairs would fit| is
+  description :
+    "On a budget that is not zero, what fit_answer_pairs/2 returns is the
+    longest run of the newest pairs that fits: it is the newest pairs, it
+    costs no more than the budget, and either every pair survived or the
+    newest evicted pair would take the survivors over the budget. So a pair
+    is never evicted while it and everything newer still fit."
+  end description
+  definition :
+    for all (seeds :: List PairSeed) (budget :: PositiveBudget) =>
+      isLongestFit (fitAnswerPairs (pairsOf seeds) budget) (pairsOf seeds)
+        budget
+    end for all
+  end definition
+  example "|pairs that cost nothing all fit a budget of one| :
+    seeds = [
+    PairSeed record{question = "", answer = "", fill = 0},
+    PairSeed record{question = "", answer = "", fill = 0}]
+    budget = 1
+    expect prelude.length (fitAnswerPairs (pairsOf seeds) budget) = 2
+  end example
+end law
+
+law "|a budget of zero keeps no pair| is
+  description :
+    "fit_answer_pairs/2 with a budget of zero returns no pairs, whatever it
+    is given. That includes pairs that cost nothing: a zero budget switches
+    the accumulated answers off, it does not admit the ones that are free."
+  end description
+  definition :
+    for all (seeds :: List PairSeed) =>
+      prelude.length (fitAnswerPairs (pairsOf seeds) 0) = 0
+    end for all
+  end definition
+  example "|a pair that costs nothing is still evicted| :
+    seeds = [PairSeed record{question = "", answer = "", fill = 0}]
+    expect pairsCost (pairsOf seeds) = 0
+    expect prelude.length (fitAnswerPairs (pairsOf seeds) 0) = 0
+  end example
+end law
+
+-- Laws: build_with_prior_answers/5.
+
+law "|with no surviving pair, the prompt is build/4's| is
+  description :
+    "build_with_prior_answers/5 returns exactly what build/4 returns for the
+    same chunks, question and history whenever no pair survives the budget:
+    when there are no pairs, when the budget is zero, and when not even the
+    newest pair fits. No heading for the answers is left behind."
+  end description
+  definition :
+    for all
+      (contexts :: List Text)
+      (question :: Text)
+      (seeds :: List PairSeed)
+      (history :: List Text)
+      (budget :: SmallBudget)
+    =>
+      promptWithPriorAnswers contexts question [] history budget = plainPrompt
+        contexts question history and promptWithPriorAnswers contexts question
+          (pairsOf seeds) history 0 = plainPrompt contexts question history and
+      (prelude.length (keptPairs (pairsOf seeds) budget) = 0 implies
+        promptWithPriorAnswers contexts question (pairsOf seeds) history
+          budget = plainPrompt contexts question history)
+    end for all
+  end definition
+  example "|a newest pair that does not fit leaves build/4's prompt| :
+    contexts = ["Flow is laminar"]
+    question = "final?"
+    seeds = [
+    PairSeed record{
+      question = "last sub-question",
+      answer = "newest answer",
+      fill = 0}]
+    history = ["q1", "a1"]
+    budget = 8
+    expect prelude.length (keptPairs (pairsOf seeds) budget) = 0
+    expect prelude.length (promptWithPriorAnswers contexts question (pairsOf
+      seeds) history budget) = 4
+  end example
+end law
+
+law "|the prompt folds in the surviving pairs and no others| is
+  description :
+    "build_with_prior_answers/5 is build/4's prompt with the surviving pairs
+    added to the end of its system message. The messages after the system
+    message are build/4's, the system message starts with build/4's, and it
+    holds the surviving pairs after it, oldest first, each question
+    followed by its own answer. An evicted
+    pair leaves no trace: the prompt is the one the survivors alone would
+    give."
+  end description
+  definition :
+    for all
+      (contexts :: List Text)
+      (question :: Text)
+      (seeds :: List PairSeed)
+      (history :: List Text)
+      (budget :: SmallBudget)
+    =>
+      promptWithPriorAnswers contexts question (pairsOf seeds) history budget =
+        promptWithPriorAnswers contexts question (keptPairs (pairsOf seeds)
+          budget) history budget and afterSystem (promptWithPriorAnswers
+            contexts question (pairsOf seeds) history budget) = afterSystem
+              (plainPrompt contexts question history) and leadsWithSystem
+                (promptWithPriorAnswers contexts question (pairsOf seeds)
+                  history budget) and prelude.startsWith (systemOf
+                    (promptWithPriorAnswers contexts question (pairsOf seeds)
+                      history budget)) (systemOf (plainPrompt contexts question
+                        history)) and pairsWithin (keptPairs (pairsOf seeds)
+                          budget) (foldedAfter (systemOf (plainPrompt contexts
+                            question history)) (systemOf (promptWithPriorAnswers
+                              contexts question (pairsOf seeds) history
+                              budget)))
+    end for all
+  end definition
+  example "|the newest pair is folded in and the evicted one is not| :
+    contexts = ["Flow is laminar"]
+    question = "final?"
+    seeds = [
+    PairSeed record{
+      question = "first sub-question asked",
+      answer = "the very first intermediate answer",
+      fill = 0},
+    PairSeed record{
+      question = "last sub-question",
+      answer = "newest answer",
+      fill = 0}]
+    history = []
+    budget = 9
+    expect systemOf (promptWithPriorAnswers contexts question (pairsOf seeds)
+      history budget) contains "newest answer" = true
+    expect systemOf (promptWithPriorAnswers contexts question (pairsOf seeds)
+      history budget) contains "the very first intermediate answer" = false
+    expect systemOf (promptWithPriorAnswers contexts question (pairsOf seeds)
+      history budget) contains "[1] Flow is laminar" = true
+  end example
+  example "|two surviving pairs keep their order and their own answers| :
+    contexts = ["Flow is laminar"]
+    question = "final?"
+    seeds = [
+    PairSeed record{question = "q-old", answer = "a-old", fill = 0},
+    PairSeed record{question = "q-new", answer = "a-new", fill = 0}]
+    history = []
+    budget = 8
+    expect inOrder ["q-old", "a-old", "q-new", "a-new"] (systemOf
+      (promptWithPriorAnswers contexts question (pairsOf seeds) history
+        budget)) = true
+    expect inOrder ["q-new", "a-new", "q-old", "a-old"] (systemOf
+      (promptWithPriorAnswers contexts question (pairsOf seeds) history
+        budget)) = false
+    expect inOrder ["q-old", "a-new", "q-new", "a-old"] (systemOf
+      (promptWithPriorAnswers contexts question (pairsOf seeds) history
+        budget)) = false
+    expect inOrder ["a-old", "q-old"] (systemOf (promptWithPriorAnswers contexts
+      question (pairsOf seeds) history budget)) = false
+  end example
+end law
+
+-- Laws: self_ask_prompt/3.
+
+law "|the self-ask prompt is its instructions, the surviving pairs, the question|
+  is
+  description :
+    "self_ask_prompt/3 returns two messages: a system message, then the
+    question as a user message, verbatim. The system message starts with the
+    self-ask instructions, which name both markers the parser classifies by,
+    and holds after them the pairs that survive the budget, oldest first,
+    each follow-up followed by its own answer. With no surviving pair it is the instructions alone. An evicted
+    pair leaves no trace: the prompt is the one the survivors alone would
+    give."
+  end description
+  definition :
+    for all
+      (question :: Text)
+      (seeds :: List PairSeed)
+      (budget :: SmallBudget)
+    =>
+      selfAskPrompt question (pairsOf seeds) budget = selfAskPrompt question
+        (keptPairs (pairsOf seeds) budget) budget and leadsWithSystem
+          (selfAskPrompt question (pairsOf seeds) budget) and afterSystem
+            (selfAskPrompt question (pairsOf seeds) budget) = [ Message
+              record{role = User, content = question}] and prelude.startsWith
+                (systemOf (selfAskPrompt question (pairsOf seeds) budget))
+                (selfAskSystemMessage ()) and pairsWithin (keptPairs (pairsOf
+                  seeds) budget) (foldedAfter (selfAskSystemMessage ())
+                    (systemOf (selfAskPrompt question (pairsOf seeds)
+                      budget))) and (prelude.length (keptPairs (pairsOf seeds)
+                        budget) = 0 implies systemOf (selfAskPrompt question
+                          (pairsOf seeds) budget) = selfAskSystemMessage ())
+      and selfAskSystemMessage () contains "Follow up:"
+      and selfAskSystemMessage () contains
+        "So the final answer is:"
+    end for all
+  end definition
+  example "|a budget of zero gives the instructions alone| :
+    question = "final?"
+    seeds = [
+    PairSeed record{question = "q-old", answer = "a-old", fill = 0},
+    PairSeed record{question = "q-new", answer = "a-new", fill = 0}]
+    budget = 0
+    expect foldedAfter (selfAskSystemMessage ()) (systemOf (selfAskPrompt
+      question (pairsOf seeds) budget)) = ""
+    expect prelude.length (selfAskPrompt question (pairsOf seeds) budget) = 2
+  end example
+  example "|the newest pair is folded in and the evicted one is not| :
+    question = "final?"
+    seeds = [
+    PairSeed record{
+      question = "first follow-up asked",
+      answer = "the very first intermediate answer",
+      fill = 0},
+    PairSeed record{
+      question = "last follow-up",
+      answer = "newest answer",
+      fill = 0}]
+    budget = 8
+    expect systemOf (selfAskPrompt question (pairsOf seeds) budget) contains
+      "newest answer" = true
+    expect systemOf (selfAskPrompt question (pairsOf seeds) budget) contains
+      "the very first intermediate answer" = false
+  end example
+  example "|two surviving pairs keep their order and their own answers| :
+    question = "final?"
+    seeds = [
+    PairSeed record{question = "q-old", answer = "a-old", fill = 0},
+    PairSeed record{question = "q-new", answer = "a-new", fill = 0}]
+    budget = 8
+    expect inOrder ["q-old", "a-old", "q-new", "a-new"] (systemOf
+      (selfAskPrompt question (pairsOf seeds) budget)) = true
+    expect inOrder ["q-new", "a-new", "q-old", "a-old"] (systemOf
+      (selfAskPrompt question (pairsOf seeds) budget)) = false
+  end example
+end law
+
+-- Laws: parse_self_ask_response/1.
+
+law "|a self-ask reply is its last final answer, or else its last follow-up|
+  is
+  description :
+    "parse_self_ask_response/1 classifies a reply by its markers. If the
+    reply has the final-answer marker, it is the final answer: everything
+    after the last such marker, trimmed. Otherwise, if it has the follow-up
+    marker, it is a follow-up question: the rest of the line after the last
+    such marker, trimmed. A reply with no marker is the final answer, the
+    whole reply trimmed, and so is a reply whose deciding marker is trailed
+    by nothing."
+  end description
+  definition :
+    for all
+      (lead :: Margin)
+      (lines :: List ReplyLine)
+      (trail :: Margin)
+    =>
+      parseSelfAsk (replyText lead lines trail) = classified lines
+    end for all
+  end definition
+  example "|a final-answer line after some thinking| :
+    lead = NoMargin
+    lines = [
+    Prose "Thinking it through.",
+    Concludes
+    (Marked record{
+      gap = OneSpace,
+      text = "The warranty is 5 years.",
+      trail = NoGap})]
+    trail = NoMargin
+    expect replyText lead lines trail =
+      "Thinking it through.\nSo the final answer is: The warranty is 5 years."
+    expect parseSelfAsk (replyText lead lines trail) = FinalAnswer
+      "The warranty is 5 years."
+  end example
+  example "|a follow-up line is its question, less the rest of the reply| :
+    lead = NoMargin
+    lines = [
+    Prose "I need more information.",
+    Asks
+    (Marked record{
+      gap = OneSpace,
+      text = "Which pump does the RO-400 use?",
+      trail = OneSpace}),
+    Prose "Then I can answer."]
+    trail = NewlineMargin
+    expect parseSelfAsk (replyText lead lines trail) = FollowUp
+      "Which pump does the RO-400 use?"
+  end example
+  example "|no marker makes the whole reply the final answer, trimmed| :
+    lead = SpaceMargin
+    lines = [Prose "A direct answer."]
+    trail = SpaceMargin
+    expect parseSelfAsk (replyText lead lines trail) = FinalAnswer
+      "A direct answer."
+  end example
+  example "|a follow-up marker trailed by nothing is not a follow-up| :
+    lead = NoMargin
+    lines = [
+    Prose "I cannot decide what to ask.",
+    Asks (Marked record{gap = TwoSpaces, text = "", trail = OneSpace})]
+    trail = NoMargin
+    expect parseSelfAsk (replyText lead lines trail) = FinalAnswer
+      "I cannot decide what to ask.\nFollow up:"
+  end example
+  example "|a final-answer marker trailed by nothing gives the whole reply| :
+    lead = NoMargin
+    lines = [
+    Prose "The answer is 5 years.",
+    Concludes (Marked record{gap = TwoSpaces, text = "", trail = OneSpace})]
+    trail = NoMargin
+    expect parseSelfAsk (replyText lead lines trail) = FinalAnswer
+      "The answer is 5 years.\nSo the final answer is:"
+  end example
+  example "|an answer that starts on the line after its marker| :
+    lead = NoMargin
+    lines = [
+    Concludes (Marked record{gap = NoGap, text = "", trail = NoGap}),
+    Prose "The warranty is 5 years."]
+    trail = NewlineMargin
+    expect parseSelfAsk (replyText lead lines trail) = FinalAnswer
+      "The warranty is 5 years."
+  end example
+  example "|an empty reply is an empty final answer| :
+    lead = SpaceMargin
+    lines = []
+    trail = NewlineMargin
+    expect parseSelfAsk (replyText lead lines trail) = FinalAnswer ""
+  end example
+end law
+
+law "|the final-answer marker wins over a follow-up| is
+  description :
+    "A reply that has the final-answer marker anywhere is the final answer,
+    whatever surrounds the marker: follow-up markers before it, after it, or
+    on both sides. A model that answers in one breath has answered."
+  end description
+  definition :
+    for all (before :: Text) (between :: Text) (after :: Text) =>
+      isFinal (parseSelfAsk (before ++ "So the final answer is:" ++ after)) and
+      isFinal (parseSelfAsk (before ++ "Follow up:" ++ between ++
+        "So the final answer is:" ++ after)) and isFinal (parseSelfAsk (before
+          ++ "So the final answer is:" ++ between ++ "Follow up:" ++ after))
+    end for all
+  end definition
+  example "|a follow-up and then the answer| :
+    before = ""
+    between =
+      " Which pump does the RO-400 use?\nIntermediate answer: the P-100.\n"
+    after = " The warranty is 5 years."
+    expect parseSelfAsk (before ++ "Follow up:" ++ between ++
+      "So the final answer is:" ++ after) = FinalAnswer
+      "The warranty is 5 years."
+  end example
+end law
+
+law "|the last follow-up wins when there are several| is
+  description :
+    "In a reply with no final-answer marker and two or more follow-up
+    markers, the last follow-up marker decides: the reply is that marker's
+    question, whatever the earlier follow-ups asked, since the model was
+    echoing follow-ups already resolved. If the last marker is trailed by
+    nothing, the whole reply is the final answer, and no earlier follow-up is
+    asked again."
+  end description
+  definition :
+    for all
+      (lead :: Margin)
+      (earlier :: Marked)
+      (between :: List ReplyLine)
+      (last :: Marked)
+      (after :: List ReplyLine)
+      (trail :: Margin)
+    =>
+      parseSelfAsk (replyText lead (severalAsks earlier between last after)
+        trail) = decidedBy last (severalAsks earlier between last after)
+    end for all
+  end definition
+  example "|two follow-ups around an intermediate answer| :
+    lead = NoMargin
+    earlier = Marked record{
+      gap = OneSpace,
+      text = "Which pump does the RO-400 use?",
+      trail = NoGap}
+    between = [Prose "Intermediate answer, the P-100."]
+    last = Marked record{
+      gap = OneSpace,
+      text = "What is the warranty on the P-100?",
+      trail = NoGap}
+    after = []
+    trail = NoMargin
+    expect parseSelfAsk (replyText lead (severalAsks earlier between last
+      after) trail) = FollowUp "What is the warranty on the P-100?"
+  end example
+end law
+
+law "|every reply is a final answer or a follow-up, taken from the reply| is
+  description :
+    "parse_self_ask_response/1 classifies any text at all, with or without
+    markers, and never invents text. A final answer is part of the reply. A
+    follow-up is part of a reply that has the follow-up marker and no
+    final-answer marker, and it is a single line that is not empty."
+  end description
+  definition :
+    for all (before :: Text) (between :: Text) (after :: Text) =>
+      soundStep before (parseSelfAsk before) and soundStep (before ++
+        "Follow up:" ++ after) (parseSelfAsk (before ++ "Follow up:" ++ after))
+      and soundStep (before ++ "Follow up:" ++ between ++ "Follow up:" ++
+        after) (parseSelfAsk (before ++ "Follow up:" ++ between ++
+          "Follow up:" ++ after)) and soundStep (before ++
+            "So the final answer is:" ++ after) (parseSelfAsk (before ++
+              "So the final answer is:" ++ after)) and soundStep (before ++
+                "Follow up:" ++ between ++ "So the final answer is:" ++
+                after) (parseSelfAsk (before ++ "Follow up:" ++ between ++
+                  "So the final answer is:" ++ after))
+    end for all
+  end definition
+end law
+
+-- Laws: ircot_prompt/3.
+
+law "|the IRCoT prompt folds in the newest steps that fit the budget| is
+  description :
+    "ircot_prompt/3 returns two messages: a system message, then the
+    question as a user message, verbatim. The system message starts with the
+    IRCoT instructions and holds the steps that survive the budget, each with
+    its reasoning and every context retrieved for it, labelled Step 1 to
+    Step K, oldest first. The survivors are the longest run of the newest
+    steps that costs no more than the budget, a step costing the token
+    estimate of its reasoning plus that of each of its contexts, so a step's
+    reasoning and its contexts are kept or evicted together. An evicted step
+    leaves no trace: the prompt is the one the survivors alone would give,
+    labelled from 1 again."
+  end description
+  definition :
+    for all
+      (question :: Text)
+      (seeds :: List StepSeed)
+      (budget :: SmallBudget)
+    =>
+      ircotPrompt question (stepsOf seeds) budget = ircotPrompt question
+        (keptSteps (stepsOf seeds) budget) budget and leadsWithSystem
+          (ircotPrompt question (stepsOf seeds) budget) and afterSystem
+            (ircotPrompt question (stepsOf seeds) budget) = [ Message
+              record{role = User, content = question}] and prelude.startsWith
+                (systemOf (ircotPrompt question (stepsOf seeds) budget))
+                (ircotSystemMessage ()) and holdsExactly (keptSteps (stepsOf
+                  seeds) budget) (foldedAfter (ircotSystemMessage ())
+                    (systemOf (ircotPrompt question (stepsOf seeds) budget)))
+    end for all
+  end definition
+  example "|the newest step survives with its context, the older one goes| :
+    question = "final?"
+    seeds = [
+    StepSeed record{
+      reasoning = "the very first reasoning step",
+      fill = 0,
+      contexts = ["old chunk text"], contextFill = 0},
+    StepSeed record{
+      reasoning = "the newest reasoning step",
+      fill = 0,
+      contexts = ["new chunk text"], contextFill = 0}]
+    budget = 11
+    expect stepsCost (stepsOf seeds) = 23
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "Step 1: the newest reasoning step" = true
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "new chunk text" = true
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "the very first reasoning step" = false
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "old chunk text" = false
+  end example
+  example "|two surviving steps each keep their own contexts| :
+    question = "final?"
+    seeds = [
+    StepSeed record{
+      reasoning = "abcd",
+      fill = 0,
+      contexts = ["old text", "older text"],
+      contextFill = 0},
+    StepSeed record{
+      reasoning = "efgh",
+      fill = 0,
+      contexts = ["new chunk text"],
+      contextFill = 0}]
+    budget = 12
+    expect stepsCost (stepsOf seeds) = 11
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "old text\n---\nolder text\nStep 2: efgh" = true
+    expect prelude.endsWith (systemOf (ircotPrompt question (stepsOf seeds)
+      budget)) "new chunk text" = true
+  end example
+  example "|contexts count toward a step's cost| :
+    question = "final?"
+    seeds = [
+    StepSeed record{
+      reasoning = "abcd",
+      fill = 0,
+      contexts = ["old chunk text"],
+      contextFill = 0},
+    StepSeed record{
+      reasoning = "efgh",
+      fill = 0,
+      contexts = ["new chunk text"],
+      contextFill = 0}]
+    budget = 5
+    expect stepsCost (stepsOf seeds) = 10
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "Step 1: efgh" = true
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "Step 2:" = false
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "old chunk text" = false
+  end example
+end law
+
+law "|with no surviving step, the IRCoT prompt is its instructions alone| is
+  description :
+    "ircot_prompt/3 returns exactly the IRCoT instructions and the question
+    whenever no step survives the budget: when there are no steps, when the
+    budget is zero, and when not even the newest step fits. A zero budget
+    keeps nothing, not even a step that costs nothing, and no heading for
+    the steps is left behind."
+  end description
+  definition :
+    for all
+      (question :: Text)
+      (seeds :: List StepSeed)
+      (budget :: SmallBudget)
+    =>
+      ircotPrompt question [] budget = [ Message record{role = System, content =
+          ircotSystemMessage ()}, Message record{role = User, content =
+              question}]
+      and ircotPrompt question (stepsOf seeds) 0 = ircotPrompt question [] 0
+      and (prelude.length (keptSteps (stepsOf seeds) budget) = 0 implies
+        ircotPrompt question (stepsOf seeds) budget = ircotPrompt question
+          [] budget)
+    end for all
+  end definition
+  example "|a step that costs nothing is not folded in on a zero budget| :
+    question = "final?"
+    seeds = [StepSeed record{reasoning = "", fill = 0, contexts = [],
+      contextFill = 0}]
+    budget = 0
+    expect stepsCost (stepsOf seeds) = 0
+    expect foldedAfter (ircotSystemMessage ()) (systemOf (ircotPrompt question
+      (stepsOf seeds) budget)) = ""
+  end example
+end law
+
+law "|the IRCoT context folded into the prompt has no [N] marker| is
+  description :
+    "What ircot_prompt/3 folds in after its instructions holds each
+    surviving step's retrieved contexts verbatim and unnumbered. Each
+    retrieval round numbers its chunks from 1, so the numbers of two steps
+    collide, and none of them matches the merged numbering the final answer
+    cites. Over steps whose reasoning and contexts have no square bracket,
+    the folded text has none either, so it has no [N] marker for the model
+    to copy. The budget is the default, 4096 tokens: far more than any
+    generated step costs, so the survivors are in practice every step."
+  end description
+  definition :
+    for all (question :: Text) (seeds :: List StepSeed) =>
+      not (foldedAfter (ircotSystemMessage ()) (systemOf (ircotPrompt question
+        (stepsOf seeds) 4096)) contains "[") and not (foldedAfter
+          (ircotSystemMessage ()) (systemOf (ircotPrompt question (stepsOf
+            seeds) 4096)) contains "]") and holdsExactly (keptSteps (stepsOf
+              seeds) 4096) (foldedAfter (ircotSystemMessage ()) (systemOf
+                (ircotPrompt question (stepsOf seeds) 4096)))
+    end for all
+  end definition
+  example "|two chunks of one step are folded in without their numbers| :
+    question = "What is the warranty?"
+    seeds = [
+    StepSeed record{
+      reasoning = "I need to identify the pump first.",
+      fill = 0,
+      contexts = ["The RO-400 uses the P-100 pump.", "The P-100 is a pump."],
+      contextFill = 0}]
+    expect systemOf (ircotPrompt question (stepsOf seeds) 4096) contains
+      "The RO-400 uses the P-100 pump." = true
+    expect systemOf (ircotPrompt question (stepsOf seeds) 4096) contains "[1]"
+      = false
+    expect systemOf (ircotPrompt question (stepsOf seeds) 4096) contains "[2]"
+      = false
+  end example
+end law
+
+-- Laws: parse_ircot_response/1.
+
+law "|a null or blank retrieval query means done, any other continues| is
+  description :
+    "parse_ircot_response/1 classifies a step by its retrieval query. With no
+    query, or a query that is only whitespace, the chain is done and the
+    reasoning is the final answer. With any other query the chain continues
+    with that query. The reasoning and the query both come back trimmed."
+  end description
+  definition :
+    for all (reasoning :: Field) (query :: Maybe Field) =>
+      parseIrcot (fieldText reasoning) (queryText query) = verdictOf reasoning
+        query
+    end for all
+  end definition
+  example "|a query continues the chain| :
+    reasoning = Field record{
+      lead = NoMargin,
+      body = "I need to identify the pump first.",
+      trail = NoMargin}
+    query = Present
+    (Field record{
+      lead = NoMargin,
+      body = "Which pump does the RO-400 use?",
+      trail = NoMargin})
+    expect parseIrcot (fieldText reasoning) (queryText query) = Continues
+      (Retrieval record{
+        reasoning = "I need to identify the pump first.",
+        query = "Which pump does the RO-400 use?"})
+  end example
+  example "|a null query is done| :
+    reasoning = Field record{
+      lead = NoMargin,
+      body = "The warranty is 5 years.",
+      trail = NoMargin}
+    query = Absent
+    expect parseIrcot (fieldText reasoning) (queryText query) = Done
+      "The warranty is 5 years."
+  end example
+  example "|a blank query is done, not a search for whitespace| :
+    reasoning = Field record{
+      lead = NoMargin,
+      body = "The warranty is 5 years.",
+      trail = NoMargin}
+    query = Present (Field record{lead = SpaceMargin, body = "", trail =
+        SpaceMargin})
+    expect parseIrcot (fieldText reasoning) (queryText query) = Done
+      "The warranty is 5 years."
+  end example
+  example "|the reasoning and the query are trimmed| :
+    reasoning = Field record{
+      lead = SpaceMargin,
+      body = "step one",
+      trail = SpaceMargin}
+    query = Present
+    (Field record{lead = SpaceMargin, body = "a query", trail =
+        NewlineMargin})
+    expect parseIrcot (fieldText reasoning) (queryText query) = Continues
+      (Retrieval record{reasoning = "step one", query = "a query"})
+  end example
+end law
+
+law "|every IRCoT step is done or continues with a query it was given| is
+  description :
+    "parse_ircot_response/1 classifies any reasoning text with any retrieval
+    query or none, and never invents text. The reasoning it returns is part
+    of the reasoning it was given. A step with no query is always done. A
+    step that continues was given a query, and the query it continues with
+    is part of that one and is not empty."
+  end description
+  definition :
+    for all (reasoning :: Text) (query :: Maybe Text) =>
+      soundVerdict reasoning query (parseIrcot reasoning query) and isDone
+        (parseIrcot reasoning Absent)
+    end for all
+  end definition
+end law
+end unit

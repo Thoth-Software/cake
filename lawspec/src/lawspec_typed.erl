@@ -26,37 +26,93 @@
     last_ten/1,
     recent_exchanges/1,
     scored_only/1,
+    system_of/1,
+    after_system/1,
+    leads_with_system/1,
+    questions_and_answers/1,
+    folded_after/2,
+    gap_text/1,
+    margin_text/1,
+    after_marker/1,
+    after_marker_trimmed/1,
+    line_text/1,
+    line_trimmed/1,
+    line_texts/1,
+    reply_text/3,
+    trimmed_line_texts/1,
+    lines_trimmed/1,
+    answer_from/2,
+    final_answer_of/1,
+    follow_up_of/1,
+    classified/1,
+    without_finals/1,
+    prose_only/1,
+    several_asks/4,
+    decided_by/2,
+    is_final/1,
+    sound_step/2,
+    field_text/1,
+    query_text/1,
+    verdict_of/2,
+    is_done/1,
+    sound_verdict/3,
+    from_dynamic_answer_pair/1,
     from_dynamic_entry/1,
     from_dynamic_entry_integer_entry/1,
+    from_dynamic_field/1,
+    from_dynamic_gap/1,
+    from_dynamic_ircot_verdict/1,
     from_dynamic_key_val_integer_entry/1,
+    from_dynamic_list_answer_pair/1,
     from_dynamic_list_entry/1,
     from_dynamic_list_entry_integer_entry/1,
     from_dynamic_list_message/1,
     from_dynamic_list_node/1,
+    from_dynamic_list_reply_line/1,
     from_dynamic_list_scored_result/1,
+    from_dynamic_margin/1,
+    from_dynamic_marked/1,
+    from_dynamic_maybe_field/1,
     from_dynamic_maybe_integer/1,
     from_dynamic_maybe_list_integer/1,
+    from_dynamic_maybe_text/1,
     from_dynamic_message/1,
     from_dynamic_node/1,
     from_dynamic_regex/1,
+    from_dynamic_reply_line/1,
+    from_dynamic_retrieval/1,
     from_dynamic_role/1,
     from_dynamic_scored_result/1,
+    from_dynamic_self_ask_step/1,
     from_native_key_val_integer_entry/1,
+    to_dynamic_answer_pair/1,
     to_dynamic_entry/1,
     to_dynamic_entry_integer_entry/1,
+    to_dynamic_field/1,
+    to_dynamic_gap/1,
+    to_dynamic_ircot_verdict/1,
     to_dynamic_key_val_integer_entry/1,
+    to_dynamic_list_answer_pair/1,
     to_dynamic_list_entry/1,
     to_dynamic_list_entry_integer_entry/1,
     to_dynamic_list_message/1,
     to_dynamic_list_node/1,
+    to_dynamic_list_reply_line/1,
     to_dynamic_list_scored_result/1,
+    to_dynamic_margin/1,
+    to_dynamic_marked/1,
+    to_dynamic_maybe_field/1,
     to_dynamic_maybe_integer/1,
     to_dynamic_maybe_list_integer/1,
+    to_dynamic_maybe_text/1,
     to_dynamic_message/1,
     to_dynamic_node/1,
     to_dynamic_regex/1,
+    to_dynamic_reply_line/1,
+    to_dynamic_retrieval/1,
     to_dynamic_role/1,
     to_dynamic_scored_result/1,
+    to_dynamic_self_ask_step/1,
     to_native_key_val_integer_entry/1
 ]).
 
@@ -466,6 +522,640 @@ scored_only(Rs) ->
             end
     end.
 
+%% systemOf — laws/prompt_drivers.lawspec:254
+system_of(Messages) ->
+    case Messages of
+        [] ->
+            <<>>;
+        [Selection | _] ->
+            case Selection of
+                #{'__struct__' := 'Elixir.LawSpec.Data.Message', role := _, content := Content} ->
+                    Content
+            end
+    end.
+
+%% afterSystem — laws/prompt_drivers.lawspec:261
+after_system(Messages) ->
+    case Messages of
+        [] ->
+            [];
+        [_ | Selection] ->
+            Selection
+    end.
+
+%% leadsWithSystem — laws/prompt_drivers.lawspec:268
+leads_with_system(Messages) ->
+    case Messages of
+        [] ->
+            false;
+        [Selection | _] ->
+            Value =
+                case Selection of
+                    #{'__struct__' := 'Elixir.LawSpec.Data.Message', role := Role, content := _} ->
+                        Role
+                end,
+            (Value =:= #{'__struct__' => 'Elixir.LawSpec.Data.RoleSystem'})
+    end.
+
+%% questionsAndAnswers — laws/prompt_drivers.lawspec:309
+questions_and_answers(Ps) ->
+    case Ps of
+        [] ->
+            [];
+        [Selection | Selection_2] ->
+            Value =
+                case Selection of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.AnswerPair',
+                        question := Question,
+                        answer := _
+                    } ->
+                        Question
+                end,
+            Value_2 =
+                case Selection of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.AnswerPair',
+                        question := _,
+                        answer := Answer
+                    } ->
+                        Answer
+                end,
+            [Value | [Value_2 | questions_and_answers(Selection_2)]]
+    end.
+
+%% foldedAfter — laws/prompt_drivers.lawspec:325
+folded_after(Instructions, System) ->
+    lawspec_beam_fast:slice_text(
+        System,
+        lawspec_beam_fast:text_length(Instructions),
+        lawspec_beam_fast:text_length(System)
+    ).
+
+%% gapText — laws/prompt_drivers.lawspec:472
+gap_text(G) ->
+    case G of
+        #{'__struct__' := 'Elixir.LawSpec.Data.GapNoGap'} ->
+            <<>>;
+        #{'__struct__' := 'Elixir.LawSpec.Data.GapOneSpace'} ->
+            <<" ">>;
+        #{'__struct__' := 'Elixir.LawSpec.Data.GapTwoSpaces'} ->
+            <<"  ">>;
+        #{'__struct__' := 'Elixir.LawSpec.Data.GapOneTab'} ->
+            <<"\t">>
+    end.
+
+%% marginText — laws/prompt_drivers.lawspec:481
+margin_text(M) ->
+    case M of
+        #{'__struct__' := 'Elixir.LawSpec.Data.MarginNoMargin'} ->
+            <<>>;
+        #{'__struct__' := 'Elixir.LawSpec.Data.MarginSpaceMargin'} ->
+            <<" ">>;
+        #{'__struct__' := 'Elixir.LawSpec.Data.MarginNewlineMargin'} ->
+            <<"\n">>;
+        #{'__struct__' := 'Elixir.LawSpec.Data.MarginBlankLineMargin'} ->
+            <<" \n\t\n">>
+    end.
+
+%% afterMarker — laws/prompt_drivers.lawspec:509
+after_marker(M) ->
+    Value =
+        case M of
+            #{'__struct__' := 'Elixir.LawSpec.Data.Marked', gap := Gap, text := _, trail := _} ->
+                Gap
+        end,
+    Value_2 =
+        case M of
+            #{'__struct__' := 'Elixir.LawSpec.Data.Marked', gap := _, text := Text, trail := _} ->
+                Text
+        end,
+    Value_3 =
+        case M of
+            #{'__struct__' := 'Elixir.LawSpec.Data.Marked', gap := _, text := _, trail := Trail} ->
+                Trail
+        end,
+    <<(<<(gap_text(Value))/binary, (Value_2)/binary>>)/binary, (gap_text(Value_3))/binary>>.
+
+%% afterMarkerTrimmed — laws/prompt_drivers.lawspec:514
+after_marker_trimmed(M) ->
+    Value =
+        case M of
+            #{'__struct__' := 'Elixir.LawSpec.Data.Marked', gap := _, text := Text, trail := _} ->
+                Text
+        end,
+    case (Value =:= <<>>) of
+        true ->
+            <<>>;
+        false ->
+            Value_2 =
+                case M of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.Marked',
+                        gap := Gap,
+                        text := _,
+                        trail := _
+                    } ->
+                        Gap
+                end,
+            Value_3 =
+                case M of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.Marked',
+                        gap := _,
+                        text := Text_2,
+                        trail := _
+                    } ->
+                        Text_2
+                end,
+            <<(gap_text(Value_2))/binary, (Value_3)/binary>>
+    end.
+
+%% lineText — laws/prompt_drivers.lawspec:518
+line_text(Line) ->
+    case Line of
+        #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineProse', value := Selection} ->
+            Selection;
+        #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineAsks', value := Selection_2} ->
+            <<(<<"Follow up:">>)/binary, (after_marker(Selection_2))/binary>>;
+        #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineConcludes', value := Selection_3} ->
+            <<(<<"So the final answer is:">>)/binary, (after_marker(Selection_3))/binary>>
+    end.
+
+%% lineTrimmed — laws/prompt_drivers.lawspec:527
+line_trimmed(Line) ->
+    case Line of
+        #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineProse', value := Selection} ->
+            Selection;
+        #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineAsks', value := Selection_2} ->
+            <<(<<"Follow up:">>)/binary, (after_marker_trimmed(Selection_2))/binary>>;
+        #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineConcludes', value := Selection_3} ->
+            <<(<<"So the final answer is:">>)/binary, (after_marker_trimmed(Selection_3))/binary>>
+    end.
+
+%% lineTexts — laws/prompt_drivers.lawspec:535
+line_texts(Lines) ->
+    case Lines of
+        [] ->
+            [];
+        [Selection | Selection_2] ->
+            [line_text(Selection) | line_texts(Selection_2)]
+    end.
+
+%% replyText — laws/prompt_drivers.lawspec:543
+reply_text(Lead, Lines, Trail) ->
+    <<
+        (<<
+            (margin_text(Lead))/binary,
+            (lawspec_beam_fast:join(<<"\n">>, line_texts(Lines)))/binary
+        >>)/binary,
+        (margin_text(Trail))/binary
+    >>.
+
+%% trimmedLineTexts — laws/prompt_drivers.lawspec:548
+trimmed_line_texts(Lines) ->
+    case Lines of
+        [] ->
+            [];
+        [Selection | Selection_2] ->
+            case Selection_2 of
+                [] ->
+                    [line_trimmed(Selection)];
+                [_ | _] ->
+                    [line_text(Selection) | trimmed_line_texts(Selection_2)]
+            end
+    end.
+
+%% linesTrimmed — laws/prompt_drivers.lawspec:561
+lines_trimmed(Lines) ->
+    lawspec_beam_fast:join(<<"\n">>, trimmed_line_texts(Lines)).
+
+%% answerFrom — laws/prompt_drivers.lawspec:567
+answer_from(M, Rest) ->
+    case Rest of
+        [] ->
+            case M of
+                #{
+                    '__struct__' := 'Elixir.LawSpec.Data.Marked',
+                    gap := _,
+                    text := Text,
+                    trail := _
+                } ->
+                    Text
+            end;
+        [_ | _] ->
+            Value =
+                case M of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.Marked',
+                        gap := _,
+                        text := Text_2,
+                        trail := _
+                    } ->
+                        Text_2
+                end,
+            case (Value =:= <<>>) of
+                true ->
+                    lines_trimmed(Rest);
+                false ->
+                    Value_2 =
+                        case M of
+                            #{
+                                '__struct__' := 'Elixir.LawSpec.Data.Marked',
+                                gap := _,
+                                text := Text_3,
+                                trail := _
+                            } ->
+                                Text_3
+                        end,
+                    Value_3 =
+                        case M of
+                            #{
+                                '__struct__' := 'Elixir.LawSpec.Data.Marked',
+                                gap := _,
+                                text := _,
+                                trail := Trail
+                            } ->
+                                Trail
+                        end,
+                    <<
+                        (<<
+                            (<<(Value_2)/binary, (gap_text(Value_3))/binary>>)/binary,
+                            (<<"\n">>)/binary
+                        >>)/binary,
+                        (lines_trimmed(Rest))/binary
+                    >>
+            end
+    end.
+
+%% finalAnswerOf — laws/prompt_drivers.lawspec:578
+final_answer_of(Lines) ->
+    case Lines of
+        [] ->
+            absent;
+        [Selection | Selection_2] ->
+            It = final_answer_of(Selection_2),
+            case It of
+                {present, MatchSelection} ->
+                    {present, MatchSelection};
+                absent ->
+                    case Selection of
+                        #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineProse', value := _} ->
+                            absent;
+                        #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineAsks', value := _} ->
+                            absent;
+                        #{
+                            '__struct__' := 'Elixir.LawSpec.Data.ReplyLineConcludes',
+                            value := MatchSelection_2
+                        } ->
+                            {present, answer_from(MatchSelection_2, Selection_2)}
+                    end
+            end
+    end.
+
+%% followUpOf — laws/prompt_drivers.lawspec:596
+follow_up_of(Lines) ->
+    case Lines of
+        [] ->
+            absent;
+        [Selection | Selection_2] ->
+            It = follow_up_of(Selection_2),
+            case It of
+                {present, MatchSelection} ->
+                    {present, MatchSelection};
+                absent ->
+                    case Selection of
+                        #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineProse', value := _} ->
+                            absent;
+                        #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineConcludes', value := _} ->
+                            absent;
+                        #{
+                            '__struct__' := 'Elixir.LawSpec.Data.ReplyLineAsks',
+                            value := MatchSelection_2
+                        } ->
+                            Value =
+                                case MatchSelection_2 of
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Marked',
+                                        gap := _,
+                                        text := Text,
+                                        trail := _
+                                    } ->
+                                        Text
+                                end,
+                            {present, Value}
+                    end
+            end
+    end.
+
+%% classified — laws/prompt_drivers.lawspec:617
+classified(Lines) ->
+    It = final_answer_of(Lines),
+    case It of
+        {present, Selection} ->
+            case (Selection =:= <<>>) of
+                true ->
+                    #{
+                        '__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer',
+                        value => lines_trimmed(Lines)
+                    };
+                false ->
+                    #{
+                        '__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer',
+                        value => Selection
+                    }
+            end;
+        absent ->
+            It_2 = follow_up_of(Lines),
+            case It_2 of
+                absent ->
+                    #{
+                        '__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer',
+                        value => lines_trimmed(Lines)
+                    };
+                {present, Selection_2} ->
+                    case (Selection_2 =:= <<>>) of
+                        true ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer',
+                                value => lines_trimmed(Lines)
+                            };
+                        false ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFollowUp',
+                                value => Selection_2
+                            }
+                    end
+            end
+    end.
+
+%% withoutFinals — laws/prompt_drivers.lawspec:633
+without_finals(Lines) ->
+    case Lines of
+        [] ->
+            [];
+        [Selection | Selection_2] ->
+            case Selection of
+                #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineProse', value := _} ->
+                    [Selection | without_finals(Selection_2)];
+                #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineAsks', value := _} ->
+                    [Selection | without_finals(Selection_2)];
+                #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineConcludes', value := _} ->
+                    without_finals(Selection_2)
+            end
+    end.
+
+%% proseOnly — laws/prompt_drivers.lawspec:646
+prose_only(Lines) ->
+    case Lines of
+        [] ->
+            [];
+        [Selection | Selection_2] ->
+            case Selection of
+                #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineProse', value := _} ->
+                    [Selection | prose_only(Selection_2)];
+                #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineAsks', value := _} ->
+                    prose_only(Selection_2);
+                #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineConcludes', value := _} ->
+                    prose_only(Selection_2)
+            end
+    end.
+
+%% severalAsks — laws/prompt_drivers.lawspec:661
+several_asks(Earlier, Between, Last, After) ->
+    ([
+        #{'__struct__' => 'Elixir.LawSpec.Data.ReplyLineAsks', value => Earlier}
+        | without_finals(Between)
+    ] ++ [
+        #{'__struct__' => 'Elixir.LawSpec.Data.ReplyLineAsks', value => Last} | prose_only(After)
+    ]).
+
+%% decidedBy — laws/prompt_drivers.lawspec:670
+decided_by(Last, Lines) ->
+    Value =
+        case Last of
+            #{'__struct__' := 'Elixir.LawSpec.Data.Marked', gap := _, text := Text, trail := _} ->
+                Text
+        end,
+    case (Value =:= <<>>) of
+        true ->
+            #{
+                '__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer',
+                value => lines_trimmed(Lines)
+            };
+        false ->
+            Value_2 =
+                case Last of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.Marked',
+                        gap := _,
+                        text := Text_2,
+                        trail := _
+                    } ->
+                        Text_2
+                end,
+            #{'__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFollowUp', value => Value_2}
+    end.
+
+%% isFinal — laws/prompt_drivers.lawspec:675
+is_final(Step) ->
+    case Step of
+        #{'__struct__' := 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer', value := _} ->
+            true;
+        #{'__struct__' := 'Elixir.LawSpec.Data.SelfAskStepFollowUp', value := _} ->
+            false
+    end.
+
+%% soundStep — laws/prompt_drivers.lawspec:686
+sound_step(Reply, Step) ->
+    case Step of
+        #{'__struct__' := 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer', value := Selection} ->
+            lawspec_beam_fast:contains(Reply, Selection);
+        #{'__struct__' := 'Elixir.LawSpec.Data.SelfAskStepFollowUp', value := Selection_2} ->
+            ((((lawspec_beam_fast:contains(
+                Reply,
+                Selection_2
+            ) andalso
+                lawspec_beam_fast:contains(
+                    Reply,
+                    <<"Follow up:">>
+                )) andalso
+                (not lawspec_beam_fast:contains(
+                    Reply,
+                    <<"So the final answer is:">>
+                ))) andalso
+                (lawspec_beam_fast:text_length(
+                    Selection_2
+                ) >= 1)) andalso (not lawspec_beam_fast:contains(Selection_2, <<"\n">>)))
+    end.
+
+%% fieldText — laws/prompt_drivers.lawspec:708
+field_text(F) ->
+    Value =
+        case F of
+            #{'__struct__' := 'Elixir.LawSpec.Data.Field', lead := Lead, body := _, trail := _} ->
+                Lead
+        end,
+    Value_2 =
+        case F of
+            #{'__struct__' := 'Elixir.LawSpec.Data.Field', lead := _, body := Body, trail := _} ->
+                Body
+        end,
+    Value_3 =
+        case F of
+            #{'__struct__' := 'Elixir.LawSpec.Data.Field', lead := _, body := _, trail := Trail} ->
+                Trail
+        end,
+    <<(<<(margin_text(Value))/binary, (Value_2)/binary>>)/binary, (margin_text(Value_3))/binary>>.
+
+%% queryText — laws/prompt_drivers.lawspec:712
+query_text(Query) ->
+    case Query of
+        absent ->
+            absent;
+        {present, Selection} ->
+            {present, field_text(Selection)}
+    end.
+
+%% verdictOf — laws/prompt_drivers.lawspec:722
+verdict_of(Reasoning, Query) ->
+    case Query of
+        absent ->
+            Value =
+                case Reasoning of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.Field',
+                        lead := _,
+                        body := Body,
+                        trail := _
+                    } ->
+                        Body
+                end,
+            #{'__struct__' => 'Elixir.LawSpec.Data.IrcotVerdictDone', value => Value};
+        {present, Selection} ->
+            Value_2 =
+                case Selection of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.Field',
+                        lead := _,
+                        body := Body_2,
+                        trail := _
+                    } ->
+                        Body_2
+                end,
+            case (Value_2 =:= <<>>) of
+                true ->
+                    Value_3 =
+                        case Reasoning of
+                            #{
+                                '__struct__' := 'Elixir.LawSpec.Data.Field',
+                                lead := _,
+                                body := Body_3,
+                                trail := _
+                            } ->
+                                Body_3
+                        end,
+                    #{'__struct__' => 'Elixir.LawSpec.Data.IrcotVerdictDone', value => Value_3};
+                false ->
+                    Value_4 =
+                        case Reasoning of
+                            #{
+                                '__struct__' := 'Elixir.LawSpec.Data.Field',
+                                lead := _,
+                                body := Body_4,
+                                trail := _
+                            } ->
+                                Body_4
+                        end,
+                    RecordField = Value_4,
+                    Value_5 =
+                        case Selection of
+                            #{
+                                '__struct__' := 'Elixir.LawSpec.Data.Field',
+                                lead := _,
+                                body := Body_5,
+                                trail := _
+                            } ->
+                                Body_5
+                        end,
+                    RecordField_2 = Value_5,
+                    #{
+                        '__struct__' => 'Elixir.LawSpec.Data.IrcotVerdictContinues',
+                        value => #{
+                            '__struct__' => 'Elixir.LawSpec.Data.Retrieval',
+                            reasoning => RecordField,
+                            query => RecordField_2
+                        }
+                    }
+            end
+    end.
+
+%% isDone — laws/prompt_drivers.lawspec:734
+is_done(Verdict) ->
+    case Verdict of
+        #{'__struct__' := 'Elixir.LawSpec.Data.IrcotVerdictDone', value := _} ->
+            true;
+        #{'__struct__' := 'Elixir.LawSpec.Data.IrcotVerdictContinues', value := _} ->
+            false
+    end.
+
+%% soundVerdict — laws/prompt_drivers.lawspec:745
+sound_verdict(Reasoning, Query, Verdict) ->
+    case Verdict of
+        #{'__struct__' := 'Elixir.LawSpec.Data.IrcotVerdictDone', value := Selection} ->
+            lawspec_beam_fast:contains(Reasoning, Selection);
+        #{'__struct__' := 'Elixir.LawSpec.Data.IrcotVerdictContinues', value := Selection_2} ->
+            Value =
+                case Selection_2 of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.Retrieval',
+                        reasoning := Reasoning_2,
+                        query := _
+                    } ->
+                        Reasoning_2
+                end,
+            Logic =
+                case lawspec_beam_fast:contains(Reasoning, Value) of
+                    true ->
+                        Value_2 =
+                            case Selection_2 of
+                                #{
+                                    '__struct__' := 'Elixir.LawSpec.Data.Retrieval',
+                                    reasoning := _,
+                                    query := Query_2
+                                } ->
+                                    Query_2
+                            end,
+                        (lawspec_beam_fast:text_length(Value_2) >= 1);
+                    false ->
+                        false
+                end,
+            Logic_2 =
+                case Logic of
+                    true ->
+                        Value_4 =
+                            case Query of
+                                absent ->
+                                    false;
+                                {present, MatchSelection} ->
+                                    Value_3 =
+                                        case Selection_2 of
+                                            #{
+                                                '__struct__' := 'Elixir.LawSpec.Data.Retrieval',
+                                                reasoning := _,
+                                                query := Query_3
+                                            } ->
+                                                Query_3
+                                        end,
+                                    lawspec_beam_fast:contains(MatchSelection, Value_3)
+                            end,
+                        Value_4;
+                    false ->
+                        false
+                end,
+            Logic_2
+    end.
+
 %% From the dynamic value of cake.laws.decomposition::type::Entry
 from_dynamic_entry(
     {ls_data, <<"cake.laws.decomposition::type::Entry::Entry">>, [Question, DependsOn]}
@@ -475,6 +1165,40 @@ from_dynamic_entry(
         question => Question,
         depends_on => DependsOn
     }.
+
+%% From the dynamic value of cake.laws.prompt_drivers::type::Field
+from_dynamic_field(
+    {ls_data, <<"cake.laws.prompt_drivers::type::Field::Field">>, [Lead, Body, Trail]}
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.Field',
+        lead => from_dynamic_margin(Lead),
+        body => Body,
+        trail => from_dynamic_margin(Trail)
+    }.
+
+%% From the dynamic value of cake.laws.prompt_drivers::type::Gap
+from_dynamic_gap({ls_data, <<"cake.laws.prompt_drivers::type::Gap::NoGap">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.GapNoGap'};
+from_dynamic_gap({ls_data, <<"cake.laws.prompt_drivers::type::Gap::OneSpace">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.GapOneSpace'};
+from_dynamic_gap({ls_data, <<"cake.laws.prompt_drivers::type::Gap::TwoSpaces">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.GapTwoSpaces'};
+from_dynamic_gap({ls_data, <<"cake.laws.prompt_drivers::type::Gap::OneTab">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.GapOneTab'}.
+
+%% From the dynamic value of cake.laws.prompt_drivers::type::IrcotVerdict
+from_dynamic_ircot_verdict(
+    {ls_data, <<"cake.laws.prompt_drivers::type::IrcotVerdict::Continues">>, [Value]}
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.IrcotVerdictContinues',
+        value => from_dynamic_retrieval(Value)
+    };
+from_dynamic_ircot_verdict(
+    {ls_data, <<"cake.laws.prompt_drivers::type::IrcotVerdict::Done">>, [Value]}
+) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.IrcotVerdictDone', value => Value}.
 
 %% From the dynamic value of lawspec.collections::type::KeyVal (Integer) (cake.laws.decomposition::type::Entry)
 from_dynamic_key_val_integer_entry(
@@ -486,6 +1210,10 @@ from_dynamic_key_val_integer_entry(
          || {ls_data, <<"lawspec.collections::type::Entry::Entry">>, [Key, Value_2]} <- Entries
         ]
     ).
+
+%% From the dynamic value of List (cake.laws.prompt_drivers::type::AnswerPair)
+from_dynamic_list_answer_pair(Values) ->
+    [from_dynamic_answer_pair(Item) || Item <- Values].
 
 %% From the dynamic value of List (cake.laws.decomposition::type::Entry)
 from_dynamic_list_entry(Values) ->
@@ -503,9 +1231,40 @@ from_dynamic_list_message(Values) ->
 from_dynamic_list_node(Values) ->
     [from_dynamic_node(Item) || Item <- Values].
 
+%% From the dynamic value of List (cake.laws.prompt_drivers::type::ReplyLine)
+from_dynamic_list_reply_line(Values) ->
+    [from_dynamic_reply_line(Item) || Item <- Values].
+
 %% From the dynamic value of List (cake.laws.prompt_context::type::ScoredResult)
 from_dynamic_list_scored_result(Values) ->
     [from_dynamic_scored_result(Item) || Item <- Values].
+
+%% From the dynamic value of cake.laws.prompt_drivers::type::Margin
+from_dynamic_margin({ls_data, <<"cake.laws.prompt_drivers::type::Margin::NoMargin">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.MarginNoMargin'};
+from_dynamic_margin({ls_data, <<"cake.laws.prompt_drivers::type::Margin::SpaceMargin">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.MarginSpaceMargin'};
+from_dynamic_margin({ls_data, <<"cake.laws.prompt_drivers::type::Margin::NewlineMargin">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.MarginNewlineMargin'};
+from_dynamic_margin({ls_data, <<"cake.laws.prompt_drivers::type::Margin::BlankLineMargin">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.MarginBlankLineMargin'}.
+
+%% From the dynamic value of cake.laws.prompt_drivers::type::Marked
+from_dynamic_marked(
+    {ls_data, <<"cake.laws.prompt_drivers::type::Marked::Marked">>, [Gap, Text, Trail]}
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.Marked',
+        gap => from_dynamic_gap(Gap),
+        text => Text,
+        trail => from_dynamic_gap(Trail)
+    }.
+
+%% From the dynamic value of Maybe (cake.laws.prompt_drivers::type::Field)
+from_dynamic_maybe_field({ls_data, <<"Maybe::Absent">>, []}) ->
+    absent;
+from_dynamic_maybe_field({ls_data, <<"Maybe::Present">>, [Value]}) ->
+    {present, from_dynamic_field(Value)}.
 
 %% From the dynamic value of Maybe (Integer)
 from_dynamic_maybe_integer({ls_data, <<"Maybe::Absent">>, []}) ->
@@ -519,9 +1278,42 @@ from_dynamic_maybe_list_integer({ls_data, <<"Maybe::Absent">>, []}) ->
 from_dynamic_maybe_list_integer({ls_data, <<"Maybe::Present">>, [Value]}) ->
     {present, Value}.
 
+%% From the dynamic value of Maybe (Text)
+from_dynamic_maybe_text({ls_data, <<"Maybe::Absent">>, []}) ->
+    absent;
+from_dynamic_maybe_text({ls_data, <<"Maybe::Present">>, [Value]}) ->
+    {present, Value}.
+
 %% From the dynamic value of lawspec.matchers::type::Regex
 from_dynamic_regex({ls_data, <<"lawspec.matchers::type::Regex::Regex">>, [Pattern]}) ->
     #{'__struct__' => 'Elixir.LawSpec.Data.Regex', pattern => Pattern}.
+
+%% From the dynamic value of cake.laws.prompt_drivers::type::ReplyLine
+from_dynamic_reply_line(
+    {ls_data, <<"cake.laws.prompt_drivers::type::ReplyLine::Prose">>, [Value]}
+) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.ReplyLineProse', value => Value};
+from_dynamic_reply_line(
+    {ls_data, <<"cake.laws.prompt_drivers::type::ReplyLine::Asks">>, [Value]}
+) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.ReplyLineAsks', value => from_dynamic_marked(Value)};
+from_dynamic_reply_line(
+    {ls_data, <<"cake.laws.prompt_drivers::type::ReplyLine::Concludes">>, [Value]}
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.ReplyLineConcludes',
+        value => from_dynamic_marked(Value)
+    }.
+
+%% From the dynamic value of cake.laws.prompt_drivers::type::SelfAskStep
+from_dynamic_self_ask_step(
+    {ls_data, <<"cake.laws.prompt_drivers::type::SelfAskStep::FinalAnswer">>, [Value]}
+) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer', value => Value};
+from_dynamic_self_ask_step(
+    {ls_data, <<"cake.laws.prompt_drivers::type::SelfAskStep::FollowUp">>, [Value]}
+) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFollowUp', value => Value}.
 
 %% From the native value of lawspec.collections::type::KeyVal (Integer) (cake.laws.decomposition::type::Entry)
 from_native_key_val_integer_entry(
@@ -548,6 +1340,40 @@ to_dynamic_entry(
 ) ->
     {ls_data, <<"cake.laws.decomposition::type::Entry::Entry">>, [Question, DependsOn]}.
 
+%% To the dynamic value of cake.laws.prompt_drivers::type::Field
+to_dynamic_field(
+    #{'__struct__' := 'Elixir.LawSpec.Data.Field', lead := Lead, body := Body, trail := Trail}
+) ->
+    {
+        ls_data,
+        <<"cake.laws.prompt_drivers::type::Field::Field">>,
+        [to_dynamic_margin(Lead), Body, to_dynamic_margin(Trail)]
+    }.
+
+%% To the dynamic value of cake.laws.prompt_drivers::type::Gap
+to_dynamic_gap(#{'__struct__' := 'Elixir.LawSpec.Data.GapNoGap'}) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::Gap::NoGap">>, []};
+to_dynamic_gap(#{'__struct__' := 'Elixir.LawSpec.Data.GapOneSpace'}) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::Gap::OneSpace">>, []};
+to_dynamic_gap(#{'__struct__' := 'Elixir.LawSpec.Data.GapTwoSpaces'}) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::Gap::TwoSpaces">>, []};
+to_dynamic_gap(#{'__struct__' := 'Elixir.LawSpec.Data.GapOneTab'}) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::Gap::OneTab">>, []}.
+
+%% To the dynamic value of cake.laws.prompt_drivers::type::IrcotVerdict
+to_dynamic_ircot_verdict(
+    #{'__struct__' := 'Elixir.LawSpec.Data.IrcotVerdictContinues', value := Value}
+) ->
+    {
+        ls_data,
+        <<"cake.laws.prompt_drivers::type::IrcotVerdict::Continues">>,
+        [to_dynamic_retrieval(Value)]
+    };
+to_dynamic_ircot_verdict(
+    #{'__struct__' := 'Elixir.LawSpec.Data.IrcotVerdictDone', value := Value}
+) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::IrcotVerdict::Done">>, [Value]}.
+
 %% To the dynamic value of lawspec.collections::type::KeyVal (Integer) (cake.laws.decomposition::type::Entry)
 to_dynamic_key_val_integer_entry(Map) ->
     {
@@ -565,6 +1391,10 @@ to_dynamic_key_val_integer_entry(Map) ->
         ]
     }.
 
+%% To the dynamic value of List (cake.laws.prompt_drivers::type::AnswerPair)
+to_dynamic_list_answer_pair(Values) ->
+    [to_dynamic_answer_pair(Item) || Item <- Values].
+
 %% To the dynamic value of List (cake.laws.decomposition::type::Entry)
 to_dynamic_list_entry(Values) ->
     [to_dynamic_entry(Item) || Item <- Values].
@@ -581,9 +1411,39 @@ to_dynamic_list_message(Values) ->
 to_dynamic_list_node(Values) ->
     [to_dynamic_node(Item) || Item <- Values].
 
+%% To the dynamic value of List (cake.laws.prompt_drivers::type::ReplyLine)
+to_dynamic_list_reply_line(Values) ->
+    [to_dynamic_reply_line(Item) || Item <- Values].
+
 %% To the dynamic value of List (cake.laws.prompt_context::type::ScoredResult)
 to_dynamic_list_scored_result(Values) ->
     [to_dynamic_scored_result(Item) || Item <- Values].
+
+%% To the dynamic value of cake.laws.prompt_drivers::type::Margin
+to_dynamic_margin(#{'__struct__' := 'Elixir.LawSpec.Data.MarginNoMargin'}) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::Margin::NoMargin">>, []};
+to_dynamic_margin(#{'__struct__' := 'Elixir.LawSpec.Data.MarginSpaceMargin'}) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::Margin::SpaceMargin">>, []};
+to_dynamic_margin(#{'__struct__' := 'Elixir.LawSpec.Data.MarginNewlineMargin'}) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::Margin::NewlineMargin">>, []};
+to_dynamic_margin(#{'__struct__' := 'Elixir.LawSpec.Data.MarginBlankLineMargin'}) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::Margin::BlankLineMargin">>, []}.
+
+%% To the dynamic value of cake.laws.prompt_drivers::type::Marked
+to_dynamic_marked(
+    #{'__struct__' := 'Elixir.LawSpec.Data.Marked', gap := Gap, text := Text, trail := Trail}
+) ->
+    {
+        ls_data,
+        <<"cake.laws.prompt_drivers::type::Marked::Marked">>,
+        [to_dynamic_gap(Gap), Text, to_dynamic_gap(Trail)]
+    }.
+
+%% To the dynamic value of Maybe (cake.laws.prompt_drivers::type::Field)
+to_dynamic_maybe_field(absent) ->
+    {ls_data, <<"Maybe::Absent">>, []};
+to_dynamic_maybe_field({present, Value}) ->
+    {ls_data, <<"Maybe::Present">>, [to_dynamic_field(Value)]}.
 
 %% To the dynamic value of Maybe (Integer)
 to_dynamic_maybe_integer(absent) ->
@@ -597,9 +1457,39 @@ to_dynamic_maybe_list_integer(absent) ->
 to_dynamic_maybe_list_integer({present, Value}) ->
     {ls_data, <<"Maybe::Present">>, [Value]}.
 
+%% To the dynamic value of Maybe (Text)
+to_dynamic_maybe_text(absent) ->
+    {ls_data, <<"Maybe::Absent">>, []};
+to_dynamic_maybe_text({present, Value}) ->
+    {ls_data, <<"Maybe::Present">>, [Value]}.
+
 %% To the dynamic value of lawspec.matchers::type::Regex
 to_dynamic_regex(#{'__struct__' := 'Elixir.LawSpec.Data.Regex', pattern := Pattern}) ->
     {ls_data, <<"lawspec.matchers::type::Regex::Regex">>, [Pattern]}.
+
+%% To the dynamic value of cake.laws.prompt_drivers::type::ReplyLine
+to_dynamic_reply_line(#{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineProse', value := Value}) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::ReplyLine::Prose">>, [Value]};
+to_dynamic_reply_line(#{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineAsks', value := Value}) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::ReplyLine::Asks">>, [to_dynamic_marked(Value)]};
+to_dynamic_reply_line(
+    #{'__struct__' := 'Elixir.LawSpec.Data.ReplyLineConcludes', value := Value}
+) ->
+    {
+        ls_data,
+        <<"cake.laws.prompt_drivers::type::ReplyLine::Concludes">>,
+        [to_dynamic_marked(Value)]
+    }.
+
+%% To the dynamic value of cake.laws.prompt_drivers::type::SelfAskStep
+to_dynamic_self_ask_step(
+    #{'__struct__' := 'Elixir.LawSpec.Data.SelfAskStepFinalAnswer', value := Value}
+) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::SelfAskStep::FinalAnswer">>, [Value]};
+to_dynamic_self_ask_step(
+    #{'__struct__' := 'Elixir.LawSpec.Data.SelfAskStepFollowUp', value := Value}
+) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::SelfAskStep::FollowUp">>, [Value]}.
 
 %% To the native value of lawspec.collections::type::KeyVal (Integer) (cake.laws.decomposition::type::Entry)
 to_native_key_val_integer_entry(Map) ->
@@ -614,6 +1504,12 @@ to_native_key_val_integer_entry(Map) ->
          || {Key, Value_2} <- lawspec_beam_fast:sorted_pairs(Map)
         ]
     }.
+
+%% From the dynamic value of cake.laws.prompt_drivers::type::AnswerPair
+from_dynamic_answer_pair(
+    {ls_data, <<"cake.laws.prompt_drivers::type::AnswerPair::AnswerPair">>, [Question, Answer]}
+) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.AnswerPair', question => Question, answer => Answer}.
 
 %% From the dynamic value of lawspec.collections::type::Entry (Integer) (cake.laws.decomposition::type::Entry)
 from_dynamic_entry_integer_entry(
@@ -643,6 +1539,12 @@ from_dynamic_node({ls_data, <<"cake.laws.decomposition::type::Node::Node">>, [Ra
         picks => Picks
     }.
 
+%% From the dynamic value of cake.laws.prompt_drivers::type::Retrieval
+from_dynamic_retrieval(
+    {ls_data, <<"cake.laws.prompt_drivers::type::Retrieval::Retrieval">>, [Reasoning, Query]}
+) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.Retrieval', reasoning => Reasoning, query => Query}.
+
 %% From the dynamic value of cake.laws.prompt_context::type::ScoredResult
 from_dynamic_scored_result(
     {ls_data, <<"cake.laws.prompt_context::type::ScoredResult::ScoredResult">>, [Context, Score]}
@@ -652,6 +1554,12 @@ from_dynamic_scored_result(
         context => Context,
         score => from_dynamic_maybe_integer(Score)
     }.
+
+%% To the dynamic value of cake.laws.prompt_drivers::type::AnswerPair
+to_dynamic_answer_pair(
+    #{'__struct__' := 'Elixir.LawSpec.Data.AnswerPair', question := Question, answer := Answer}
+) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::AnswerPair::AnswerPair">>, [Question, Answer]}.
 
 %% To the dynamic value of lawspec.collections::type::Entry (Integer) (cake.laws.decomposition::type::Entry)
 to_dynamic_entry_integer_entry(
@@ -678,6 +1586,12 @@ to_dynamic_node(
     }
 ) ->
     {ls_data, <<"cake.laws.decomposition::type::Node::Node">>, [Rank, Picks]}.
+
+%% To the dynamic value of cake.laws.prompt_drivers::type::Retrieval
+to_dynamic_retrieval(
+    #{'__struct__' := 'Elixir.LawSpec.Data.Retrieval', reasoning := Reasoning, query := Query}
+) ->
+    {ls_data, <<"cake.laws.prompt_drivers::type::Retrieval::Retrieval">>, [Reasoning, Query]}.
 
 %% To the dynamic value of cake.laws.prompt_context::type::ScoredResult
 to_dynamic_scored_result(

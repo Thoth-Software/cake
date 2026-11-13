@@ -12,6 +12,7 @@ Elixir these are StreamData properties inside ExUnit.
 | `laws/responses.lawspec` | `Cake.Responses.process/3` and `build_citation_map/1`: the chunk map; one citation per retrieval unit, numbered `1..K` by first appearance; the final text against a reference model of marker rewriting and whitespace tidying; warnings, download actions, and the untouched `raw_text` and empty `media` |
 | `laws/candidates.lawspec` | `Cake.Candidates`: `group_by_document/1` against a reference model (one group per document id, in first-seen order, candidates in input order, text keys) and as a permutation of its input; `all_chunk_ids/1` and `expand_to_chunk_ids/2` against a reference model of a selection, with expansion distributing over appended selections; `document_metadata/1`'s title, 100-character preview and page label, which counts distinct pages; and a group for every candidate whatever its `Cake.Citable` id |
 | `laws/prompt_context.lawspec` | `Cake.Prompt`'s context assembly: `prepare_context/2` against a reference model (the first `max_chunks` results at or above the relevance floor, in input order, numbered from 1), its bounds, dense numbering and context quality, its defaults (ten chunks, a floor of 0.30), and a result with no relevance score, which never passes the floor; `format_chunk/1`; `history_messages/1` as the last five complete exchanges; `build/4` as the system message, the recent history, then the question; and the context block that ends `system_message_with_context/1` |
+| `laws/prompt_drivers.lawspec` | `Cake.Prompt`'s token budgets and driver protocols: `estimate_tokens/1` as the length over four, rounded up; `fit_answer_pairs/2` against a reference model (the longest run of the newest pairs that fits the budget, and none on a budget of zero); `build_with_prior_answers/5`, which is `build/4` when no pair survives and otherwise folds in the survivors and no others; `self_ask_prompt/3` and `ircot_prompt/3`, which fold in the pairs or steps that survive the same eviction, the IRCoT context without a `[N]` marker; `parse_self_ask_response/1` against a reference model of replies built from lines (the final-answer marker wins, then the last follow-up); and `parse_ircot_response/1`, where a null or blank retrieval query means done |
 | `laws/fakes.lawspec` | `Cake.Laws.FakeUnit`, the test retrieval unit: it carries generated data through `Cake.Citable` and `Cake.Promptable` unchanged, and meets the five-key `Citable` contract |
 | `laws/shared.lawspec` | no laws: types and checked definitions other specifications import (see "Shared types" below) |
 
@@ -231,8 +232,8 @@ Commit the specification, the regenerated files and `.lawspec/generated.json`
 together. CI fails on an unformatted specification (`lawspec fmt --check`)
 and on stale generated files (`lawspec generate --check`).
 
-Six things `npm run check` and `npm run generate` are strict or quiet
-about:
+Eight things `npm run check`, `npm run generate` and the generator are
+strict or quiet about:
 
 - **Definition names are global.** Two units that each define a function of
   the same name both compile, but the generator renames one (`distinct`
@@ -262,6 +263,20 @@ about:
   `Cake.Prompt` was broken to apply the ceiling before the floor; with the
   ceiling refined to 0..12 (`SmallCeiling`) it failed, as it should. Check
   that such a law bites by breaking the Cake code and watching it fail.
+- **A `Maybe` of regex-refined text is always `Absent`.** Measured on the
+  prompt drivers unit, as of LawSpec 0.32.0: a record field
+  `text :: Maybe Phrase`, with `Phrase` a regex refinement, was `Absent` in
+  every generated value, so a law about the text after a marker only ever
+  saw a marker trailed by nothing, and passed with `Cake.Prompt` broken.
+  Give the field a refinement that also matches the empty text (`Wording`)
+  and treat the empty text as the absent case. A `Maybe` of a record or of
+  plain `Text` is generated both ways.
+- **Regex-refined text is slow to generate.** Each generated value costs a
+  few milliseconds, which adds up inside lists. Measured on the same unit:
+  two laws over lines that each carried three regex-refined fields took 70
+  and 26 seconds; with the two whitespace fields turned into enumerations
+  rendered by a checked definition (`Gap`, `gapText`), under three seconds
+  each. Refining a list's length made generation slower, not faster.
 
 A new specification for another module follows the same steps:
 
