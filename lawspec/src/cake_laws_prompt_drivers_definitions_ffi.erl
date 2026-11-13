@@ -17,6 +17,7 @@
     leads_with_system/1,
     pairs_within/2,
     folded_after/2,
+    contexts_of/1,
     steps_of/1,
     contexts_cost/1,
     step_cost/1,
@@ -53,7 +54,7 @@
     sound_verdict/3
 ]).
 
-%% quarterUp — laws/prompt_drivers.lawspec:162
+%% quarterUp — laws/prompt_drivers.lawspec:163
 quarter_up(N) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -67,7 +68,7 @@ quarter_up(N) ->
         Schema
     ).
 
-%% tokensOf — laws/prompt_drivers.lawspec:167
+%% tokensOf — laws/prompt_drivers.lawspec:168
 tokens_of(T) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -81,7 +82,7 @@ tokens_of(T) ->
         Schema
     ).
 
-%% letters — laws/prompt_drivers.lawspec:171
+%% letters — laws/prompt_drivers.lawspec:172
 letters(Times) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -95,7 +96,7 @@ letters(Times) ->
         Schema
     ).
 
-%% lengthened — laws/prompt_drivers.lawspec:179
+%% lengthened — laws/prompt_drivers.lawspec:180
 lengthened(Fill, Tail) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -110,7 +111,7 @@ lengthened(Fill, Tail) ->
         Schema
     ).
 
-%% pairsOf — laws/prompt_drivers.lawspec:186
+%% pairsOf — laws/prompt_drivers.lawspec:187
 pairs_of(Seeds) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -128,7 +129,7 @@ pairs_of(Seeds) ->
         Schema
     ).
 
-%% pairCost — laws/prompt_drivers.lawspec:199
+%% pairCost — laws/prompt_drivers.lawspec:200
 pair_cost(P) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -146,7 +147,7 @@ pair_cost(P) ->
         Schema
     ).
 
-%% pairsCost — laws/prompt_drivers.lawspec:203
+%% pairsCost — laws/prompt_drivers.lawspec:204
 pairs_cost(Ps) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -164,7 +165,7 @@ pairs_cost(Ps) ->
         Schema
     ).
 
-%% fittingPairs — laws/prompt_drivers.lawspec:212
+%% fittingPairs — laws/prompt_drivers.lawspec:213
 fitting_pairs(Ps, Budget) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -183,7 +184,7 @@ fitting_pairs(Ps, Budget) ->
         Schema
     ).
 
-%% keptPairs — laws/prompt_drivers.lawspec:225
+%% keptPairs — laws/prompt_drivers.lawspec:226
 kept_pairs(Ps, Budget) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -202,7 +203,7 @@ kept_pairs(Ps, Budget) ->
         Schema
     ).
 
-%% newestPairs — laws/prompt_drivers.lawspec:231
+%% newestPairs — laws/prompt_drivers.lawspec:232
 newest_pairs(Count, Ps) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -221,7 +222,7 @@ newest_pairs(Count, Ps) ->
         Schema
     ).
 
-%% isLongestFit — laws/prompt_drivers.lawspec:241
+%% isLongestFit — laws/prompt_drivers.lawspec:242
 is_longest_fit(Kept, Ps, Budget) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -245,22 +246,40 @@ is_longest_fit(Kept, Ps, Budget) ->
         Schema
     ).
 
-%% systemOf — laws/prompt_drivers.lawspec:252
+%% systemOf — laws/prompt_drivers.lawspec:253
 system_of(Messages) -> lawspec_typed:system_of(Messages).
 
-%% afterSystem — laws/prompt_drivers.lawspec:259
+%% afterSystem — laws/prompt_drivers.lawspec:260
 after_system(Messages) -> lawspec_typed:after_system(Messages).
 
-%% leadsWithSystem — laws/prompt_drivers.lawspec:266
+%% leadsWithSystem — laws/prompt_drivers.lawspec:267
 leads_with_system(Messages) -> lawspec_typed:leads_with_system(Messages).
 
-%% pairsWithin — laws/prompt_drivers.lawspec:274
+%% pairsWithin — laws/prompt_drivers.lawspec:275
 pairs_within(Ps, Text) -> lawspec_typed:pairs_within(Ps, Text).
 
-%% foldedAfter — laws/prompt_drivers.lawspec:285
+%% foldedAfter — laws/prompt_drivers.lawspec:286
 folded_after(Instructions, System) -> lawspec_typed:folded_after(Instructions, System).
 
-%% stepsOf — laws/prompt_drivers.lawspec:292
+%% contextsOf — laws/prompt_drivers.lawspec:297
+contexts_of(Seed) ->
+    Symbols = make_ref(),
+    Schema = lawspec_data:schema(Symbols),
+    lawspec_beam_schema:to_native(
+        lawspec_definitions:contexts_of(
+            Schema,
+            Symbols,
+            lawspec_beam_schema:from_native(
+                Seed,
+                {<<"cake.laws.prompt_drivers::type::StepSeed">>, []},
+                Schema
+            )
+        ),
+        {<<"List">>, [{<<"Text">>, []}]},
+        Schema
+    ).
+
+%% stepsOf — laws/prompt_drivers.lawspec:304
 steps_of(Seeds) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -278,7 +297,7 @@ steps_of(Seeds) ->
         Schema
     ).
 
-%% contextsCost — laws/prompt_drivers.lawspec:304
+%% contextsCost — laws/prompt_drivers.lawspec:316
 contexts_cost(Contexts) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -292,7 +311,7 @@ contexts_cost(Contexts) ->
         Schema
     ).
 
-%% stepCost — laws/prompt_drivers.lawspec:313
+%% stepCost — laws/prompt_drivers.lawspec:325
 step_cost(S) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -310,7 +329,7 @@ step_cost(S) ->
         Schema
     ).
 
-%% stepsCost — laws/prompt_drivers.lawspec:317
+%% stepsCost — laws/prompt_drivers.lawspec:329
 steps_cost(Steps) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -328,7 +347,7 @@ steps_cost(Steps) ->
         Schema
     ).
 
-%% fittingSteps — laws/prompt_drivers.lawspec:324
+%% fittingSteps — laws/prompt_drivers.lawspec:336
 fitting_steps(Steps, Budget) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -347,7 +366,7 @@ fitting_steps(Steps, Budget) ->
         Schema
     ).
 
-%% keptSteps — laws/prompt_drivers.lawspec:338
+%% keptSteps — laws/prompt_drivers.lawspec:350
 kept_steps(Steps, Budget) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -366,10 +385,10 @@ kept_steps(Steps, Budget) ->
         Schema
     ).
 
-%% contextsWithin — laws/prompt_drivers.lawspec:343
+%% contextsWithin — laws/prompt_drivers.lawspec:355
 contexts_within(Contexts, Text) -> lawspec_typed:contexts_within(Contexts, Text).
 
-%% stepsWithinFrom — laws/prompt_drivers.lawspec:352
+%% stepsWithinFrom — laws/prompt_drivers.lawspec:364
 steps_within_from(Steps, I, Text) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -389,7 +408,7 @@ steps_within_from(Steps, I, Text) ->
         Schema
     ).
 
-%% holdsExactly — laws/prompt_drivers.lawspec:365
+%% holdsExactly — laws/prompt_drivers.lawspec:377
 holds_exactly(Steps, Text) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -408,78 +427,78 @@ holds_exactly(Steps, Text) ->
         Schema
     ).
 
-%% gapText — laws/prompt_drivers.lawspec:406
+%% gapText — laws/prompt_drivers.lawspec:418
 gap_text(G) -> lawspec_typed:gap_text(G).
 
-%% marginText — laws/prompt_drivers.lawspec:415
+%% marginText — laws/prompt_drivers.lawspec:427
 margin_text(M) -> lawspec_typed:margin_text(M).
 
-%% afterMarker — laws/prompt_drivers.lawspec:443
+%% afterMarker — laws/prompt_drivers.lawspec:455
 after_marker(M) -> lawspec_typed:after_marker(M).
 
-%% afterMarkerTrimmed — laws/prompt_drivers.lawspec:448
+%% afterMarkerTrimmed — laws/prompt_drivers.lawspec:460
 after_marker_trimmed(M) -> lawspec_typed:after_marker_trimmed(M).
 
-%% lineText — laws/prompt_drivers.lawspec:452
+%% lineText — laws/prompt_drivers.lawspec:464
 line_text(Line) -> lawspec_typed:line_text(Line).
 
-%% lineTrimmed — laws/prompt_drivers.lawspec:461
+%% lineTrimmed — laws/prompt_drivers.lawspec:473
 line_trimmed(Line) -> lawspec_typed:line_trimmed(Line).
 
-%% lineTexts — laws/prompt_drivers.lawspec:469
+%% lineTexts — laws/prompt_drivers.lawspec:481
 line_texts(Lines) -> lawspec_typed:line_texts(Lines).
 
-%% replyText — laws/prompt_drivers.lawspec:477
+%% replyText — laws/prompt_drivers.lawspec:489
 reply_text(Lead, Lines, Trail) -> lawspec_typed:reply_text(Lead, Lines, Trail).
 
-%% trimmedLineTexts — laws/prompt_drivers.lawspec:482
+%% trimmedLineTexts — laws/prompt_drivers.lawspec:494
 trimmed_line_texts(Lines) -> lawspec_typed:trimmed_line_texts(Lines).
 
-%% linesTrimmed — laws/prompt_drivers.lawspec:495
+%% linesTrimmed — laws/prompt_drivers.lawspec:507
 lines_trimmed(Lines) -> lawspec_typed:lines_trimmed(Lines).
 
-%% answerFrom — laws/prompt_drivers.lawspec:501
+%% answerFrom — laws/prompt_drivers.lawspec:513
 answer_from(M, Rest) -> lawspec_typed:answer_from(M, Rest).
 
-%% finalAnswerOf — laws/prompt_drivers.lawspec:512
+%% finalAnswerOf — laws/prompt_drivers.lawspec:524
 final_answer_of(Lines) -> lawspec_typed:final_answer_of(Lines).
 
-%% followUpOf — laws/prompt_drivers.lawspec:530
+%% followUpOf — laws/prompt_drivers.lawspec:542
 follow_up_of(Lines) -> lawspec_typed:follow_up_of(Lines).
 
-%% classified — laws/prompt_drivers.lawspec:551
+%% classified — laws/prompt_drivers.lawspec:563
 classified(Lines) -> lawspec_typed:classified(Lines).
 
-%% withoutFinals — laws/prompt_drivers.lawspec:567
+%% withoutFinals — laws/prompt_drivers.lawspec:579
 without_finals(Lines) -> lawspec_typed:without_finals(Lines).
 
-%% proseOnly — laws/prompt_drivers.lawspec:580
+%% proseOnly — laws/prompt_drivers.lawspec:592
 prose_only(Lines) -> lawspec_typed:prose_only(Lines).
 
-%% severalAsks — laws/prompt_drivers.lawspec:595
+%% severalAsks — laws/prompt_drivers.lawspec:607
 several_asks(Earlier, Between, Last, After) ->
     lawspec_typed:several_asks(Earlier, Between, Last, After).
 
-%% decidedBy — laws/prompt_drivers.lawspec:604
+%% decidedBy — laws/prompt_drivers.lawspec:616
 decided_by(Last, Lines) -> lawspec_typed:decided_by(Last, Lines).
 
-%% isFinal — laws/prompt_drivers.lawspec:609
+%% isFinal — laws/prompt_drivers.lawspec:621
 is_final(Step) -> lawspec_typed:is_final(Step).
 
-%% soundStep — laws/prompt_drivers.lawspec:620
+%% soundStep — laws/prompt_drivers.lawspec:632
 sound_step(Reply, Step) -> lawspec_typed:sound_step(Reply, Step).
 
-%% fieldText — laws/prompt_drivers.lawspec:642
+%% fieldText — laws/prompt_drivers.lawspec:654
 field_text(F) -> lawspec_typed:field_text(F).
 
-%% queryText — laws/prompt_drivers.lawspec:646
+%% queryText — laws/prompt_drivers.lawspec:658
 query_text(Query) -> lawspec_typed:query_text(Query).
 
-%% verdictOf — laws/prompt_drivers.lawspec:656
+%% verdictOf — laws/prompt_drivers.lawspec:668
 verdict_of(Reasoning, Query) -> lawspec_typed:verdict_of(Reasoning, Query).
 
-%% isDone — laws/prompt_drivers.lawspec:668
+%% isDone — laws/prompt_drivers.lawspec:680
 is_done(Verdict) -> lawspec_typed:is_done(Verdict).
 
-%% soundVerdict — laws/prompt_drivers.lawspec:679
+%% soundVerdict — laws/prompt_drivers.lawspec:691
 sound_verdict(Reasoning, Query, Verdict) -> lawspec_typed:sound_verdict(Reasoning, Query, Verdict).

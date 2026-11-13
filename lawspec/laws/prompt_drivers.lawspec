@@ -70,13 +70,14 @@ type AnswerPair is a record
 }
 end type
 
--- What a law generates for one IRCoT step. `fill` lengthens the reasoning
--- (`stepsOf`).
+-- What a law generates for one IRCoT step. `fill` lengthens the reasoning,
+-- and `contextFill` adds a context of some length (`stepsOf`).
 type StepSeed is a record
 {
   reasoning :: Unmarked
   fill :: Whole
   contexts :: List Unmarked
+  contextFill :: Whole
 }
 end type
 
@@ -288,7 +289,18 @@ end function
 
 -- IRCoT steps.
 
--- The steps the seeds stand for: each reasoning lengthened by its fill.
+-- The contexts retrieved for the step a seed stands for: the seed's own,
+-- after one of up to 21 letters. Generated text is often empty and
+-- generated lists often are, so without that one context a step's contexts
+-- would rarely cost anything. One seed in eight keeps only its own, so a
+-- step with no context at all is still generated.
+function contextsOf (seed :: StepSeed) -> List Text is
+  if prelude.rem seed.contextFill 8 = 0 then seed.contexts
+  else Cons (letters (prelude.rem seed.contextFill 8)) seed.contexts end if
+end function
+
+-- The steps the seeds stand for: each reasoning lengthened by its fill, with
+-- the contexts `contextsOf` gives it.
 function stepsOf (seeds :: List StepSeed) -> List ReasoningStep is
   first matching case of seeds :
     when Nil then []
@@ -296,7 +308,7 @@ function stepsOf (seeds :: List StepSeed) -> List ReasoningStep is
       Cons
         (ReasoningStep record{
           reasoning = lengthened seed.fill seed.reasoning,
-          contexts = seed.contexts})
+          contexts = contextsOf seed})
         (stepsOf rest)
   end case
 end function
@@ -1208,11 +1220,11 @@ law "|the IRCoT prompt folds in the newest steps that fit the budget| is
     StepSeed record{
       reasoning = "the very first reasoning step",
       fill = 0,
-      contexts = ["old chunk text"]},
+      contexts = ["old chunk text"], contextFill = 0},
     StepSeed record{
       reasoning = "the newest reasoning step",
       fill = 0,
-      contexts = ["new chunk text"]}]
+      contexts = ["new chunk text"], contextFill = 0}]
     budget = 11
     expect stepsCost (stepsOf seeds) = 23
     expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
@@ -1221,6 +1233,28 @@ law "|the IRCoT prompt folds in the newest steps that fit the budget| is
       "new chunk text" = true
     expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
       "the very first reasoning step" = false
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "old chunk text" = false
+  end example
+  example "|contexts count toward a step's cost| :
+    question = "final?"
+    seeds = [
+    StepSeed record{
+      reasoning = "abcd",
+      fill = 0,
+      contexts = ["old chunk text"],
+      contextFill = 0},
+    StepSeed record{
+      reasoning = "efgh",
+      fill = 0,
+      contexts = ["new chunk text"],
+      contextFill = 0}]
+    budget = 5
+    expect stepsCost (stepsOf seeds) = 10
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "Step 1: efgh" = true
+    expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
+      "Step 2:" = false
     expect systemOf (ircotPrompt question (stepsOf seeds) budget) contains
       "old chunk text" = false
   end example
@@ -1251,7 +1285,8 @@ law "|with no surviving step, the IRCoT prompt is its instructions alone| is
   end definition
   example "|a step that costs nothing is not folded in on a zero budget| :
     question = "final?"
-    seeds = [StepSeed record{reasoning = "", fill = 0, contexts = []}]
+    seeds = [StepSeed record{reasoning = "", fill = 0, contexts = [],
+      contextFill = 0}]
     budget = 0
     expect stepsCost (stepsOf seeds) = 0
     expect foldedAfter (ircotSystemMessage ()) (systemOf (ircotPrompt question
@@ -1285,7 +1320,8 @@ law "|the IRCoT context folded into the prompt has no [N] marker| is
     StepSeed record{
       reasoning = "I need to identify the pump first.",
       fill = 0,
-      contexts = ["The RO-400 uses the P-100 pump.", "The P-100 is a pump."]}]
+      contexts = ["The RO-400 uses the P-100 pump.", "The P-100 is a pump."],
+      contextFill = 0}]
     expect systemOf (ircotPrompt question (stepsOf seeds) 4096) contains
       "The RO-400 uses the P-100 pump." = true
     expect systemOf (ircotPrompt question (stepsOf seeds) 4096) contains "[1]"

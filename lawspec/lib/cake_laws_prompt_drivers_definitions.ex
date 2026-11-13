@@ -106,6 +106,12 @@ defmodule Cake.Laws.PromptDrivers.Definitions do
     :cake_laws_prompt_drivers_definitions_ffi.folded_after(instructions, system)
   end
 
+  @spec contexts_of(LawSpec.Data.step_seed()) :: [binary()]
+
+  def contexts_of(seed) do
+    :cake_laws_prompt_drivers_definitions_ffi.contexts_of(seed)
+  end
+
   @spec steps_of([LawSpec.Data.step_seed()]) :: [LawSpec.Data.reasoning_step()]
 
   def steps_of(seeds) do

@@ -1002,14 +1002,16 @@ schema(_Symbols) ->
                         fields => [
                             {<<"reasoning">>, {<<"Text">>, []}},
                             {<<"fill">>, {<<"BigUInt">>, []}},
-                            {<<"contexts">>, {<<"List">>, [{<<"Text">>, []}]}}
+                            {<<"contexts">>, {<<"List">>, [{<<"Text">>, []}]}},
+                            {<<"contextFill">>, {<<"BigUInt">>, []}}
                         ],
-                        encode => fun([Reasoning, Fill, Contexts]) ->
+                        encode => fun([Reasoning, Fill, Contexts, ContextFill]) ->
                             #{
                                 '__struct__' => 'Elixir.LawSpec.Data.StepSeed',
                                 reasoning => Reasoning,
                                 fill => Fill,
-                                contexts => Contexts
+                                contexts => Contexts,
+                                context_fill => ContextFill
                             }
                         end,
                         decode =>
@@ -1019,10 +1021,11 @@ schema(_Symbols) ->
                                         '__struct__' := 'Elixir.LawSpec.Data.StepSeed',
                                         reasoning := Reasoning,
                                         fill := Fill,
-                                        contexts := Contexts
+                                        contexts := Contexts,
+                                        context_fill := ContextFill
                                     }
                                 ) ->
-                                    {ok, [Reasoning, Fill, Contexts]};
+                                    {ok, [Reasoning, Fill, Contexts, ContextFill]};
                                 (_) ->
                                     no_match
                             end,
