@@ -109,6 +109,36 @@ defmodule LawSpec.Data do
           | LawSpec.Data.PieceNewline.t()
           | LawSpec.Data.PieceCite.t()
 
+  @type knn_clause() :: LawSpec.Data.KnnClause.t()
+
+  @type match_clause() :: LawSpec.Data.MatchClause.t()
+
+  @type match_args() :: LawSpec.Data.MatchArgs.t()
+
+  @type term_value() ::
+          LawSpec.Data.TermValueTextValue.t()
+          | LawSpec.Data.TermValueIntegerValue.t()
+          | LawSpec.Data.TermValueBoolValue.t()
+
+  @type term_clause() :: LawSpec.Data.TermClause.t()
+
+  @type builder_call() ::
+          LawSpec.Data.BuilderCallKnn.t()
+          | LawSpec.Data.BuilderCallMatch.t()
+          | LawSpec.Data.BuilderCallMatchUnboosted.t()
+          | LawSpec.Data.BuilderCallFilterTerm.t()
+          | LawSpec.Data.BuilderCallMinScore.t()
+          | LawSpec.Data.BuilderCallClearMinScore.t()
+          | LawSpec.Data.BuilderCallSize.t()
+
+  @type start() :: LawSpec.Data.Start.t()
+
+  @type call_mix() :: LawSpec.Data.CallMix.t()
+
+  @type built_query() :: LawSpec.Data.BuiltQuery.t()
+
+  @type query_map() :: LawSpec.Data.QueryMap.t()
+
   @type segment() :: LawSpec.Data.SegmentPlain.t() | LawSpec.Data.SegmentMarker.t()
 
   @type citable_meta() :: LawSpec.Data.CitableMeta.t()

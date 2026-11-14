@@ -13,6 +13,7 @@ Elixir these are StreamData properties inside ExUnit.
 | `laws/candidates.lawspec` | `Cake.Candidates`: `group_by_document/1` against a reference model (one group per document id, in first-seen order, candidates in input order, text keys) and as a permutation of its input; `all_chunk_ids/1` and `expand_to_chunk_ids/2` against a reference model of a selection, with expansion distributing over appended selections; `document_metadata/1`'s title, 100-character preview and page label, which counts distinct pages; and a group for every candidate whatever its `Cake.Citable` id |
 | `laws/prompt_context.lawspec` | `Cake.Prompt`'s context assembly: `prepare_context/2` against a reference model (the first `max_chunks` results at or above the relevance floor, in input order, numbered from 1), its bounds, dense numbering and context quality, its defaults (ten chunks, a floor of 0.30), and a result with no relevance score, which never passes the floor; `format_chunk/1`; `history_messages/1` as the last five complete exchanges; `build/4` as the system message, the recent history, then the question; and the context block that ends `system_message_with_context/1` |
 | `laws/prompt_drivers.lawspec` | `Cake.Prompt`'s token budgets and driver protocols: `estimate_tokens/1` as the length over four, rounded up; `fit_answer_pairs/2` against a reference model (the longest run of the newest pairs that fits the budget, and none on a budget of zero); `build_with_prior_answers/5`, which is `build/4` when no pair survives and otherwise folds in the survivors and no others; `self_ask_prompt/3` and `ircot_prompt/3`, which fold in the pairs or steps that survive the same eviction, the IRCoT context without a `[N]` marker; `parse_self_ask_response/1` against a reference model of replies built from lines (the final-answer marker wins, then the last follow-up); and `parse_ircot_response/1`, where a null or blank retrieval query means done |
+| `laws/search_query.lawspec` | The `Cake.Search.Query` builders and `Cake.Search.Backend.OpenSearch.to_query_map/1`: clause builders are additive, a clause equal to one the query already holds included; `size` and `min_score` are last-write-wins over `new/2`'s options, and `nil` clears a minimum score; calls in any other order build the same clauses; a knn clause carries `method_parameters.ef_search` only when the call gives one; the query map keeps the query's size, clauses and `min_score`, with a `:min_score` key exactly when it is not `nil`; and the map lists each clause list in call order, against a reference model that folds the calls |
 | `laws/fakes.lawspec` | `Cake.Laws.FakeUnit`, the test retrieval unit: it carries generated data through `Cake.Citable` and `Cake.Promptable` unchanged, and meets the five-key `Citable` contract |
 | `laws/shared.lawspec` | no laws: types and checked definitions other specifications import (see "Shared types" below) |
 
@@ -48,11 +49,29 @@ project's `mix.lock`, so a covered module behaves here as it does in Cake:
 - `ecto`: for `Cake.Schema`, schemas and changesets, `Ecto.UUID`. No Repo and
   no database.
 - `jason`: for structs that derive `Jason.Encoder`.
+- `snap` and `finch`: for `Cake.Search.Backend.OpenSearch`, which matches on
+  `%Snap.Hit{}`. `snap` matches on `%Finch.Response{}` in turn, so it does
+  not compile without `finch`, which it lists as optional. No cluster and no
+  HTTP: the laws call only `to_query_map/1`, which is pure.
 
 When Cake's lock moves one of these, move it here too. `stream_data` is the
 exception: it is pinned to the version LawSpec's Elixir target requires.
 Advisories `mix deps.get` reports for these packages are Cake's own (the
 report-only backlog, #206); this project is test-only and never deployed.
+
+**Why `snap` (#332).** The search query unit takes `snap` and `finch` for
+one pure function, `to_query_map/1`. The alternative was to leave
+`open_search.ex` out and state the clause-order law on `Cake.Search.Query`'s
+own struct fields. That law would pin the wrong thing. The struct holds each
+clause list newest first, and the order anything outside can observe is the
+order in the map OpenSearch is sent, which comes from the builders prepending
+and `to_query_map/1` reversing together. A law on the struct still passes
+when `to_query_map/1` stops reversing, and fails when both halves change in
+step and nothing observable does. With `open_search.ex` compiled, the order
+law is about the map, and no law depends on the order the struct holds. The
+cost is eight more packages in `mix.lock` (`snap`, `finch`, `castore`,
+`mint`, `hpax`, `mime`, `nimble_options`, `nimble_pool`), each at Cake's
+locked version, and about three seconds on a cold dependency compile.
 
 ## Layout
 
@@ -217,6 +236,25 @@ npm run generate:check
 mix test
 ```
 
+**In Claude Code on the web** the session-start hook
+(`.claude/hooks/session-start.sh`, section 6) has done the first three steps
+already. It installs Erlang/OTP 29 and Elixir 1.20 in `/opt/lawspec`, beside
+Cake's own toolchain and never on `PATH`, and gives them a Mix home of their
+own, because `mix local.hex --force` under OTP 29 would otherwise replace
+the Hex archive Cake's toolchain loads. Run each command through the `otp29`
+wrapper, which sets both for that one command:
+
+```bash
+otp29 npm run check
+otp29 npm run fmt:check
+otp29 npm run generate:check
+otp29 mix test
+```
+
+A plain `mix` there is Cake's, on another OTP release, and LawSpec's doctor
+refuses it. The hook prints `!! lawspec:` at session start if it could not
+install the toolchain.
+
 - `npm run lawspec -- explain` words every law in plain English. Add
   `--view math` for mathematical notation.
 - `npm run lawspec -- evidence` lists each obligation and its status.
@@ -232,7 +270,7 @@ Commit the specification, the regenerated files and `.lawspec/generated.json`
 together. CI fails on an unformatted specification (`lawspec fmt --check`)
 and on stale generated files (`lawspec generate --check`).
 
-Eight things `npm run check`, `npm run generate` and the generator are
+Ten things `npm run check`, `npm run generate` and the generator are
 strict or quiet about:
 
 - **Definition names are global.** Two units that each define a function of
@@ -243,7 +281,10 @@ strict or quiet about:
   value.** `check` fails with `constructor field refinement could not be
   proved`, even when the value is copied from another record of the same
   type. Give the field a literal or `Absent`, or keep the refinement off the
-  record and on the law's own variable.
+  record and on the law's own variable. The same holds in the other
+  direction: a definition whose parameter is refined cannot be passed a
+  record's field of that refinement (`definition call precondition could not
+  be proved`). Leave the refinement off the parameter.
 - **An example's expected value is a literal.** The right-hand side of
   `expect ... = ...` takes a constructor or a literal, not a function call.
 - **A function needs an input.** An adapter signature with no argument, for
@@ -271,6 +312,24 @@ strict or quiet about:
   Give the field a refinement that also matches the empty text (`Wording`)
   and treat the empty text as the absent case. A `Maybe` of a record or of
   plain `Text` is generated both ways.
+- **A long generated list holds only its type's cheapest values.** A list
+  is generated under a size budget its elements share, and a constructor is
+  offered only when an element's share covers it. Measured on the search
+  query unit, as of LawSpec 0.32.0, over the 222 lists two laws drew as a
+  `List BuilderCall`: of their 4,483 calls, 76% were the one constructor
+  with no payload, 21% the two that carry a single number, and 2% the four
+  that carry a clause record. One list held two different knn clauses, and
+  the law that clauses keep their call order passed in one run of two with
+  the reversal removed from `to_query_map/1`. Generate the expensive values
+  as lists of their own type and build the mixed list from them in a
+  checked definition, as `laws/search_query.lawspec` does (`CallMix`,
+  `callsOf`): about one list in ten then holds two different knn clauses,
+  and the law failed in each of six runs.
+- **Two generated records are rarely equal.** A law about a value that
+  occurs twice (a clause added again, an id cited again) never sees one
+  unless it builds the repeat: make the generated list twice over, as
+  `callsTimes` does in the same unit. A `filter_term/3` that dropped a
+  clause the query already held passed every law until it did.
 - **Regex-refined text is slow to generate.** Each generated value costs a
   few milliseconds, which adds up inside lists. Measured on the same unit:
   two laws over lines that each carried three regex-refined fields took 70

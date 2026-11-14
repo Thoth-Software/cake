@@ -25,7 +25,11 @@ defmodule CakeLaws.MixProject do
                     "lib/cake/responses.ex",
                     "lib/cake/responses/behaviour.ex",
                     "lib/cake/responses/result.ex",
+                    "lib/cake/search/backend.ex",
+                    "lib/cake/search/backend/open_search.ex",
+                    "lib/cake/search/hit.ex",
                     "lib/cake/search/provenance.ex",
+                    "lib/cake/search/query.ex",
                     "lib/cake/search/result.ex"
                   ],
                   &Path.join(@cake_root, &1)
@@ -54,7 +58,9 @@ defmodule CakeLaws.MixProject do
     [
       {:boundary, "== 0.10.4", runtime: false},
       {:ecto, "== 3.13.5"},
+      {:finch, "== 0.20.0"},
       {:jason, "== 1.4.4"},
+      {:snap, "== 0.12.2"},
       {:stream_data, "== 1.4.0", only: :test}
     ]
   end

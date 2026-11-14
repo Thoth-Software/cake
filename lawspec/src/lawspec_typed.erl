@@ -56,6 +56,10 @@
     verdict_of/2,
     is_done/1,
     sound_verdict/3,
+    lawspec_matchers_matchers_remove_first_term_clause_list_term_clause/2,
+    lawspec_matchers_matchers_remove_first_match_clause_list_match_clause/2,
+    lawspec_matchers_matchers_same_items_list_term_clause_list_term_clause/2,
+    lawspec_matchers_matchers_same_items_list_match_clause_list_match_clause/2,
     from_dynamic_answer_pair/1,
     from_dynamic_entry/1,
     from_dynamic_entry_integer_entry/1,
@@ -66,15 +70,20 @@
     from_dynamic_list_answer_pair/1,
     from_dynamic_list_entry/1,
     from_dynamic_list_entry_integer_entry/1,
+    from_dynamic_list_match_clause/1,
     from_dynamic_list_message/1,
     from_dynamic_list_node/1,
     from_dynamic_list_reply_line/1,
     from_dynamic_list_scored_result/1,
+    from_dynamic_list_term_clause/1,
     from_dynamic_margin/1,
     from_dynamic_marked/1,
+    from_dynamic_match_clause/1,
     from_dynamic_maybe_field/1,
     from_dynamic_maybe_integer/1,
     from_dynamic_maybe_list_integer/1,
+    from_dynamic_maybe_list_match_clause/1,
+    from_dynamic_maybe_list_term_clause/1,
     from_dynamic_maybe_text/1,
     from_dynamic_message/1,
     from_dynamic_node/1,
@@ -84,6 +93,8 @@
     from_dynamic_role/1,
     from_dynamic_scored_result/1,
     from_dynamic_self_ask_step/1,
+    from_dynamic_term_clause/1,
+    from_dynamic_term_value/1,
     from_native_key_val_integer_entry/1,
     to_dynamic_answer_pair/1,
     to_dynamic_entry/1,
@@ -95,15 +106,20 @@
     to_dynamic_list_answer_pair/1,
     to_dynamic_list_entry/1,
     to_dynamic_list_entry_integer_entry/1,
+    to_dynamic_list_match_clause/1,
     to_dynamic_list_message/1,
     to_dynamic_list_node/1,
     to_dynamic_list_reply_line/1,
     to_dynamic_list_scored_result/1,
+    to_dynamic_list_term_clause/1,
     to_dynamic_margin/1,
     to_dynamic_marked/1,
+    to_dynamic_match_clause/1,
     to_dynamic_maybe_field/1,
     to_dynamic_maybe_integer/1,
     to_dynamic_maybe_list_integer/1,
+    to_dynamic_maybe_list_match_clause/1,
+    to_dynamic_maybe_list_term_clause/1,
     to_dynamic_maybe_text/1,
     to_dynamic_message/1,
     to_dynamic_node/1,
@@ -113,6 +129,8 @@
     to_dynamic_role/1,
     to_dynamic_scored_result/1,
     to_dynamic_self_ask_step/1,
+    to_dynamic_term_clause/1,
+    to_dynamic_term_value/1,
     to_native_key_val_integer_entry/1
 ]).
 
@@ -1156,6 +1174,101 @@ sound_verdict(Reasoning, Query, Verdict) ->
             Logic_2
     end.
 
+%% lawspecMatchersMatchersRemoveFirst — <lawspec.matchers>:6
+lawspec_matchers_matchers_remove_first_term_clause_list_term_clause(X, Ys) ->
+    case Ys of
+        [] ->
+            absent;
+        [Selection | Selection_2] ->
+            case (Selection =:= X) of
+                true ->
+                    {present, Selection_2};
+                false ->
+                    It = lawspec_matchers_matchers_remove_first_term_clause_list_term_clause(
+                        X,
+                        Selection_2
+                    ),
+                    case It of
+                        absent ->
+                            absent;
+                        {present, MatchSelection} ->
+                            {present, [Selection | MatchSelection]}
+                    end
+            end
+    end.
+
+%% lawspecMatchersMatchersRemoveFirst — <lawspec.matchers>:6
+lawspec_matchers_matchers_remove_first_match_clause_list_match_clause(X, Ys) ->
+    case Ys of
+        [] ->
+            absent;
+        [Selection | Selection_2] ->
+            case (Selection =:= X) of
+                true ->
+                    {present, Selection_2};
+                false ->
+                    It = lawspec_matchers_matchers_remove_first_match_clause_list_match_clause(
+                        X,
+                        Selection_2
+                    ),
+                    case It of
+                        absent ->
+                            absent;
+                        {present, MatchSelection} ->
+                            {present, [Selection | MatchSelection]}
+                    end
+            end
+    end.
+
+%% lawspecMatchersMatchersSameItems — <lawspec.matchers>:18
+lawspec_matchers_matchers_same_items_list_term_clause_list_term_clause(Xs, Ys) ->
+    case Xs of
+        [] ->
+            case Ys of
+                [] ->
+                    true;
+                [_ | _] ->
+                    false
+            end;
+        [Selection | Selection_2] ->
+            It = lawspec_matchers_matchers_remove_first_term_clause_list_term_clause(Selection, Ys),
+            case It of
+                absent ->
+                    false;
+                {present, MatchSelection} ->
+                    lawspec_matchers_matchers_same_items_list_term_clause_list_term_clause(
+                        Selection_2,
+                        MatchSelection
+                    )
+            end
+    end.
+
+%% lawspecMatchersMatchersSameItems — <lawspec.matchers>:18
+lawspec_matchers_matchers_same_items_list_match_clause_list_match_clause(Xs, Ys) ->
+    case Xs of
+        [] ->
+            case Ys of
+                [] ->
+                    true;
+                [_ | _] ->
+                    false
+            end;
+        [Selection | Selection_2] ->
+            It = lawspec_matchers_matchers_remove_first_match_clause_list_match_clause(
+                Selection,
+                Ys
+            ),
+            case It of
+                absent ->
+                    false;
+                {present, MatchSelection} ->
+                    lawspec_matchers_matchers_same_items_list_match_clause_list_match_clause(
+                        Selection_2,
+                        MatchSelection
+                    )
+            end
+    end.
+
 %% From the dynamic value of cake.laws.decomposition::type::Entry
 from_dynamic_entry(
     {ls_data, <<"cake.laws.decomposition::type::Entry::Entry">>, [Question, DependsOn]}
@@ -1223,6 +1336,10 @@ from_dynamic_list_entry(Values) ->
 from_dynamic_list_entry_integer_entry(Values) ->
     [from_dynamic_entry_integer_entry(Item) || Item <- Values].
 
+%% From the dynamic value of List (cake.laws.search_query::type::MatchClause)
+from_dynamic_list_match_clause(Values) ->
+    [from_dynamic_match_clause(Item) || Item <- Values].
+
 %% From the dynamic value of List (cake.laws.prompt_context::type::Message)
 from_dynamic_list_message(Values) ->
     [from_dynamic_message(Item) || Item <- Values].
@@ -1238,6 +1355,10 @@ from_dynamic_list_reply_line(Values) ->
 %% From the dynamic value of List (cake.laws.prompt_context::type::ScoredResult)
 from_dynamic_list_scored_result(Values) ->
     [from_dynamic_scored_result(Item) || Item <- Values].
+
+%% From the dynamic value of List (cake.laws.search_query::type::TermClause)
+from_dynamic_list_term_clause(Values) ->
+    [from_dynamic_term_clause(Item) || Item <- Values].
 
 %% From the dynamic value of cake.laws.prompt_drivers::type::Margin
 from_dynamic_margin({ls_data, <<"cake.laws.prompt_drivers::type::Margin::NoMargin">>, []}) ->
@@ -1260,6 +1381,17 @@ from_dynamic_marked(
         trail => from_dynamic_gap(Trail)
     }.
 
+%% From the dynamic value of cake.laws.search_query::type::MatchClause
+from_dynamic_match_clause(
+    {ls_data, <<"cake.laws.search_query::type::MatchClause::MatchClause">>, [Text, Fields, Boost]}
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.MatchClause',
+        text => Text,
+        fields => Fields,
+        boost => Boost
+    }.
+
 %% From the dynamic value of Maybe (cake.laws.prompt_drivers::type::Field)
 from_dynamic_maybe_field({ls_data, <<"Maybe::Absent">>, []}) ->
     absent;
@@ -1277,6 +1409,18 @@ from_dynamic_maybe_list_integer({ls_data, <<"Maybe::Absent">>, []}) ->
     absent;
 from_dynamic_maybe_list_integer({ls_data, <<"Maybe::Present">>, [Value]}) ->
     {present, Value}.
+
+%% From the dynamic value of Maybe (List (cake.laws.search_query::type::MatchClause))
+from_dynamic_maybe_list_match_clause({ls_data, <<"Maybe::Absent">>, []}) ->
+    absent;
+from_dynamic_maybe_list_match_clause({ls_data, <<"Maybe::Present">>, [Value]}) ->
+    {present, from_dynamic_list_match_clause(Value)}.
+
+%% From the dynamic value of Maybe (List (cake.laws.search_query::type::TermClause))
+from_dynamic_maybe_list_term_clause({ls_data, <<"Maybe::Absent">>, []}) ->
+    absent;
+from_dynamic_maybe_list_term_clause({ls_data, <<"Maybe::Present">>, [Value]}) ->
+    {present, from_dynamic_list_term_clause(Value)}.
 
 %% From the dynamic value of Maybe (Text)
 from_dynamic_maybe_text({ls_data, <<"Maybe::Absent">>, []}) ->
@@ -1314,6 +1458,16 @@ from_dynamic_self_ask_step(
     {ls_data, <<"cake.laws.prompt_drivers::type::SelfAskStep::FollowUp">>, [Value]}
 ) ->
     #{'__struct__' => 'Elixir.LawSpec.Data.SelfAskStepFollowUp', value => Value}.
+
+%% From the dynamic value of cake.laws.search_query::type::TermClause
+from_dynamic_term_clause(
+    {ls_data, <<"cake.laws.search_query::type::TermClause::TermClause">>, [Field, Value]}
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.TermClause',
+        field => Field,
+        value => from_dynamic_term_value(Value)
+    }.
 
 %% From the native value of lawspec.collections::type::KeyVal (Integer) (cake.laws.decomposition::type::Entry)
 from_native_key_val_integer_entry(
@@ -1403,6 +1557,10 @@ to_dynamic_list_entry(Values) ->
 to_dynamic_list_entry_integer_entry(Values) ->
     [to_dynamic_entry_integer_entry(Item) || Item <- Values].
 
+%% To the dynamic value of List (cake.laws.search_query::type::MatchClause)
+to_dynamic_list_match_clause(Values) ->
+    [to_dynamic_match_clause(Item) || Item <- Values].
+
 %% To the dynamic value of List (cake.laws.prompt_context::type::Message)
 to_dynamic_list_message(Values) ->
     [to_dynamic_message(Item) || Item <- Values].
@@ -1418,6 +1576,10 @@ to_dynamic_list_reply_line(Values) ->
 %% To the dynamic value of List (cake.laws.prompt_context::type::ScoredResult)
 to_dynamic_list_scored_result(Values) ->
     [to_dynamic_scored_result(Item) || Item <- Values].
+
+%% To the dynamic value of List (cake.laws.search_query::type::TermClause)
+to_dynamic_list_term_clause(Values) ->
+    [to_dynamic_term_clause(Item) || Item <- Values].
 
 %% To the dynamic value of cake.laws.prompt_drivers::type::Margin
 to_dynamic_margin(#{'__struct__' := 'Elixir.LawSpec.Data.MarginNoMargin'}) ->
@@ -1439,6 +1601,17 @@ to_dynamic_marked(
         [to_dynamic_gap(Gap), Text, to_dynamic_gap(Trail)]
     }.
 
+%% To the dynamic value of cake.laws.search_query::type::MatchClause
+to_dynamic_match_clause(
+    #{
+        '__struct__' := 'Elixir.LawSpec.Data.MatchClause',
+        text := Text,
+        fields := Fields,
+        boost := Boost
+    }
+) ->
+    {ls_data, <<"cake.laws.search_query::type::MatchClause::MatchClause">>, [Text, Fields, Boost]}.
+
 %% To the dynamic value of Maybe (cake.laws.prompt_drivers::type::Field)
 to_dynamic_maybe_field(absent) ->
     {ls_data, <<"Maybe::Absent">>, []};
@@ -1456,6 +1629,18 @@ to_dynamic_maybe_list_integer(absent) ->
     {ls_data, <<"Maybe::Absent">>, []};
 to_dynamic_maybe_list_integer({present, Value}) ->
     {ls_data, <<"Maybe::Present">>, [Value]}.
+
+%% To the dynamic value of Maybe (List (cake.laws.search_query::type::MatchClause))
+to_dynamic_maybe_list_match_clause(absent) ->
+    {ls_data, <<"Maybe::Absent">>, []};
+to_dynamic_maybe_list_match_clause({present, Value}) ->
+    {ls_data, <<"Maybe::Present">>, [to_dynamic_list_match_clause(Value)]}.
+
+%% To the dynamic value of Maybe (List (cake.laws.search_query::type::TermClause))
+to_dynamic_maybe_list_term_clause(absent) ->
+    {ls_data, <<"Maybe::Absent">>, []};
+to_dynamic_maybe_list_term_clause({present, Value}) ->
+    {ls_data, <<"Maybe::Present">>, [to_dynamic_list_term_clause(Value)]}.
 
 %% To the dynamic value of Maybe (Text)
 to_dynamic_maybe_text(absent) ->
@@ -1490,6 +1675,16 @@ to_dynamic_self_ask_step(
     #{'__struct__' := 'Elixir.LawSpec.Data.SelfAskStepFollowUp', value := Value}
 ) ->
     {ls_data, <<"cake.laws.prompt_drivers::type::SelfAskStep::FollowUp">>, [Value]}.
+
+%% To the dynamic value of cake.laws.search_query::type::TermClause
+to_dynamic_term_clause(
+    #{'__struct__' := 'Elixir.LawSpec.Data.TermClause', field := Field, value := Value}
+) ->
+    {
+        ls_data,
+        <<"cake.laws.search_query::type::TermClause::TermClause">>,
+        [Field, to_dynamic_term_value(Value)]
+    }.
 
 %% To the native value of lawspec.collections::type::KeyVal (Integer) (cake.laws.decomposition::type::Entry)
 to_native_key_val_integer_entry(Map) ->
@@ -1555,6 +1750,20 @@ from_dynamic_scored_result(
         score => from_dynamic_maybe_integer(Score)
     }.
 
+%% From the dynamic value of cake.laws.search_query::type::TermValue
+from_dynamic_term_value(
+    {ls_data, <<"cake.laws.search_query::type::TermValue::TextValue">>, [Value]}
+) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.TermValueTextValue', value => Value};
+from_dynamic_term_value(
+    {ls_data, <<"cake.laws.search_query::type::TermValue::IntegerValue">>, [Value]}
+) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.TermValueIntegerValue', value => Value};
+from_dynamic_term_value(
+    {ls_data, <<"cake.laws.search_query::type::TermValue::BoolValue">>, [Value]}
+) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.TermValueBoolValue', value => Value}.
+
 %% To the dynamic value of cake.laws.prompt_drivers::type::AnswerPair
 to_dynamic_answer_pair(
     #{'__struct__' := 'Elixir.LawSpec.Data.AnswerPair', question := Question, answer := Answer}
@@ -1602,6 +1811,20 @@ to_dynamic_scored_result(
         <<"cake.laws.prompt_context::type::ScoredResult::ScoredResult">>,
         [Context, to_dynamic_maybe_integer(Score)]
     }.
+
+%% To the dynamic value of cake.laws.search_query::type::TermValue
+to_dynamic_term_value(
+    #{'__struct__' := 'Elixir.LawSpec.Data.TermValueTextValue', value := Value}
+) ->
+    {ls_data, <<"cake.laws.search_query::type::TermValue::TextValue">>, [Value]};
+to_dynamic_term_value(
+    #{'__struct__' := 'Elixir.LawSpec.Data.TermValueIntegerValue', value := Value}
+) ->
+    {ls_data, <<"cake.laws.search_query::type::TermValue::IntegerValue">>, [Value]};
+to_dynamic_term_value(
+    #{'__struct__' := 'Elixir.LawSpec.Data.TermValueBoolValue', value := Value}
+) ->
+    {ls_data, <<"cake.laws.search_query::type::TermValue::BoolValue">>, [Value]}.
 
 %% From the dynamic value of cake.laws.prompt_context::type::Role
 from_dynamic_role({ls_data, <<"cake.laws.prompt_context::type::Role::System">>, []}) ->
