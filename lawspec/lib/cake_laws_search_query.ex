@@ -14,7 +14,8 @@ defmodule Cake.Laws.SearchQuery do
   Cake holds vectors, boosts and minimum scores as floats and only stores
   them. The specification generates whole hundredths; they are divided by
   100 on the way in and multiplied back on the way out, so equal hundredths
-  are equal floats.
+  are equal floats. A float that comes back must be exactly the float some
+  hundredth divides to: one that is not, 0.701 say, has no clause here.
 
   The translation back is strict on purpose, so a shape the specification
   does not name fails the law instead of passing through. A clause, a clause
@@ -181,7 +182,15 @@ defmodule Cake.Laws.SearchQuery do
   defp to_vector(vector) when is_list(vector), do: Enum.map(vector, &to_hundredths/1)
 
   defp from_hundredths(hundredths) when is_integer(hundredths), do: hundredths / 100
-  defp to_hundredths(float) when is_float(float), do: round(float * 100)
+
+  # Only the float `from_hundredths/1` makes of some hundredth reads back.
+  # Rounding alone would read 0.701 as 70, and a value Cake had changed by
+  # less than half a hundredth would pass every law.
+  defp to_hundredths(float) when is_float(float) do
+    hundredths = round(float * 100)
+    ^float = from_hundredths(hundredths)
+    hundredths
+  end
 
   defp from_maybe_hundredths(:absent), do: :absent
   defp from_maybe_hundredths({:present, hundredths}), do: {:present, from_hundredths(hundredths)}
