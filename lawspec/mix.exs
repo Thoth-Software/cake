@@ -19,7 +19,11 @@ defmodule CakeLaws.MixProject do
                     "lib/cake/candidates.ex",
                     "lib/cake/citable.ex",
                     "lib/cake/citations.ex",
+                    "lib/cake/decomposition.ex",
+                    "lib/cake/decomposition/llm.ex",
                     "lib/cake/decomposition/result.ex",
+                    "lib/cake/generation.ex",
+                    "lib/cake/generation/open_ai.ex",
                     "lib/cake/prompt.ex",
                     "lib/cake/promptable.ex",
                     "lib/cake/responses.ex",
@@ -58,8 +62,11 @@ defmodule CakeLaws.MixProject do
     [
       {:boundary, "== 0.10.4", runtime: false},
       {:ecto, "== 3.13.5"},
+      {:ex_json_schema, "== 0.11.3"},
       {:finch, "== 0.20.0"},
       {:jason, "== 1.4.4"},
+      {:plug, "== 1.19.1"},
+      {:req, "== 0.5.16"},
       {:snap, "== 0.12.2"},
       {:stream_data, "== 1.4.0", only: :test}
     ]
