@@ -51,21 +51,21 @@ has_dependency(Entry) -> lawspec_typed:has_dependency(Entry).
 %% isReady — laws/decomposition.lawspec:156
 is_ready(Entries, Done, I) -> lawspec_typed:is_ready(Entries, Done, I).
 
-%% keyValKeysItems — <lawspec.collections>:64
+%% keyValKeysItems — <lawspec.collections>:67
 lawspec_collections_key_val_keys_items_list_entry_integer_entry(Es) ->
     lawspec_typed:lawspec_collections_key_val_keys_items_list_entry_integer_entry(Es).
 
-%% keyValKeys — <lawspec.collections>:94
+%% keyValKeys — <lawspec.collections>:97
 lawspec_collections_key_val_keys_key_val_integer_entry(M) ->
     lawspec_typed:lawspec_collections_key_val_keys_key_val_integer_entry(
         lawspec_typed:from_native_key_val_integer_entry(M)
     ).
 
-%% keyValValuesItems — <lawspec.collections>:71
+%% keyValValuesItems — <lawspec.collections>:74
 lawspec_collections_key_val_values_items_list_entry_integer_entry(Es) ->
     lawspec_typed:lawspec_collections_key_val_values_items_list_entry_integer_entry(Es).
 
-%% keyValValues — <lawspec.collections>:98
+%% keyValValues — <lawspec.collections>:101
 lawspec_collections_key_val_values_key_val_integer_entry(M) ->
     lawspec_typed:lawspec_collections_key_val_values_key_val_integer_entry(
         lawspec_typed:from_native_key_val_integer_entry(M)
