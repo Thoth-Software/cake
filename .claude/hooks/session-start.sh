@@ -262,11 +262,13 @@ MIX_ENV=test mix ecto.migrate --quiet || true
 #
 #   cd lawspec && otp29 npm run check && otp29 mix test
 #
-# Each install is skipped when it is already done. The toolchain is checked
-# by the version files it installs; node_modules and deps by a hash, kept
-# inside the directory the install fills, of the files that decide what goes
-# into it. A failure here is reported and does not fail the hook: everything
-# Cake itself needs is ready by now.
+# Each install is skipped when it is already done, and each check is of
+# something written only after its install succeeded, inside the directory
+# the install fills, so an interrupted install or a deleted directory runs
+# again. The toolchain is checked by a version marker; node_modules, deps and
+# the compiled deps in _build/test by a hash of the files that decide what
+# goes into them. A failure here is reported and does not fail the hook:
+# everything Cake itself needs is ready by now.
 ###############################################################################
 LAWSPEC_OTP_VERSION="${LAWSPEC_OTP_VERSION:-29.1.2}"
 LAWSPEC_ELIXIR_VERSION="${LAWSPEC_ELIXIR_VERSION:-1.20.2}"
@@ -283,7 +285,9 @@ lawspec_toolchain() {
     $SUDO chown "$(id -u):$(id -g)" "$LAWSPEC_HOME" || return 1
   fi
 
-  if [ "$(cat "$LAWSPEC_HOME/otp/releases/$otp_major/OTP_VERSION" 2>/dev/null)" \
+  # Not the tarball's own releases/*/OTP_VERSION: that file is unpacked
+  # before ./Install has run, so it would pass for a half-installed runtime.
+  if [ "$(cat "$LAWSPEC_HOME/otp/.session-start-version" 2>/dev/null)" \
        != "$LAWSPEC_OTP_VERSION" ]; then
     echo "==> lawspec: installing Erlang/OTP ${LAWSPEC_OTP_VERSION}..."
     rm -rf "$LAWSPEC_HOME/otp" && mkdir -p "$LAWSPEC_HOME/otp" || return 1
@@ -291,6 +295,7 @@ lawspec_toolchain() {
       "https://builds.hex.pm/builds/otp/ubuntu-24.04/OTP-${LAWSPEC_OTP_VERSION}.tar.gz" \
       | tar -xz -C "$LAWSPEC_HOME/otp" --strip-components=1 || return 1
     ( cd "$LAWSPEC_HOME/otp" && ./Install -minimal "$LAWSPEC_HOME/otp" >/dev/null ) || return 1
+    echo "$LAWSPEC_OTP_VERSION" > "$LAWSPEC_HOME/otp/.session-start-version" || return 1
   fi
 
   if [ "$(cat "$LAWSPEC_HOME/elixir/VERSION" 2>/dev/null)" != "$LAWSPEC_ELIXIR_VERSION" ] \
@@ -329,7 +334,9 @@ WRAPPER
 }
 
 # LawSpec itself (npm) and the Mix deps, compiled for the test env, which is
-# where LawSpec's doctor looks for them.
+# where LawSpec's doctor looks for them. Fetching fills deps/ and compiling
+# fills _build/test, so each has a hash of its own: `rm -rf _build` must
+# bring the compile back without a fetch.
 lawspec_deps() {
   local hook="$PWD/.claude/hooks/session-start.sh" hashes
 
@@ -343,20 +350,35 @@ lawspec_deps() {
     sha256sum "$hook" package.json package-lock.json > "$hashes" || { rm -f "$hashes"; return 1; }
   fi
 
+  # The logs are shown on failure only: dependency warnings are not ours to
+  # fix.
   hashes=deps/.session-start.sha256
   if ! sha256sum --check --status "$hashes" 2>/dev/null; then
+    # What is fetched anew is compiled anew.
+    rm -f "$hashes" _build/test/.session-start.sha256
+    echo "==> lawspec: fetching Mix deps..."
+    otp29 mix deps.get > "$LAWSPEC_HOME/deps.log" 2>&1 \
+      || { tail -n 20 "$LAWSPEC_HOME/deps.log"; return 1; }
+    sha256sum "$hook" mix.exs mix.lock > "$hashes" || { rm -f "$hashes"; return 1; }
+  fi
+
+  hashes=_build/test/.session-start.sha256
+  if ! sha256sum --check --status "$hashes" 2>/dev/null; then
     rm -f "$hashes"
-    echo "==> lawspec: fetching and compiling Mix deps..."
-    # Dependency warnings are not ours to fix; the log is shown on failure.
-    { otp29 mix deps.get && MIX_ENV=test otp29 mix deps.compile; } \
-      > "$LAWSPEC_HOME/deps.log" 2>&1 || { tail -n 20 "$LAWSPEC_HOME/deps.log"; return 1; }
+    echo "==> lawspec: compiling Mix deps..."
+    MIX_ENV=test otp29 mix deps.compile > "$LAWSPEC_HOME/compile.log" 2>&1 \
+      || { tail -n 20 "$LAWSPEC_HOME/compile.log"; return 1; }
     sha256sum "$hook" mix.exs mix.lock > "$hashes" || { rm -f "$hashes"; return 1; }
   fi
 }
 
 if [ -d lawspec ]; then
-  if lawspec_toolchain && ( lawspec_deps ); then
-    echo "==> lawspec: $(otp29 elixir --version | tail -1); run its commands as \`otp29 <command>\` in lawspec/"
+  # The last condition runs the toolchain, so one that is installed but does
+  # not start is reported too.
+  if lawspec_toolchain && ( lawspec_deps ) \
+     && lawspec_elixir="$(ERL_CRASH_DUMP=/dev/null otp29 elixir --version 2>/dev/null | tail -n 1)" \
+     && [ -n "$lawspec_elixir" ]; then
+    echo "==> lawspec: ${lawspec_elixir}; run its commands as \`otp29 <command>\` in lawspec/"
   else
     cat <<'WARN'
 !! lawspec: could not install the LawSpec toolchain (Erlang/OTP 29) or the
