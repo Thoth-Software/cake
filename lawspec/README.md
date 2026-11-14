@@ -236,6 +236,25 @@ npm run generate:check
 mix test
 ```
 
+**In Claude Code on the web** the session-start hook
+(`.claude/hooks/session-start.sh`, section 6) has done the first three steps
+already. It installs Erlang/OTP 29 and Elixir 1.20 in `/opt/lawspec`, beside
+Cake's own toolchain and never on `PATH`, and gives them a Mix home of their
+own, because `mix local.hex --force` under OTP 29 would otherwise replace
+the Hex archive Cake's toolchain loads. Run each command through the `otp29`
+wrapper, which sets both for that one command:
+
+```bash
+otp29 npm run check
+otp29 npm run fmt:check
+otp29 npm run generate:check
+otp29 mix test
+```
+
+A plain `mix` there is Cake's, on another OTP release, and LawSpec's doctor
+refuses it. The hook prints `!! lawspec:` at session start if it could not
+install the toolchain.
+
 - `npm run lawspec -- explain` words every law in plain English. Add
   `--view math` for mathematical notation.
 - `npm run lawspec -- evidence` lists each obligation and its status.
