@@ -221,6 +221,32 @@
     warnings_of/3,
     without_leading_blanks/3,
     without_trailing_blanks/3,
+    built_query/4,
+    query_map/4,
+    calls_of/3,
+    calls_times/4,
+    grown_by/5,
+    inserted_at/5,
+    keeps_query/4,
+    knn_calls/3,
+    knn_clauses_of/3,
+    lawspec_matchers_matchers_remove_first_term_clause_list_term_clause/4,
+    lawspec_matchers_matchers_remove_first_match_clause_list_match_clause/4,
+    lawspec_matchers_matchers_remove_first_knn_clause_list_knn_clause/4,
+    lawspec_matchers_matchers_same_items_list_term_clause_list_term_clause/4,
+    lawspec_matchers_matchers_same_items_list_match_clause_list_match_clause/4,
+    lawspec_matchers_matchers_same_items_list_knn_clause_list_knn_clause/4,
+    match_calls/3,
+    match_clauses_of/3,
+    min_score_after/4,
+    query_map_of/4,
+    reordered/4,
+    same_clauses/4,
+    size_after/4,
+    starting_min_score/3,
+    starting_size/3,
+    term_calls/3,
+    term_clauses_of/3,
     render/3
 ]).
 
@@ -9182,6 +9208,1839 @@ without_trailing_blanks(Schema, Symbols, Pieces) ->
                                             Schema
                                         )
                                 end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% builtQuery — laws/search_query.lawspec:183
+built_query(Schema, _Symbols, Start, ListBuilderCall) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::builtQuery">>,
+        fun() ->
+            NativeStart = lawspec_beam_schema:to_native(
+                Start,
+                {<<"cake.laws.search_query::type::Start">>, []},
+                Schema
+            ),
+            NativeListBuilderCall = lawspec_beam_schema:to_native(
+                ListBuilderCall,
+                {<<"List">>, [{<<"cake.laws.search_query::type::BuilderCall">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.SearchQuery':built_query(NativeStart, NativeListBuilderCall),
+                {<<"cake.laws.search_query::type::BuiltQuery">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% queryMap — laws/search_query.lawspec:186
+query_map(Schema, _Symbols, Start, ListBuilderCall) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::queryMap">>,
+        fun() ->
+            NativeStart = lawspec_beam_schema:to_native(
+                Start,
+                {<<"cake.laws.search_query::type::Start">>, []},
+                Schema
+            ),
+            NativeListBuilderCall = lawspec_beam_schema:to_native(
+                ListBuilderCall,
+                {<<"List">>, [{<<"cake.laws.search_query::type::BuilderCall">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.SearchQuery':query_map(NativeStart, NativeListBuilderCall),
+                {<<"cake.laws.search_query::type::QueryMap">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% callsOf — laws/search_query.lawspec:366
+calls_of(Schema, Symbols, Mix) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::callsOf">>,
+        fun() ->
+            lawspec_definitions:reordered(
+                Schema,
+                Symbols,
+                lawspec_beam_runtime:helper(
+                    <<"append">>,
+                    [
+                        lawspec_definitions:calls_times(
+                            Schema,
+                            Symbols,
+                            lawspec_beam_runtime:helper(
+                                <<"append">>,
+                                [
+                                    lawspec_beam_runtime:helper(
+                                        <<"append">>,
+                                        [
+                                            lawspec_definitions:knn_calls(
+                                                Schema,
+                                                Symbols,
+                                                lawspec_beam_schema:match(
+                                                    Mix,
+                                                    #{
+                                                        <<"cake.laws.search_query::type::CallMix::CallMix">> => fun(
+                                                            [
+                                                                Knns,
+                                                                _Matches,
+                                                                _Terms,
+                                                                _Times,
+                                                                _Others,
+                                                                _Picks
+                                                            ]
+                                                        ) ->
+                                                            Knns
+                                                        end
+                                                    }
+                                                )
+                                            ),
+                                            lawspec_definitions:match_calls(
+                                                Schema,
+                                                Symbols,
+                                                lawspec_beam_schema:match(
+                                                    Mix,
+                                                    #{
+                                                        <<"cake.laws.search_query::type::CallMix::CallMix">> => fun(
+                                                            [
+                                                                _Knns_2,
+                                                                Matches_2,
+                                                                _Terms_2,
+                                                                _Times_2,
+                                                                _Others_2,
+                                                                _Picks_2
+                                                            ]
+                                                        ) ->
+                                                            Matches_2
+                                                        end
+                                                    }
+                                                )
+                                            )
+                                        ],
+                                        [
+                                            <<"List cake.laws.search_query::type::BuilderCall">>,
+                                            <<"List cake.laws.search_query::type::BuilderCall">>
+                                        ],
+                                        64
+                                    ),
+                                    lawspec_definitions:term_calls(
+                                        Schema,
+                                        Symbols,
+                                        lawspec_beam_schema:match(
+                                            Mix,
+                                            #{
+                                                <<"cake.laws.search_query::type::CallMix::CallMix">> => fun(
+                                                    [
+                                                        _Knns_3,
+                                                        _Matches_3,
+                                                        Terms_3,
+                                                        _Times_3,
+                                                        _Others_3,
+                                                        _Picks_3
+                                                    ]
+                                                ) ->
+                                                    Terms_3
+                                                end
+                                            }
+                                        )
+                                    )
+                                ],
+                                [
+                                    <<"List cake.laws.search_query::type::BuilderCall">>,
+                                    <<"List cake.laws.search_query::type::BuilderCall">>
+                                ],
+                                64
+                            ),
+                            lawspec_beam_schema:match(
+                                Mix,
+                                #{
+                                    <<"cake.laws.search_query::type::CallMix::CallMix">> => fun(
+                                        [
+                                            _Knns_4,
+                                            _Matches_4,
+                                            _Terms_4,
+                                            Times_4,
+                                            _Others_4,
+                                            _Picks_4
+                                        ]
+                                    ) ->
+                                        Times_4
+                                    end
+                                }
+                            )
+                        ),
+                        lawspec_beam_schema:match(
+                            Mix,
+                            #{
+                                <<"cake.laws.search_query::type::CallMix::CallMix">> => fun(
+                                    [_Knns_5, _Matches_5, _Terms_5, _Times_5, Others_5, _Picks_5]
+                                ) ->
+                                    Others_5
+                                end
+                            }
+                        )
+                    ],
+                    [
+                        <<"List cake.laws.search_query::type::BuilderCall">>,
+                        <<"List cake.laws.search_query::type::BuilderCall">>
+                    ],
+                    64
+                ),
+                lawspec_beam_schema:match(
+                    Mix,
+                    #{
+                        <<"cake.laws.search_query::type::CallMix::CallMix">> => fun(
+                            [_Knns_6, _Matches_6, _Terms_6, _Times_6, _Others_6, Picks_6]
+                        ) ->
+                            Picks_6
+                        end
+                    }
+                )
+            )
+        end
+    ).
+
+%% callsTimes — laws/search_query.lawspec:336
+calls_times(Schema, Symbols, Calls, Times) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::callsTimes">>,
+        fun() ->
+            case (Times =< 0) of
+                true ->
+                    [];
+                false ->
+                    lawspec_beam_runtime:helper(
+                        <<"append">>,
+                        [
+                            Calls,
+                            lawspec_definitions:calls_times(
+                                Schema,
+                                Symbols,
+                                Calls,
+                                lawspec_beam_schema:validate(
+                                    lawspec_beam_scalar:convert(
+                                        (Times - 1),
+                                        {<<"BigUInt">>, []},
+                                        64
+                                    ),
+                                    {<<"BigUInt">>, []},
+                                    Schema
+                                )
+                            )
+                        ],
+                        [
+                            <<"List cake.laws.search_query::type::BuilderCall">>,
+                            <<"List cake.laws.search_query::type::BuilderCall">>
+                        ],
+                        64
+                    )
+            end
+        end
+    ).
+
+%% grownBy — laws/search_query.lawspec:373
+grown_by(Schema, Symbols, Before, Calls, After) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::grownBy">>,
+        fun() ->
+            (((lawspec_beam_runtime:helper(
+                <<"length">>,
+                [
+                    lawspec_beam_schema:match(
+                        After,
+                        #{
+                            <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                [_Index, _Size, _MinScore, Musts, _Shoulds, _Filters]
+                            ) ->
+                                Musts
+                            end
+                        }
+                    )
+                ],
+                [<<"List cake.laws.search_query::type::KnnClause">>],
+                64
+            ) =:=
+                (lawspec_beam_runtime:helper(
+                    <<"length">>,
+                    [
+                        lawspec_beam_schema:match(
+                            Before,
+                            #{
+                                <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                    [
+                                        _Index_2,
+                                        _Size_2,
+                                        _MinScore_2,
+                                        Musts_2,
+                                        _Shoulds_2,
+                                        _Filters_2
+                                    ]
+                                ) ->
+                                    Musts_2
+                                end
+                            }
+                        )
+                    ],
+                    [<<"List cake.laws.search_query::type::KnnClause">>],
+                    64
+                ) +
+                    lawspec_beam_runtime:helper(
+                        <<"length">>,
+                        [lawspec_definitions:knn_clauses_of(Schema, Symbols, Calls)],
+                        [<<"List cake.laws.search_query::type::KnnClause">>],
+                        64
+                    ))) andalso
+                (lawspec_beam_runtime:helper(
+                    <<"length">>,
+                    [
+                        lawspec_beam_schema:match(
+                            After,
+                            #{
+                                <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                    [
+                                        _Index_3,
+                                        _Size_3,
+                                        _MinScore_3,
+                                        _Musts_3,
+                                        Shoulds_3,
+                                        _Filters_3
+                                    ]
+                                ) ->
+                                    Shoulds_3
+                                end
+                            }
+                        )
+                    ],
+                    [<<"List cake.laws.search_query::type::MatchClause">>],
+                    64
+                ) =:=
+                    (lawspec_beam_runtime:helper(
+                        <<"length">>,
+                        [
+                            lawspec_beam_schema:match(
+                                Before,
+                                #{
+                                    <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                        [
+                                            _Index_4,
+                                            _Size_4,
+                                            _MinScore_4,
+                                            _Musts_4,
+                                            Shoulds_4,
+                                            _Filters_4
+                                        ]
+                                    ) ->
+                                        Shoulds_4
+                                    end
+                                }
+                            )
+                        ],
+                        [<<"List cake.laws.search_query::type::MatchClause">>],
+                        64
+                    ) +
+                        lawspec_beam_runtime:helper(
+                            <<"length">>,
+                            [lawspec_definitions:match_clauses_of(Schema, Symbols, Calls)],
+                            [<<"List cake.laws.search_query::type::MatchClause">>],
+                            64
+                        )))) andalso
+                (lawspec_beam_runtime:helper(
+                    <<"length">>,
+                    [
+                        lawspec_beam_schema:match(
+                            After,
+                            #{
+                                <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                    [
+                                        _Index_5,
+                                        _Size_5,
+                                        _MinScore_5,
+                                        _Musts_5,
+                                        _Shoulds_5,
+                                        Filters_5
+                                    ]
+                                ) ->
+                                    Filters_5
+                                end
+                            }
+                        )
+                    ],
+                    [<<"List cake.laws.search_query::type::TermClause">>],
+                    64
+                ) =:=
+                    (lawspec_beam_runtime:helper(
+                        <<"length">>,
+                        [
+                            lawspec_beam_schema:match(
+                                Before,
+                                #{
+                                    <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                        [
+                                            _Index_6,
+                                            _Size_6,
+                                            _MinScore_6,
+                                            _Musts_6,
+                                            _Shoulds_6,
+                                            Filters_6
+                                        ]
+                                    ) ->
+                                        Filters_6
+                                    end
+                                }
+                            )
+                        ],
+                        [<<"List cake.laws.search_query::type::TermClause">>],
+                        64
+                    ) +
+                        lawspec_beam_runtime:helper(
+                            <<"length">>,
+                            [lawspec_definitions:term_clauses_of(Schema, Symbols, Calls)],
+                            [<<"List cake.laws.search_query::type::TermClause">>],
+                            64
+                        ))))
+        end
+    ).
+
+%% insertedAt — laws/search_query.lawspec:313
+inserted_at(Schema, _Symbols, I, Call, Calls) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::insertedAt">>,
+        fun() ->
+            lawspec_beam_runtime:helper(
+                <<"append">>,
+                [
+                    lawspec_beam_runtime:helper(
+                        <<"slice">>,
+                        [
+                            Calls,
+                            0,
+                            lawspec_beam_schema:validate(
+                                lawspec_beam_scalar:convert(I, {<<"Integer">>, []}, 64),
+                                {<<"Integer">>, []},
+                                Schema
+                            )
+                        ],
+                        [
+                            <<"List cake.laws.search_query::type::BuilderCall">>,
+                            <<"Integer">>,
+                            <<"Integer">>
+                        ],
+                        64
+                    ),
+                    lawspec_beam_schema:construct(
+                        <<"List::Cons">>,
+                        [
+                            Call,
+                            lawspec_beam_runtime:helper(
+                                <<"slice">>,
+                                [
+                                    Calls,
+                                    lawspec_beam_schema:validate(
+                                        lawspec_beam_scalar:convert(I, {<<"Integer">>, []}, 64),
+                                        {<<"Integer">>, []},
+                                        Schema
+                                    ),
+                                    9223372036854775807
+                                ],
+                                [
+                                    <<"List cake.laws.search_query::type::BuilderCall">>,
+                                    <<"Integer">>,
+                                    <<"Integer">>
+                                ],
+                                64
+                            )
+                        ],
+                        {<<"List">>, [{<<"cake.laws.search_query::type::BuilderCall">>, []}]},
+                        Schema
+                    )
+                ],
+                [
+                    <<"List cake.laws.search_query::type::BuilderCall">>,
+                    <<"List cake.laws.search_query::type::BuilderCall">>
+                ],
+                64
+            )
+        end
+    ).
+
+%% keepsQuery — laws/search_query.lawspec:392
+keeps_query(Schema, Symbols, Map, Query) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::keepsQuery">>,
+        fun() ->
+            (((((lawspec_beam_schema:match(
+                Map,
+                #{
+                    <<"cake.laws.search_query::type::QueryMap::QueryMap">> => fun(
+                        [Size, _MinScore, _Musts, _Shoulds, _Filters]
+                    ) ->
+                        Size
+                    end
+                }
+            ) =:=
+                lawspec_beam_schema:match(
+                    Query,
+                    #{
+                        <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                            [_Index, Size_2, _MinScore_2, _Musts_2, _Shoulds_2, _Filters_2]
+                        ) ->
+                            Size_2
+                        end
+                    }
+                )) andalso
+                lawspec_beam_scalar:equal(
+                    lawspec_beam_schema:match(
+                        Map,
+                        #{
+                            <<"cake.laws.search_query::type::QueryMap::QueryMap">> => fun(
+                                [_Size_3, MinScore_3, _Musts_3, _Shoulds_3, _Filters_3]
+                            ) ->
+                                MinScore_3
+                            end
+                        }
+                    ),
+                    lawspec_beam_schema:match(
+                        Query,
+                        #{
+                            <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                [_Index_2, _Size_4, MinScore_4, _Musts_4, _Shoulds_4, _Filters_4]
+                            ) ->
+                                MinScore_4
+                            end
+                        }
+                    )
+                )) andalso
+                lawspec_definitions:lawspec_matchers_matchers_same_items_list_knn_clause_list_knn_clause(
+                    Schema,
+                    Symbols,
+                    lawspec_beam_schema:match(
+                        Map,
+                        #{
+                            <<"cake.laws.search_query::type::QueryMap::QueryMap">> => fun(
+                                [_Size_5, _MinScore_5, Musts_5, _Shoulds_5, _Filters_5]
+                            ) ->
+                                Musts_5
+                            end
+                        }
+                    ),
+                    lawspec_beam_schema:match(
+                        Query,
+                        #{
+                            <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                [_Index_3, _Size_6, _MinScore_6, Musts_6, _Shoulds_6, _Filters_6]
+                            ) ->
+                                Musts_6
+                            end
+                        }
+                    )
+                )) andalso
+                lawspec_definitions:lawspec_matchers_matchers_same_items_list_match_clause_list_match_clause(
+                    Schema,
+                    Symbols,
+                    lawspec_beam_schema:match(
+                        Map,
+                        #{
+                            <<"cake.laws.search_query::type::QueryMap::QueryMap">> => fun(
+                                [_Size_7, _MinScore_7, _Musts_7, Shoulds_7, _Filters_7]
+                            ) ->
+                                Shoulds_7
+                            end
+                        }
+                    ),
+                    lawspec_beam_schema:match(
+                        Query,
+                        #{
+                            <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                [_Index_4, _Size_8, _MinScore_8, _Musts_8, Shoulds_8, _Filters_8]
+                            ) ->
+                                Shoulds_8
+                            end
+                        }
+                    )
+                )) andalso
+                lawspec_definitions:lawspec_matchers_matchers_same_items_list_term_clause_list_term_clause(
+                    Schema,
+                    Symbols,
+                    lawspec_beam_schema:match(
+                        Map,
+                        #{
+                            <<"cake.laws.search_query::type::QueryMap::QueryMap">> => fun(
+                                [_Size_9, _MinScore_9, _Musts_9, _Shoulds_9, Filters_9]
+                            ) ->
+                                Filters_9
+                            end
+                        }
+                    ),
+                    lawspec_beam_schema:match(
+                        Query,
+                        #{
+                            <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                [
+                                    _Index_5,
+                                    _Size_10,
+                                    _MinScore_10,
+                                    _Musts_10,
+                                    _Shoulds_10,
+                                    Filters_10
+                                ]
+                            ) ->
+                                Filters_10
+                            end
+                        }
+                    )
+                ))
+        end
+    ).
+
+%% knnCalls — laws/search_query.lawspec:341
+knn_calls(Schema, Symbols, Clauses) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::knnCalls">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Clauses,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_schema:construct(
+                                            <<"cake.laws.search_query::type::BuilderCall::Knn">>,
+                                            [Selection],
+                                            {<<"cake.laws.search_query::type::BuilderCall">>, []},
+                                            Schema
+                                        ),
+                                        lawspec_definitions:knn_calls(Schema, Symbols, Selection_2)
+                                    ],
+                                    {
+                                        <<"List">>,
+                                        [{<<"cake.laws.search_query::type::BuilderCall">>, []}]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% knnClausesOf — laws/search_query.lawspec:245
+knn_clauses_of(Schema, Symbols, Calls) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::knnClausesOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Calls,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.search_query::type::BuilderCall::Knn">> => fun(
+                                                    [MatchSelection]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            MatchSelection,
+                                                            lawspec_definitions:knn_clauses_of(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.search_query::type::KnnClause">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Match">> => fun(
+                                                    [_MatchSelection_2]
+                                                ) ->
+                                                    lawspec_definitions:knn_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::MatchUnboosted">> => fun(
+                                                    [_MatchSelection_3]
+                                                ) ->
+                                                    lawspec_definitions:knn_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::FilterTerm">> => fun(
+                                                    [_MatchSelection_4]
+                                                ) ->
+                                                    lawspec_definitions:knn_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::MinScore">> => fun(
+                                                    [_MatchSelection_5]
+                                                ) ->
+                                                    lawspec_definitions:knn_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::ClearMinScore">> => fun(
+                                                    []
+                                                ) ->
+                                                    lawspec_definitions:knn_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Size">> => fun(
+                                                    [_MatchSelection_6]
+                                                ) ->
+                                                    lawspec_definitions:knn_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% lawspecMatchersMatchersRemoveFirst — <lawspec.matchers>:6
+lawspec_matchers_matchers_remove_first_term_clause_list_term_clause(_Schema, _Symbols, X, Ys) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::lawspec_lawspecMatchersMatchersRemoveFirst_38bde975c9fd0364d39cefa9b27848605309b47ec827c80a7a2785eea4f8aa12">>,
+        fun() ->
+            lawspec_typed:to_dynamic_maybe_list_term_clause(
+                lawspec_typed:lawspec_matchers_matchers_remove_first_term_clause_list_term_clause(
+                    lawspec_typed:from_dynamic_term_clause(X),
+                    lawspec_typed:from_dynamic_list_term_clause(Ys)
+                )
+            )
+        end
+    ).
+
+%% lawspecMatchersMatchersRemoveFirst — <lawspec.matchers>:6
+lawspec_matchers_matchers_remove_first_match_clause_list_match_clause(_Schema, _Symbols, X, Ys) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::lawspec_lawspecMatchersMatchersRemoveFirst_6462aaeb5e54a6bc54a7d8d536cbb35aa7b1656cfa8fbf0aa4abecf9f8641b3e">>,
+        fun() ->
+            lawspec_typed:to_dynamic_maybe_list_match_clause(
+                lawspec_typed:lawspec_matchers_matchers_remove_first_match_clause_list_match_clause(
+                    lawspec_typed:from_dynamic_match_clause(X),
+                    lawspec_typed:from_dynamic_list_match_clause(Ys)
+                )
+            )
+        end
+    ).
+
+%% lawspecMatchersMatchersRemoveFirst — <lawspec.matchers>:6
+lawspec_matchers_matchers_remove_first_knn_clause_list_knn_clause(Schema, Symbols, X, Ys) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::lawspec_lawspecMatchersMatchersRemoveFirst_f4cd6c112f6842662baedc1cc3f5ccaa7401d42cb4f5fcfc9c587821141e7204">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Ys,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Absent">>,
+                                    [],
+                                    {
+                                        <<"Maybe">>,
+                                        [
+                                            {
+                                                <<"List">>,
+                                                [
+                                                    {
+                                                        <<"cake.laws.search_query::type::KnnClause">>,
+                                                        []
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                case lawspec_beam_scalar:equal(Selection, X) of
+                                    true ->
+                                        lawspec_beam_schema:construct(
+                                            <<"Maybe::Present">>,
+                                            [Selection_2],
+                                            {
+                                                <<"Maybe">>,
+                                                [
+                                                    {
+                                                        <<"List">>,
+                                                        [
+                                                            {
+                                                                <<"cake.laws.search_query::type::KnnClause">>,
+                                                                []
+                                                            }
+                                                        ]
+                                                    }
+                                                ]
+                                            },
+                                            Schema
+                                        );
+                                    false ->
+                                        lawspec_beam_runtime:bind(
+                                            lawspec_definitions:lawspec_matchers_matchers_remove_first_knn_clause_list_knn_clause(
+                                                Schema,
+                                                Symbols,
+                                                X,
+                                                Selection_2
+                                            ),
+                                            fun(It_2) ->
+                                                lawspec_beam_schema:match(
+                                                    It_2,
+                                                    #{
+                                                        <<"Maybe::Absent">> => fun([]) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"Maybe::Absent">>,
+                                                                [],
+                                                                {
+                                                                    <<"Maybe">>,
+                                                                    [
+                                                                        {
+                                                                            <<"List">>,
+                                                                            [
+                                                                                {
+                                                                                    <<"cake.laws.search_query::type::KnnClause">>,
+                                                                                    []
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end,
+                                                        <<"Maybe::Present">> => fun(
+                                                            [MatchSelection]
+                                                        ) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"Maybe::Present">>,
+                                                                [
+                                                                    lawspec_beam_schema:construct(
+                                                                        <<"List::Cons">>,
+                                                                        [Selection, MatchSelection],
+                                                                        {
+                                                                            <<"List">>,
+                                                                            [
+                                                                                {
+                                                                                    <<"cake.laws.search_query::type::KnnClause">>,
+                                                                                    []
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        Schema
+                                                                    )
+                                                                ],
+                                                                {
+                                                                    <<"Maybe">>,
+                                                                    [
+                                                                        {
+                                                                            <<"List">>,
+                                                                            [
+                                                                                {
+                                                                                    <<"cake.laws.search_query::type::KnnClause">>,
+                                                                                    []
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end
+                                                    }
+                                                )
+                                            end
+                                        )
+                                end
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% lawspecMatchersMatchersSameItems — <lawspec.matchers>:18
+lawspec_matchers_matchers_same_items_list_term_clause_list_term_clause(_Schema, _Symbols, Xs, Ys) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::lawspec_lawspecMatchersMatchersSameItems_39054032c4c21ef4ae16b81e9d3af6ee5c4b690ec4e7caa4357e4dd2c6598eca">>,
+        fun() ->
+            lawspec_typed:lawspec_matchers_matchers_same_items_list_term_clause_list_term_clause(
+                lawspec_typed:from_dynamic_list_term_clause(Xs),
+                lawspec_typed:from_dynamic_list_term_clause(Ys)
+            )
+        end
+    ).
+
+%% lawspecMatchersMatchersSameItems — <lawspec.matchers>:18
+lawspec_matchers_matchers_same_items_list_match_clause_list_match_clause(
+    _Schema,
+    _Symbols,
+    Xs,
+    Ys
+) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::lawspec_lawspecMatchersMatchersSameItems_54858f820e18cf76ce4366d1e405ecc6795c70edd096a2c662a747a26d07958b">>,
+        fun() ->
+            lawspec_typed:lawspec_matchers_matchers_same_items_list_match_clause_list_match_clause(
+                lawspec_typed:from_dynamic_list_match_clause(Xs),
+                lawspec_typed:from_dynamic_list_match_clause(Ys)
+            )
+        end
+    ).
+
+%% lawspecMatchersMatchersSameItems — <lawspec.matchers>:18
+lawspec_matchers_matchers_same_items_list_knn_clause_list_knn_clause(Schema, Symbols, Xs, Ys) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::lawspec_lawspecMatchersMatchersSameItems_98118186607832d39df1af282b6d22a218e8ba0fb0e10e4d0d6232ac5c5204f0">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Xs,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                lawspec_beam_runtime:bind(
+                                    Ys,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"List::Nil">> => fun([]) -> true end,
+                                                <<"List::Cons">> => fun(
+                                                    [_Selection_3, _Selection_4]
+                                                ) ->
+                                                    false
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_definitions:lawspec_matchers_matchers_remove_first_knn_clause_list_knn_clause(
+                                        Schema,
+                                        Symbols,
+                                        Selection,
+                                        Ys
+                                    ),
+                                    fun(It_3) ->
+                                        lawspec_beam_schema:match(
+                                            It_3,
+                                            #{
+                                                <<"Maybe::Absent">> => fun([]) -> false end,
+                                                <<"Maybe::Present">> => fun([MatchSelection]) ->
+                                                    lawspec_definitions:lawspec_matchers_matchers_same_items_list_knn_clause_list_knn_clause(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2,
+                                                        MatchSelection
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% matchCalls — laws/search_query.lawspec:348
+match_calls(Schema, Symbols, Clauses) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::matchCalls">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Clauses,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_schema:construct(
+                                            <<"cake.laws.search_query::type::BuilderCall::Match">>,
+                                            [Selection],
+                                            {<<"cake.laws.search_query::type::BuilderCall">>, []},
+                                            Schema
+                                        ),
+                                        lawspec_definitions:match_calls(
+                                            Schema,
+                                            Symbols,
+                                            Selection_2
+                                        )
+                                    ],
+                                    {
+                                        <<"List">>,
+                                        [{<<"cake.laws.search_query::type::BuilderCall">>, []}]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% matchClausesOf — laws/search_query.lawspec:263
+match_clauses_of(Schema, Symbols, Calls) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::matchClausesOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Calls,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.search_query::type::BuilderCall::Match">> => fun(
+                                                    [MatchSelection]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            MatchSelection,
+                                                            lawspec_definitions:match_clauses_of(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.search_query::type::MatchClause">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::MatchUnboosted">> => fun(
+                                                    [MatchSelection_2]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            lawspec_beam_runtime:bind(
+                                                                lawspec_beam_schema:match(
+                                                                    MatchSelection_2,
+                                                                    #{
+                                                                        <<"cake.laws.search_query::type::MatchArgs::MatchArgs">> => fun(
+                                                                            [Text, _Fields]
+                                                                        ) ->
+                                                                            Text
+                                                                        end
+                                                                    }
+                                                                ),
+                                                                fun(RecordField) ->
+                                                                    lawspec_beam_runtime:bind(
+                                                                        lawspec_beam_schema:match(
+                                                                            MatchSelection_2,
+                                                                            #{
+                                                                                <<"cake.laws.search_query::type::MatchArgs::MatchArgs">> => fun(
+                                                                                    [
+                                                                                        _Text_2,
+                                                                                        Fields_2
+                                                                                    ]
+                                                                                ) ->
+                                                                                    Fields_2
+                                                                                end
+                                                                            }
+                                                                        ),
+                                                                        fun(RecordField_2) ->
+                                                                            lawspec_beam_runtime:bind(
+                                                                                100,
+                                                                                fun(
+                                                                                    RecordField_3
+                                                                                ) ->
+                                                                                    lawspec_beam_schema:construct(
+                                                                                        <<"cake.laws.search_query::type::MatchClause::MatchClause">>,
+                                                                                        [
+                                                                                            RecordField,
+                                                                                            RecordField_2,
+                                                                                            RecordField_3
+                                                                                        ],
+                                                                                        {
+                                                                                            <<"cake.laws.search_query::type::MatchClause">>,
+                                                                                            []
+                                                                                        },
+                                                                                        Schema
+                                                                                    )
+                                                                                end
+                                                                            )
+                                                                        end
+                                                                    )
+                                                                end
+                                                            ),
+                                                            lawspec_definitions:match_clauses_of(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.search_query::type::MatchClause">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Knn">> => fun(
+                                                    [_MatchSelection_3]
+                                                ) ->
+                                                    lawspec_definitions:match_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::FilterTerm">> => fun(
+                                                    [_MatchSelection_4]
+                                                ) ->
+                                                    lawspec_definitions:match_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::MinScore">> => fun(
+                                                    [_MatchSelection_5]
+                                                ) ->
+                                                    lawspec_definitions:match_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::ClearMinScore">> => fun(
+                                                    []
+                                                ) ->
+                                                    lawspec_definitions:match_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Size">> => fun(
+                                                    [_MatchSelection_6]
+                                                ) ->
+                                                    lawspec_definitions:match_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% minScoreAfter — laws/search_query.lawspec:227
+min_score_after(Schema, Symbols, Score, Calls) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::minScoreAfter">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Calls,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> Score end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.search_query::type::BuilderCall::MinScore">> => fun(
+                                                    [MatchSelection]
+                                                ) ->
+                                                    lawspec_definitions:min_score_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        lawspec_beam_schema:construct(
+                                                            <<"Maybe::Present">>,
+                                                            [MatchSelection],
+                                                            {<<"Maybe">>, [{<<"Integer">>, []}]},
+                                                            Schema
+                                                        ),
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::ClearMinScore">> => fun(
+                                                    []
+                                                ) ->
+                                                    lawspec_definitions:min_score_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        lawspec_beam_schema:construct(
+                                                            <<"Maybe::Absent">>,
+                                                            [],
+                                                            {<<"Maybe">>, [{<<"Integer">>, []}]},
+                                                            Schema
+                                                        ),
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Knn">> => fun(
+                                                    [_MatchSelection_2]
+                                                ) ->
+                                                    lawspec_definitions:min_score_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Score,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Match">> => fun(
+                                                    [_MatchSelection_3]
+                                                ) ->
+                                                    lawspec_definitions:min_score_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Score,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::MatchUnboosted">> => fun(
+                                                    [_MatchSelection_4]
+                                                ) ->
+                                                    lawspec_definitions:min_score_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Score,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::FilterTerm">> => fun(
+                                                    [_MatchSelection_5]
+                                                ) ->
+                                                    lawspec_definitions:min_score_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Score,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Size">> => fun(
+                                                    [_MatchSelection_6]
+                                                ) ->
+                                                    lawspec_definitions:min_score_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Score,
+                                                        Selection_2
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% queryMapOf — laws/search_query.lawspec:302
+query_map_of(Schema, Symbols, Start, Calls) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::queryMapOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_definitions:size_after(
+                    Schema,
+                    Symbols,
+                    lawspec_definitions:starting_size(Schema, Symbols, Start),
+                    Calls
+                ),
+                fun(RecordField) ->
+                    lawspec_beam_runtime:bind(
+                        lawspec_definitions:min_score_after(
+                            Schema,
+                            Symbols,
+                            lawspec_definitions:starting_min_score(Schema, Symbols, Start),
+                            Calls
+                        ),
+                        fun(RecordField_2) ->
+                            lawspec_beam_runtime:bind(
+                                lawspec_definitions:knn_clauses_of(Schema, Symbols, Calls),
+                                fun(RecordField_3) ->
+                                    lawspec_beam_runtime:bind(
+                                        lawspec_definitions:match_clauses_of(
+                                            Schema,
+                                            Symbols,
+                                            Calls
+                                        ),
+                                        fun(RecordField_4) ->
+                                            lawspec_beam_runtime:bind(
+                                                lawspec_definitions:term_clauses_of(
+                                                    Schema,
+                                                    Symbols,
+                                                    Calls
+                                                ),
+                                                fun(RecordField_5) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"cake.laws.search_query::type::QueryMap::QueryMap">>,
+                                                        [
+                                                            RecordField,
+                                                            RecordField_2,
+                                                            RecordField_3,
+                                                            RecordField_4,
+                                                            RecordField_5
+                                                        ],
+                                                        {
+                                                            <<"cake.laws.search_query::type::QueryMap">>,
+                                                            []
+                                                        },
+                                                        Schema
+                                                    )
+                                                end
+                                            )
+                                        end
+                                    )
+                                end
+                            )
+                        end
+                    )
+                end
+            )
+        end
+    ).
+
+%% reordered — laws/search_query.lawspec:322
+reordered(Schema, Symbols, Calls, Picks) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::reordered">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Calls,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Picks,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"List::Nil">> => fun([]) -> Calls end,
+                                                <<"List::Cons">> => fun(
+                                                    [MatchSelection, MatchSelection_2]
+                                                ) ->
+                                                    lawspec_definitions:inserted_at(
+                                                        Schema,
+                                                        Symbols,
+                                                        MatchSelection,
+                                                        Selection,
+                                                        lawspec_definitions:reordered(
+                                                            Schema,
+                                                            Symbols,
+                                                            Selection_2,
+                                                            MatchSelection_2
+                                                        )
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% sameClauses — laws/search_query.lawspec:385
+same_clauses(Schema, Symbols, A, B) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::sameClauses">>,
+        fun() ->
+            ((lawspec_definitions:lawspec_matchers_matchers_same_items_list_knn_clause_list_knn_clause(
+                Schema,
+                Symbols,
+                lawspec_beam_schema:match(
+                    A,
+                    #{
+                        <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                            [_Index, _Size, _MinScore, Musts, _Shoulds, _Filters]
+                        ) ->
+                            Musts
+                        end
+                    }
+                ),
+                lawspec_beam_schema:match(
+                    B,
+                    #{
+                        <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                            [_Index_2, _Size_2, _MinScore_2, Musts_2, _Shoulds_2, _Filters_2]
+                        ) ->
+                            Musts_2
+                        end
+                    }
+                )
+            ) andalso
+                lawspec_definitions:lawspec_matchers_matchers_same_items_list_match_clause_list_match_clause(
+                    Schema,
+                    Symbols,
+                    lawspec_beam_schema:match(
+                        A,
+                        #{
+                            <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                [_Index_3, _Size_3, _MinScore_3, _Musts_3, Shoulds_3, _Filters_3]
+                            ) ->
+                                Shoulds_3
+                            end
+                        }
+                    ),
+                    lawspec_beam_schema:match(
+                        B,
+                        #{
+                            <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                [_Index_4, _Size_4, _MinScore_4, _Musts_4, Shoulds_4, _Filters_4]
+                            ) ->
+                                Shoulds_4
+                            end
+                        }
+                    )
+                )) andalso
+                lawspec_definitions:lawspec_matchers_matchers_same_items_list_term_clause_list_term_clause(
+                    Schema,
+                    Symbols,
+                    lawspec_beam_schema:match(
+                        A,
+                        #{
+                            <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                [_Index_5, _Size_5, _MinScore_5, _Musts_5, _Shoulds_5, Filters_5]
+                            ) ->
+                                Filters_5
+                            end
+                        }
+                    ),
+                    lawspec_beam_schema:match(
+                        B,
+                        #{
+                            <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">> => fun(
+                                [_Index_6, _Size_6, _MinScore_6, _Musts_6, _Shoulds_6, Filters_6]
+                            ) ->
+                                Filters_6
+                            end
+                        }
+                    )
+                ))
+        end
+    ).
+
+%% sizeAfter — laws/search_query.lawspec:200
+size_after(Schema, Symbols, Size, Calls) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::sizeAfter">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Calls,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> Size end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.search_query::type::BuilderCall::Size">> => fun(
+                                                    [MatchSelection]
+                                                ) ->
+                                                    lawspec_definitions:size_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        MatchSelection,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Knn">> => fun(
+                                                    [_MatchSelection_2]
+                                                ) ->
+                                                    lawspec_definitions:size_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Size,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Match">> => fun(
+                                                    [_MatchSelection_3]
+                                                ) ->
+                                                    lawspec_definitions:size_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Size,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::MatchUnboosted">> => fun(
+                                                    [_MatchSelection_4]
+                                                ) ->
+                                                    lawspec_definitions:size_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Size,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::FilterTerm">> => fun(
+                                                    [_MatchSelection_5]
+                                                ) ->
+                                                    lawspec_definitions:size_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Size,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::MinScore">> => fun(
+                                                    [_MatchSelection_6]
+                                                ) ->
+                                                    lawspec_definitions:size_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Size,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::ClearMinScore">> => fun(
+                                                    []
+                                                ) ->
+                                                    lawspec_definitions:size_after(
+                                                        Schema,
+                                                        Symbols,
+                                                        Size,
+                                                        Selection_2
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% startingMinScore — laws/search_query.lawspec:218
+starting_min_score(Schema, _Symbols, Start) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::startingMinScore">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_schema:match(
+                    Start,
+                    #{
+                        <<"cake.laws.search_query::type::Start::Start">> => fun(
+                            [_Index, _Size, MinScore]
+                        ) ->
+                            MinScore
+                        end
+                    }
+                ),
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Maybe::Present">> => fun([Selection]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Present">>,
+                                    [Selection],
+                                    {<<"Maybe">>, [{<<"Integer">>, []}]},
+                                    Schema
+                                )
+                            end,
+                            <<"Maybe::Absent">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Absent">>,
+                                    [],
+                                    {<<"Maybe">>, [{<<"Integer">>, []}]},
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% startingSize — laws/search_query.lawspec:191
+starting_size(_Schema, _Symbols, Start) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::startingSize">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_schema:match(
+                    Start,
+                    #{
+                        <<"cake.laws.search_query::type::Start::Start">> => fun(
+                            [_Index, Size, _MinScore]
+                        ) ->
+                            Size
+                        end
+                    }
+                ),
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Maybe::Present">> => fun([Selection]) -> Selection end,
+                            <<"Maybe::Absent">> => fun([]) -> 10 end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% termCalls — laws/search_query.lawspec:355
+term_calls(Schema, Symbols, Clauses) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::termCalls">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Clauses,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"List::Cons">>,
+                                    [
+                                        lawspec_beam_schema:construct(
+                                            <<"cake.laws.search_query::type::BuilderCall::FilterTerm">>,
+                                            [Selection],
+                                            {<<"cake.laws.search_query::type::BuilderCall">>, []},
+                                            Schema
+                                        ),
+                                        lawspec_definitions:term_calls(Schema, Symbols, Selection_2)
+                                    ],
+                                    {
+                                        <<"List">>,
+                                        [{<<"cake.laws.search_query::type::BuilderCall">>, []}]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% termClausesOf — laws/search_query.lawspec:284
+term_clauses_of(Schema, Symbols, Calls) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.search_query::termClausesOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Calls,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) -> [] end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.search_query::type::BuilderCall::FilterTerm">> => fun(
+                                                    [MatchSelection]
+                                                ) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"List::Cons">>,
+                                                        [
+                                                            MatchSelection,
+                                                            lawspec_definitions:term_clauses_of(
+                                                                Schema,
+                                                                Symbols,
+                                                                Selection_2
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"List">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.search_query::type::TermClause">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Knn">> => fun(
+                                                    [_MatchSelection_2]
+                                                ) ->
+                                                    lawspec_definitions:term_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Match">> => fun(
+                                                    [_MatchSelection_3]
+                                                ) ->
+                                                    lawspec_definitions:term_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::MatchUnboosted">> => fun(
+                                                    [_MatchSelection_4]
+                                                ) ->
+                                                    lawspec_definitions:term_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::MinScore">> => fun(
+                                                    [_MatchSelection_5]
+                                                ) ->
+                                                    lawspec_definitions:term_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::ClearMinScore">> => fun(
+                                                    []
+                                                ) ->
+                                                    lawspec_definitions:term_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end,
+                                                <<"cake.laws.search_query::type::BuilderCall::Size">> => fun(
+                                                    [_MatchSelection_6]
+                                                ) ->
+                                                    lawspec_definitions:term_clauses_of(
+                                                        Schema,
+                                                        Symbols,
+                                                        Selection_2
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
                             end
                         }
                     )

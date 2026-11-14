@@ -2150,6 +2150,735 @@ schema(_Symbols) ->
                 ]
             },
             #{
+                name => <<"cake.laws.search_query::type::KnnClause">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.search_query::type::KnnClause::KnnClause">>,
+                        fields => [
+                            {<<"field">>, {<<"Text">>, []}},
+                            {<<"vector">>, {<<"List">>, [{<<"Integer">>, []}]}},
+                            {<<"k">>, {<<"BigUInt">>, []}},
+                            {<<"efSearch">>, {<<"Maybe">>, [{<<"BigUInt">>, []}]}}
+                        ],
+                        encode => fun([Field, Vector, K, EfSearch]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.KnnClause',
+                                field => Field,
+                                vector => Vector,
+                                k => K,
+                                ef_search => EfSearch
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.KnnClause',
+                                        field := Field,
+                                        vector := Vector,
+                                        k := K,
+                                        ef_search := EfSearch
+                                    }
+                                ) ->
+                                    {ok, [Field, Vector, K, EfSearch]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lists:all(
+                                    fun(Element) ->
+                                        (((Element >= -100) andalso (Element =< 100)) andalso true)
+                                    end,
+                                    lists:nth(2, _Fields)
+                                )
+                            end,
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                (lists:nth(3, _Fields) >= 1)
+                            end,
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_schema:match(
+                                    lists:nth(4, _Fields),
+                                    #{
+                                        <<"Maybe::Absent">> => fun([]) -> true end,
+                                        <<"Maybe::Present">> => fun([Element]) ->
+                                            ((Element >= 1) andalso true)
+                                        end
+                                    }
+                                )
+                            end
+                        ],
+                        generators => #{
+                            3 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {[{<<">=">>, 1}], []}
+                            end
+                        }
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.search_query::type::MatchClause">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.search_query::type::MatchClause::MatchClause">>,
+                        fields => [
+                            {<<"text">>, {<<"Text">>, []}},
+                            {<<"fields">>, {<<"List">>, [{<<"Text">>, []}]}},
+                            {<<"boost">>, {<<"Integer">>, []}}
+                        ],
+                        encode => fun([Text, Fields, Boost]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.MatchClause',
+                                text => Text,
+                                fields => Fields,
+                                boost => Boost
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.MatchClause',
+                                        text := Text,
+                                        fields := Fields,
+                                        boost := Boost
+                                    }
+                                ) ->
+                                    {ok, [Text, Fields, Boost]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                ((lists:nth(3, _Fields) >=
+                                    0) andalso (lists:nth(3, _Fields) =< 500))
+                            end
+                        ],
+                        generators => #{
+                            3 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {[{<<">=">>, 0}, {<<"<=">>, 500}], [0, 500]}
+                            end
+                        }
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.search_query::type::MatchArgs">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.search_query::type::MatchArgs::MatchArgs">>,
+                        fields => [
+                            {<<"text">>, {<<"Text">>, []}},
+                            {<<"fields">>, {<<"List">>, [{<<"Text">>, []}]}}
+                        ],
+                        encode => fun([Text, Fields]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.MatchArgs',
+                                text => Text,
+                                fields => Fields
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.MatchArgs',
+                                        text := Text,
+                                        fields := Fields
+                                    }
+                                ) ->
+                                    {ok, [Text, Fields]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.search_query::type::TermValue">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.search_query::type::TermValue::TextValue">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.TermValueTextValue',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.TermValueTextValue',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.search_query::type::TermValue::IntegerValue">>,
+                        fields => [{<<"value">>, {<<"Integer">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.TermValueIntegerValue',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.TermValueIntegerValue',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.search_query::type::TermValue::BoolValue">>,
+                        fields => [{<<"value">>, {<<"Bool">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.TermValueBoolValue',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.TermValueBoolValue',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.search_query::type::TermClause">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.search_query::type::TermClause::TermClause">>,
+                        fields => [
+                            {<<"field">>, {<<"Text">>, []}},
+                            {<<"value">>, {<<"cake.laws.search_query::type::TermValue">>, []}}
+                        ],
+                        encode => fun([Field, Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.TermClause',
+                                field => Field,
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.TermClause',
+                                        field := Field,
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Field, Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.search_query::type::BuilderCall">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.search_query::type::BuilderCall::Knn">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.search_query::type::KnnClause">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.BuilderCallKnn', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.BuilderCallKnn',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.search_query::type::BuilderCall::Match">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.search_query::type::MatchClause">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.BuilderCallMatch',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.BuilderCallMatch',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.search_query::type::BuilderCall::MatchUnboosted">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.search_query::type::MatchArgs">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.BuilderCallMatchUnboosted',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.BuilderCallMatchUnboosted',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.search_query::type::BuilderCall::FilterTerm">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.search_query::type::TermClause">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.BuilderCallFilterTerm',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.BuilderCallFilterTerm',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.search_query::type::BuilderCall::MinScore">>,
+                        fields => [{<<"value">>, {<<"Integer">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.BuilderCallMinScore',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.BuilderCallMinScore',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                ((lists:nth(1, _Fields) >=
+                                    0) andalso (lists:nth(1, _Fields) =< 100))
+                            end
+                        ],
+                        generators => #{
+                            1 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {[{<<">=">>, 0}, {<<"<=">>, 100}], [0, 100]}
+                            end
+                        }
+                    },
+                    #{
+                        tag => <<"cake.laws.search_query::type::BuilderCall::ClearMinScore">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.BuilderCallClearMinScore'}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.BuilderCallClearMinScore'
+                                    }
+                                ) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.search_query::type::BuilderCall::Size">>,
+                        fields => [{<<"value">>, {<<"BigUInt">>, []}}],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.BuilderCallSize', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.BuilderCallSize',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                (lists:nth(1, _Fields) >= 1)
+                            end
+                        ],
+                        generators => #{
+                            1 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {[{<<">=">>, 1}], []}
+                            end
+                        }
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.search_query::type::Start">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.search_query::type::Start::Start">>,
+                        fields => [
+                            {<<"index">>, {<<"Text">>, []}},
+                            {<<"size">>, {<<"Maybe">>, [{<<"BigUInt">>, []}]}},
+                            {<<"minScore">>, {<<"Maybe">>, [{<<"Integer">>, []}]}}
+                        ],
+                        encode => fun([Index, Size, MinScore]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Start',
+                                index => Index,
+                                size => Size,
+                                min_score => MinScore
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Start',
+                                        index := Index,
+                                        size := Size,
+                                        min_score := MinScore
+                                    }
+                                ) ->
+                                    {ok, [Index, Size, MinScore]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_schema:match(
+                                    lists:nth(2, _Fields),
+                                    #{
+                                        <<"Maybe::Absent">> => fun([]) -> true end,
+                                        <<"Maybe::Present">> => fun([Element]) ->
+                                            ((Element >= 1) andalso true)
+                                        end
+                                    }
+                                )
+                            end,
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lawspec_beam_schema:match(
+                                    lists:nth(3, _Fields),
+                                    #{
+                                        <<"Maybe::Absent">> => fun([]) -> true end,
+                                        <<"Maybe::Present">> => fun([Element]) ->
+                                            (((Element >= 0) andalso (Element =< 100)) andalso true)
+                                        end
+                                    }
+                                )
+                            end
+                        ]
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.search_query::type::CallMix">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.search_query::type::CallMix::CallMix">>,
+                        fields => [
+                            {
+                                <<"knns">>,
+                                {<<"List">>, [{<<"cake.laws.search_query::type::KnnClause">>, []}]}
+                            },
+                            {
+                                <<"matches">>,
+                                {
+                                    <<"List">>,
+                                    [{<<"cake.laws.search_query::type::MatchClause">>, []}]
+                                }
+                            },
+                            {
+                                <<"terms">>,
+                                {<<"List">>, [{<<"cake.laws.search_query::type::TermClause">>, []}]}
+                            },
+                            {<<"times">>, {<<"BigUInt">>, []}},
+                            {
+                                <<"others">>,
+                                {
+                                    <<"List">>,
+                                    [{<<"cake.laws.search_query::type::BuilderCall">>, []}]
+                                }
+                            },
+                            {<<"picks">>, {<<"List">>, [{<<"BigUInt">>, []}]}}
+                        ],
+                        encode => fun([Knns, Matches, Terms, Times, Others, Picks]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.CallMix',
+                                knns => Knns,
+                                matches => Matches,
+                                terms => Terms,
+                                times => Times,
+                                others => Others,
+                                picks => Picks
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.CallMix',
+                                        knns := Knns,
+                                        matches := Matches,
+                                        terms := Terms,
+                                        times := Times,
+                                        others := Others,
+                                        picks := Picks
+                                    }
+                                ) ->
+                                    {ok, [Knns, Matches, Terms, Times, Others, Picks]};
+                                (_) ->
+                                    no_match
+                            end,
+                        predicates => [
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                (lists:nth(4, _Fields) =< 2)
+                            end,
+                            fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                lists:all(
+                                    fun(Element) -> ((Element =< 8) andalso true) end,
+                                    lists:nth(6, _Fields)
+                                )
+                            end
+                        ],
+                        generators => #{
+                            4 => fun(_Schema, _Types, _Fields) ->
+                                _Known = maps:from_list(
+                                    lists:zip(lists:seq(0, length(_Types) - 1), _Types)
+                                ),
+                                {[{<<"<=">>, 2}], []}
+                            end
+                        }
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.search_query::type::BuiltQuery">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.search_query::type::BuiltQuery::BuiltQuery">>,
+                        fields => [
+                            {<<"index">>, {<<"Text">>, []}},
+                            {<<"size">>, {<<"BigUInt">>, []}},
+                            {<<"minScore">>, {<<"Maybe">>, [{<<"Integer">>, []}]}},
+                            {
+                                <<"musts">>,
+                                {<<"List">>, [{<<"cake.laws.search_query::type::KnnClause">>, []}]}
+                            },
+                            {
+                                <<"shoulds">>,
+                                {
+                                    <<"List">>,
+                                    [{<<"cake.laws.search_query::type::MatchClause">>, []}]
+                                }
+                            },
+                            {
+                                <<"filters">>,
+                                {<<"List">>, [{<<"cake.laws.search_query::type::TermClause">>, []}]}
+                            }
+                        ],
+                        encode => fun([Index, Size, MinScore, Musts, Shoulds, Filters]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.BuiltQuery',
+                                index => Index,
+                                size => Size,
+                                min_score => MinScore,
+                                musts => Musts,
+                                shoulds => Shoulds,
+                                filters => Filters
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.BuiltQuery',
+                                        index := Index,
+                                        size := Size,
+                                        min_score := MinScore,
+                                        musts := Musts,
+                                        shoulds := Shoulds,
+                                        filters := Filters
+                                    }
+                                ) ->
+                                    {ok, [Index, Size, MinScore, Musts, Shoulds, Filters]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.search_query::type::QueryMap">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.search_query::type::QueryMap::QueryMap">>,
+                        fields => [
+                            {<<"size">>, {<<"BigUInt">>, []}},
+                            {<<"minScore">>, {<<"Maybe">>, [{<<"Integer">>, []}]}},
+                            {
+                                <<"musts">>,
+                                {<<"List">>, [{<<"cake.laws.search_query::type::KnnClause">>, []}]}
+                            },
+                            {
+                                <<"shoulds">>,
+                                {
+                                    <<"List">>,
+                                    [{<<"cake.laws.search_query::type::MatchClause">>, []}]
+                                }
+                            },
+                            {
+                                <<"filters">>,
+                                {<<"List">>, [{<<"cake.laws.search_query::type::TermClause">>, []}]}
+                            }
+                        ],
+                        encode => fun([Size, MinScore, Musts, Shoulds, Filters]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.QueryMap',
+                                size => Size,
+                                min_score => MinScore,
+                                musts => Musts,
+                                shoulds => Shoulds,
+                                filters => Filters
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.QueryMap',
+                                        size := Size,
+                                        min_score := MinScore,
+                                        musts := Musts,
+                                        shoulds := Shoulds,
+                                        filters := Filters
+                                    }
+                                ) ->
+                                    {ok, [Size, MinScore, Musts, Shoulds, Filters]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
                 name => <<"cake.laws.shared::type::Segment">>,
                 parameters => 0,
                 constructors => [

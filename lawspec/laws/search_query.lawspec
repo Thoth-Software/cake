@@ -1,0 +1,758 @@
+unit cake.laws.search_query
+
+-- Laws for the Cake.Search.Query builders (lib/cake/search/query.ex) and for
+-- `Cake.Search.Backend.OpenSearch.to_query_map/1`
+-- (lib/cake/search/backend/open_search.ex), which turns a built query into
+-- the map OpenSearch is sent.
+--
+-- A query is built by `new/2` and then any number of builder calls. `knn/5`
+-- adds a clause to `must`, `match/4` one to `should` and `filter_term/3` one
+-- to `filter`; `min_score/2` and `size/2` overwrite a scalar.
+--
+-- The laws generate a start (the arguments of `new/2`) and the makings of a
+-- list of builder calls (`CallMix`). Two things are read back: the
+-- `%Query{}` struct, and the map `to_query_map/1` makes of it. The order of
+-- the clauses is a law about the map only. The struct keeps each list
+-- newest first today, and no law here depends on that: the laws about the
+-- struct count its clauses or compare them in any order.
+--
+-- No law here measures the length of a text, so generated text is not
+-- restricted to ASCII (lawspec/README.md, "Generating text: four caveats").
+
+-- A size, a `k` or an `ef_search`: a positive integer.
+refinement Positive is
+  (n :: Whole where n >= 1)
+end refinement
+
+-- One component of a query vector, in hundredths: -25 is -0.25. Cake holds
+-- vectors as floats, and only stores them, so the laws generate whole
+-- hundredths and the adapter divides by 100.
+refinement Component is
+  (n :: Integer where n >= -100 && n <= 100)
+end refinement
+
+-- A minimum score in hundredths: 70 is 0.70.
+refinement ScoreFloor is
+  (n :: Integer where n >= 0 && n <= 100)
+end refinement
+
+-- A boost in hundredths: 80 is 0.80, and 100 is the default, 1.0.
+refinement Boost is
+  (n :: Integer where n >= 0 && n <= 500)
+end refinement
+
+-- A position in a short list of calls. Generated lists are short, so a
+-- position drawn from every whole number would nearly always be past the
+-- end.
+refinement Position is
+  (n :: Whole where n <= 8)
+end refinement
+
+-- How many times over a law makes a list of calls: not at all, once or
+-- twice.
+refinement Repeats is
+  (n :: Whole where n <= 2)
+end refinement
+
+-- One knn clause, and the `knn/5` call that adds it:
+-- `%{"knn" => %{field => %{"vector" => vector, "k" => k}}}`. With an
+-- `efSearch` the body also holds
+-- `"method_parameters" => %{"ef_search" => n}`; with none it has no
+-- `"method_parameters"` key at all.
+type KnnClause is a record
+{
+  field :: Text
+  vector :: List Component
+  k :: Positive
+  efSearch :: Maybe Positive
+}
+end type
+
+-- One multi_match clause:
+-- `%{"multi_match" => %{"query" => text, "fields" => fields, "boost" => boost}}`.
+type MatchClause is a record
+{
+  text :: Text
+  fields :: List Text
+  boost :: Boost
+}
+end type
+
+-- The arguments of a `match/4` call that gives no `:boost`.
+type MatchArgs is a record
+{
+  text :: Text
+  fields :: List Text
+}
+end type
+
+-- The value of a term clause. `filter_term/3` takes any term; these three
+-- stand for them.
+type TermValue is one of
+  | TextValue of type Text
+  | IntegerValue of type Integer
+  | BoolValue of type Bool
+end type
+
+-- One term clause, and the `filter_term/3` call that adds it:
+-- `%{"term" => %{field => value}}`.
+type TermClause is a record
+{
+  field :: Text
+  value :: TermValue
+}
+end type
+
+-- One builder call on a query.
+type BuilderCall is one of
+  -- `knn(query, field, vector, k)`, with `ef_search: n` when the clause has
+  -- one.
+  | Knn of type KnnClause
+  -- `match(query, text, fields, boost: boost)`.
+  | Match of type MatchClause
+  -- `match(query, text, fields)`.
+  | MatchUnboosted of type MatchArgs
+  -- `filter_term(query, field, value)`.
+  | FilterTerm of type TermClause
+  -- `min_score(query, score)`.
+  | MinScore of type ScoreFloor
+  -- `min_score(query, nil)`.
+  | ClearMinScore
+  -- `size(query, size)`.
+  | Size of type Positive
+end type
+
+-- The arguments of `new/2`: the index, and the `:size` and `:min_score`
+-- options. An absent option is not passed.
+type Start is a record
+{
+  index :: Text
+  size :: Maybe Positive
+  minScore :: Maybe ScoreFloor
+}
+end type
+
+-- What a law makes its list of calls from (`callsOf`, below). LawSpec
+-- generates a list under a size budget its elements share, so a long list
+-- of calls is nearly all the cheapest ones (`ClearMinScore`, `Size`,
+-- `MinScore`) and seldom holds two knn clauses. The clauses of each kind are
+-- therefore generated as lists of their own.
+type CallMix is a record
+{
+  knns :: List KnnClause
+  matches :: List MatchClause
+  terms :: List TermClause
+  times :: Repeats
+  others :: List BuilderCall
+  picks :: List Position
+}
+end type
+
+-- A `%Query{}` struct, field for field. The clause lists are in the order
+-- the struct holds them. `must` is a reserved word in LawSpec, so the three
+-- lists take the plural here and in `QueryMap`.
+type BuiltQuery is a record
+{
+  index :: Text
+  size :: Whole
+  minScore :: Maybe Integer
+  musts :: List KnnClause
+  shoulds :: List MatchClause
+  filters :: List TermClause
+}
+end type
+
+-- What `to_query_map/1` returns:
+-- `%{size: size, query: %{bool: %{must: must, should: should, filter: filter}}}`,
+-- and a `:min_score` key when `minScore` is present. An absent `minScore` is
+-- a map with no such key.
+type QueryMap is a record
+{
+  size :: Whole
+  minScore :: Maybe Integer
+  musts :: List KnnClause
+  shoulds :: List MatchClause
+  filters :: List TermClause
+}
+end type
+
+-- Adapter over Cake.Search.Query and Cake.Search.Backend.OpenSearch
+-- (lawspec/lib/cake_laws_search_query.ex).
+
+-- `Query.new/2` of the start, then the calls in order: the struct.
+builtQuery :: Start -> List BuilderCall -> BuiltQuery
+
+-- `to_query_map/1` of the same query.
+queryMap :: Start -> List BuilderCall -> QueryMap
+
+-- The reference model: a fold over the calls.
+
+-- The size a new query starts with: the `:size` option, or 10.
+function startingSize (start :: Start) -> Whole is
+  first matching case of start.size :
+    when Present n then n
+    when Absent then 10
+  end case
+end function
+
+-- The size after the calls: the last `size/2` call's, or the one before
+-- them.
+function sizeAfter (size :: Whole) (calls :: List BuilderCall) -> Whole is
+  first matching case of calls :
+    when Nil then size
+    when Cons call rest then
+      first matching case of call :
+        when Size n then sizeAfter n rest
+        when Knn clause then sizeAfter size rest
+        when Match clause then sizeAfter size rest
+        when MatchUnboosted args then sizeAfter size rest
+        when FilterTerm clause then sizeAfter size rest
+        when MinScore score then sizeAfter size rest
+        when ClearMinScore then sizeAfter size rest
+      end case
+  end case
+end function
+
+-- The minimum score a new query starts with: the `:min_score` option, or
+-- none.
+function startingMinScore (start :: Start) -> Maybe Integer is
+  first matching case of start.minScore :
+    when Present score then Present score
+    when Absent then Absent
+  end case
+end function
+
+-- The minimum score after the calls: what the last `min_score/2` call set
+-- or cleared, or the one before them.
+function minScoreAfter (score :: Maybe Integer) (calls :: List BuilderCall) ->
+  Maybe Integer is
+  first matching case of calls :
+    when Nil then score
+    when Cons call rest then
+      first matching case of call :
+        when MinScore s then minScoreAfter (Present s) rest
+        when ClearMinScore then minScoreAfter Absent rest
+        when Knn clause then minScoreAfter score rest
+        when Match clause then minScoreAfter score rest
+        when MatchUnboosted args then minScoreAfter score rest
+        when FilterTerm clause then minScoreAfter score rest
+        when Size n then minScoreAfter score rest
+      end case
+  end case
+end function
+
+-- The knn clauses the calls add, in call order.
+function knnClausesOf (calls :: List BuilderCall) -> List KnnClause is
+  first matching case of calls :
+    when Nil then []
+    when Cons call rest then
+      first matching case of call :
+        when Knn clause then Cons clause (knnClausesOf rest)
+        when Match clause then knnClausesOf rest
+        when MatchUnboosted args then knnClausesOf rest
+        when FilterTerm clause then knnClausesOf rest
+        when MinScore score then knnClausesOf rest
+        when ClearMinScore then knnClausesOf rest
+        when Size n then knnClausesOf rest
+      end case
+  end case
+end function
+
+-- The multi_match clauses the calls add, in call order. A call that gives
+-- no boost adds a clause with the default, 1.0.
+function matchClausesOf (calls :: List BuilderCall) -> List MatchClause is
+  first matching case of calls :
+    when Nil then []
+    when Cons call rest then
+      first matching case of call :
+        when Match clause then Cons clause (matchClausesOf rest)
+        when MatchUnboosted args then
+          Cons (MatchClause record{
+            text = args.text,
+            fields = args.fields,
+            boost = 100}) (matchClausesOf rest)
+        when Knn clause then matchClausesOf rest
+        when FilterTerm clause then matchClausesOf rest
+        when MinScore score then matchClausesOf rest
+        when ClearMinScore then matchClausesOf rest
+        when Size n then matchClausesOf rest
+      end case
+  end case
+end function
+
+-- The term clauses the calls add, in call order.
+function termClausesOf (calls :: List BuilderCall) -> List TermClause is
+  first matching case of calls :
+    when Nil then []
+    when Cons call rest then
+      first matching case of call :
+        when FilterTerm clause then Cons clause (termClausesOf rest)
+        when Knn clause then termClausesOf rest
+        when Match clause then termClausesOf rest
+        when MatchUnboosted args then termClausesOf rest
+        when MinScore score then termClausesOf rest
+        when ClearMinScore then termClausesOf rest
+        when Size n then termClausesOf rest
+      end case
+  end case
+end function
+
+-- The map OpenSearch is sent for the start and the calls: the scalars as
+-- last written, and each clause list in call order.
+function queryMapOf (start :: Start) (calls :: List BuilderCall) -> QueryMap is
+  QueryMap record{
+    size = sizeAfter (startingSize start) calls,
+    minScore = minScoreAfter (startingMinScore start) calls,
+    musts = knnClausesOf calls,
+    shoulds = matchClausesOf calls,
+    filters = termClausesOf calls}
+end function
+
+-- The calls with `call` put in at position `i`, or at the end when they are
+-- fewer than `i`.
+function insertedAt (i :: Whole) (call :: BuilderCall) (calls :: List
+  BuilderCall) -> List BuilderCall is
+  prelude.take i calls ++ Cons call (prelude.drop i calls)
+end function
+
+-- The calls in another order: the first call goes in at the first pick's
+-- position among the others, which are reordered by the picks that remain.
+-- Calls left when the picks run out stay as they are. Every order of the
+-- calls is some list of picks.
+function reordered (calls :: List BuilderCall) (picks :: List Whole) ->
+  List BuilderCall is
+  first matching case of calls :
+    when Nil then []
+    when Cons call rest then
+      first matching case of picks :
+        when Nil then calls
+        when Cons pick later then insertedAt pick call (reordered rest later)
+      end case
+  end case
+end function
+
+-- The calls end to end, `times` times. Two generated clauses are rarely
+-- equal, so this is what gives a query the same clause more than once.
+function callsTimes (calls :: List BuilderCall) (times :: Whole) -> List
+  BuilderCall is
+  if times <= 0 then [] else calls ++ callsTimes calls (times - 1) end if
+end function
+
+function knnCalls (clauses :: List KnnClause) -> List BuilderCall is
+  first matching case of clauses :
+    when Nil then []
+    when Cons clause rest then Cons (Knn clause) (knnCalls rest)
+  end case
+end function
+
+function matchCalls (clauses :: List MatchClause) -> List BuilderCall is
+  first matching case of clauses :
+    when Nil then []
+    when Cons clause rest then Cons (Match clause) (matchCalls rest)
+  end case
+end function
+
+function termCalls (clauses :: List TermClause) -> List BuilderCall is
+  first matching case of clauses :
+    when Nil then []
+    when Cons clause rest then Cons (FilterTerm clause) (termCalls rest)
+  end case
+end function
+
+-- The mix's list of calls: a call for each of its clauses, those calls
+-- made `times` times over, then its other calls, all reordered by its
+-- picks. Every list of calls is the calls of some mix: of the one with that
+-- list as its other calls, no clauses and no picks.
+function callsOf (mix :: CallMix) -> List BuilderCall is
+  reordered (callsTimes (knnCalls mix.knns ++ matchCalls mix.matches ++
+    termCalls mix.terms) mix.times ++ mix.others) mix.picks
+end function
+
+-- Whether `after` holds exactly as many more clauses of each kind than
+-- `before` as the calls add.
+function grownBy (before :: BuiltQuery) (calls :: List BuilderCall) (after ::
+  BuiltQuery) -> Bool is
+  prelude.length after.musts = prelude.length before.musts + prelude.length
+    (knnClausesOf calls) &&
+    prelude.length after.shoulds = prelude.length before.shoulds +
+      prelude.length (matchClausesOf calls) &&
+    prelude.length after.filters = prelude.length before.filters +
+      prelude.length (termClausesOf calls)
+end function
+
+-- Whether the two queries' must, should and filter hold the same clauses,
+-- each as many times, in any order.
+function sameClauses (a :: BuiltQuery) (b :: BuiltQuery) -> Bool is
+  prelude.sameItems a.musts b.musts && prelude.sameItems a.shoulds b.shoulds &&
+    prelude.sameItems a.filters b.filters
+end function
+
+-- Whether the map holds the query's size, its min_score or none, and its
+-- clauses, each as many times, in any order.
+function keepsQuery (map :: QueryMap) (query :: BuiltQuery) -> Bool is
+  map.size = query.size && map.minScore = query.minScore &&
+    prelude.sameItems map.musts query.musts && prelude.sameItems map.shoulds
+      query.shoulds &&
+    prelude.sameItems map.filters query.filters
+end function
+
+-- Laws: the builders.
+
+law "|clause builders are additive| is
+  description :
+    "Each knn/5 call adds one clause to must, each match/4 call one to
+    should and each filter_term/3 call one to filter, whatever the query
+    already holds, a clause equal to the new one included; min_score/2 and
+    size/2 add none. So after more calls each list is longer by exactly the
+    number of calls of its kind."
+  end description
+  definition :
+    for all
+      (start :: Start)
+      (earlier :: CallMix)
+      (later :: CallMix)
+    =>
+      grownBy (builtQuery start (callsOf earlier)) (callsOf later) (builtQuery
+        start (callsOf earlier ++ callsOf later))
+    end for all
+  end definition
+  example "|a new query has no clauses| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    earlier = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 0,
+      others = [],
+      picks = []}
+    later = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 0,
+      others = [],
+      picks = []}
+    expect builtQuery start (callsOf earlier ++ callsOf later) = BuiltQuery
+      record{
+        index = "docs",
+        size = 10,
+        minScore = Absent,
+        musts = [],
+        shoulds = [],
+        filters = []}
+  end example
+  example "|a scalar call adds no clause| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    earlier = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [TermClause record{field = "language", value = TextValue
+        "Elixir"}],
+      times = 1,
+      others = [],
+      picks = []}
+    later = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 1,
+      others = [Size 30, MinScore 70, ClearMinScore],
+      picks = []}
+    expect prelude.length (builtQuery start (callsOf earlier ++ callsOf
+      later)).filters = 1
+  end example
+  example "|the same filter three times is three clauses| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    earlier = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [TermClause record{field = "language", value = TextValue
+        "Elixir"}],
+      times = 1,
+      others = [],
+      picks = []}
+    later = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [TermClause record{field = "language", value = TextValue
+        "Elixir"}],
+      times = 2,
+      others = [],
+      picks = []}
+    expect prelude.length (builtQuery start (callsOf earlier ++ callsOf
+      later)).filters = 3
+  end example
+end law
+
+law "|scalar fields are last-write-wins| is
+  description :
+    "A built query's size is the last size/2 call's, or new/2's :size
+    option when no call sets one, or 10 when neither does. Its min_score is
+    what the last min_score/2 call set, nothing when that call passed nil,
+    and otherwise new/2's :min_score option, or nothing. Clause builders
+    change neither, and no call changes the index."
+  end description
+  definition :
+    for all (start :: Start) (mix :: CallMix) =>
+      (builtQuery start (callsOf mix)).index = start.index and (builtQuery start
+        (callsOf mix)).size = sizeAfter (startingSize start) (callsOf mix) and
+      (builtQuery start (callsOf mix)).minScore = minScoreAfter
+        (startingMinScore start) (callsOf mix)
+    end for all
+  end definition
+  example "|the last size wins| :
+    start = Start record{index = "docs", size = Present 25, minScore = Absent}
+    mix = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 1,
+      others = [Size 30, Size 5],
+      picks = []}
+    expect (builtQuery start (callsOf mix)).size = 5
+  end example
+  example "|with no size call the option stands| :
+    start = Start record{index = "docs", size = Present 25, minScore = Absent}
+    mix = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 1,
+      others = [MinScore 50],
+      picks = []}
+    expect (builtQuery start (callsOf mix)).size = 25
+  end example
+  example "|nil clears the minimum score| :
+    start = Start record{index = "docs", size = Absent, minScore = Present 70}
+    mix = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 1,
+      others = [MinScore 50, ClearMinScore],
+      picks = []}
+    expect (builtQuery start (callsOf mix)).minScore = Absent
+  end example
+  example "|a later score replaces a cleared one| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    mix = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 1,
+      others = [ClearMinScore, MinScore 50],
+      picks = []}
+    expect (builtQuery start (callsOf mix)).minScore = Present 50
+  end example
+end law
+
+law "|reordering the calls keeps each list's clauses| is
+  description :
+    "Builder calls in any other order build a query whose must, should and
+    filter hold the same clauses, each as many times, in some order. Only
+    the clause order and the scalars depend on the order of the calls."
+  end description
+  definition :
+    for all
+      (start :: Start)
+      (mix :: CallMix)
+      (picks :: List Position)
+    =>
+      sameClauses (builtQuery start (reordered (callsOf mix) picks)) (builtQuery
+        start (callsOf mix))
+    end for all
+  end definition
+  example "|each pick is where the next call goes in| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    mix = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 1,
+      others = [Size 1, Size 2, Size 3],
+      picks = []}
+    picks = [2, 1]
+    expect reordered (callsOf mix) picks = [Size 3, Size 2, Size 1]
+  end example
+end law
+
+law "|a knn clause carries ef_search only when the call gives one| is
+  description :
+    "knn/5 adds one clause to must: the field, holding the vector and k.
+    Given an :ef_search it adds method_parameters with that ef_search and
+    nothing else; given none, the clause has no method_parameters at all."
+  end description
+  definition :
+    for all (start :: Start) (clause :: KnnClause) =>
+      (builtQuery start [Knn clause]).musts = [clause]
+    end for all
+  end definition
+  example "|no ef_search| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    clause = KnnClause record{
+      field = "embedding",
+      vector = [10, -20, 30],
+      k = 10,
+      efSearch = Absent}
+    expect (builtQuery start [Knn clause]).musts = [
+      KnnClause record{
+        field = "embedding",
+        vector = [10, -20, 30],
+        k = 10,
+        efSearch = Absent}]
+  end example
+  example "|an ef_search of 128| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    clause = KnnClause record{
+      field = "embedding",
+      vector = [10, -20, 30],
+      k = 10,
+      efSearch = Present 128}
+    expect (builtQuery start [Knn clause]).musts = [
+      KnnClause record{
+        field = "embedding",
+        vector = [10, -20, 30],
+        k = 10,
+        efSearch = Present 128}]
+  end example
+end law
+
+-- Laws: to_query_map/1.
+
+law "|the query map keeps the query's size, min_score and clauses| is
+  description :
+    "to_query_map/1 returns a map of one shape: the query's size, and
+    under query.bool its must, should and filter, each holding the query's
+    clauses, as many times each as the query holds them. The map has a
+    min_score exactly when the query's is not nil, and then it is the
+    query's."
+  end description
+  definition :
+    for all (start :: Start) (mix :: CallMix) =>
+      keepsQuery (queryMap start (callsOf mix)) (builtQuery start (callsOf mix))
+    end for all
+  end definition
+  example "|no min_score, no key| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    mix = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 0,
+      others = [],
+      picks = []}
+    expect queryMap start (callsOf mix) = QueryMap record{
+      size = 10,
+      minScore = Absent,
+      musts = [],
+      shoulds = [],
+      filters = []}
+  end example
+  example "|a min_score of 0.7| :
+    start = Start record{index = "docs", size = Absent, minScore = Present 70}
+    mix = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 0,
+      others = [],
+      picks = []}
+    expect (queryMap start (callsOf mix)).minScore = Present 70
+  end example
+  example "|the same filter twice is two clauses| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    mix = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [TermClause record{field = "language", value = TextValue
+        "Elixir"}],
+      times = 2,
+      others = [],
+      picks = []}
+    expect (queryMap start (callsOf mix)).filters = [
+      TermClause record{field = "language", value = TextValue "Elixir"},
+      TermClause record{field = "language", value = TextValue "Elixir"}]
+  end example
+end law
+
+law "|the query map lists clauses in insertion order| is
+  description :
+    "to_query_map/1 of a built query is the reference model's map: the
+    scalars as last written, and must, should and filter each holding the
+    clauses of its kind in the order the builders were called, first call
+    first. A match/4 call that gives no boost adds a clause with a boost of
+    1.0."
+  end description
+  definition :
+    for all (start :: Start) (mix :: CallMix) =>
+      queryMap start (callsOf mix) = queryMapOf start (callsOf mix)
+    end for all
+  end definition
+  example "|a hybrid query| :
+    start = Start record{index = "books", size = Present 30, minScore = Absent}
+    mix = CallMix record{
+      knns = [
+      KnnClause record{
+        field = "embedding",
+        vector = [10, 20],
+        k = 30,
+        efSearch = Present 256}],
+      matches = [
+      MatchClause record{
+        text = "GenServer",
+        fields = ["section_title", "text"],
+        boost = 80}],
+      terms = [TermClause record{field = "language", value = TextValue
+        "Elixir"}],
+      times = 1,
+      others = [],
+      picks = []}
+    expect queryMap start (callsOf mix) = QueryMap record{
+      size = 30,
+      minScore = Absent,
+      musts = [
+      KnnClause record{
+        field = "embedding",
+        vector = [10, 20],
+        k = 30,
+        efSearch = Present 256}],
+      shoulds = [
+      MatchClause record{
+        text = "GenServer",
+        fields = ["section_title", "text"],
+        boost = 80}],
+      filters = [
+      TermClause record{field = "language", value = TextValue "Elixir"}]}
+  end example
+  example "|two filters, first call first| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    mix = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [
+      TermClause record{field = "language", value = TextValue "Elixir"},
+      TermClause record{field = "core", value = BoolValue true},
+      TermClause record{field = "arity", value = IntegerValue 2}],
+      times = 1,
+      others = [],
+      picks = []}
+    expect (queryMap start (callsOf mix)).filters = [
+      TermClause record{field = "language", value = TextValue "Elixir"},
+      TermClause record{field = "core", value = BoolValue true},
+      TermClause record{field = "arity", value = IntegerValue 2}]
+  end example
+  example "|a match with no boost has a boost of 1.0| :
+    start = Start record{index = "docs", size = Absent, minScore = Absent}
+    mix = CallMix record{
+      knns = [],
+      matches = [],
+      terms = [],
+      times = 1,
+      others = [MatchUnboosted (MatchArgs record{text = "GenServer", fields =
+          ["title"]})],
+      picks = []}
+    expect (queryMap start (callsOf mix)).shoulds = [
+      MatchClause record{text = "GenServer", fields = ["title"], boost = 100}]
+  end example
+end law
+end unit
