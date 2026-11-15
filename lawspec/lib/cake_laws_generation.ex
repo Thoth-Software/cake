@@ -14,7 +14,10 @@ defmodule Cake.Laws.Generation do
   (`test/test_helper.exs` points it at `provider_plug/1`), and `will_reply`
   queues the reply the plug serves to the next request: a draft completion as
   a 200 body, as close to the wire as the draft allows, and a failure as the
-  status or transport error Cake reports it from. The queue lives in the
+  status or transport error Cake reports it from. A JSON reply's text on the
+  wire is its JSON source, unless the draft's text is empty: then the wire's
+  is empty too, so a law that empties a reply reaches Cake's empty-response
+  path through `complete_json/3` as well. The queue lives in the
   process dictionary, because Req runs a plug in the process that makes the
   request, and that is the process the law runs in.
 
@@ -89,9 +92,15 @@ defmodule Cake.Laws.Generation do
   defp serve(conn, %Data.ReplyCompletes{value: draft}), do: serve_draft(conn, draft, draft.text)
 
   defp serve(conn, %Data.ReplyCompletesJson{value: json}),
-    do: serve_draft(conn, json.completion, Jason.encode!(json_of(json.parsed)))
+    do: serve_draft(conn, json.completion, json_text(json))
 
   defp serve(conn, %Data.ReplyErrors{value: error}), do: serve_error(conn, error)
+
+  # The text of a JSON completion is its JSON source, whatever the draft's own
+  # text says. An empty draft is the exception: it is a provider that said
+  # nothing, so it stays empty on the wire, as it would for a text reply.
+  defp json_text(%Data.JsonCompletion{completion: %Data.Completion{text: ""}}), do: ""
+  defp json_text(%Data.JsonCompletion{parsed: parsed}), do: Jason.encode!(json_of(parsed))
 
   defp serve_draft(conn, %Data.Completion{} = draft, text) do
     Req.Test.json(conn, %{
