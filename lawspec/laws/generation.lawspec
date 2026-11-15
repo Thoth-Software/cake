@@ -1,0 +1,776 @@
+unit cake.laws.generation
+import cake.laws.prompt_context as context (Role, Message)
+
+-- The Cake.Generation contract (lib/cake/generation.ex) as an ability.
+--
+-- `Cake.Generation` is a behaviour: `complete/3` asks a model for text and
+-- `complete_json/3` for JSON that fits a schema. Cake's own implementation is
+-- `Cake.Generation.OpenAI`. Here the behaviour is the ability `Generation`,
+-- and its laws are what every handler owes: the native one, which is
+-- `Cake.Generation.OpenAI` (lawspec/lib/cake_laws_generation.ex), and
+-- `scripted`, the fake that other specifications import.
+--
+-- A law about a completion needs a model that says something, so each
+-- handler stands in front of a second ability, `Provider`. `willReply` tells
+-- the provider what to say to the next request. The laws generate that
+-- reply, and it is a draft: its text may be empty, its token counts
+-- negative, its finish reason one the contract does not document, its JSON
+-- of the wrong shape. Whatever the provider says, the handler keeps the
+-- contract.
+--
+-- The ability's laws are about successful completions only: they say
+-- nothing of which failure a handler reports. What `scripted` answers to
+-- each reply, failures included, is pinned by laws of its own at the end of
+-- this file.
+
+-- Why a completion ended: `t:Cake.Generation.completion/0`'s
+-- `:finish_reason`. The contract documents the first four. `Undocumented`
+-- is any other value, named by its text, so that the law which forbids it
+-- can fail.
+type FinishReason is one of
+  | Stop
+  | Length
+  | ContentFilter
+  | ToolUse
+  | Undocumented of type Text
+end type
+
+-- `t:Cake.Generation.usage/0`. The contract's counts are never negative;
+-- these are integers so that the law which says so can fail.
+type Usage is a record
+{
+  inputTokens :: Integer
+  outputTokens :: Integer
+  totalTokens :: Integer
+}
+end type
+
+-- `t:Cake.Generation.completion/0`.
+type Completion is a record
+{
+  text :: Text
+  finishReason :: FinishReason
+  usage :: Usage
+  model :: Text
+}
+end type
+
+-- The schemas Cake sends with `complete_json/3`:
+-- `Cake.Decomposition.LLM.schema/0` and `Cake.Prompt.ircot_schema/0`.
+type Schema is one of
+  | DecompositionSchema
+  | IrcotSchema
+end type
+
+-- What the decomposition schema admits: an object with an optional boolean
+-- `atomic` and an optional list of strings `sub_questions`, and no other
+-- key. `Absent` is a key the object does not have.
+type DecompositionJson is a record
+{
+  atomic :: Maybe Bool
+  subQuestions :: Maybe (List Text)
+}
+end type
+
+-- What the IRCoT schema admits: an object with a string `reasoning` and a
+-- `retrieval_query` that is a string or null, both required, and no other
+-- key. `Absent` is null.
+type IrcotJson is a record
+{
+  reasoning :: Text
+  retrievalQuery :: Maybe Text
+}
+end type
+
+-- A decoded JSON reply, by the schema it fits. `Unrecognised` is JSON that
+-- fits neither.
+type Parsed is one of
+  | Decomposed of type DecompositionJson
+  | Stepped of type IrcotJson
+  | Unrecognised
+end type
+
+-- `t:Cake.Generation.json_completion/0`: a completion and its `:parsed`.
+type JsonCompletion is a record
+{
+  completion :: Completion
+  parsed :: Parsed
+}
+end type
+
+-- `t:Cake.Generation.error_reason/0`, less the response bodies and other
+-- terms the reasons carry. `Timeout` carries milliseconds, `RateLimited` the
+-- seconds to wait when the provider gave them, `Http` the status, and the
+-- rest their message or description.
+type GenerationError is one of
+  | Transport
+  | Timeout of type Whole
+  | RateLimited of type Maybe Whole
+  | Auth of type Text
+  | Http of type Whole
+  | MalformedResponse of type Text
+  | MalformedJson of type Text
+  | EmptyResponse
+  | ContentFiltered
+  | ProviderError of type Text
+end type
+
+-- What the provider says to one request: text, JSON, or a failure. The
+-- completion is a draft, and nothing about it need be lawful.
+type Reply is one of
+  | Completes of type Completion
+  | CompletesJson of type JsonCompletion
+  | Errors of type GenerationError
+end type
+
+-- The model a `Generation` handler stands in front of.
+ability Provider is
+  -- Queues a reply. Each request a handler makes takes the oldest one.
+  willReply :: Reply -> Unit
+end ability
+
+-- One request, and what the provider will say to it. With no schema the
+-- request is `complete`; with one it is `completeJson`.
+type Request is a record
+{
+  reply :: Reply
+  schema :: Maybe Schema
+  messages :: List Message
+  model :: Text
+}
+end type
+
+-- Whether the parsed JSON fits the schema.
+function fits (schema :: Schema) (parsed :: Parsed) -> Bool is
+  first matching case of parsed :
+    when Decomposed json then schema = DecompositionSchema
+    when Stepped json then schema = IrcotSchema
+    when Unrecognised then false
+  end case
+end function
+
+-- Whether the outcome of a request is a failure or a completion with text.
+function hasText (outcome :: Maybe Completion) -> Bool is
+  first matching case of outcome :
+    when Absent then true
+    when Present completion then completion.text != ""
+  end case
+end function
+
+-- The draft with no text.
+function emptied (draft :: Completion) -> Completion is
+  Completion record{
+    text = "",
+    finishReason = draft.finishReason,
+    usage = draft.usage,
+    model = draft.model}
+end function
+
+-- The request with its reply's text emptied; a failure is left as it is.
+function silenced (request :: Request) -> Request is
+  Request record{
+    reply = (first matching case of request.reply :
+      when Completes draft then Completes (emptied draft)
+      when CompletesJson json then
+        CompletesJson (JsonCompletion record{
+          completion = emptied json.completion,
+          parsed = json.parsed})
+      when Errors error then Errors error
+    end case),
+    schema = request.schema,
+    messages = request.messages,
+    model = request.model}
+end function
+
+-- Whether the finish reason is one of the four the contract documents.
+function documented (reason :: FinishReason) -> Bool is
+  first matching case of reason :
+    when Undocumented name then false
+    otherwise true
+  end case
+end function
+
+-- Whether all three token counts are zero or more.
+function countsNotNegative (usage :: Usage) -> Bool is
+  usage.inputTokens >= 0 && usage.outputTokens >= 0 && usage.totalTokens >= 0
+end function
+
+ability Generation is
+  -- `c:Cake.Generation.complete/3` of the messages and the model.
+  complete :: List Message -> Text -> Either GenerationError Completion
+  -- `c:Cake.Generation.complete_json/3` of the messages, the model and the
+  -- schema.
+  completeJson :: List Message -> Text -> Schema -> Either GenerationError
+  JsonCompletion
+  laws
+    law "|a successful completion never has empty text| is
+      description :
+        "Whatever the provider says, a completion that succeeds has text. A
+      handler reports a reply with none as a failure (an empty_response
+      error in Cake), never as a success whose text is empty. Generated text
+      is seldom empty, so the law asks twice: with the reply as generated,
+      and with the same reply emptied of its text."
+      end description
+      definition :
+        for all (request :: Request) =>
+          hasText (completed request) && hasText (completed (silenced request))
+        end for all
+      end definition
+      example "|a reply with no text is a failure| :
+        request = Request record{
+          reply = Completes (Completion record{
+            text = "",
+            finishReason = Stop,
+            usage = Usage record{
+              inputTokens = 12,
+              outputTokens = 0,
+              totalTokens = 12},
+            model = "gpt-4o-mini-2024-07-18"}),
+          schema = Absent,
+          messages = [context.Message record{
+            role = context.User,
+            content = "Hi"}],
+          model = "gpt-4o-mini"}
+        expect completed request = Absent
+      end example
+    end law
+    law "|usage token counts are never negative| is
+      description :
+        "Whatever counts the provider reports, a completion that succeeds
+      carries input, output and total token counts of zero or more."
+      end description
+      definition :
+        for all (request :: Request) =>
+          (first matching case of completed request :
+            when Absent then true
+            when Present completion then countsNotNegative completion.usage
+          end case) = true
+        end for all
+      end definition
+      example "|lawful counts come back as the provider gave them| :
+        request = Request record{
+          reply = Completes (Completion record{
+            text = "Hello",
+            finishReason = Stop,
+            usage = Usage record{
+              inputTokens = 12,
+              outputTokens = 1,
+              totalTokens = 13},
+            model = "gpt-4o-mini-2024-07-18"}),
+          schema = Absent,
+          messages = [context.Message record{
+            role = context.User,
+            content = "Hi"}],
+          model = "gpt-4o-mini"}
+        expect completed request = Present (Completion record{
+          text = "Hello",
+          finishReason = Stop,
+          usage = Usage record{
+            inputTokens = 12,
+            outputTokens = 1,
+            totalTokens = 13},
+          model = "gpt-4o-mini-2024-07-18"})
+      end example
+    end law
+    law "|the finish reason is a documented one| is
+      description :
+        "A completion that succeeds finished with :stop, :length,
+      :content_filter or :tool_use, whatever the provider called it."
+      end description
+      definition :
+        for all (request :: Request) =>
+          (first matching case of completed request :
+            when Absent then true
+            when Present completion then documented completion.finishReason
+          end case) = true
+        end for all
+      end definition
+      example "|a reply cut short finishes with length| :
+        request = Request record{
+          reply = Completes (Completion record{
+            text = "Hello, and",
+            finishReason = Length,
+            usage = Usage record{
+              inputTokens = 12,
+              outputTokens = 3,
+              totalTokens = 15},
+            model = "gpt-4o-mini-2024-07-18"}),
+          schema = Absent,
+          messages = [context.Message record{
+            role = context.User,
+            content = "Hi"}],
+          model = "gpt-4o-mini"}
+        expect completed request = Present (Completion record{
+          text = "Hello, and",
+          finishReason = Length,
+          usage = Usage record{
+            inputTokens = 12,
+            outputTokens = 3,
+            totalTokens = 15},
+          model = "gpt-4o-mini-2024-07-18"})
+      end example
+    end law
+    law "|parsed JSON fits the schema that was asked for| is
+      description :
+        "A complete_json that succeeds returns JSON of the shape its schema
+      describes: the decomposition object for the decomposition schema, the
+      IRCoT step for the IRCoT schema. JSON of any other shape, the other
+      schema's included, is a failure."
+      end description
+      definition :
+        for all
+          (reply :: Reply)
+          (schema :: Schema)
+          (messages :: List Message)
+          (model :: Text)
+        =>
+          (first matching case of answerJson reply messages model schema :
+            when Left error then true
+            when Right json then fits schema json.parsed
+          end case) = true
+        end for all
+      end definition
+      example "|an atomic decomposition fits its own schema only| :
+        reply = CompletesJson (JsonCompletion record{
+          completion = Completion record{
+            text = "{}",
+            finishReason = Stop,
+            usage = Usage record{
+              inputTokens = 40,
+              outputTokens = 6,
+              totalTokens = 46},
+            model = "gpt-4o-mini-2024-07-18"},
+          parsed = Decomposed (DecompositionJson record{
+            atomic = Present true,
+            subQuestions = Absent})})
+        schema = DecompositionSchema
+        messages = [context.Message record{
+          role = context.User,
+          content = "What is a GenServer?"}]
+        model = "gpt-4o-mini"
+        expect prelude.isRight (answerJson reply messages model schema) = true
+        expect prelude.isRight (answerJson reply messages model IrcotSchema) =
+          false
+      end example
+      example "|an IRCoT step with a null query fits its own schema only| :
+        reply = CompletesJson (JsonCompletion record{
+          completion = Completion record{
+            text = "{}",
+            finishReason = Stop,
+            usage = Usage record{
+              inputTokens = 40,
+              outputTokens = 6,
+              totalTokens = 46},
+            model = "gpt-4o-mini-2024-07-18"},
+          parsed = Stepped (IrcotJson record{
+            reasoning = "The context already answers this.",
+            retrievalQuery = Absent})})
+        schema = IrcotSchema
+        messages = [context.Message record{
+          role = context.User,
+          content = "What is a GenServer?"}]
+        model = "gpt-4o-mini"
+        expect prelude.isRight (answerJson reply messages model schema) = true
+        expect prelude.isRight (answerJson reply messages model
+          DecompositionSchema) = false
+      end example
+    end law
+  end laws
+end ability
+
+-- Asking a handler, once the provider has been told what to say.
+
+procedure answer (reply :: Reply) (messages :: List Message) (model :: Text)
+  -> Either GenerationError Completion uses Generation, Provider is
+  willReply reply; complete messages model
+end procedure
+
+procedure answerJson (reply :: Reply) (messages :: List Message) (model ::
+  Text) (schema :: Schema) -> Either GenerationError JsonCompletion uses
+  Generation, Provider is
+  willReply reply; completeJson messages model schema
+end procedure
+
+-- The completion a request succeeds with, of either operation; `Absent`
+-- when it fails.
+procedure completed (request :: Request) -> Maybe Completion uses Generation,
+  Provider is
+  first matching case of request.schema :
+    when Absent then
+      (first matching case of answer request.reply request.messages
+        request.model :
+        when Left error then Absent
+        when Right completion then Present completion
+      end case)
+    when Present schema then
+      (first matching case of answerJson request.reply request.messages
+        request.model schema :
+        when Left error then Absent
+        when Right json then Present json.completion
+      end case)
+  end case
+end procedure
+
+-- The scripted handler.
+--
+-- `scripted` is the fake other specifications hand to Cake code that takes a
+-- generation module. It is one handler for both abilities: `willReply`
+-- appends to its script, and each request takes the oldest reply.
+--
+-- It keeps the contract by refusing what the contract forbids. A draft with
+-- no text is `EmptyResponse`, as the `Cake.Generation` moduledoc says of
+-- empty completions. A draft with a negative count or an undocumented
+-- finish reason is `MalformedResponse`, and JSON that does not fit the
+-- schema asked for, or text where JSON was asked for, is `MalformedJson`.
+-- Any other reply comes back exactly as it was scripted, so a specification
+-- that scripts lawful replies tests Cake's code and not the fake.
+
+-- A draft the contract lets a handler return.
+function lawful (draft :: Completion) -> Bool is
+  draft.text != "" && countsNotNegative draft.usage && documented
+    draft.finishReason
+end function
+
+-- What `scripted` makes of a draft.
+function vetted (draft :: Completion) -> Either GenerationError Completion is
+  if draft.text = "" then Left EmptyResponse
+  else if lawful draft then Right draft
+    else Left (MalformedResponse "the scripted completion breaks the contract")
+    end if end if
+end function
+
+-- What `scripted` makes of a reply to `complete`. A JSON reply is a
+-- completion like any other when no JSON was asked for.
+function textAnswer (reply :: Reply) -> Either GenerationError Completion is
+  first matching case of reply :
+    when Completes draft then vetted draft
+    when CompletesJson json then vetted json.completion
+    when Errors error then Left error
+  end case
+end function
+
+-- What `scripted` makes of a reply to `completeJson` with the schema.
+function jsonAnswer (reply :: Reply) (schema :: Schema) -> Either
+  GenerationError JsonCompletion is
+  first matching case of reply :
+    when Completes draft then
+      Left (MalformedJson "the scripted reply is text, not JSON")
+    when CompletesJson json then
+      (first matching case of vetted json.completion :
+        when Left error then Left error
+        when Right completion then
+          if fits schema json.parsed then Right json
+          else Left (MalformedJson "the scripted JSON does not fit the schema")
+          end if
+      end case)
+    when Errors error then Left error
+  end case
+end function
+
+-- What a request gets when the script has run out.
+function scriptExhausted (ignored :: Unit) -> GenerationError is
+  ProviderError "the script has no reply left"
+end function
+
+handler scripted for Generation, Provider with state script :: List Reply start
+  [] is
+  operation willReply reply is
+    ~script := script ++ [reply];
+      unitValue
+  end operation
+  operation complete messages model is
+    first matching case of script :
+      when Nil then Left (scriptExhausted unitValue)
+      when Cons reply rest then
+        ~script := rest;
+          textAnswer reply
+    end case
+  end operation
+  operation completeJson messages model schema is
+    first matching case of script :
+      when Nil then Left (scriptExhausted unitValue)
+      when Cons reply rest then
+        ~script := rest;
+          jsonAnswer reply schema
+    end case
+  end operation
+end handler
+
+-- Replies for other specifications to script. Each is lawful, so `scripted`
+-- answers with it unchanged unless the text is empty.
+
+-- Token counts of zero.
+function noUsage (ignored :: Unit) -> Usage is
+  Usage record{inputTokens = 0, outputTokens = 0, totalTokens = 0}
+end function
+
+-- The model says `text` and stops.
+function says (text :: Text) -> Reply is
+  Completes (Completion record{
+    text = text,
+    finishReason = Stop,
+    usage = noUsage unitValue,
+    model = "scripted"})
+end function
+
+-- A lawful JSON completion that carries `parsed`. The text of a real JSON
+-- completion is its JSON source, which LawSpec cannot render, so the fake's
+-- is a placeholder.
+function scriptedJson (parsed :: Parsed) -> JsonCompletion is
+  JsonCompletion record{
+    completion = Completion record{
+      text = "{}",
+      finishReason = Stop,
+      usage = noUsage unitValue,
+      model = "scripted"},
+    parsed = parsed}
+end function
+
+-- The model says this JSON and stops.
+function saysJson (parsed :: Parsed) -> Reply is
+  CompletesJson (scriptedJson parsed)
+end function
+
+-- Queues the replies, oldest first.
+procedure willReplyEach (replies :: List Reply) -> Unit uses Provider is
+  first matching case of replies :
+    when Nil then unitValue
+    when Cons reply rest then willReply reply; willReplyEach rest
+  end case
+end procedure
+
+-- Makes one `complete` request for each message list, in order, and
+-- collects the answers.
+procedure completeEach (requests :: List (List Message)) (model :: Text) ->
+  List (Either GenerationError Completion) uses Generation is
+  first matching case of requests :
+    when Nil then []
+    when Cons messages rest then
+      let first = complete messages model in
+        Cons first (completeEach rest model)
+      end let
+  end case
+end procedure
+
+-- What `scripted` makes of each reply to `complete`, in order.
+function textAnswers (replies :: List Reply) -> List (Either GenerationError
+  Completion) is
+  first matching case of replies :
+    when Nil then []
+    when Cons reply rest then Cons (textAnswer reply) (textAnswers rest)
+  end case
+end function
+
+-- One message list per reply; what the messages say does not matter to
+-- `scripted`.
+function requestsFor (replies :: List Reply) (messages :: List Message) ->
+  List (List Message) is
+  first matching case of replies :
+    when Nil then []
+    when Cons reply rest then Cons messages (requestsFor rest messages)
+  end case
+end function
+
+-- Token counts of zero or more.
+type Counts is a record
+{
+  input :: Whole
+  output :: Whole
+  total :: Whole
+}
+end type
+
+-- A draft with these parts. It is lawful unless `text` is empty or `finish`
+-- is undocumented.
+function draftOf (text :: Text) (finish :: FinishReason) (counts :: Counts)
+  (model
+  :: Text) -> Completion is
+  Completion record{
+    text = text,
+    finishReason = finish,
+    usage = Usage record{
+      inputTokens = counts.input,
+      outputTokens = counts.output,
+      totalTokens = counts.total},
+    model = model}
+end function
+
+-- Whether the answer is a malformed-JSON failure.
+function isMalformedJson (outcome :: Either GenerationError JsonCompletion) ->
+  Bool is
+  first matching case of outcome :
+    when Right json then false
+    when Left failure then
+      (first matching case of failure :
+        when MalformedJson why then true
+        otherwise false
+      end case)
+  end case
+end function
+
+-- Scripts the replies, then makes one request more than there are replies.
+procedure scriptedRun (replies :: List Reply) (messages :: List Message)
+  (model :: Text) -> List (Either GenerationError Completion) uses Generation,
+  Provider is
+  willReplyEach replies;
+    completeEach (requestsFor replies messages ++ [messages]) model
+end procedure
+
+-- Makes the request and says so, whatever the answer.
+procedure asked (request :: Request) -> Bool uses Generation, Provider is
+  let outcome = completed request in true end let
+end procedure
+-- Laws: the scripted handler.
+
+law "|a lawful scripted completion comes back unchanged| using scripted is
+  description :
+    "Scripted with a completion that has text, counts of zero or more and a
+    documented finish reason, the fake's complete answers with exactly that
+    completion, whatever it is asked."
+  end description
+  definition :
+    for all
+      (text :: Text)
+      (finish :: FinishReason)
+      (counts :: Counts)
+      (replyModel :: Text)
+      (messages :: List Message)
+      (model :: Text)
+    =>
+      text != "" && documented finish implies answer (Completes (draftOf text
+        finish counts replyModel)) messages model = Right (draftOf text finish
+          counts replyModel)
+    end for all
+  end definition
+  example "|the model says one word| :
+    text = "Hello"
+    finish = Stop
+    counts = Counts record{input = 12, output = 1, total = 13}
+    replyModel = "gpt-4o-mini-2024-07-18"
+    messages = [context.Message record{role = context.User, content = "Hi"}]
+    model = "gpt-4o-mini"
+    expect answer (Completes (draftOf text finish counts replyModel)) messages
+      model = Right (Completion record{
+        text = "Hello",
+        finishReason = Stop,
+        usage = Usage record{
+          inputTokens = 12,
+          outputTokens = 1,
+          totalTokens = 13},
+        model = "gpt-4o-mini-2024-07-18"})
+  end example
+end law
+
+law "|lawful scripted JSON comes back when it fits the schema| using scripted
+  is
+  description :
+    "Scripted with JSON in a lawful completion, the fake's complete_json
+    answers with exactly that completion and JSON when the JSON fits the
+    schema asked for, and with a malformed-JSON failure when it does not."
+  end description
+  definition :
+    for all
+      (parsed :: Parsed)
+      (schema :: Schema)
+      (messages :: List Message)
+      (model :: Text)
+    =>
+      (if fits schema parsed then
+        answerJson (saysJson parsed) messages model schema = Right
+          (scriptedJson parsed)
+      else
+        isMalformedJson (answerJson (saysJson parsed) messages model schema)
+      end if) = true
+    end for all
+  end definition
+  example "|an atomic decomposition| :
+    parsed = Decomposed (DecompositionJson record{
+      atomic = Present true,
+      subQuestions = Absent})
+    schema = DecompositionSchema
+    messages = []
+    model = "gpt-4o-mini"
+    expect prelude.isRight (answerJson (saysJson parsed) messages model
+      schema) = true
+    expect prelude.isRight (answerJson (saysJson parsed) messages model
+      IrcotSchema) = false
+  end example
+end law
+
+law "|a scripted failure comes back as the failure| using scripted is
+  description :
+    "Scripted with a failure, the fake answers either operation with exactly
+    that failure."
+  end description
+  definition :
+    for all
+      (error :: GenerationError)
+      (schema :: Schema)
+      (messages :: List Message)
+      (model :: Text)
+    =>
+      answer (Errors error) messages model = Left error && answerJson (Errors
+        error) messages model schema = Left error
+    end for all
+  end definition
+end law
+
+law "|a scripted completion with no text is an empty response| using scripted
+  is
+  description :
+    "The fake reports a completion with no text as an empty response,
+    whatever else the draft holds."
+  end description
+  definition :
+    for all
+      (finish :: FinishReason)
+      (usage :: Usage)
+      (replyModel :: Text)
+      (messages :: List Message)
+      (model :: Text)
+    =>
+      answer (Completes (Completion record{ text = "", finishReason = finish,
+        usage = usage, model = replyModel})) messages model = Left EmptyResponse
+    end for all
+  end definition
+end law
+
+law "|scripted replies are answered in order, one per request| using scripted
+  is
+  description :
+    "The fake answers its first request with the first reply it was given,
+    the second with the second, and so on; a request made after the script
+    has run out is a provider-error failure."
+  end description
+  definition :
+    for all
+      (replies :: List Reply)
+      (messages :: List Message)
+      (model :: Text)
+    =>
+      scriptedRun replies messages model = textAnswers replies ++ [Left
+        (scriptExhausted unitValue)]
+    end for all
+  end definition
+end law
+
+law "|each request is one call of the operation asked for| using recording
+  scripted is
+  description :
+    "Under a recording, a request with no schema is one call of complete and
+    none of complete_json, and a request with a schema the reverse, so
+    specifications that count calls count requests."
+  end description
+  definition :
+    for all (request :: Request) =>
+      (first matching case of request.schema :
+        when Absent then
+          asked request && calls of complete = 1 && calls of completeJson = 0
+        when Present schema then
+          asked request && calls of complete = 0 && calls of completeJson = 1
+      end case) = true
+    end for all
+  end definition
+end law
+
+end unit

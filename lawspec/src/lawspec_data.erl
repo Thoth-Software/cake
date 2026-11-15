@@ -85,6 +85,36 @@ schema(_Symbols) ->
                 ]
             },
             #{
+                name => <<"lawspec.collections::type::Pair">>,
+                parameters => 2,
+                constructors => [
+                    #{
+                        tag => <<"lawspec.collections::type::Pair::Pair">>,
+                        fields => [{<<"first">>, {parameter, 0}}, {<<"second">>, {parameter, 1}}],
+                        encode => fun([First, Second]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Pair',
+                                first => First,
+                                second => Second
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Pair',
+                                        first := First,
+                                        second := Second
+                                    }
+                                ) ->
+                                    {ok, [First, Second]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
                 name => <<"lawspec.collections::type::KeyVal">>,
                 parameters => 2,
                 constructors => [
@@ -575,6 +605,754 @@ schema(_Symbols) ->
                                     }
                                 ) ->
                                     {ok, [Rank, Picks]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::FinishReason">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::FinishReason::Stop">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.FinishReasonStop'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonStop'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::FinishReason::Length">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.FinishReasonLength'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonLength'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::FinishReason::ContentFilter">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.FinishReasonContentFilter'}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.FinishReasonContentFilter'
+                                    }
+                                ) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::FinishReason::ToolUse">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.FinishReasonToolUse'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonToolUse'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::FinishReason::Undocumented">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.FinishReasonUndocumented',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.FinishReasonUndocumented',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::Usage">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::Usage::Usage">>,
+                        fields => [
+                            {<<"inputTokens">>, {<<"Integer">>, []}},
+                            {<<"outputTokens">>, {<<"Integer">>, []}},
+                            {<<"totalTokens">>, {<<"Integer">>, []}}
+                        ],
+                        encode => fun([InputTokens, OutputTokens, TotalTokens]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Usage',
+                                input_tokens => InputTokens,
+                                output_tokens => OutputTokens,
+                                total_tokens => TotalTokens
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Usage',
+                                        input_tokens := InputTokens,
+                                        output_tokens := OutputTokens,
+                                        total_tokens := TotalTokens
+                                    }
+                                ) ->
+                                    {ok, [InputTokens, OutputTokens, TotalTokens]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::Completion">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::Completion::Completion">>,
+                        fields => [
+                            {<<"text">>, {<<"Text">>, []}},
+                            {
+                                <<"finishReason">>,
+                                {<<"cake.laws.generation::type::FinishReason">>, []}
+                            },
+                            {<<"usage">>, {<<"cake.laws.generation::type::Usage">>, []}},
+                            {<<"model">>, {<<"Text">>, []}}
+                        ],
+                        encode => fun([Text, FinishReason, Usage, Model]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Completion',
+                                text => Text,
+                                finish_reason => FinishReason,
+                                usage => Usage,
+                                model => Model
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Completion',
+                                        text := Text,
+                                        finish_reason := FinishReason,
+                                        usage := Usage,
+                                        model := Model
+                                    }
+                                ) ->
+                                    {ok, [Text, FinishReason, Usage, Model]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::Schema">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::Schema::DecompositionSchema">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.SchemaDecompositionSchema'}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.SchemaDecompositionSchema'
+                                    }
+                                ) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::Schema::IrcotSchema">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.SchemaIrcotSchema'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.SchemaIrcotSchema'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::DecompositionJson">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag =>
+                            <<"cake.laws.generation::type::DecompositionJson::DecompositionJson">>,
+                        fields => [
+                            {<<"atomic">>, {<<"Maybe">>, [{<<"Bool">>, []}]}},
+                            {<<"subQuestions">>, {<<"Maybe">>, [{<<"List">>, [{<<"Text">>, []}]}]}}
+                        ],
+                        encode => fun([Atomic, SubQuestions]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.DecompositionJson',
+                                atomic => Atomic,
+                                sub_questions => SubQuestions
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.DecompositionJson',
+                                        atomic := Atomic,
+                                        sub_questions := SubQuestions
+                                    }
+                                ) ->
+                                    {ok, [Atomic, SubQuestions]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::IrcotJson">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::IrcotJson::IrcotJson">>,
+                        fields => [
+                            {<<"reasoning">>, {<<"Text">>, []}},
+                            {<<"retrievalQuery">>, {<<"Maybe">>, [{<<"Text">>, []}]}}
+                        ],
+                        encode => fun([Reasoning, RetrievalQuery]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.IrcotJson',
+                                reasoning => Reasoning,
+                                retrieval_query => RetrievalQuery
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.IrcotJson',
+                                        reasoning := Reasoning,
+                                        retrieval_query := RetrievalQuery
+                                    }
+                                ) ->
+                                    {ok, [Reasoning, RetrievalQuery]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::Parsed">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::Parsed::Decomposed">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.generation::type::DecompositionJson">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.ParsedDecomposed',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.ParsedDecomposed',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::Parsed::Stepped">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.generation::type::IrcotJson">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.ParsedStepped', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.ParsedStepped',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::Parsed::Unrecognised">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.ParsedUnrecognised'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.ParsedUnrecognised'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::JsonCompletion">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::JsonCompletion::JsonCompletion">>,
+                        fields => [
+                            {<<"completion">>, {<<"cake.laws.generation::type::Completion">>, []}},
+                            {<<"parsed">>, {<<"cake.laws.generation::type::Parsed">>, []}}
+                        ],
+                        encode => fun([Completion, Parsed]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.JsonCompletion',
+                                completion => Completion,
+                                parsed => Parsed
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.JsonCompletion',
+                                        completion := Completion,
+                                        parsed := Parsed
+                                    }
+                                ) ->
+                                    {ok, [Completion, Parsed]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::GenerationError">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::GenerationError::Transport">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.GenerationErrorTransport'}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.GenerationErrorTransport'
+                                    }
+                                ) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::GenerationError::Timeout">>,
+                        fields => [{<<"value">>, {<<"BigUInt">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.GenerationErrorTimeout',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.GenerationErrorTimeout',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::GenerationError::RateLimited">>,
+                        fields => [{<<"value">>, {<<"Maybe">>, [{<<"BigUInt">>, []}]}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.GenerationErrorRateLimited',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.GenerationErrorRateLimited',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::GenerationError::Auth">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.GenerationErrorAuth',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.GenerationErrorAuth',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::GenerationError::Http">>,
+                        fields => [{<<"value">>, {<<"BigUInt">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.GenerationErrorHttp',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.GenerationErrorHttp',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::GenerationError::MalformedResponse">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' =>
+                                    'Elixir.LawSpec.Data.GenerationErrorMalformedResponse',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.GenerationErrorMalformedResponse',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::GenerationError::MalformedJson">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.GenerationErrorMalformedJson',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.GenerationErrorMalformedJson',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::GenerationError::EmptyResponse">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.GenerationErrorEmptyResponse'}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.GenerationErrorEmptyResponse'
+                                    }
+                                ) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::GenerationError::ContentFiltered">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.GenerationErrorContentFiltered'}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.GenerationErrorContentFiltered'
+                                    }
+                                ) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::GenerationError::ProviderError">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.GenerationErrorProviderError',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.GenerationErrorProviderError',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::Reply">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::Reply::Completes">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.generation::type::Completion">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.ReplyCompletes', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.ReplyCompletes',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::Reply::CompletesJson">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.generation::type::JsonCompletion">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.ReplyCompletesJson',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.ReplyCompletesJson',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.generation::type::Reply::Errors">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.generation::type::GenerationError">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.ReplyErrors', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.ReplyErrors',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::Request">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::Request::Request">>,
+                        fields => [
+                            {<<"reply">>, {<<"cake.laws.generation::type::Reply">>, []}},
+                            {
+                                <<"schema">>,
+                                {<<"Maybe">>, [{<<"cake.laws.generation::type::Schema">>, []}]}
+                            },
+                            {
+                                <<"messages">>,
+                                {<<"List">>, [{<<"cake.laws.prompt_context::type::Message">>, []}]}
+                            },
+                            {<<"model">>, {<<"Text">>, []}}
+                        ],
+                        encode => fun([Reply, Schema, Messages, Model]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Request',
+                                reply => Reply,
+                                schema => Schema,
+                                messages => Messages,
+                                model => Model
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Request',
+                                        reply := Reply,
+                                        schema := Schema,
+                                        messages := Messages,
+                                        model := Model
+                                    }
+                                ) ->
+                                    {ok, [Reply, Schema, Messages, Model]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.generation::type::Counts">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.generation::type::Counts::Counts">>,
+                        fields => [
+                            {<<"input">>, {<<"BigUInt">>, []}},
+                            {<<"output">>, {<<"BigUInt">>, []}},
+                            {<<"total">>, {<<"BigUInt">>, []}}
+                        ],
+                        encode => fun([Input, Output, Total]) ->
+                            #{
+                                '__struct__' => 'Elixir.LawSpec.Data.Counts',
+                                input => Input,
+                                output => Output,
+                                total => Total
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.Counts',
+                                        input := Input,
+                                        output := Output,
+                                        total := Total
+                                    }
+                                ) ->
+                                    {ok, [Input, Output, Total]};
                                 (_) ->
                                     no_match
                             end

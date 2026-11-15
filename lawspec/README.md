@@ -14,6 +14,7 @@ Elixir these are StreamData properties inside ExUnit.
 | `laws/prompt_context.lawspec` | `Cake.Prompt`'s context assembly: `prepare_context/2` against a reference model (the first `max_chunks` results at or above the relevance floor, in input order, numbered from 1), its bounds, dense numbering and context quality, its defaults (ten chunks, a floor of 0.30), and a result with no relevance score, which never passes the floor; `format_chunk/1`; `history_messages/1` as the last five complete exchanges; `build/4` as the system message, the recent history, then the question; and the context block that ends `system_message_with_context/1` |
 | `laws/prompt_drivers.lawspec` | `Cake.Prompt`'s token budgets and driver protocols: `estimate_tokens/1` as the length over four, rounded up; `fit_answer_pairs/2` against a reference model (the longest run of the newest pairs that fits the budget, and none on a budget of zero); `build_with_prior_answers/5`, which is `build/4` when no pair survives and otherwise folds in the survivors and no others; `self_ask_prompt/3` and `ircot_prompt/3`, which fold in the pairs or steps that survive the same eviction, the IRCoT context without a `[N]` marker; `parse_self_ask_response/1` against a reference model of replies built from lines (the final-answer marker wins, then the last follow-up); and `parse_ircot_response/1`, where a null or blank retrieval query means done |
 | `laws/search_query.lawspec` | The `Cake.Search.Query` builders and `Cake.Search.Backend.OpenSearch.to_query_map/1`: clause builders are additive, a clause equal to one the query already holds included; `size` and `min_score` are last-write-wins over `new/2`'s options, and `nil` clears a minimum score; calls in any other order build the same clauses; a knn clause carries `method_parameters.ef_search` only when the call gives one; the query map keeps the query's size, clauses and `min_score`, with a `:min_score` key exactly when it is not `nil`; and the map lists each clause list in call order, against a reference model that folds the calls |
+| `laws/generation.lawspec` | The `Cake.Generation` contract as an ability, `Generation` (`complete`, `completeJson`), with four laws every handler owes, whatever the provider behind it says: a successful completion never has empty text, its token counts are never negative, its finish reason is one of the four documented ones, and the parsed JSON of a successful `complete_json/3` fits the schema asked for (the decomposition object or the IRCoT step). The laws run under `Cake.Generation.OpenAI` and under `scripted`, the fake other specifications import, and six more laws pin what `scripted` answers (see "Abilities and handlers" below) |
 | `laws/fakes.lawspec` | `Cake.Laws.FakeUnit`, the test retrieval unit: it carries generated data through `Cake.Citable` and `Cake.Promptable` unchanged, and meets the five-key `Citable` contract |
 | `laws/shared.lawspec` | no laws: types and checked definitions other specifications import (see "Shared types" below) |
 
@@ -54,6 +55,13 @@ project's `mix.lock`, so a covered module behaves here as it does in Cake:
   not compile without `finch`, which it lists as optional. No cluster and no
   HTTP: the laws call only `to_query_map/1`, which is pure.
 
+- `req`, `ex_json_schema` and `plug`: for `Cake.Generation.OpenAI`, which
+  the generation unit runs as the `Generation` ability's native handler.
+  `req` makes the request, `ex_json_schema` validates the reply to
+  `complete_json/3`, and `plug` is what Req needs to answer a request from a
+  function. No request leaves the machine: `test/test_helper.exs` points
+  the module at a plug.
+
 When Cake's lock moves one of these, move it here too. `stream_data` is the
 exception: it is pinned to the version LawSpec's Elixir target requires.
 Advisories `mix deps.get` reports for these packages are Cake's own (the
@@ -73,15 +81,43 @@ cost is eight more packages in `mix.lock` (`snap`, `finch`, `castore`,
 `mint`, `hpax`, `mime`, `nimble_options`, `nimble_pool`), each at Cake's
 locked version, and about three seconds on a cold dependency compile.
 
+**Why `Cake.Generation.OpenAI` is bound (#333).** The generation unit could
+have stated its laws over spec handlers only. Then the one handler under
+test would be `scripted`, which is written in the specification to keep
+those laws, and nothing would tie the fake to the code production runs.
+With `Cake.Generation.OpenAI` bound as the native handler, each law runs
+against that module too: broken to accept empty text, to stop checking
+usage counts, to pass a block's status through as the finish reason, or to
+ignore schema errors, it fails the matching law. The cost is four more
+Cake sources and four more packages in `mix.lock`, each at Cake's locked
+version:
+
+- `generation.ex` and `generation/open_ai.ex`;
+- `decomposition.ex` and `decomposition/llm.ex`, for
+  `Cake.Decomposition.LLM.schema/0`, so the laws send the schema production
+  sends and not a copy of it;
+- `req`, `ex_json_schema`, `plug` and `plug_crypto`.
+
+What the binding does not do:
+
+- It does not pin OpenAI's wire format. The provider here is a plug that
+  this project wrote, so the live suites stay the authority on what the
+  real endpoint sends (`.claude/rules/live-llm-tests.md`).
+- It does not catch the two mismatches #325 lists between
+  `Cake.Generation`'s documentation and `Cake.Generation.OpenAI`: a 429 is
+  retried, and a content filter is never reported. The laws are about
+  successful completions, and the native handler asks with
+  `max_retries: 0` to keep Req's backoff out of the tests.
+
 ## Layout
 
 | Path | Owner | What |
 | --- | --- | --- |
 | `laws/*.lawspec` | you | the specifications |
 | `lawspec.edn` | you | the manifest: sources, verification layers, the Elixir target, and its native failure mappings |
-| `lib/cake_laws_<unit>.ex` | you | adapters: each translates LawSpec's generated data to and from the Cake module it covers |
+| `lib/cake_laws_<unit>.ex` | you | adapters: each translates LawSpec's generated data to and from the Cake module it covers. For a unit that declares an ability, the adapter also holds its native handlers (`Cake.Laws.Generation`) |
 | `lib/cake_laws/*.ex` | you | support modules adapters share: `Cake.Laws.FakeUnit`, and `Cake.Laws.Quiet`, which silences the warnings Cake logs on generated input |
-| `mix.exs`, `test/test_helper.exs` | you | the Mix project, set up as LawSpec's Elixir target guide asks |
+| `mix.exs`, `test/test_helper.exs` | you | the Mix project, set up as LawSpec's Elixir target guide asks. The test helper also sets the application config a covered module reads (`Cake.Generation.OpenAI`'s endpoint, key and plug) |
 | `.lawspec/generated.json` | LawSpec | the ownership manifest; commit it |
 | everything else in `lib/` (including `lib/cake_laws_<unit>_definitions.ex`), `src/`, `test/` | LawSpec | generated; never edit by hand |
 
@@ -136,6 +172,134 @@ returns exactly what it was given, so a specification that uses it tests
 Cake's code, not the fake. Construct the struct directly when an adapter
 needs `:extras`, as `Cake.Laws.Candidates` does.
 
+## Abilities and handlers
+
+A Cake behaviour that other Cake code takes as a collaborator module is
+specified as a LawSpec **ability**: its operations are the callbacks, and
+its laws are what every **handler** of it owes. `laws/generation.lawspec`
+is the first, for `Cake.Generation`. It has two handlers:
+
+- the **native** handler, `Cake.Generation.OpenAI`, behind
+  `Cake.Laws.Generation.generation_handler/0`;
+- **`scripted`**, a spec handler: a fake written in the specification, for
+  other specifications to hand to Cake code that takes a generation module.
+
+Each ability law is one obligation per handler, so the generated test file
+has every law twice, marked `[native]` and `[scripted]`. A fake that drifts
+from the contract fails the same law the real module would.
+
+**The provider.** A handler's starting state is fixed in its declaration,
+and a law cannot seed it with generated values. A law over `complete`
+alone would see only what a handler says by default. So each `Generation`
+handler stands in front of a second ability, `Provider`, whose one
+operation, `willReply`, queues what the model says to the next request.
+The laws generate that reply and make it hostile: a completion with empty
+text, negative token counts or an undocumented finish reason, JSON of the
+wrong shape, or a failure. `scripted` handles both abilities over one
+state, its script. The native provider
+(`Cake.Laws.Generation.provider_handler/0`) queues the reply for the plug
+that `Cake.Generation.OpenAI` is configured to call, and the plug serves
+it as a Responses API body.
+
+**Types wide enough to break the law.** A law can fail only if its types
+can hold the violation. `Usage` counts are `Integer`, not `Whole`;
+`FinishReason` has a fifth constructor, `Undocumented`; `Parsed` has
+`Unrecognised`. The native handler repairs nothing on the way back, so a
+value that breaks the contract reaches the law as it left Cake.
+
+**Native handlers need no manifest entry.** For each ability a unit
+declares, `npm run generate` writes a `<ability>_handler/0` stub into the
+unit's adapter module, and the tests call it to make the handler. It
+returns the generated struct of functions
+(`LawSpec.Abilities.Cake.Laws.Generation.Generation`), one field per
+operation. LawSpec's handler reference
+(`docs/reference/language/handlers.md` in its repository) describes a
+`handlers` binding in the manifest for a production handler that lives in
+application code; this project has not needed one.
+
+**What `scripted` answers.** Replies are answered oldest first, one per
+request, and a request made after the script has run out is a
+`ProviderError`. `scripted` keeps the contract by refusing what the
+contract forbids, and repairs nothing. It vets the completion a reply
+carries: one with no text is `EmptyResponse`, as the `Cake.Generation`
+moduledoc says of empty completions; one with a negative count or an
+undocumented finish reason is `MalformedResponse`; any other stands as
+scripted.
+
+| Scripted reply | `complete` | `completeJson` |
+| --- | --- | --- |
+| text | the vetted completion | `MalformedJson`, whatever the completion |
+| JSON | the vetted completion | the vetted completion with its JSON if the JSON fits the schema asked for, `MalformedJson` if it does not |
+| a failure | the failure | the failure |
+
+Six laws name `scripted`, so that a specification which scripts lawful
+replies tests Cake's code and not the fake:
+
+- a lawful completion comes back from `complete` unchanged;
+- lawful JSON comes back from `completeJson` unchanged when it fits the
+  schema, and is `MalformedJson` when it does not;
+- a failure comes back from either operation as that failure;
+- a completion with no text is `EmptyResponse`;
+- replies are answered in order, one per request, and then the script has
+  run out;
+- under a recording, each request is one call of the operation asked for.
+
+Two cells of the table have no law of their own: a text reply to
+`completeJson`, and a JSON reply whose completion is not lawful.
+
+**Using it from another specification.** Import the abilities, the types
+and the helpers by name. A handler cannot be listed in an import and
+cannot be qualified (`generation.scripted` is a parse error): once the
+unit is imported, write `scripted` as it is. Constructors of an imported
+type are qualified.
+
+```lawspec fragment
+import cake.laws.generation as generation (Generation, Provider, Reply,
+  Schema, Parsed, says, saysJson, willReplyEach)
+
+procedure askTwice (replies :: List Reply) (messages :: List Message) -> Bool
+  uses Generation, Provider is
+  willReplyEach replies;
+  let first = complete messages "m" in
+    let second = completeJson messages "m" generation.DecompositionSchema in
+      prelude.isRight first
+    end let
+  end let
+end procedure
+
+law "|two requests are two calls| using recording scripted is
+  definition :
+    for all (text :: Text) (messages :: List Message) =>
+      askTwice [says text, saysJson generation.Unrecognised] messages = (text
+        != "") && calls of complete = 1 && calls of completeJson with (messages,
+        "m", generation.DecompositionSchema) = 1
+    end for all
+  end definition
+end law
+```
+
+- `says text` and `saysJson parsed` build replies that are lawful unless
+  the text is empty (a stop, zero usage); `willReplyEach` queues a list of
+  replies.
+- `using scripted` names the fake when it is part of the claim. A law with
+  no `using` runs once under each handler, native included.
+- `using recording scripted` also counts calls: `calls of complete`, and
+  `calls of completeJson with (...)` for calls with exactly those
+  arguments.
+- By LawSpec's handler reference, an adapter whose signature ends `uses
+  Generation` receives the handler before its other arguments and calls an
+  operation as `handler.complete.(messages, model)`. No unit here has such
+  an adapter yet; #334 will be the first.
+
+**Most generated replies are failures.** `GenerationError` has ten
+constructors and most carry little, so the generator favours them (see
+"A long generated list holds only its type's cheapest values" below).
+Measured on two runs of the unit: of the 621 requests the native handler
+made in each, 94 and 114 succeeded, 30 and 31 of them `complete_json`. The
+four mutations of `Cake.Generation.OpenAI` still failed their laws, but a
+law that needs many successes should build its replies with `says` and
+`saysJson` instead of generating a `Reply`.
+
 ## Generating text: four caveats
 
 - **Code points, not graphemes.** LawSpec's `prelude.length` and text
@@ -156,7 +320,11 @@ needs `:extras`, as `Cake.Laws.Candidates` does.
   text: repeat a fixed piece a generated number of times and append the
   generated text, as `laws/candidates.lawspec` does for the 100-character
   preview cut (`previewOf`). Check that such a law bites by breaking the Cake
-  code and watching it fail.
+  code and watching it fail. Plain `Text` with no refinement is the other
+  way round: it is seldom empty. On the generation unit, a fake that
+  returned a completion with empty text as a success passed the law
+  against it in a full run, until the law also asked with the reply's text
+  emptied (`silenced`).
 - **Float64.** LawSpec's `Float64` has no portable order, and exact laws
   over float arithmetic are rarely true. Where Cake only compares or stores a
   float (relevance scores, boosts), generate an exact number such as
@@ -270,7 +438,7 @@ Commit the specification, the regenerated files and `.lawspec/generated.json`
 together. CI fails on an unformatted specification (`lawspec fmt --check`)
 and on stale generated files (`lawspec generate --check`).
 
-Ten things `npm run check`, `npm run generate` and the generator are
+Thirteen things `npm run check`, `npm run generate` and the generator are
 strict or quiet about:
 
 - **Definition names are global.** Two units that each define a function of
@@ -287,6 +455,18 @@ strict or quiet about:
   be proved`). Leave the refinement off the parameter.
 - **An example's expected value is a literal.** The right-hand side of
   `expect ... = ...` takes a constructor or a literal, not a function call.
+  The same holds for the values an example binds (`expected constructor
+  literal`), and an example binds every variable of its law and no other
+  (`must bind exactly: ...`).
+- **A law's definition cannot sequence effects.** `willReply reply;
+  complete messages model` inside a definition is a parse error (`Expected
+  end for all`). Put the sequence in a `procedure` and call that, as
+  `answer` does in `laws/generation.lawspec`.
+- **No braces in a description.** A description that holds `{` or `}`, as
+  an Elixir tuple does, fails `check` with `unknown or unclosed metadata
+  reference` and no line number. Describe the value in words.
+- **`description` cannot name a variable.** A pattern such as `when
+  MalformedJson description then` fails with `reserved identifier`.
 - **A function needs an input.** An adapter signature with no argument, for
   a Cake function of arity zero, fails `check` with `functions require one
   or more concrete value inputs and a value result`. Declare it

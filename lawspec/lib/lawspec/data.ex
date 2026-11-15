@@ -8,6 +8,8 @@ defmodule LawSpec.Data do
   @type lawspec_collections_type_entry(t0, t1) ::
           LawSpec.Data.LawspecCollectionsTypeEntry.t(t0, t1)
 
+  @type pair(t0, t1) :: LawSpec.Data.Pair.t(t0, t1)
+
   @type key_val(t0, t1) :: LawSpec.Data.KeyVal.t(t0, t1)
 
   @type regex() :: LawSpec.Data.Regex.t()
@@ -36,6 +38,52 @@ defmodule LawSpec.Data do
   @type rejection() :: LawSpec.Data.Rejection.t()
 
   @type cake_laws_decomposition_type_node() :: LawSpec.Data.CakeLawsDecompositionTypeNode.t()
+
+  @type finish_reason() ::
+          LawSpec.Data.FinishReasonStop.t()
+          | LawSpec.Data.FinishReasonLength.t()
+          | LawSpec.Data.FinishReasonContentFilter.t()
+          | LawSpec.Data.FinishReasonToolUse.t()
+          | LawSpec.Data.FinishReasonUndocumented.t()
+
+  @type usage() :: LawSpec.Data.Usage.t()
+
+  @type completion() :: LawSpec.Data.Completion.t()
+
+  @type schema() ::
+          LawSpec.Data.SchemaDecompositionSchema.t() | LawSpec.Data.SchemaIrcotSchema.t()
+
+  @type decomposition_json() :: LawSpec.Data.DecompositionJson.t()
+
+  @type ircot_json() :: LawSpec.Data.IrcotJson.t()
+
+  @type parsed() ::
+          LawSpec.Data.ParsedDecomposed.t()
+          | LawSpec.Data.ParsedStepped.t()
+          | LawSpec.Data.ParsedUnrecognised.t()
+
+  @type json_completion() :: LawSpec.Data.JsonCompletion.t()
+
+  @type generation_error() ::
+          LawSpec.Data.GenerationErrorTransport.t()
+          | LawSpec.Data.GenerationErrorTimeout.t()
+          | LawSpec.Data.GenerationErrorRateLimited.t()
+          | LawSpec.Data.GenerationErrorAuth.t()
+          | LawSpec.Data.GenerationErrorHttp.t()
+          | LawSpec.Data.GenerationErrorMalformedResponse.t()
+          | LawSpec.Data.GenerationErrorMalformedJson.t()
+          | LawSpec.Data.GenerationErrorEmptyResponse.t()
+          | LawSpec.Data.GenerationErrorContentFiltered.t()
+          | LawSpec.Data.GenerationErrorProviderError.t()
+
+  @type reply() ::
+          LawSpec.Data.ReplyCompletes.t()
+          | LawSpec.Data.ReplyCompletesJson.t()
+          | LawSpec.Data.ReplyErrors.t()
+
+  @type request() :: LawSpec.Data.Request.t()
+
+  @type counts() :: LawSpec.Data.Counts.t()
 
   @type scored_result() :: LawSpec.Data.ScoredResult.t()
 
