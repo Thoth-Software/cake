@@ -131,17 +131,25 @@ defmodule Cake.Laws.Generation do
 
   defp block_status(%Data.FinishReasonUndocumented{value: name}), do: %{"status" => name}
 
-  defp json_of(%Data.ParsedDecomposed{value: json}) do
+  @doc """
+  The decoded JSON a `Parsed` stands for, as `Cake.Generation` hands it to a
+  caller under `:parsed`: string keys, and a key left out where the record
+  says `Absent` (`null`, for an IRCoT step's query). `Unrecognised` is an
+  object that fits neither schema. `Cake.Laws.HandlerGeneration` uses it for
+  what a handler answers.
+  """
+  @spec json_of(Data.parsed()) :: map()
+  def json_of(%Data.ParsedDecomposed{value: json}) do
     %{}
     |> put_present("atomic", json.atomic)
     |> put_present("sub_questions", json.sub_questions)
   end
 
-  defp json_of(%Data.ParsedStepped{value: json}) do
+  def json_of(%Data.ParsedStepped{value: json}) do
     %{"reasoning" => json.reasoning, "retrieval_query" => from_maybe(json.retrieval_query)}
   end
 
-  defp json_of(%Data.ParsedUnrecognised{}), do: %{"unrecognised" => true}
+  def json_of(%Data.ParsedUnrecognised{}), do: %{"unrecognised" => true}
 
   defp put_present(map, _key, :absent), do: map
   defp put_present(map, key, {:present, value}), do: Map.put(map, key, value)
@@ -265,25 +273,32 @@ defmodule Cake.Laws.Generation do
 
   defp strings?(value), do: is_list(value) and Enum.all?(value, &is_binary/1)
 
-  defp to_error({:transport, _reason}), do: %Data.GenerationErrorTransport{}
-  defp to_error({:timeout, ms}), do: %Data.GenerationErrorTimeout{value: ms}
+  @doc """
+  A `t:Cake.Generation.error_reason/0` as the spec's `GenerationError`, less
+  the response body or other term the reason carries. Public for adapters of
+  Cake code that passes a generation failure on, such as
+  `Cake.Laws.DecompositionLlm`.
+  """
+  @spec to_error(Cake.Generation.error_reason()) :: Data.generation_error()
+  def to_error({:transport, _reason}), do: %Data.GenerationErrorTransport{}
+  def to_error({:timeout, ms}), do: %Data.GenerationErrorTimeout{value: ms}
 
-  defp to_error({:rate_limited, retry_after}),
+  def to_error({:rate_limited, retry_after}),
     do: %Data.GenerationErrorRateLimited{value: to_maybe(retry_after)}
 
-  defp to_error({:auth, message}), do: %Data.GenerationErrorAuth{value: message}
-  defp to_error({:http, status, _body}), do: %Data.GenerationErrorHttp{value: status}
+  def to_error({:auth, message}), do: %Data.GenerationErrorAuth{value: message}
+  def to_error({:http, status, _body}), do: %Data.GenerationErrorHttp{value: status}
 
-  defp to_error({:malformed_response, description, _body}),
+  def to_error({:malformed_response, description, _body}),
     do: %Data.GenerationErrorMalformedResponse{value: description}
 
-  defp to_error({:malformed_json, description, _body}),
+  def to_error({:malformed_json, description, _body}),
     do: %Data.GenerationErrorMalformedJson{value: description}
 
-  defp to_error({:empty_response, _body}), do: %Data.GenerationErrorEmptyResponse{}
-  defp to_error({:content_filtered, _reason}), do: %Data.GenerationErrorContentFiltered{}
+  def to_error({:empty_response, _body}), do: %Data.GenerationErrorEmptyResponse{}
+  def to_error({:content_filtered, _reason}), do: %Data.GenerationErrorContentFiltered{}
 
-  defp to_error({:provider_error, message}),
+  def to_error({:provider_error, message}),
     do: %Data.GenerationErrorProviderError{value: message}
 
   defp to_maybe(nil), do: :absent
