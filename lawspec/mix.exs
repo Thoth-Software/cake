@@ -64,7 +64,7 @@ defmodule CakeLaws.MixProject do
       {:ecto, "== 3.13.5"},
       {:ex_json_schema, "== 0.11.3"},
       {:finch, "== 0.20.0"},
-      {:jason, "== 1.4.4"},
+      {:jason, "== 1.4.5"},
       {:plug, "== 1.19.1"},
       {:req, "== 0.5.16"},
       {:snap, "== 0.12.2"},
