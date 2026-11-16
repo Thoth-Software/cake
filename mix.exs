@@ -110,7 +110,7 @@ defmodule Cake.MixProject do
       {:ex_json_schema, "~> 0.10"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:req, "~> 0.5.10"},
+      {:req, "~> 0.6.3"},
       {:snap, "~> 0.12.1"},
       {:mox, "~> 1.2.0"},
       {:credo, "~> 1.7", only: [:dev, :test]},

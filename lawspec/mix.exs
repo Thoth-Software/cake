@@ -63,10 +63,10 @@ defmodule CakeLaws.MixProject do
       {:boundary, "== 0.10.4", runtime: false},
       {:ecto, "== 3.14.3"},
       {:ex_json_schema, "== 0.11.5"},
-      {:finch, "== 0.20.0"},
+      {:finch, "== 0.24.0"},
       {:jason, "== 1.4.5"},
       {:plug, "== 1.20.3"},
-      {:req, "== 0.5.16"},
+      {:req, "== 0.6.3"},
       {:snap, "== 0.12.2"},
       {:stream_data, "== 1.4.0", only: :test}
     ]
