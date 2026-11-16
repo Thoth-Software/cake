@@ -5,14 +5,14 @@ defmodule LawSpec.Handlers.CakeLawsGeneration do
           LawSpec.Abilities.Cake.Laws.Generation.Provider.t()
         }
   def scripted(value0) do
-    :lawspec_abilities.scripted_native(value0)
+    :lawspec_abilities.scripted_2_native(value0)
   end
 
   @spec scripted_state(LawSpec.Abilities.Cake.Laws.Generation.Generation.t()) :: [
           LawSpec.Data.reply()
         ]
   def scripted_state(value0) do
-    :lawspec_abilities.scripted_state(value0)
+    :lawspec_abilities.scripted_2_state(value0)
   end
 
   @spec scripted_set_state(
@@ -20,7 +20,7 @@ defmodule LawSpec.Handlers.CakeLawsGeneration do
           [LawSpec.Data.reply()]
         ) :: :ok
   def scripted_set_state(value0, value1) do
-    :lawspec_abilities.scripted_set_state(value0, value1)
+    :lawspec_abilities.scripted_2_set_state(value0, value1)
   end
 
   @spec recording_provider(

@@ -1,0 +1,420 @@
+unit cake.laws.decomposition_llm
+import cake.laws.decomposition as decomposition (Decomposition, Strategy, Entry)
+import cake.laws.generation as generation (Generation, Provider, Reply,
+DecompositionJson, saysJson)
+import cake.laws.prompt_context as context (Message)
+
+-- Laws for Cake.Decomposition.LLM.decompose/2 (lib/cake/decomposition/llm.ex).
+--
+-- `decompose/2` asks a generation module for JSON that fits
+-- `Cake.Decomposition.LLM.schema/0` and reads the reply as a
+-- `Cake.Decomposition.Result`. The generation module is the `Generation`
+-- ability of `cake.laws.generation`, and every law here runs under
+-- `scripted`, that unit's fake: the law says what the model replies, and
+-- `decompose/2` is then asked.
+--
+-- A lawful handler never succeeds with JSON outside the schema it was asked
+-- for (`cake.laws.generation`, "parsed JSON fits the schema that was asked
+-- for"), so no law here is about such JSON. Under `scripted` it is a
+-- malformed-JSON failure, and reaches `decompose/2` as any other failure
+-- does.
+
+-- `t:Cake.Decomposition.error_reason/0`. `InvalidResponse` carries the
+-- description, and `GenerationFailed` the generation module's own failure.
+type DecompositionError is one of
+  | InvalidResponse of type Text
+  | GenerationFailed of type generation.GenerationError
+end type
+
+-- What the model says to the one request: JSON that fits the decomposition
+-- schema, or any reply at all. A generated `Reply` is most often a failure
+-- (lawspec/README.md, "Most generated replies are failures"), so a law
+-- about every reply draws from both.
+type Said is one of
+  | Fitting of type DecompositionJson
+  | Other of type Reply
+end type
+
+-- Adapters (lawspec/lib/cake_laws_decomposition_llm.ex).
+
+-- `Cake.Decomposition.LLM.decompose/2` of the question, with the handler as
+-- its `:generation` module. The model is its `:model` option; with `Absent`
+-- the option is left out.
+llmDecompose :: Text -> Maybe Text -> Either DecompositionError Decomposition
+uses Generation
+
+-- `Cake.Decomposition.Result.new/2` of the question and plain-string
+-- sub-questions. `cake.laws.decomposition` states its laws.
+resultNew :: Text -> List Text -> Decomposition
+
+-- `Cake.Prompt.decomposition_prompt/1` of the question.
+decompositionPrompt :: Text -> List Message
+
+-- The model `decompose/2` asks when it is given none.
+function defaultModel (ignored :: Unit) -> Text is "gpt-4o-mini" end function
+
+function modelAsked (model :: Maybe Text) -> Text is
+  first matching case of model :
+    when Absent then defaultModel unitValue
+    when Present name then name
+  end case
+end function
+
+-- The reply the model gives.
+function replyOf (said :: Said) -> Reply is
+  first matching case of said :
+    when Fitting json then saysJson (generation.Decomposed json)
+    when Other reply then reply
+  end case
+end function
+
+-- The JSON `atomic: true` and nothing else.
+function atomicJson (ignored :: Unit) -> DecompositionJson is
+  generation.DecompositionJson record{
+    atomic = Present true,
+    subQuestions = Absent}
+end function
+
+-- The JSON with `sub_questions` and no claim to be atomic: the `atomic` key
+-- is either left out or false.
+function subQuestionJson (deniesAtomic :: Bool) (subQuestions :: List Text) ->
+  DecompositionJson is
+  generation.DecompositionJson record{
+    atomic = (if deniesAtomic then Present false else Absent end if),
+    subQuestions = Present subQuestions}
+end function
+
+-- The JSON that says `atomic: true` and gives sub-questions as well.
+function bothJson (subQuestions :: List Text) -> DecompositionJson is
+  generation.DecompositionJson record{
+    atomic = Present true,
+    subQuestions = Present subQuestions}
+end function
+
+-- The JSON that gives neither answer: no `sub_questions`, and an `atomic`
+-- key that is either left out or false.
+function neitherJson (deniesAtomic :: Bool) -> DecompositionJson is
+  generation.DecompositionJson record{
+    atomic = (if deniesAtomic then Present false else Absent end if),
+    subQuestions = Absent}
+end function
+
+-- The atomic decomposition of the question.
+function atomicOf (question :: Text) -> Decomposition is
+  decomposition.Decomposition record{
+    originalQuestion = question,
+    strategy = decomposition.Atomic,
+    subQuestions = [],
+    questionIndex = prelude.keyValOf []}
+end function
+
+function isInvalidResponse (outcome :: Either DecompositionError Decomposition)
+  -> Bool is
+  first matching case of outcome :
+    when Right result then false
+    when Left failure then
+      (first matching case of failure :
+        when InvalidResponse why then true
+        otherwise false
+      end case)
+  end case
+end function
+
+-- The strategy of a decomposition; `Absent` when there is none.
+function strategyOf (outcome :: Either DecompositionError Decomposition) ->
+  Maybe Strategy is
+  first matching case of outcome :
+    when Left failure then Absent
+    when Right result then Present result.strategy
+  end case
+end function
+
+-- The sub-questions of a decomposition; `Absent` when there is none.
+function subQuestionsOf (outcome :: Either DecompositionError Decomposition) ->
+  Maybe (List Entry) is
+  first matching case of outcome :
+    when Left failure then Absent
+    when Right result then Present result.subQuestions
+  end case
+end function
+
+-- Whether the outcome is a decomposition or a failure, of either kind.
+-- It holds of every outcome there is: a law that states it says only that
+-- `decompose/2` returned and did not raise.
+function answered (outcome :: Either DecompositionError Decomposition) -> Bool
+  is
+  prelude.isRight outcome || prelude.isLeft outcome
+end function
+
+-- Whether the outcome is a decomposition or an invalid-response failure.
+function wasRead (outcome :: Either DecompositionError Decomposition) -> Bool is
+  prelude.isRight outcome || isInvalidResponse outcome
+end function
+
+-- Whether a decomposition, when there is one, carries the question.
+function keepsQuestion (question :: Text) (outcome :: Either DecompositionError
+  Decomposition) -> Bool is
+  first matching case of outcome :
+    when Left failure then true
+    when Right result then result.originalQuestion = question
+  end case
+end function
+
+-- Whether a decomposition, when there is one, is atomic or flat.
+function atomicOrFlat (outcome :: Either DecompositionError Decomposition) ->
+  Bool is
+  first matching case of outcome :
+    when Left failure then true
+    when Right result then
+      result.strategy = decomposition.Atomic || result.strategy =
+        decomposition.Flat
+  end case
+end function
+
+-- Telling the model what to say.
+--
+-- A checked definition cannot call an adapter, so no procedure here both
+-- scripts the reply and asks `decompose/2`. Each law does the two in order
+-- itself: `modelSays reply && ...` queues the reply, and what follows the
+-- `&&` asks.
+
+-- Queues the reply for the one request `decompose/2` makes.
+procedure modelSays (reply :: Reply) -> Bool uses Provider is
+  willReply reply; true
+end procedure
+
+-- Queues JSON that fits the decomposition schema.
+procedure modelSaysJson (json :: DecompositionJson) -> Bool uses Provider is
+  modelSays (saysJson (generation.Decomposed json))
+end procedure
+
+-- Laws: reading a reply that fits the schema.
+
+law "|an atomic reply is an atomic decomposition| using scripted is
+  description :
+    "When the model replies with atomic: true and nothing else, the
+    question is not decomposed: the strategy is none, and there are no
+    sub-questions and no question index."
+  end description
+  definition :
+    for all (question :: Text) =>
+      modelSaysJson (atomicJson unitValue) && llmDecompose question Absent =
+        Right (atomicOf question)
+    end for all
+  end definition
+  example "|a question about one thing| :
+    question = "What is a GenServer?"
+    expect (modelSaysJson (atomicJson unitValue) && strategyOf (llmDecompose
+      question Absent) = Present decomposition.Atomic) = true
+    expect (modelSaysJson (atomicJson unitValue) && subQuestionsOf (llmDecompose
+      question Absent) = Present []) = true
+  end example
+end law
+
+law "|sub-questions are handed to Result.new as the model gave them| using
+  scripted is
+  description :
+    "When the model replies with sub_questions and does not say atomic:
+    true, the decomposition is Result.new of the question and that list,
+    unchanged: flat, one dependency-free entry per sub-question, in the
+    model's order. Nothing is trimmed, dropped or merged, so a blank
+    sub-question and a repeated one are entries like any other."
+  end description
+  definition :
+    for all
+      (question :: Text)
+      (subQuestions :: List Text)
+      (deniesAtomic :: Bool)
+    =>
+      modelSaysJson (subQuestionJson deniesAtomic subQuestions) && llmDecompose
+        question Absent = Right (resultNew question subQuestions)
+    end for all
+  end definition
+  example "|a comparison splits in two| :
+    question = "How does the RO-400 filter compare to the RO-500?"
+    subQuestions = [
+    "What are the specs of the RO-400?",
+    "What are the specs of the RO-500?"]
+    deniesAtomic = false
+    expect (modelSaysJson (subQuestionJson deniesAtomic subQuestions) &&
+      strategyOf (llmDecompose question Absent) = Present decomposition.Flat)
+      = true
+    expect (modelSaysJson (subQuestionJson deniesAtomic subQuestions) &&
+      subQuestionsOf (llmDecompose question Absent) = Present [
+        decomposition.Entry record{
+          question = "What are the specs of the RO-400?",
+          dependsOn = []},
+        decomposition.Entry record{
+          question = "What are the specs of the RO-500?",
+          dependsOn = []}]) = true
+  end example
+  example "|atomic: false beside sub-questions is still a decomposition| :
+    question = "Compare Task and GenServer"
+    subQuestions = ["What is Task?", "What is GenServer?"]
+    deniesAtomic = true
+    expect (modelSaysJson (subQuestionJson deniesAtomic subQuestions) &&
+      strategyOf (llmDecompose question Absent) = Present decomposition.Flat)
+      = true
+  end example
+  example "|blank and repeated sub-questions are kept| :
+    question = "Compare Task and GenServer"
+    subQuestions = ["", ""]
+    deniesAtomic = false
+    expect (modelSaysJson (subQuestionJson deniesAtomic subQuestions) &&
+      strategyOf (llmDecompose question Absent) = Present decomposition.Flat)
+      = true
+    expect (modelSaysJson (subQuestionJson deniesAtomic subQuestions) &&
+      subQuestionsOf (llmDecompose question Absent) = Present [
+        decomposition.Entry record{question = "", dependsOn = []},
+        decomposition.Entry record{question = "", dependsOn = []}]) = true
+  end example
+end law
+
+law "|an empty list of sub-questions is the atomic decomposition| using
+  scripted is
+  description :
+    "A reply whose sub_questions list is empty collapses to the atomic
+    decomposition: the same result as atomic: true, with strategy none."
+  end description
+  definition :
+    for all (question :: Text) (deniesAtomic :: Bool) =>
+      modelSaysJson (subQuestionJson deniesAtomic []) && llmDecompose question
+        Absent = Right (atomicOf question)
+    end for all
+  end definition
+  example "|no sub-questions| :
+    question = "What is a GenServer?"
+    deniesAtomic = false
+    expect (modelSaysJson (subQuestionJson deniesAtomic []) && strategyOf
+      (llmDecompose question Absent) = Present decomposition.Atomic) = true
+  end example
+end law
+
+law "|atomic together with sub-questions is an invalid response| using
+  scripted is
+  description :
+    "A reply that says atomic: true and gives sub-questions as well
+    contradicts itself, and is an invalid-response failure whatever the
+    sub-questions are, an empty list included."
+  end description
+  definition :
+    for all (question :: Text) (subQuestions :: List Text) =>
+      modelSaysJson (bothJson subQuestions) && isInvalidResponse (llmDecompose
+        question Absent)
+    end for all
+  end definition
+  example "|atomic, with an empty list| :
+    question = "What is a GenServer?"
+    subQuestions = []
+    expect (modelSaysJson (bothJson subQuestions) && isInvalidResponse
+      (llmDecompose question Absent)) = true
+  end example
+end law
+
+law "|a reply with neither answer is an invalid response| using scripted is
+  description :
+    "A reply that fits the schema but gives no sub-questions and does not
+    say atomic: true (the empty object, or atomic: false alone) is an
+    invalid-response failure."
+  end description
+  definition :
+    for all (question :: Text) (deniesAtomic :: Bool) =>
+      modelSaysJson (neitherJson deniesAtomic) && isInvalidResponse
+        (llmDecompose question Absent)
+    end for all
+  end definition
+  example "|the empty object| :
+    question = "What is a GenServer?"
+    deniesAtomic = false
+    expect (modelSaysJson (neitherJson deniesAtomic) && isInvalidResponse
+      (llmDecompose question Absent)) = true
+  end example
+  example "|atomic: false alone| :
+    question = "What is a GenServer?"
+    deniesAtomic = true
+    expect (modelSaysJson (neitherJson deniesAtomic) && isInvalidResponse
+      (llmDecompose question Absent)) = true
+  end example
+end law
+
+law "|every reply that fits the schema is answered| using scripted is
+  description :
+    "Whatever JSON the decomposition schema admits, decompose returns a
+    decomposition or an invalid-response failure. It never raises, and it
+    never reports a reply it could not read as a generation failure. The
+    laws above say which of the two each reply gets."
+  end description
+  definition :
+    for all (question :: Text) (json :: DecompositionJson) =>
+      modelSaysJson json && wasRead (llmDecompose question Absent)
+    end for all
+  end definition
+end law
+
+-- Laws: whatever the model replies.
+
+law "|a generation failure comes back as a generation error| using scripted is
+  description :
+    "When the generation module fails, decompose fails with a generation
+    error that carries exactly that failure."
+  end description
+  definition :
+    for all (question :: Text) (error :: generation.GenerationError) =>
+      modelSays (generation.Errors error) && llmDecompose question Absent = Left
+        (GenerationFailed error)
+    end for all
+  end definition
+  example "|a rejected key| :
+    question = "How does the RO-400 filter compare to the RO-500?"
+    error = generation.Auth "Incorrect API key provided"
+    expect (modelSays (generation.Errors error) && llmDecompose question
+      Absent = Left (GenerationFailed (generation.Auth
+        "Incorrect API key provided"))) = true
+  end example
+end law
+
+law "|the original question is kept| using scripted is
+  description :
+    "A decomposition carries the question decompose was asked, unchanged,
+    whatever the model replied."
+  end description
+  definition :
+    for all (question :: Text) (said :: Said) =>
+      modelSays (replyOf said) && keepsQuestion question (llmDecompose question
+        Absent)
+    end for all
+  end definition
+end law
+
+law "|the strategy is never sequential, self-ask or IRCoT| using scripted is
+  description :
+    "Whatever the model replies, a decomposition from decompose is atomic
+    or flat. The schema has no way to state a dependency between
+    sub-questions, and decompose never marks a result self-ask or IRCoT."
+  end description
+  definition :
+    for all (question :: Text) (said :: Said) =>
+      modelSays (replyOf said) && atomicOrFlat (llmDecompose question Absent)
+    end for all
+  end definition
+end law
+
+law "|decompose asks the generation module once| using recording scripted is
+  description :
+    "Whatever the model replies, decompose makes exactly one request: a
+    complete_json of the decomposition prompt for the question, to the
+    model it was given (gpt-4o-mini when it was given none), with the
+    decomposition schema. It never calls complete, and it does not ask
+    again after a failure."
+  end description
+  definition :
+    for all (question :: Text) (model :: Maybe Text) (said :: Said) =>
+      modelSays (replyOf said) && answered (llmDecompose question model) &&
+      calls of completeJson with (decompositionPrompt question, modelAsked
+        model, generation.DecompositionSchema) = 1 && calls of completeJson =
+          1 && calls of complete = 0
+    end for all
+  end definition
+end law
+
+end unit

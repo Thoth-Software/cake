@@ -32,12 +32,20 @@ defmodule LawSpec.Data do
           LawSpec.Data.StrategyAtomic.t()
           | LawSpec.Data.StrategyFlat.t()
           | LawSpec.Data.StrategySequential.t()
+          | LawSpec.Data.StrategySelfAsk.t()
+          | LawSpec.Data.StrategyIrcot.t()
 
   @type decomposition() :: LawSpec.Data.Decomposition.t()
 
   @type rejection() :: LawSpec.Data.Rejection.t()
 
   @type cake_laws_decomposition_type_node() :: LawSpec.Data.CakeLawsDecompositionTypeNode.t()
+
+  @type decomposition_error() ::
+          LawSpec.Data.DecompositionErrorInvalidResponse.t()
+          | LawSpec.Data.DecompositionErrorGenerationFailed.t()
+
+  @type said() :: LawSpec.Data.SaidFitting.t() | LawSpec.Data.SaidOther.t()
 
   @type finish_reason() ::
           LawSpec.Data.FinishReasonStop.t()

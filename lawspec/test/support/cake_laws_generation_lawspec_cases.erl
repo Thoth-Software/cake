@@ -89,14 +89,14 @@ law_a_lawful_scripted_completion_comes_back_case(BaseSchema, Symbols, Values) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -1481,14 +1481,14 @@ law_a_lawful_scripted_completion_comes_back__the_model_says_one_word() ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -1810,14 +1810,14 @@ law_lawful_scripted_json_comes_back_when_it_fits_the_case(BaseSchema, Symbols, V
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -2558,14 +2558,14 @@ law_lawful_scripted_json_comes_back_when_it_fits_the__an_atomic_decomposition() 
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -2815,14 +2815,14 @@ law_a_scripted_failure_comes_back_as_the_failure_case(BaseSchema, Symbols, Value
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -4709,14 +4709,14 @@ law_a_scripted_completion_with_no_text_is_an_empty_case(BaseSchema, Symbols, Val
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -5979,14 +5979,14 @@ law_scripted_replies_are_answered_in_order_one_per_case(BaseSchema, Symbols, Val
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -6962,7 +6962,7 @@ law_each_request_is_one_call_of_the_operation_asked_case(BaseSchema, Symbols, Va
                     lawspec_beam_effects:shared(
                         _FactorySchema,
                         <<"cake.laws.generation::handler::scripted">>,
-                        fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                        fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                     )
                 )
             end,
@@ -6972,7 +6972,7 @@ law_each_request_is_one_call_of_the_operation_asked_case(BaseSchema, Symbols, Va
                     lawspec_beam_effects:shared(
                         _FactorySchema,
                         <<"cake.laws.generation::handler::scripted">>,
-                        fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                        fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                     )
                 )
             end
@@ -7414,14 +7414,14 @@ law_generation_a_successful_completion_never_has_2_case(BaseSchema, Symbols, Val
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -7519,14 +7519,14 @@ law_generation_a_successful_completion_never_has_2__a_reply_with_no_text_is_a_fa
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -7965,14 +7965,14 @@ law_generation_usage_token_counts_are_never_negative_2_case(BaseSchema, Symbols,
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -8073,14 +8073,14 @@ law_generation_usage_token_counts_are_never_negative_2__lawful_counts_come_back_
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -8536,14 +8536,14 @@ law_generation_the_finish_reason_is_a_documented_one_2_case(BaseSchema, Symbols,
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -8644,14 +8644,14 @@ law_generation_the_finish_reason_is_a_documented_one_2__a_reply_cut_short_finish
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -10898,14 +10898,14 @@ law_generation_parsed_json_fits_the_schema_that_was_2_case(BaseSchema, Symbols, 
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -12537,14 +12537,14 @@ law_generation_parsed_json_fits_the_schema_that_was_2__an_atomic_decomposition_f
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },
@@ -12649,14 +12649,14 @@ law_generation_parsed_json_fits_the_schema_that_was_2__an_ircot_step_with_a_null
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end,
             <<"cake.laws.generation::ability::Provider">> => fun(_FactorySchema) ->
                 lawspec_beam_effects:shared(
                     _FactorySchema,
                     <<"cake.laws.generation::handler::scripted">>,
-                    fun() -> lawspec_abilities:scripted(_FactorySchema, Symbols) end
+                    fun() -> lawspec_abilities:scripted_2(_FactorySchema, Symbols) end
                 )
             end
         },

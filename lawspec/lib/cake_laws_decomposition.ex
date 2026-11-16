@@ -51,8 +51,15 @@ defmodule Cake.Laws.Decomposition do
     %Entry{question: question, depends_on: depends_on}
   end
 
-  defp to_decomposition(%Result{} = result) do
+  @doc """
+  A `Cake.Decomposition.Result` as the spec's `Decomposition`, field for
+  field. Public so that adapters of other Cake code which returns a `Result`
+  (`Cake.Laws.DecompositionLlm`) translate it the same way.
+  """
+  @spec to_decomposition(Result.t()) :: LawSpec.Data.decomposition()
+  def to_decomposition(%Result{} = result) do
     %Decomposition{
+      original_question: result.original_question,
       strategy: to_strategy(result.strategy),
       sub_questions: Enum.map(result.sub_questions, &from_entry_map/1),
       question_index: to_key_val(result.question_index)
@@ -62,6 +69,8 @@ defmodule Cake.Laws.Decomposition do
   defp to_strategy(:none), do: %LawSpec.Data.StrategyAtomic{}
   defp to_strategy(:flat), do: %LawSpec.Data.StrategyFlat{}
   defp to_strategy(:sequential), do: %LawSpec.Data.StrategySequential{}
+  defp to_strategy(:self_ask), do: %LawSpec.Data.StrategySelfAsk{}
+  defp to_strategy(:ircot), do: %LawSpec.Data.StrategyIrcot{}
 
   # LawSpec's KeyVal holds its entries in key order.
   defp to_key_val(index) when is_map(index) do

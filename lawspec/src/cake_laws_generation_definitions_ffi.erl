@@ -33,13 +33,13 @@
 ]).
 
 %% fits — laws/generation.lawspec:144
-fits(Schema_2, Parsed) -> lawspec_typed:fits(Schema_2, Parsed).
+fits(Schema_2, Parsed) -> lawspec_typed:cake_laws_generation_fits(Schema_2, Parsed).
 
 %% hasText — laws/generation.lawspec:153
-has_text(Outcome) -> lawspec_typed:has_text(Outcome).
+has_text(Outcome) -> lawspec_typed:cake_laws_generation_has_text(Outcome).
 
 %% emptied — laws/generation.lawspec:161
-emptied(Draft) -> lawspec_typed:emptied(Draft).
+emptied(Draft) -> lawspec_typed:cake_laws_generation_emptied(Draft).
 
 %% silenced — laws/generation.lawspec:170
 silenced(Request) ->
@@ -60,10 +60,10 @@ silenced(Request) ->
     ).
 
 %% documented — laws/generation.lawspec:186
-documented(Reason) -> lawspec_typed:documented(Reason).
+documented(Reason) -> lawspec_typed:cake_laws_generation_documented(Reason).
 
 %% countsNotNegative — laws/generation.lawspec:194
-counts_not_negative(Usage) -> lawspec_typed:counts_not_negative(Usage).
+counts_not_negative(Usage) -> lawspec_typed:cake_laws_generation_counts_not_negative(Usage).
 
 %% answer — laws/generation.lawspec:383
 answer(GenerationHandler, ProviderHandler, Reply, Messages, Model) ->
@@ -215,7 +215,7 @@ completed(GenerationHandler, ProviderHandler, Request) ->
     ).
 
 %% lawful — laws/generation.lawspec:429
-lawful(Draft) -> lawspec_typed:lawful(Draft).
+lawful(Draft) -> lawspec_typed:cake_laws_generation_lawful(Draft).
 
 %% vetted — laws/generation.lawspec:435
 vetted(Draft) ->
@@ -309,7 +309,7 @@ script_exhausted(Ignored) ->
     ).
 
 %% noUsage — laws/generation.lawspec:503
-no_usage(Ignored) -> lawspec_typed:no_usage(Ignored).
+no_usage(Ignored) -> lawspec_typed:cake_laws_generation_no_usage(Ignored).
 
 %% says — laws/generation.lawspec:508
 says(Text) ->
@@ -326,7 +326,7 @@ says(Text) ->
     ).
 
 %% scriptedJson — laws/generation.lawspec:519
-scripted_json(Parsed) -> lawspec_typed:scripted_json(Parsed).
+scripted_json(Parsed) -> lawspec_typed:cake_laws_generation_scripted_json(Parsed).
 
 %% saysJson — laws/generation.lawspec:530
 says_json(Parsed) ->
@@ -628,7 +628,7 @@ scripted_complete(Script, Messages, Model) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
     lawspec_beam_schema:to_native(
-        lawspec_definitions:scripted_complete(
+        lawspec_definitions:scripted_complete_2(
             Schema,
             Symbols,
             lawspec_beam_schema:from_native(
@@ -664,7 +664,7 @@ scripted_complete_json(Script, Messages, Model, Schema_2) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
     lawspec_beam_schema:to_native(
-        lawspec_definitions:scripted_complete_json(
+        lawspec_definitions:scripted_complete_json_2(
             Schema,
             Symbols,
             lawspec_beam_schema:from_native(
@@ -705,7 +705,7 @@ scripted_will_reply(Script, Reply) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
     lawspec_beam_schema:to_native(
-        lawspec_definitions:scripted_will_reply(
+        lawspec_definitions:scripted_will_reply_2(
             Schema,
             Symbols,
             lawspec_beam_schema:from_native(

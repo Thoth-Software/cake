@@ -24,31 +24,31 @@
     with_bad_dependency/2
 ]).
 
-%% allIn — laws/decomposition.lawspec:149
+%% allIn — laws/decomposition.lawspec:157
 all_in(Xs, Done) -> lawspec_typed:all_in(Xs, Done).
 
-%% dagOf — laws/decomposition.lawspec:95
+%% dagOf — laws/decomposition.lawspec:103
 dag_of(Nodes) -> lawspec_typed:dag_of(Nodes).
 
-%% dependenciesFirst — laws/decomposition.lawspec:162
+%% dependenciesFirst — laws/decomposition.lawspec:170
 dependencies_first(Entries, Done, Order) -> lawspec_typed:dependencies_first(Entries, Done, Order).
 
-%% depsAt — laws/decomposition.lawspec:141
+%% depsAt — laws/decomposition.lawspec:149
 deps_at(Entries, I) -> lawspec_typed:deps_at(Entries, I).
 
-%% depsOf — laws/decomposition.lawspec:63
+%% depsOf — laws/decomposition.lawspec:71
 deps_of(Nodes, MyRank, Picks) -> lawspec_typed:deps_of(Nodes, MyRank, Picks).
 
-%% entriesFrom — laws/decomposition.lawspec:81
+%% entriesFrom — laws/decomposition.lawspec:89
 entries_from(Nodes, Rest, I) -> lawspec_typed:entries_from(Nodes, Rest, I).
 
-%% firstReady — laws/decomposition.lawspec:174
+%% firstReady — laws/decomposition.lawspec:182
 first_ready(Entries, Done, Candidates) -> lawspec_typed:first_ready(Entries, Done, Candidates).
 
-%% hasDependency — laws/decomposition.lawspec:137
+%% hasDependency — laws/decomposition.lawspec:145
 has_dependency(Entry) -> lawspec_typed:has_dependency(Entry).
 
-%% isReady — laws/decomposition.lawspec:156
+%% isReady — laws/decomposition.lawspec:164
 is_ready(Entries, Done, I) -> lawspec_typed:is_ready(Entries, Done, I).
 
 %% keyValKeysItems — <lawspec.collections>:67
@@ -79,10 +79,10 @@ lawspec_matchers_matchers_remove_first_integer_list_integer(X, Ys) ->
 lawspec_matchers_matchers_same_items_list_integer_list_integer(Xs, Ys) ->
     lawspec_typed:lawspec_matchers_matchers_same_items_list_integer_list_integer(Xs, Ys).
 
-%% plainEntries — laws/decomposition.lawspec:129
+%% plainEntries — laws/decomposition.lawspec:137
 plain_entries(Questions) -> lawspec_typed:plain_entries(Questions).
 
-%% referenceOrder — laws/decomposition.lawspec:195
+%% referenceOrder — laws/decomposition.lawspec:203
 reference_order(Entries) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -100,7 +100,7 @@ reference_order(Entries) ->
         Schema
     ).
 
-%% resolveFrom — laws/decomposition.lawspec:184
+%% resolveFrom — laws/decomposition.lawspec:192
 resolve_from(Entries, Done, Fuel) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -120,7 +120,7 @@ resolve_from(Entries, Done, Fuel) ->
         Schema
     ).
 
-%% ringFrom — laws/decomposition.lawspec:101
+%% ringFrom — laws/decomposition.lawspec:109
 ring_from(Size, I, Remaining) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -136,7 +136,7 @@ ring_from(Size, I, Remaining) ->
         Schema
     ).
 
-%% ringOf — laws/decomposition.lawspec:114
+%% ringOf — laws/decomposition.lawspec:122
 ring_of(Size) ->
     Symbols = make_ref(),
     Schema = lawspec_data:schema(Symbols),
@@ -150,5 +150,5 @@ ring_of(Size) ->
         Schema
     ).
 
-%% withBadDependency — laws/decomposition.lawspec:118
+%% withBadDependency — laws/decomposition.lawspec:126
 with_bad_dependency(Entries, Dep) -> lawspec_typed:with_bad_dependency(Entries, Dep).

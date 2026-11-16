@@ -77,6 +77,49 @@
     ring_from/5,
     ring_of/3,
     with_bad_dependency/4,
+    llm_decompose/4,
+    result_new/4,
+    decomposition_prompt/3,
+    answered/3,
+    atomic_json/3,
+    atomic_of/3,
+    atomic_or_flat/3,
+    both_json/3,
+    cake_laws_generation_answer/5,
+    cake_laws_generation_answer_json/6,
+    cake_laws_generation_completed/3,
+    cake_laws_generation_counts_not_negative/3,
+    cake_laws_generation_documented/3,
+    cake_laws_generation_emptied/3,
+    cake_laws_generation_fits/4,
+    cake_laws_generation_has_text/3,
+    cake_laws_generation_json_answer/4,
+    cake_laws_generation_lawful/3,
+    cake_laws_generation_no_usage/3,
+    cake_laws_generation_says_json/3,
+    cake_laws_generation_script_exhausted/3,
+    cake_laws_generation_scripted_json/3,
+    cake_laws_generation_silenced/3,
+    cake_laws_generation_text_answer/3,
+    cake_laws_generation_vetted/3,
+    default_model/3,
+    is_invalid_response/3,
+    keeps_question/4,
+    lawspec_collections_key_val_from_items_list_entry_integer_entry_list_entry_integer_entry/4,
+    lawspec_collections_key_val_of_list_entry_integer_entry/3,
+    lawspec_collections_key_val_put_items_integer_entry_list_entry_integer_entry/5,
+    model_asked/3,
+    model_says/3,
+    model_says_json/3,
+    neither_json/3,
+    reply_of/3,
+    scripted_complete/5,
+    scripted_complete_json/6,
+    scripted_will_reply/4,
+    strategy_of/3,
+    sub_question_json/4,
+    sub_questions_of/3,
+    was_read/3,
     citable_metadata/3,
     metadata_keys/3,
     prompt_context/4,
@@ -107,9 +150,9 @@
     is_malformed_json/3,
     scripted_run/5,
     asked/3,
-    scripted_complete/5,
-    scripted_complete_json/6,
-    scripted_will_reply/4,
+    scripted_complete_2/5,
+    scripted_complete_json_2/6,
+    scripted_will_reply_2/4,
     prepare_context/5,
     prepare_context_by_default/3,
     format_chunk/4,
@@ -2887,7 +2930,7 @@ small(Schema, Symbols, Segments) ->
         end
     ).
 
-%% decompose — laws/decomposition.lawspec:39
+%% decompose — laws/decomposition.lawspec:47
 decompose(Schema, _Symbols, Text, ListEntry) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::decompose">>,
@@ -2942,7 +2985,7 @@ decompose(Schema, _Symbols, Text, ListEntry) ->
         end
     ).
 
-%% decomposeQuestions — laws/decomposition.lawspec:42
+%% decomposeQuestions — laws/decomposition.lawspec:50
 decompose_questions(Schema, _Symbols, Text, ListText) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::decomposeQuestions">>,
@@ -3000,7 +3043,7 @@ decompose_questions(Schema, _Symbols, Text, ListText) ->
         end
     ).
 
-%% resolutionOrder — laws/decomposition.lawspec:45
+%% resolutionOrder — laws/decomposition.lawspec:53
 resolution_order(Schema, _Symbols, Text, ListEntry) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::resolutionOrder">>,
@@ -3058,14 +3101,14 @@ resolution_order(Schema, _Symbols, Text, ListEntry) ->
         end
     ).
 
-%% allIn — laws/decomposition.lawspec:149
+%% allIn — laws/decomposition.lawspec:157
 all_in(_Schema, _Symbols, Xs, Done) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::allIn">>,
         fun() -> lawspec_typed:all_in(Xs, Done) end
     ).
 
-%% dagOf — laws/decomposition.lawspec:95
+%% dagOf — laws/decomposition.lawspec:103
 dag_of(_Schema, _Symbols, Nodes) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::dagOf">>,
@@ -3076,7 +3119,7 @@ dag_of(_Schema, _Symbols, Nodes) ->
         end
     ).
 
-%% dependenciesFirst — laws/decomposition.lawspec:162
+%% dependenciesFirst — laws/decomposition.lawspec:170
 dependencies_first(_Schema, _Symbols, Entries, Done, Order) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::dependenciesFirst">>,
@@ -3089,14 +3132,14 @@ dependencies_first(_Schema, _Symbols, Entries, Done, Order) ->
         end
     ).
 
-%% depsAt — laws/decomposition.lawspec:141
+%% depsAt — laws/decomposition.lawspec:149
 deps_at(_Schema, _Symbols, Entries, I) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::depsAt">>,
         fun() -> lawspec_typed:deps_at(lawspec_typed:from_dynamic_list_entry(Entries), I) end
     ).
 
-%% depsOf — laws/decomposition.lawspec:63
+%% depsOf — laws/decomposition.lawspec:71
 deps_of(_Schema, _Symbols, Nodes, MyRank, Picks) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::depsOf">>,
@@ -3105,7 +3148,7 @@ deps_of(_Schema, _Symbols, Nodes, MyRank, Picks) ->
         end
     ).
 
-%% entriesFrom — laws/decomposition.lawspec:81
+%% entriesFrom — laws/decomposition.lawspec:89
 entries_from(_Schema, _Symbols, Nodes, Rest, I) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::entriesFrom">>,
@@ -3120,7 +3163,7 @@ entries_from(_Schema, _Symbols, Nodes, Rest, I) ->
         end
     ).
 
-%% firstReady — laws/decomposition.lawspec:174
+%% firstReady — laws/decomposition.lawspec:182
 first_ready(_Schema, _Symbols, Entries, Done, Candidates) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::firstReady">>,
@@ -3135,14 +3178,14 @@ first_ready(_Schema, _Symbols, Entries, Done, Candidates) ->
         end
     ).
 
-%% hasDependency — laws/decomposition.lawspec:137
+%% hasDependency — laws/decomposition.lawspec:145
 has_dependency(_Schema, _Symbols, Entry) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::hasDependency">>,
         fun() -> lawspec_typed:has_dependency(lawspec_typed:from_dynamic_entry(Entry)) end
     ).
 
-%% isReady — laws/decomposition.lawspec:156
+%% isReady — laws/decomposition.lawspec:164
 is_ready(_Schema, _Symbols, Entries, Done, I) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::isReady">>,
@@ -3217,14 +3260,14 @@ lawspec_matchers_matchers_same_items_list_integer_list_integer(_Schema, _Symbols
         end
     ).
 
-%% plainEntries — laws/decomposition.lawspec:129
+%% plainEntries — laws/decomposition.lawspec:137
 plain_entries(_Schema, _Symbols, Questions) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::plainEntries">>,
         fun() -> lawspec_typed:to_dynamic_list_entry(lawspec_typed:plain_entries(Questions)) end
     ).
 
-%% referenceOrder — laws/decomposition.lawspec:195
+%% referenceOrder — laws/decomposition.lawspec:203
 reference_order(Schema, Symbols, Entries) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::referenceOrder">>,
@@ -3252,7 +3295,7 @@ reference_order(Schema, Symbols, Entries) ->
         end
     ).
 
-%% resolveFrom — laws/decomposition.lawspec:184
+%% resolveFrom — laws/decomposition.lawspec:192
 resolve_from(Schema, Symbols, Entries, Done, Fuel) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::resolveFrom">>,
@@ -3325,7 +3368,7 @@ resolve_from(Schema, Symbols, Entries, Done, Fuel) ->
         end
     ).
 
-%% ringFrom — laws/decomposition.lawspec:101
+%% ringFrom — laws/decomposition.lawspec:109
 ring_from(Schema, Symbols, Size, I, Remaining) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::ringFrom">>,
@@ -3418,7 +3461,7 @@ ring_from(Schema, Symbols, Size, I, Remaining) ->
         end
     ).
 
-%% ringOf — laws/decomposition.lawspec:114
+%% ringOf — laws/decomposition.lawspec:122
 ring_of(Schema, Symbols, Size) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::ringOf">>,
@@ -3437,7 +3480,7 @@ ring_of(Schema, Symbols, Size) ->
         end
     ).
 
-%% withBadDependency — laws/decomposition.lawspec:118
+%% withBadDependency — laws/decomposition.lawspec:126
 with_bad_dependency(_Schema, _Symbols, Entries, Dep) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.decomposition::withBadDependency">>,
@@ -3448,6 +3491,1696 @@ with_bad_dependency(_Schema, _Symbols, Entries, Dep) ->
                     Dep
                 )
             )
+        end
+    ).
+
+%% llmDecompose — laws/decomposition_llm.lawspec:43
+llm_decompose(Schema, Symbols, Text, MaybeText) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::llmDecompose">>,
+        fun() ->
+            NativeText = lawspec_beam_schema:to_native(Text, {<<"Text">>, []}, Schema),
+            NativeMaybeText = lawspec_beam_schema:to_native(
+                MaybeText,
+                {<<"Maybe">>, [{<<"Text">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.DecompositionLlm':llm_decompose(
+                    lawspec_abilities:generation_to_native(
+                        Schema,
+                        Symbols,
+                        lawspec_beam_effects:handler(
+                            Schema,
+                            <<"cake.laws.generation::ability::Generation">>
+                        )
+                    ),
+                    NativeText,
+                    NativeMaybeText
+                ),
+                {
+                    <<"Either">>,
+                    [
+                        {<<"cake.laws.decomposition_llm::type::DecompositionError">>, []},
+                        {<<"cake.laws.decomposition::type::Decomposition">>, []}
+                    ]
+                },
+                Schema
+            )
+        end
+    ).
+
+%% resultNew — laws/decomposition_llm.lawspec:48
+result_new(Schema, _Symbols, Text, ListText) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::resultNew">>,
+        fun() ->
+            NativeText = lawspec_beam_schema:to_native(Text, {<<"Text">>, []}, Schema),
+            NativeListText = lawspec_beam_schema:to_native(
+                ListText,
+                {<<"List">>, [{<<"Text">>, []}]},
+                Schema
+            ),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.DecompositionLlm':result_new(NativeText, NativeListText),
+                {<<"cake.laws.decomposition::type::Decomposition">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% decompositionPrompt — laws/decomposition_llm.lawspec:51
+decomposition_prompt(Schema, _Symbols, Text) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::decompositionPrompt">>,
+        fun() ->
+            NativeText = lawspec_beam_schema:to_native(Text, {<<"Text">>, []}, Schema),
+            lawspec_beam_schema:from_native(
+                'Elixir.Cake.Laws.DecompositionLlm':decomposition_prompt(NativeText),
+                {<<"List">>, [{<<"cake.laws.prompt_context::type::Message">>, []}]},
+                Schema
+            )
+        end
+    ).
+
+%% answered — laws/decomposition_llm.lawspec:144
+answered(_Schema, _Symbols, Outcome) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::answered">>,
+        fun() ->
+            (lawspec_beam_schema:match(
+                Outcome,
+                #{
+                    <<"Either::Left">> => fun([_RailwayError0]) -> false end,
+                    <<"Either::Right">> => fun([_RailwayValue1]) -> true end
+                }
+            ) orelse
+                lawspec_beam_schema:match(
+                    Outcome,
+                    #{
+                        <<"Either::Left">> => fun([_RailwayError0]) -> true end,
+                        <<"Either::Right">> => fun([_RailwayValue1]) -> false end
+                    }
+                ))
+        end
+    ).
+
+%% atomicJson — laws/decomposition_llm.lawspec:72
+atomic_json(_Schema, _Symbols, Ignored) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::atomicJson">>,
+        fun() ->
+            lawspec_typed:to_dynamic_decomposition_json(
+                lawspec_typed:atomic_json(lawspec_typed:from_dynamic_unit(Ignored))
+            )
+        end
+    ).
+
+%% atomicOf — laws/decomposition_llm.lawspec:103
+atomic_of(_Schema, _Symbols, Question) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::atomicOf">>,
+        fun() -> lawspec_typed:to_dynamic_decomposition(lawspec_typed:atomic_of(Question)) end
+    ).
+
+%% atomicOrFlat — laws/decomposition_llm.lawspec:164
+atomic_or_flat(Schema, _Symbols, Outcome) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::atomicOrFlat">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Outcome,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Either::Left">> => fun([_Selection]) -> true end,
+                            <<"Either::Right">> => fun([Selection_2]) ->
+                                (lawspec_beam_scalar:equal(
+                                    lawspec_beam_schema:match(
+                                        Selection_2,
+                                        #{
+                                            <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
+                                                [
+                                                    _OriginalQuestion,
+                                                    Strategy,
+                                                    _SubQuestions,
+                                                    _QuestionIndex
+                                                ]
+                                            ) ->
+                                                Strategy
+                                            end
+                                        }
+                                    ),
+                                    lawspec_beam_schema:construct(
+                                        <<"cake.laws.decomposition::type::Strategy::Atomic">>,
+                                        [],
+                                        {<<"cake.laws.decomposition::type::Strategy">>, []},
+                                        Schema
+                                    )
+                                ) orelse
+                                    lawspec_beam_scalar:equal(
+                                        lawspec_beam_schema:match(
+                                            Selection_2,
+                                            #{
+                                                <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
+                                                    [
+                                                        _OriginalQuestion_2,
+                                                        Strategy_2,
+                                                        _SubQuestions_2,
+                                                        _QuestionIndex_2
+                                                    ]
+                                                ) ->
+                                                    Strategy_2
+                                                end
+                                            }
+                                        ),
+                                        lawspec_beam_schema:construct(
+                                            <<"cake.laws.decomposition::type::Strategy::Flat">>,
+                                            [],
+                                            {<<"cake.laws.decomposition::type::Strategy">>, []},
+                                            Schema
+                                        )
+                                    ))
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% bothJson — laws/decomposition_llm.lawspec:88
+both_json(_Schema, _Symbols, SubQuestions) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::bothJson">>,
+        fun() ->
+            lawspec_typed:to_dynamic_decomposition_json(lawspec_typed:both_json(SubQuestions))
+        end
+    ).
+
+%% cakeLawsGenerationAnswer — laws/generation.lawspec:383
+cake_laws_generation_answer(Schema, _Symbols, Reply, Messages, Model) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationAnswer">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_schema:validate(
+                    lawspec_beam_effects:perform(
+                        Schema,
+                        <<"cake.laws.generation::ability::Provider">>,
+                        <<"willReply">>,
+                        [Reply]
+                    ),
+                    {<<"Unit">>, []},
+                    Schema
+                ),
+                fun(_Ignored) ->
+                    lawspec_beam_schema:validate(
+                        lawspec_beam_effects:perform(
+                            Schema,
+                            <<"cake.laws.generation::ability::Generation">>,
+                            <<"complete">>,
+                            [Messages, Model]
+                        ),
+                        {
+                            <<"Either">>,
+                            [
+                                {<<"cake.laws.generation::type::GenerationError">>, []},
+                                {<<"cake.laws.generation::type::Completion">>, []}
+                            ]
+                        },
+                        Schema
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsGenerationAnswerJson — laws/generation.lawspec:388
+cake_laws_generation_answer_json(Schema, _Symbols, Reply, Messages, Model, Schema_2) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationAnswerJson">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_schema:validate(
+                    lawspec_beam_effects:perform(
+                        Schema,
+                        <<"cake.laws.generation::ability::Provider">>,
+                        <<"willReply">>,
+                        [Reply]
+                    ),
+                    {<<"Unit">>, []},
+                    Schema
+                ),
+                fun(_Ignored) ->
+                    lawspec_beam_schema:validate(
+                        lawspec_beam_effects:perform(
+                            Schema,
+                            <<"cake.laws.generation::ability::Generation">>,
+                            <<"completeJson">>,
+                            [Messages, Model, Schema_2]
+                        ),
+                        {
+                            <<"Either">>,
+                            [
+                                {<<"cake.laws.generation::type::GenerationError">>, []},
+                                {<<"cake.laws.generation::type::JsonCompletion">>, []}
+                            ]
+                        },
+                        Schema
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsGenerationCompleted — laws/generation.lawspec:396
+cake_laws_generation_completed(Schema, Symbols, Request) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationCompleted">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_schema:match(
+                    Request,
+                    #{
+                        <<"cake.laws.generation::type::Request::Request">> => fun(
+                            [_Reply, Schema_2, _Messages, _Model]
+                        ) ->
+                            Schema_2
+                        end
+                    }
+                ),
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Maybe::Absent">> => fun([]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_definitions:cake_laws_generation_answer(
+                                        Schema,
+                                        Symbols,
+                                        lawspec_beam_schema:match(
+                                            Request,
+                                            #{
+                                                <<"cake.laws.generation::type::Request::Request">> => fun(
+                                                    [Reply_2, _Schema_3, _Messages_2, _Model_2]
+                                                ) ->
+                                                    Reply_2
+                                                end
+                                            }
+                                        ),
+                                        lawspec_beam_schema:match(
+                                            Request,
+                                            #{
+                                                <<"cake.laws.generation::type::Request::Request">> => fun(
+                                                    [_Reply_3, _Schema_4, Messages_3, _Model_3]
+                                                ) ->
+                                                    Messages_3
+                                                end
+                                            }
+                                        ),
+                                        lawspec_beam_schema:match(
+                                            Request,
+                                            #{
+                                                <<"cake.laws.generation::type::Request::Request">> => fun(
+                                                    [_Reply_4, _Schema_5, _Messages_4, Model_4]
+                                                ) ->
+                                                    Model_4
+                                                end
+                                            }
+                                        )
+                                    ),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"Either::Left">> => fun([_Selection_2]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"Maybe::Absent">>,
+                                                        [],
+                                                        {
+                                                            <<"Maybe">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.generation::type::Completion">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"Either::Right">> => fun([Selection_3]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"Maybe::Present">>,
+                                                        [Selection_3],
+                                                        {
+                                                            <<"Maybe">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.generation::type::Completion">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end,
+                            <<"Maybe::Present">> => fun([Selection]) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_definitions:cake_laws_generation_answer_json(
+                                        Schema,
+                                        Symbols,
+                                        lawspec_beam_schema:match(
+                                            Request,
+                                            #{
+                                                <<"cake.laws.generation::type::Request::Request">> => fun(
+                                                    [Reply_5, _Schema_6, _Messages_5, _Model_5]
+                                                ) ->
+                                                    Reply_5
+                                                end
+                                            }
+                                        ),
+                                        lawspec_beam_schema:match(
+                                            Request,
+                                            #{
+                                                <<"cake.laws.generation::type::Request::Request">> => fun(
+                                                    [_Reply_6, _Schema_7, Messages_6, _Model_6]
+                                                ) ->
+                                                    Messages_6
+                                                end
+                                            }
+                                        ),
+                                        lawspec_beam_schema:match(
+                                            Request,
+                                            #{
+                                                <<"cake.laws.generation::type::Request::Request">> => fun(
+                                                    [_Reply_7, _Schema_8, _Messages_7, Model_7]
+                                                ) ->
+                                                    Model_7
+                                                end
+                                            }
+                                        ),
+                                        Selection
+                                    ),
+                                    fun(It_3) ->
+                                        lawspec_beam_schema:match(
+                                            It_3,
+                                            #{
+                                                <<"Either::Left">> => fun([_MatchSelection]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"Maybe::Absent">>,
+                                                        [],
+                                                        {
+                                                            <<"Maybe">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.generation::type::Completion">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"Either::Right">> => fun([MatchSelection_2]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"Maybe::Present">>,
+                                                        [
+                                                            lawspec_beam_schema:match(
+                                                                MatchSelection_2,
+                                                                #{
+                                                                    <<"cake.laws.generation::type::JsonCompletion::JsonCompletion">> => fun(
+                                                                        [Completion, _Parsed]
+                                                                    ) ->
+                                                                        Completion
+                                                                    end
+                                                                }
+                                                            )
+                                                        ],
+                                                        {
+                                                            <<"Maybe">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.generation::type::Completion">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsGenerationCountsNotNegative — laws/generation.lawspec:194
+cake_laws_generation_counts_not_negative(_Schema, _Symbols, Usage) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationCountsNotNegative">>,
+        fun() ->
+            lawspec_typed:cake_laws_generation_counts_not_negative(
+                lawspec_typed:from_dynamic_usage(Usage)
+            )
+        end
+    ).
+
+%% cakeLawsGenerationDocumented — laws/generation.lawspec:186
+cake_laws_generation_documented(_Schema, _Symbols, Reason) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationDocumented">>,
+        fun() ->
+            lawspec_typed:cake_laws_generation_documented(
+                lawspec_typed:from_dynamic_finish_reason(Reason)
+            )
+        end
+    ).
+
+%% cakeLawsGenerationEmptied — laws/generation.lawspec:161
+cake_laws_generation_emptied(_Schema, _Symbols, Draft) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationEmptied">>,
+        fun() ->
+            lawspec_typed:to_dynamic_completion(
+                lawspec_typed:cake_laws_generation_emptied(
+                    lawspec_typed:from_dynamic_completion(Draft)
+                )
+            )
+        end
+    ).
+
+%% cakeLawsGenerationFits — laws/generation.lawspec:144
+cake_laws_generation_fits(_Schema, _Symbols, Schema_2, Parsed) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationFits">>,
+        fun() ->
+            lawspec_typed:cake_laws_generation_fits(
+                lawspec_typed:from_dynamic_schema(Schema_2),
+                lawspec_typed:from_dynamic_parsed(Parsed)
+            )
+        end
+    ).
+
+%% cakeLawsGenerationHasText — laws/generation.lawspec:153
+cake_laws_generation_has_text(_Schema, _Symbols, Outcome) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationHasText">>,
+        fun() ->
+            lawspec_typed:cake_laws_generation_has_text(
+                lawspec_typed:from_dynamic_maybe_completion(Outcome)
+            )
+        end
+    ).
+
+%% cakeLawsGenerationJsonAnswer — laws/generation.lawspec:453
+cake_laws_generation_json_answer(Schema, Symbols, Reply, Schema_2) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationJsonAnswer">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Reply,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"cake.laws.generation::type::Reply::Completes">> => fun(
+                                [_Selection]
+                            ) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Either::Left">>,
+                                    [
+                                        lawspec_beam_schema:construct(
+                                            <<"cake.laws.generation::type::GenerationError::MalformedJson">>,
+                                            [<<"the scripted reply is text, not JSON">>],
+                                            {<<"cake.laws.generation::type::GenerationError">>, []},
+                                            Schema
+                                        )
+                                    ],
+                                    {
+                                        <<"Either">>,
+                                        [
+                                            {<<"cake.laws.generation::type::GenerationError">>, []},
+                                            {<<"cake.laws.generation::type::JsonCompletion">>, []}
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end,
+                            <<"cake.laws.generation::type::Reply::CompletesJson">> => fun(
+                                [Selection_2]
+                            ) ->
+                                lawspec_beam_runtime:bind(
+                                    lawspec_definitions:cake_laws_generation_vetted(
+                                        Schema,
+                                        Symbols,
+                                        lawspec_beam_schema:match(
+                                            Selection_2,
+                                            #{
+                                                <<"cake.laws.generation::type::JsonCompletion::JsonCompletion">> => fun(
+                                                    [Completion, _Parsed]
+                                                ) ->
+                                                    Completion
+                                                end
+                                            }
+                                        )
+                                    ),
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"Either::Left">> => fun([MatchSelection]) ->
+                                                    lawspec_beam_schema:construct(
+                                                        <<"Either::Left">>,
+                                                        [MatchSelection],
+                                                        {
+                                                            <<"Either">>,
+                                                            [
+                                                                {
+                                                                    <<"cake.laws.generation::type::GenerationError">>,
+                                                                    []
+                                                                },
+                                                                {
+                                                                    <<"cake.laws.generation::type::JsonCompletion">>,
+                                                                    []
+                                                                }
+                                                            ]
+                                                        },
+                                                        Schema
+                                                    )
+                                                end,
+                                                <<"Either::Right">> => fun([_MatchSelection_2]) ->
+                                                    case
+                                                        lawspec_definitions:cake_laws_generation_fits(
+                                                            Schema,
+                                                            Symbols,
+                                                            Schema_2,
+                                                            lawspec_beam_schema:match(
+                                                                Selection_2,
+                                                                #{
+                                                                    <<"cake.laws.generation::type::JsonCompletion::JsonCompletion">> => fun(
+                                                                        [_Completion_2, Parsed_2]
+                                                                    ) ->
+                                                                        Parsed_2
+                                                                    end
+                                                                }
+                                                            )
+                                                        )
+                                                    of
+                                                        true ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"Either::Right">>,
+                                                                [Selection_2],
+                                                                {
+                                                                    <<"Either">>,
+                                                                    [
+                                                                        {
+                                                                            <<"cake.laws.generation::type::GenerationError">>,
+                                                                            []
+                                                                        },
+                                                                        {
+                                                                            <<"cake.laws.generation::type::JsonCompletion">>,
+                                                                            []
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                Schema
+                                                            );
+                                                        false ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"Either::Left">>,
+                                                                [
+                                                                    lawspec_beam_schema:construct(
+                                                                        <<"cake.laws.generation::type::GenerationError::MalformedJson">>,
+                                                                        [
+                                                                            <<"the scripted JSON does not fit the schema">>
+                                                                        ],
+                                                                        {
+                                                                            <<"cake.laws.generation::type::GenerationError">>,
+                                                                            []
+                                                                        },
+                                                                        Schema
+                                                                    )
+                                                                ],
+                                                                {
+                                                                    <<"Either">>,
+                                                                    [
+                                                                        {
+                                                                            <<"cake.laws.generation::type::GenerationError">>,
+                                                                            []
+                                                                        },
+                                                                        {
+                                                                            <<"cake.laws.generation::type::JsonCompletion">>,
+                                                                            []
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                Schema
+                                                            )
+                                                    end
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end,
+                            <<"cake.laws.generation::type::Reply::Errors">> => fun([Selection_3]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Either::Left">>,
+                                    [Selection_3],
+                                    {
+                                        <<"Either">>,
+                                        [
+                                            {<<"cake.laws.generation::type::GenerationError">>, []},
+                                            {<<"cake.laws.generation::type::JsonCompletion">>, []}
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsGenerationLawful — laws/generation.lawspec:429
+cake_laws_generation_lawful(_Schema, _Symbols, Draft) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationLawful">>,
+        fun() ->
+            lawspec_typed:cake_laws_generation_lawful(lawspec_typed:from_dynamic_completion(Draft))
+        end
+    ).
+
+%% cakeLawsGenerationNoUsage — laws/generation.lawspec:503
+cake_laws_generation_no_usage(_Schema, _Symbols, Ignored) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationNoUsage">>,
+        fun() ->
+            lawspec_typed:to_dynamic_usage(
+                lawspec_typed:cake_laws_generation_no_usage(
+                    lawspec_typed:from_dynamic_unit(Ignored)
+                )
+            )
+        end
+    ).
+
+%% cakeLawsGenerationSaysJson — laws/generation.lawspec:530
+cake_laws_generation_says_json(Schema, Symbols, Parsed) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationSaysJson">>,
+        fun() ->
+            lawspec_beam_schema:construct(
+                <<"cake.laws.generation::type::Reply::CompletesJson">>,
+                [lawspec_definitions:cake_laws_generation_scripted_json(Schema, Symbols, Parsed)],
+                {<<"cake.laws.generation::type::Reply">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% cakeLawsGenerationScriptExhausted — laws/generation.lawspec:471
+cake_laws_generation_script_exhausted(Schema, _Symbols, _Ignored) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationScriptExhausted">>,
+        fun() ->
+            lawspec_beam_schema:construct(
+                <<"cake.laws.generation::type::GenerationError::ProviderError">>,
+                [<<"the script has no reply left">>],
+                {<<"cake.laws.generation::type::GenerationError">>, []},
+                Schema
+            )
+        end
+    ).
+
+%% cakeLawsGenerationScriptedJson — laws/generation.lawspec:519
+cake_laws_generation_scripted_json(_Schema, _Symbols, Parsed) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationScriptedJson">>,
+        fun() ->
+            lawspec_typed:to_dynamic_json_completion(
+                lawspec_typed:cake_laws_generation_scripted_json(
+                    lawspec_typed:from_dynamic_parsed(Parsed)
+                )
+            )
+        end
+    ).
+
+%% cakeLawsGenerationSilenced — laws/generation.lawspec:170
+cake_laws_generation_silenced(Schema, Symbols, Request) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationSilenced">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_runtime:bind(
+                    lawspec_beam_schema:match(
+                        Request,
+                        #{
+                            <<"cake.laws.generation::type::Request::Request">> => fun(
+                                [Reply, _Schema_2, _Messages, _Model]
+                            ) ->
+                                Reply
+                            end
+                        }
+                    ),
+                    fun(It) ->
+                        lawspec_beam_schema:match(
+                            It,
+                            #{
+                                <<"cake.laws.generation::type::Reply::Completes">> => fun(
+                                    [Selection]
+                                ) ->
+                                    lawspec_beam_schema:construct(
+                                        <<"cake.laws.generation::type::Reply::Completes">>,
+                                        [
+                                            lawspec_definitions:cake_laws_generation_emptied(
+                                                Schema,
+                                                Symbols,
+                                                Selection
+                                            )
+                                        ],
+                                        {<<"cake.laws.generation::type::Reply">>, []},
+                                        Schema
+                                    )
+                                end,
+                                <<"cake.laws.generation::type::Reply::CompletesJson">> => fun(
+                                    [Selection_2]
+                                ) ->
+                                    lawspec_beam_schema:construct(
+                                        <<"cake.laws.generation::type::Reply::CompletesJson">>,
+                                        [
+                                            lawspec_beam_runtime:bind(
+                                                lawspec_definitions:cake_laws_generation_emptied(
+                                                    Schema,
+                                                    Symbols,
+                                                    lawspec_beam_schema:match(
+                                                        Selection_2,
+                                                        #{
+                                                            <<"cake.laws.generation::type::JsonCompletion::JsonCompletion">> => fun(
+                                                                [Completion, _Parsed]
+                                                            ) ->
+                                                                Completion
+                                                            end
+                                                        }
+                                                    )
+                                                ),
+                                                fun(RecordField_2) ->
+                                                    lawspec_beam_runtime:bind(
+                                                        lawspec_beam_schema:match(
+                                                            Selection_2,
+                                                            #{
+                                                                <<"cake.laws.generation::type::JsonCompletion::JsonCompletion">> => fun(
+                                                                    [_Completion_2, Parsed_2]
+                                                                ) ->
+                                                                    Parsed_2
+                                                                end
+                                                            }
+                                                        ),
+                                                        fun(RecordField_3) ->
+                                                            lawspec_beam_schema:construct(
+                                                                <<"cake.laws.generation::type::JsonCompletion::JsonCompletion">>,
+                                                                [RecordField_2, RecordField_3],
+                                                                {
+                                                                    <<"cake.laws.generation::type::JsonCompletion">>,
+                                                                    []
+                                                                },
+                                                                Schema
+                                                            )
+                                                        end
+                                                    )
+                                                end
+                                            )
+                                        ],
+                                        {<<"cake.laws.generation::type::Reply">>, []},
+                                        Schema
+                                    )
+                                end,
+                                <<"cake.laws.generation::type::Reply::Errors">> => fun(
+                                    [Selection_3]
+                                ) ->
+                                    lawspec_beam_schema:construct(
+                                        <<"cake.laws.generation::type::Reply::Errors">>,
+                                        [Selection_3],
+                                        {<<"cake.laws.generation::type::Reply">>, []},
+                                        Schema
+                                    )
+                                end
+                            }
+                        )
+                    end
+                ),
+                fun(RecordField) ->
+                    lawspec_beam_runtime:bind(
+                        lawspec_beam_schema:match(
+                            Request,
+                            #{
+                                <<"cake.laws.generation::type::Request::Request">> => fun(
+                                    [_Reply_2, Schema_3, _Messages_2, _Model_2]
+                                ) ->
+                                    Schema_3
+                                end
+                            }
+                        ),
+                        fun(RecordField_4) ->
+                            lawspec_beam_runtime:bind(
+                                lawspec_beam_schema:match(
+                                    Request,
+                                    #{
+                                        <<"cake.laws.generation::type::Request::Request">> => fun(
+                                            [_Reply_3, _Schema_4, Messages_3, _Model_3]
+                                        ) ->
+                                            Messages_3
+                                        end
+                                    }
+                                ),
+                                fun(RecordField_5) ->
+                                    lawspec_beam_runtime:bind(
+                                        lawspec_beam_schema:match(
+                                            Request,
+                                            #{
+                                                <<"cake.laws.generation::type::Request::Request">> => fun(
+                                                    [_Reply_4, _Schema_5, _Messages_4, Model_4]
+                                                ) ->
+                                                    Model_4
+                                                end
+                                            }
+                                        ),
+                                        fun(RecordField_6) ->
+                                            lawspec_beam_schema:construct(
+                                                <<"cake.laws.generation::type::Request::Request">>,
+                                                [
+                                                    RecordField,
+                                                    RecordField_4,
+                                                    RecordField_5,
+                                                    RecordField_6
+                                                ],
+                                                {<<"cake.laws.generation::type::Request">>, []},
+                                                Schema
+                                            )
+                                        end
+                                    )
+                                end
+                            )
+                        end
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsGenerationTextAnswer — laws/generation.lawspec:444
+cake_laws_generation_text_answer(Schema, Symbols, Reply) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationTextAnswer">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Reply,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"cake.laws.generation::type::Reply::Completes">> => fun(
+                                [Selection]
+                            ) ->
+                                lawspec_definitions:cake_laws_generation_vetted(
+                                    Schema,
+                                    Symbols,
+                                    Selection
+                                )
+                            end,
+                            <<"cake.laws.generation::type::Reply::CompletesJson">> => fun(
+                                [Selection_2]
+                            ) ->
+                                lawspec_definitions:cake_laws_generation_vetted(
+                                    Schema,
+                                    Symbols,
+                                    lawspec_beam_schema:match(
+                                        Selection_2,
+                                        #{
+                                            <<"cake.laws.generation::type::JsonCompletion::JsonCompletion">> => fun(
+                                                [Completion, _Parsed]
+                                            ) ->
+                                                Completion
+                                            end
+                                        }
+                                    )
+                                )
+                            end,
+                            <<"cake.laws.generation::type::Reply::Errors">> => fun([Selection_3]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Either::Left">>,
+                                    [Selection_3],
+                                    {
+                                        <<"Either">>,
+                                        [
+                                            {<<"cake.laws.generation::type::GenerationError">>, []},
+                                            {<<"cake.laws.generation::type::Completion">>, []}
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% cakeLawsGenerationVetted — laws/generation.lawspec:435
+cake_laws_generation_vetted(Schema, Symbols, Draft) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::cakeLawsGenerationVetted">>,
+        fun() ->
+            case
+                lawspec_beam_scalar:equal(
+                    lawspec_beam_schema:match(
+                        Draft,
+                        #{
+                            <<"cake.laws.generation::type::Completion::Completion">> => fun(
+                                [Text, _FinishReason, _Usage, _Model]
+                            ) ->
+                                Text
+                            end
+                        }
+                    ),
+                    <<>>
+                )
+            of
+                true ->
+                    lawspec_beam_schema:construct(
+                        <<"Either::Left">>,
+                        [
+                            lawspec_beam_schema:construct(
+                                <<"cake.laws.generation::type::GenerationError::EmptyResponse">>,
+                                [],
+                                {<<"cake.laws.generation::type::GenerationError">>, []},
+                                Schema
+                            )
+                        ],
+                        {
+                            <<"Either">>,
+                            [
+                                {<<"cake.laws.generation::type::GenerationError">>, []},
+                                {<<"cake.laws.generation::type::Completion">>, []}
+                            ]
+                        },
+                        Schema
+                    );
+                false ->
+                    case lawspec_definitions:cake_laws_generation_lawful(Schema, Symbols, Draft) of
+                        true ->
+                            lawspec_beam_schema:construct(
+                                <<"Either::Right">>,
+                                [Draft],
+                                {
+                                    <<"Either">>,
+                                    [
+                                        {<<"cake.laws.generation::type::GenerationError">>, []},
+                                        {<<"cake.laws.generation::type::Completion">>, []}
+                                    ]
+                                },
+                                Schema
+                            );
+                        false ->
+                            lawspec_beam_schema:construct(
+                                <<"Either::Left">>,
+                                [
+                                    lawspec_beam_schema:construct(
+                                        <<"cake.laws.generation::type::GenerationError::MalformedResponse">>,
+                                        [<<"the scripted completion breaks the contract">>],
+                                        {<<"cake.laws.generation::type::GenerationError">>, []},
+                                        Schema
+                                    )
+                                ],
+                                {
+                                    <<"Either">>,
+                                    [
+                                        {<<"cake.laws.generation::type::GenerationError">>, []},
+                                        {<<"cake.laws.generation::type::Completion">>, []}
+                                    ]
+                                },
+                                Schema
+                            )
+                    end
+            end
+        end
+    ).
+
+%% defaultModel — laws/decomposition_llm.lawspec:54
+default_model(_Schema, _Symbols, Ignored) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::defaultModel">>,
+        fun() -> lawspec_typed:default_model(lawspec_typed:from_dynamic_unit(Ignored)) end
+    ).
+
+%% isInvalidResponse — laws/decomposition_llm.lawspec:111
+is_invalid_response(_Schema, _Symbols, Outcome) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::isInvalidResponse">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Outcome,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Either::Right">> => fun([_Selection]) -> false end,
+                            <<"Either::Left">> => fun([Selection_2]) ->
+                                lawspec_beam_runtime:bind(
+                                    Selection_2,
+                                    fun(It_2) ->
+                                        lawspec_beam_schema:match(
+                                            It_2,
+                                            #{
+                                                <<"cake.laws.decomposition_llm::type::DecompositionError::InvalidResponse">> => fun(
+                                                    [_MatchSelection]
+                                                ) ->
+                                                    true
+                                                end,
+                                                <<"cake.laws.decomposition_llm::type::DecompositionError::GenerationFailed">> => fun(
+                                                    [_Other]
+                                                ) ->
+                                                    false
+                                                end
+                                            }
+                                        )
+                                    end
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keepsQuestion — laws/decomposition_llm.lawspec:155
+keeps_question(_Schema, _Symbols, Question, Outcome) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::keepsQuestion">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Outcome,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Either::Left">> => fun([_Selection]) -> true end,
+                            <<"Either::Right">> => fun([Selection_2]) ->
+                                lawspec_beam_scalar:equal(
+                                    lawspec_beam_schema:match(
+                                        Selection_2,
+                                        #{
+                                            <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
+                                                [
+                                                    OriginalQuestion,
+                                                    _Strategy,
+                                                    _SubQuestions,
+                                                    _QuestionIndex
+                                                ]
+                                            ) ->
+                                                OriginalQuestion
+                                            end
+                                        }
+                                    ),
+                                    Question
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% keyValFromItems — <lawspec.collections>:58
+lawspec_collections_key_val_from_items_list_entry_integer_entry_list_entry_integer_entry(
+    _Schema,
+    _Symbols,
+    Es,
+    Acc
+) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::lawspec_lawspecCollectionsKeyValFromItems_808b09be44c6614d75696d7b1a2e72a5690bbe8f5389ca9669774ec7aa38bc548d92a04db487">>,
+        fun() ->
+            lawspec_typed:to_dynamic_list_entry_integer_entry(
+                lawspec_typed:lawspec_collections_key_val_from_items_list_entry_integer_entry_list_entry_integer_entry(
+                    lawspec_typed:from_dynamic_list_entry_integer_entry(Es),
+                    lawspec_typed:from_dynamic_list_entry_integer_entry(Acc)
+                )
+            )
+        end
+    ).
+
+%% keyValOf — <lawspec.collections>:81
+lawspec_collections_key_val_of_list_entry_integer_entry(_Schema, _Symbols, Es) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::lawspec_lawspecCollectionsKeyValOf_cf6d3118912c554f50c4d786cb6ee135c56502718ed99871b8970d3bd1151dfe5e444f227bcb">>,
+        fun() ->
+            lawspec_typed:to_dynamic_key_val_integer_entry(
+                lawspec_typed:lawspec_collections_key_val_of_list_entry_integer_entry(
+                    lawspec_typed:from_dynamic_list_entry_integer_entry(Es)
+                )
+            )
+        end
+    ).
+
+%% keyValPutItems — <lawspec.collections>:19
+lawspec_collections_key_val_put_items_integer_entry_list_entry_integer_entry(
+    _Schema,
+    _Symbols,
+    K,
+    V,
+    Es
+) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::lawspec_lawspecCollectionsKeyValPutItems_221798b2a8877851a8741278e4db8e1ef29e7c5e2a160a80c9e32f71447b12226df53786e6eb">>,
+        fun() ->
+            lawspec_typed:to_dynamic_list_entry_integer_entry(
+                lawspec_typed:lawspec_collections_key_val_put_items_integer_entry_list_entry_integer_entry(
+                    K,
+                    lawspec_typed:from_dynamic_entry(V),
+                    lawspec_typed:from_dynamic_list_entry_integer_entry(Es)
+                )
+            )
+        end
+    ).
+
+%% modelAsked — laws/decomposition_llm.lawspec:56
+model_asked(_Schema, _Symbols, Model) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::modelAsked">>,
+        fun() -> lawspec_typed:model_asked(lawspec_typed:from_dynamic_maybe_text(Model)) end
+    ).
+
+%% modelSays — laws/decomposition_llm.lawspec:182
+model_says(Schema, _Symbols, Reply) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::modelSays">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                lawspec_beam_schema:validate(
+                    lawspec_beam_effects:perform(
+                        Schema,
+                        <<"cake.laws.generation::ability::Provider">>,
+                        <<"willReply">>,
+                        [Reply]
+                    ),
+                    {<<"Unit">>, []},
+                    Schema
+                ),
+                fun(_Ignored) -> true end
+            )
+        end
+    ).
+
+%% modelSaysJson — laws/decomposition_llm.lawspec:187
+model_says_json(Schema, Symbols, Json) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::modelSaysJson">>,
+        fun() ->
+            lawspec_definitions:model_says(
+                Schema,
+                Symbols,
+                lawspec_definitions:cake_laws_generation_says_json(
+                    Schema,
+                    Symbols,
+                    lawspec_beam_schema:construct(
+                        <<"cake.laws.generation::type::Parsed::Decomposed">>,
+                        [Json],
+                        {<<"cake.laws.generation::type::Parsed">>, []},
+                        Schema
+                    )
+                )
+            )
+        end
+    ).
+
+%% neitherJson — laws/decomposition_llm.lawspec:96
+neither_json(_Schema, _Symbols, DeniesAtomic) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::neitherJson">>,
+        fun() ->
+            lawspec_typed:to_dynamic_decomposition_json(lawspec_typed:neither_json(DeniesAtomic))
+        end
+    ).
+
+%% replyOf — laws/decomposition_llm.lawspec:64
+reply_of(Schema, Symbols, Said) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::replyOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Said,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"cake.laws.decomposition_llm::type::Said::Fitting">> => fun(
+                                [Selection]
+                            ) ->
+                                lawspec_definitions:cake_laws_generation_says_json(
+                                    Schema,
+                                    Symbols,
+                                    lawspec_beam_schema:construct(
+                                        <<"cake.laws.generation::type::Parsed::Decomposed">>,
+                                        [Selection],
+                                        {<<"cake.laws.generation::type::Parsed">>, []},
+                                        Schema
+                                    )
+                                )
+                            end,
+                            <<"cake.laws.decomposition_llm::type::Said::Other">> => fun(
+                                [Selection_2]
+                            ) ->
+                                Selection_2
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% scriptedComplete — laws/generation.lawspec:481
+scripted_complete(Schema, Symbols, Script, _Messages, _Model) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::scriptedComplete">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Script,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"lawspec.collections::type::Pair::Pair">>,
+                                    [
+                                        lawspec_beam_schema:construct(
+                                            <<"Either::Left">>,
+                                            [
+                                                lawspec_definitions:cake_laws_generation_script_exhausted(
+                                                    Schema,
+                                                    Symbols,
+                                                    ls_unit
+                                                )
+                                            ],
+                                            {
+                                                <<"Either">>,
+                                                [
+                                                    {
+                                                        <<"cake.laws.generation::type::GenerationError">>,
+                                                        []
+                                                    },
+                                                    {
+                                                        <<"cake.laws.generation::type::Completion">>,
+                                                        []
+                                                    }
+                                                ]
+                                            },
+                                            Schema
+                                        ),
+                                        Script
+                                    ],
+                                    {
+                                        <<"lawspec.collections::type::Pair">>,
+                                        [
+                                            {
+                                                <<"Either">>,
+                                                [
+                                                    {
+                                                        <<"cake.laws.generation::type::GenerationError">>,
+                                                        []
+                                                    },
+                                                    {
+                                                        <<"cake.laws.generation::type::Completion">>,
+                                                        []
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                <<"List">>,
+                                                [{<<"cake.laws.generation::type::Reply">>, []}]
+                                            }
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"lawspec.collections::type::Pair::Pair">>,
+                                    [
+                                        lawspec_definitions:cake_laws_generation_text_answer(
+                                            Schema,
+                                            Symbols,
+                                            Selection
+                                        ),
+                                        Selection_2
+                                    ],
+                                    {
+                                        <<"lawspec.collections::type::Pair">>,
+                                        [
+                                            {
+                                                <<"Either">>,
+                                                [
+                                                    {
+                                                        <<"cake.laws.generation::type::GenerationError">>,
+                                                        []
+                                                    },
+                                                    {
+                                                        <<"cake.laws.generation::type::Completion">>,
+                                                        []
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                <<"List">>,
+                                                [{<<"cake.laws.generation::type::Reply">>, []}]
+                                            }
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% scriptedCompleteJson — laws/generation.lawspec:489
+scripted_complete_json(Schema, Symbols, Script, _Messages, _Model, Schema_2) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::scriptedCompleteJson">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Script,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"List::Nil">> => fun([]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"lawspec.collections::type::Pair::Pair">>,
+                                    [
+                                        lawspec_beam_schema:construct(
+                                            <<"Either::Left">>,
+                                            [
+                                                lawspec_definitions:cake_laws_generation_script_exhausted(
+                                                    Schema,
+                                                    Symbols,
+                                                    ls_unit
+                                                )
+                                            ],
+                                            {
+                                                <<"Either">>,
+                                                [
+                                                    {
+                                                        <<"cake.laws.generation::type::GenerationError">>,
+                                                        []
+                                                    },
+                                                    {
+                                                        <<"cake.laws.generation::type::JsonCompletion">>,
+                                                        []
+                                                    }
+                                                ]
+                                            },
+                                            Schema
+                                        ),
+                                        Script
+                                    ],
+                                    {
+                                        <<"lawspec.collections::type::Pair">>,
+                                        [
+                                            {
+                                                <<"Either">>,
+                                                [
+                                                    {
+                                                        <<"cake.laws.generation::type::GenerationError">>,
+                                                        []
+                                                    },
+                                                    {
+                                                        <<"cake.laws.generation::type::JsonCompletion">>,
+                                                        []
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                <<"List">>,
+                                                [{<<"cake.laws.generation::type::Reply">>, []}]
+                                            }
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end,
+                            <<"List::Cons">> => fun([Selection, Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"lawspec.collections::type::Pair::Pair">>,
+                                    [
+                                        lawspec_definitions:cake_laws_generation_json_answer(
+                                            Schema,
+                                            Symbols,
+                                            Selection,
+                                            Schema_2
+                                        ),
+                                        Selection_2
+                                    ],
+                                    {
+                                        <<"lawspec.collections::type::Pair">>,
+                                        [
+                                            {
+                                                <<"Either">>,
+                                                [
+                                                    {
+                                                        <<"cake.laws.generation::type::GenerationError">>,
+                                                        []
+                                                    },
+                                                    {
+                                                        <<"cake.laws.generation::type::JsonCompletion">>,
+                                                        []
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                <<"List">>,
+                                                [{<<"cake.laws.generation::type::Reply">>, []}]
+                                            }
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% scriptedWillReply — laws/generation.lawspec:477
+scripted_will_reply(Schema, _Symbols, Script, Reply) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::scriptedWillReply">>,
+        fun() ->
+            lawspec_beam_schema:construct(
+                <<"lawspec.collections::type::Pair::Pair">>,
+                [
+                    ls_unit,
+                    lawspec_beam_runtime:helper(
+                        <<"append">>,
+                        [
+                            Script,
+                            lawspec_beam_schema:construct(
+                                <<"List::Cons">>,
+                                [Reply, []],
+                                {<<"List">>, [{<<"cake.laws.generation::type::Reply">>, []}]},
+                                Schema
+                            )
+                        ],
+                        [
+                            <<"List cake.laws.generation::type::Reply">>,
+                            <<"List cake.laws.generation::type::Reply">>
+                        ],
+                        64
+                    )
+                ],
+                {
+                    <<"lawspec.collections::type::Pair">>,
+                    [
+                        {<<"Unit">>, []},
+                        {<<"List">>, [{<<"cake.laws.generation::type::Reply">>, []}]}
+                    ]
+                },
+                Schema
+            )
+        end
+    ).
+
+%% strategyOf — laws/decomposition_llm.lawspec:124
+strategy_of(Schema, _Symbols, Outcome) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::strategyOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Outcome,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Either::Left">> => fun([_Selection]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Absent">>,
+                                    [],
+                                    {
+                                        <<"Maybe">>,
+                                        [{<<"cake.laws.decomposition::type::Strategy">>, []}]
+                                    },
+                                    Schema
+                                )
+                            end,
+                            <<"Either::Right">> => fun([Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Present">>,
+                                    [
+                                        lawspec_beam_schema:match(
+                                            Selection_2,
+                                            #{
+                                                <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
+                                                    [
+                                                        _OriginalQuestion,
+                                                        Strategy,
+                                                        _SubQuestions,
+                                                        _QuestionIndex
+                                                    ]
+                                                ) ->
+                                                    Strategy
+                                                end
+                                            }
+                                        )
+                                    ],
+                                    {
+                                        <<"Maybe">>,
+                                        [{<<"cake.laws.decomposition::type::Strategy">>, []}]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% subQuestionJson — laws/decomposition_llm.lawspec:80
+sub_question_json(_Schema, _Symbols, DeniesAtomic, SubQuestions) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::subQuestionJson">>,
+        fun() ->
+            lawspec_typed:to_dynamic_decomposition_json(
+                lawspec_typed:sub_question_json(DeniesAtomic, SubQuestions)
+            )
+        end
+    ).
+
+%% subQuestionsOf — laws/decomposition_llm.lawspec:133
+sub_questions_of(Schema, _Symbols, Outcome) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::subQuestionsOf">>,
+        fun() ->
+            lawspec_beam_runtime:bind(
+                Outcome,
+                fun(It) ->
+                    lawspec_beam_schema:match(
+                        It,
+                        #{
+                            <<"Either::Left">> => fun([_Selection]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Absent">>,
+                                    [],
+                                    {
+                                        <<"Maybe">>,
+                                        [
+                                            {
+                                                <<"List">>,
+                                                [{<<"cake.laws.decomposition::type::Entry">>, []}]
+                                            }
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end,
+                            <<"Either::Right">> => fun([Selection_2]) ->
+                                lawspec_beam_schema:construct(
+                                    <<"Maybe::Present">>,
+                                    [
+                                        lawspec_beam_schema:match(
+                                            Selection_2,
+                                            #{
+                                                <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
+                                                    [
+                                                        _OriginalQuestion,
+                                                        _Strategy,
+                                                        SubQuestions,
+                                                        _QuestionIndex
+                                                    ]
+                                                ) ->
+                                                    SubQuestions
+                                                end
+                                            }
+                                        )
+                                    ],
+                                    {
+                                        <<"Maybe">>,
+                                        [
+                                            {
+                                                <<"List">>,
+                                                [{<<"cake.laws.decomposition::type::Entry">>, []}]
+                                            }
+                                        ]
+                                    },
+                                    Schema
+                                )
+                            end
+                        }
+                    )
+                end
+            )
+        end
+    ).
+
+%% wasRead — laws/decomposition_llm.lawspec:150
+was_read(Schema, Symbols, Outcome) ->
+    lawspec_beam_runtime:contextual(
+        <<"cake.laws.decomposition_llm::wasRead">>,
+        fun() ->
+            (lawspec_beam_schema:match(
+                Outcome,
+                #{
+                    <<"Either::Left">> => fun([_RailwayError0]) -> false end,
+                    <<"Either::Right">> => fun([_RailwayValue1]) -> true end
+                }
+            ) orelse lawspec_definitions:is_invalid_response(Schema, Symbols, Outcome))
         end
     ).
 
@@ -3585,7 +5318,7 @@ fits(_Schema, _Symbols, Schema_2, Parsed) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.generation::fits">>,
         fun() ->
-            lawspec_typed:fits(
+            lawspec_typed:cake_laws_generation_fits(
                 lawspec_typed:from_dynamic_schema(Schema_2),
                 lawspec_typed:from_dynamic_parsed(Parsed)
             )
@@ -3596,7 +5329,11 @@ fits(_Schema, _Symbols, Schema_2, Parsed) ->
 has_text(_Schema, _Symbols, Outcome) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.generation::hasText">>,
-        fun() -> lawspec_typed:has_text(lawspec_typed:from_dynamic_maybe_completion(Outcome)) end
+        fun() ->
+            lawspec_typed:cake_laws_generation_has_text(
+                lawspec_typed:from_dynamic_maybe_completion(Outcome)
+            )
+        end
     ).
 
 %% emptied — laws/generation.lawspec:161
@@ -3605,7 +5342,9 @@ emptied(_Schema, _Symbols, Draft) ->
         <<"cake.laws.generation::emptied">>,
         fun() ->
             lawspec_typed:to_dynamic_completion(
-                lawspec_typed:emptied(lawspec_typed:from_dynamic_completion(Draft))
+                lawspec_typed:cake_laws_generation_emptied(
+                    lawspec_typed:from_dynamic_completion(Draft)
+                )
             )
         end
     ).
@@ -3770,14 +5509,22 @@ silenced(Schema, Symbols, Request) ->
 documented(_Schema, _Symbols, Reason) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.generation::documented">>,
-        fun() -> lawspec_typed:documented(lawspec_typed:from_dynamic_finish_reason(Reason)) end
+        fun() ->
+            lawspec_typed:cake_laws_generation_documented(
+                lawspec_typed:from_dynamic_finish_reason(Reason)
+            )
+        end
     ).
 
 %% countsNotNegative — laws/generation.lawspec:194
 counts_not_negative(_Schema, _Symbols, Usage) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.generation::countsNotNegative">>,
-        fun() -> lawspec_typed:counts_not_negative(lawspec_typed:from_dynamic_usage(Usage)) end
+        fun() ->
+            lawspec_typed:cake_laws_generation_counts_not_negative(
+                lawspec_typed:from_dynamic_usage(Usage)
+            )
+        end
     ).
 
 %% answer — laws/generation.lawspec:383
@@ -4053,7 +5800,9 @@ completed(Schema, Symbols, Request) ->
 lawful(_Schema, _Symbols, Draft) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.generation::lawful">>,
-        fun() -> lawspec_typed:lawful(lawspec_typed:from_dynamic_completion(Draft)) end
+        fun() ->
+            lawspec_typed:cake_laws_generation_lawful(lawspec_typed:from_dynamic_completion(Draft))
+        end
     ).
 
 %% vetted — laws/generation.lawspec:435
@@ -4383,7 +6132,9 @@ no_usage(_Schema, _Symbols, Ignored) ->
         <<"cake.laws.generation::noUsage">>,
         fun() ->
             lawspec_typed:to_dynamic_usage(
-                lawspec_typed:no_usage(lawspec_typed:from_dynamic_unit(Ignored))
+                lawspec_typed:cake_laws_generation_no_usage(
+                    lawspec_typed:from_dynamic_unit(Ignored)
+                )
             )
         end
     ).
@@ -4448,7 +6199,9 @@ scripted_json(_Schema, _Symbols, Parsed) ->
         <<"cake.laws.generation::scriptedJson">>,
         fun() ->
             lawspec_typed:to_dynamic_json_completion(
-                lawspec_typed:scripted_json(lawspec_typed:from_dynamic_parsed(Parsed))
+                lawspec_typed:cake_laws_generation_scripted_json(
+                    lawspec_typed:from_dynamic_parsed(Parsed)
+                )
             )
         end
     ).
@@ -4945,7 +6698,7 @@ asked(Schema, Symbols, Request) ->
     ).
 
 %% scriptedComplete — laws/generation.lawspec:481
-scripted_complete(Schema, Symbols, Script, _Messages, _Model) ->
+scripted_complete_2(Schema, Symbols, Script, _Messages, _Model) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.generation::scriptedComplete">>,
         fun() ->
@@ -5050,7 +6803,7 @@ scripted_complete(Schema, Symbols, Script, _Messages, _Model) ->
     ).
 
 %% scriptedCompleteJson — laws/generation.lawspec:489
-scripted_complete_json(Schema, Symbols, Script, _Messages, _Model, Schema_2) ->
+scripted_complete_json_2(Schema, Symbols, Script, _Messages, _Model, Schema_2) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.generation::scriptedCompleteJson">>,
         fun() ->
@@ -5160,7 +6913,7 @@ scripted_complete_json(Schema, Symbols, Script, _Messages, _Model, Schema_2) ->
     ).
 
 %% scriptedWillReply — laws/generation.lawspec:477
-scripted_will_reply(Schema, _Symbols, Script, Reply) ->
+scripted_will_reply_2(Schema, _Symbols, Script, Reply) ->
     lawspec_beam_runtime:contextual(
         <<"cake.laws.generation::scriptedWillReply">>,
         fun() ->

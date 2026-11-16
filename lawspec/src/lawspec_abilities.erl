@@ -15,7 +15,11 @@
     scripted/2,
     scripted_native/1,
     scripted_state/1,
-    scripted_set_state/2
+    scripted_set_state/2,
+    scripted_2/2,
+    scripted_2_native/1,
+    scripted_2_state/1,
+    scripted_2_set_state/2
 ]).
 
 with_context(_Body) ->
@@ -326,6 +330,85 @@ scripted_state(_Native) ->
     ).
 
 scripted_set_state(_Native, _State) ->
+    {_Origin, _} = generation_parts(_Native),
+    lawspec_beam_effects:set_handler_state(
+        _Origin,
+        fun(_StateSchema, _Value) ->
+            lawspec_beam_schema:from_native(
+                _Value,
+                {<<"List">>, [{<<"cake.laws.generation::type::Reply">>, []}]},
+                _StateSchema
+            )
+        end,
+        _State
+    ),
+    ok.
+
+scripted_2(Schema, Symbols) ->
+    lawspec_beam_effects:stateful(
+        Schema,
+        [],
+        #{
+            <<"complete">> => fun(_CurrentSchema, [ListMessage, Text], _State) ->
+                lawspec_beam_runtime:bind(
+                    lawspec_definitions:scripted_complete_2(
+                        _CurrentSchema,
+                        Symbols,
+                        _State,
+                        ListMessage,
+                        Text
+                    ),
+                    fun({ls_data, _, [_Result, _NextState]}) -> {_Result, _NextState} end
+                )
+            end,
+            <<"completeJson">> => fun(_CurrentSchema, [ListMessage, Text, Schema_2], _State) ->
+                lawspec_beam_runtime:bind(
+                    lawspec_definitions:scripted_complete_json_2(
+                        _CurrentSchema,
+                        Symbols,
+                        _State,
+                        ListMessage,
+                        Text,
+                        Schema_2
+                    ),
+                    fun({ls_data, _, [_Result, _NextState]}) -> {_Result, _NextState} end
+                )
+            end,
+            <<"willReply">> => fun(_CurrentSchema, [Reply], _State) ->
+                lawspec_beam_runtime:bind(
+                    lawspec_definitions:scripted_will_reply_2(
+                        _CurrentSchema,
+                        Symbols,
+                        _State,
+                        Reply
+                    ),
+                    fun({ls_data, _, [_Result, _NextState]}) -> {_Result, _NextState} end
+                )
+            end
+        }
+    ).
+
+scripted_2_native({lawspec_context, Schema, Symbols}) ->
+    _Shared = scripted_2(Schema, Symbols),
+    {
+        lawspec_abilities:generation_to_native(Schema, Symbols, _Shared),
+        lawspec_abilities:provider_to_native(Schema, Symbols, _Shared)
+    }.
+
+scripted_2_state(_Native) ->
+    {_Origin, _} = generation_parts(_Native),
+    lawspec_beam_effects:handler_state(
+        _Origin,
+        fun(_StateSchema, _Value) ->
+            lawspec_beam_schema:to_native(
+                _Value,
+                {<<"List">>, [{<<"cake.laws.generation::type::Reply">>, []}]},
+                _StateSchema
+            )
+        end
+    ).
+
+scripted_2_set_state(_Native, _State) ->
     {_Origin, _} = generation_parts(_Native),
     lawspec_beam_effects:set_handler_state(
         _Origin,

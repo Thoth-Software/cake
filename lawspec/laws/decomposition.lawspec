@@ -15,14 +15,22 @@ type Entry is a record
 }
 end type
 
+-- `t:Cake.Decomposition.Result.strategy/0`. `new/2` derives the first three.
+-- `SelfAsk` and `Ircot` are on a result only when a strategy module puts
+-- them there, and they are constructors here so that a law which forbids
+-- them can fail.
 type Strategy is one of
   | Atomic
   | Flat
   | Sequential
+  | SelfAsk
+  | Ircot
 end type
 
+-- `t:Cake.Decomposition.Result.t/0`.
 type Decomposition is a record
 {
+  originalQuestion :: Text
   strategy :: Strategy
   subQuestions :: List Entry
   questionIndex :: KeyVal Integer Entry
@@ -223,6 +231,30 @@ law "|plain sub-questions become dependency-free entries| is
     expect (decomposeQuestions q questions).subQuestions = [
       Entry record{question = "What is Task?", dependsOn = []},
       Entry record{question = "What is GenServer?", dependsOn = []}]
+  end example
+end law
+
+law "|the original question is kept| is
+  description :
+    "A decomposition carries the question it was built from, unchanged,
+    whatever its sub-questions."
+  end description
+  definition :
+    for all
+      (q :: Text)
+      (questions :: List Text)
+      (nodes :: List Node)
+    =>
+      (decomposeQuestions q questions).originalQuestion = q and (decompose q
+        (dagOf nodes)).originalQuestion = q
+    end for all
+  end definition
+  example "|an atomic question| :
+    q = "What is a GenServer?"
+    questions = []
+    nodes = []
+    expect (decomposeQuestions q questions).originalQuestion =
+      "What is a GenServer?"
   end example
 end law
 

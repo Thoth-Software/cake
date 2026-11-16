@@ -501,6 +501,34 @@ schema(_Symbols) ->
                                 (_) ->
                                     no_match
                             end
+                    },
+                    #{
+                        tag => <<"cake.laws.decomposition::type::Strategy::SelfAsk">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.StrategySelfAsk'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.StrategySelfAsk'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.decomposition::type::Strategy::Ircot">>,
+                        fields => [],
+                        encode => fun([]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.StrategyIrcot'}
+                        end,
+                        decode =>
+                            fun
+                                (#{'__struct__' := 'Elixir.LawSpec.Data.StrategyIrcot'}) ->
+                                    {ok, []};
+                                (_) ->
+                                    no_match
+                            end
                     }
                 ]
             },
@@ -511,6 +539,7 @@ schema(_Symbols) ->
                     #{
                         tag => <<"cake.laws.decomposition::type::Decomposition::Decomposition">>,
                         fields => [
+                            {<<"originalQuestion">>, {<<"Text">>, []}},
                             {<<"strategy">>, {<<"cake.laws.decomposition::type::Strategy">>, []}},
                             {
                                 <<"subQuestions">>,
@@ -527,9 +556,10 @@ schema(_Symbols) ->
                                 }
                             }
                         ],
-                        encode => fun([Strategy, SubQuestions, QuestionIndex]) ->
+                        encode => fun([OriginalQuestion, Strategy, SubQuestions, QuestionIndex]) ->
                             #{
                                 '__struct__' => 'Elixir.LawSpec.Data.Decomposition',
+                                original_question => OriginalQuestion,
                                 strategy => Strategy,
                                 sub_questions => SubQuestions,
                                 question_index => QuestionIndex
@@ -540,12 +570,13 @@ schema(_Symbols) ->
                                 (
                                     #{
                                         '__struct__' := 'Elixir.LawSpec.Data.Decomposition',
+                                        original_question := OriginalQuestion,
                                         strategy := Strategy,
                                         sub_questions := SubQuestions,
                                         question_index := QuestionIndex
                                     }
                                 ) ->
-                                    {ok, [Strategy, SubQuestions, QuestionIndex]};
+                                    {ok, [OriginalQuestion, Strategy, SubQuestions, QuestionIndex]};
                                 (_) ->
                                     no_match
                             end
@@ -605,6 +636,110 @@ schema(_Symbols) ->
                                     }
                                 ) ->
                                     {ok, [Rank, Picks]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.decomposition_llm::type::DecompositionError">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag =>
+                            <<"cake.laws.decomposition_llm::type::DecompositionError::InvalidResponse">>,
+                        fields => [{<<"value">>, {<<"Text">>, []}}],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' =>
+                                    'Elixir.LawSpec.Data.DecompositionErrorInvalidResponse',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.DecompositionErrorInvalidResponse',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag =>
+                            <<"cake.laws.decomposition_llm::type::DecompositionError::GenerationFailed">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.generation::type::GenerationError">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{
+                                '__struct__' =>
+                                    'Elixir.LawSpec.Data.DecompositionErrorGenerationFailed',
+                                value => Value
+                            }
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' :=
+                                            'Elixir.LawSpec.Data.DecompositionErrorGenerationFailed',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    }
+                ]
+            },
+            #{
+                name => <<"cake.laws.decomposition_llm::type::Said">>,
+                parameters => 0,
+                constructors => [
+                    #{
+                        tag => <<"cake.laws.decomposition_llm::type::Said::Fitting">>,
+                        fields => [
+                            {<<"value">>, {<<"cake.laws.generation::type::DecompositionJson">>, []}}
+                        ],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.SaidFitting', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.SaidFitting',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
+                                (_) ->
+                                    no_match
+                            end
+                    },
+                    #{
+                        tag => <<"cake.laws.decomposition_llm::type::Said::Other">>,
+                        fields => [{<<"value">>, {<<"cake.laws.generation::type::Reply">>, []}}],
+                        encode => fun([Value]) ->
+                            #{'__struct__' => 'Elixir.LawSpec.Data.SaidOther', value => Value}
+                        end,
+                        decode =>
+                            fun
+                                (
+                                    #{
+                                        '__struct__' := 'Elixir.LawSpec.Data.SaidOther',
+                                        value := Value
+                                    }
+                                ) ->
+                                    {ok, [Value]};
                                 (_) ->
                                     no_match
                             end

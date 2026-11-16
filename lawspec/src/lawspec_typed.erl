@@ -22,14 +22,24 @@
     lawspec_matchers_matchers_same_items_list_integer_list_integer/2,
     plain_entries/1,
     with_bad_dependency/2,
-    fits/2,
-    has_text/1,
-    emptied/1,
-    documented/1,
-    counts_not_negative/1,
-    lawful/1,
-    no_usage/1,
-    scripted_json/1,
+    atomic_json/1,
+    atomic_of/1,
+    both_json/1,
+    cake_laws_generation_counts_not_negative/1,
+    cake_laws_generation_documented/1,
+    cake_laws_generation_emptied/1,
+    cake_laws_generation_fits/2,
+    cake_laws_generation_has_text/1,
+    cake_laws_generation_lawful/1,
+    cake_laws_generation_no_usage/1,
+    cake_laws_generation_scripted_json/1,
+    default_model/1,
+    lawspec_collections_key_val_from_items_list_entry_integer_entry_list_entry_integer_entry/2,
+    lawspec_collections_key_val_of_list_entry_integer_entry/1,
+    lawspec_collections_key_val_put_items_integer_entry_list_entry_integer_entry/3,
+    model_asked/1,
+    neither_json/1,
+    sub_question_json/2,
     exchanges_of/1,
     last_ten/1,
     recent_exchanges/1,
@@ -70,6 +80,7 @@
     lawspec_matchers_matchers_same_items_list_match_clause_list_match_clause/2,
     from_dynamic_answer_pair/1,
     from_dynamic_completion/1,
+    from_dynamic_decomposition/1,
     from_dynamic_decomposition_json/1,
     from_dynamic_entry/1,
     from_dynamic_entry_integer_entry/1,
@@ -111,13 +122,16 @@
     from_dynamic_schema/1,
     from_dynamic_scored_result/1,
     from_dynamic_self_ask_step/1,
+    from_dynamic_strategy/1,
     from_dynamic_term_clause/1,
     from_dynamic_term_value/1,
     from_dynamic_unit/1,
     from_dynamic_usage/1,
+    from_native_decomposition/1,
     from_native_key_val_integer_entry/1,
     to_dynamic_answer_pair/1,
     to_dynamic_completion/1,
+    to_dynamic_decomposition/1,
     to_dynamic_decomposition_json/1,
     to_dynamic_entry/1,
     to_dynamic_entry_integer_entry/1,
@@ -159,10 +173,12 @@
     to_dynamic_schema/1,
     to_dynamic_scored_result/1,
     to_dynamic_self_ask_step/1,
+    to_dynamic_strategy/1,
     to_dynamic_term_clause/1,
     to_dynamic_term_value/1,
     to_dynamic_unit/1,
     to_dynamic_usage/1,
+    to_native_decomposition/1,
     to_native_key_val_integer_entry/1
 ]).
 
@@ -187,7 +203,7 @@ distinct_texts(Items) ->
             ))) andalso distinct_texts(Selection_2))
     end.
 
-%% allIn — laws/decomposition.lawspec:149
+%% allIn — laws/decomposition.lawspec:157
 all_in(Xs, Done) ->
     case Xs of
         [] ->
@@ -201,11 +217,11 @@ all_in(Xs, Done) ->
             )) andalso all_in(Selection_2, Done))
     end.
 
-%% dagOf — laws/decomposition.lawspec:95
+%% dagOf — laws/decomposition.lawspec:103
 dag_of(Nodes) ->
     entries_from(Nodes, Nodes, 0).
 
-%% dependenciesFirst — laws/decomposition.lawspec:162
+%% dependenciesFirst — laws/decomposition.lawspec:170
 dependencies_first(Entries, Done, Order) ->
     case Order of
         [] ->
@@ -217,7 +233,7 @@ dependencies_first(Entries, Done, Order) ->
             ) andalso dependencies_first(Entries, (Done ++ [Selection]), Selection_2))
     end.
 
-%% depsAt — laws/decomposition.lawspec:141
+%% depsAt — laws/decomposition.lawspec:149
 deps_at(Entries, I) ->
     At =
         case lawspec_beam_fast:at_list(Entries, I) of
@@ -241,7 +257,7 @@ deps_at(Entries, I) ->
             []
     end.
 
-%% depsOf — laws/decomposition.lawspec:63
+%% depsOf — laws/decomposition.lawspec:71
 deps_of(Nodes, MyRank, Picks) ->
     case Picks of
         [] ->
@@ -284,7 +300,7 @@ deps_of(Nodes, MyRank, Picks) ->
             end
     end.
 
-%% entriesFrom — laws/decomposition.lawspec:81
+%% entriesFrom — laws/decomposition.lawspec:89
 entries_from(Nodes, Rest, I) ->
     case Rest of
         [] ->
@@ -320,7 +336,7 @@ entries_from(Nodes, Rest, I) ->
             ]
     end.
 
-%% firstReady — laws/decomposition.lawspec:174
+%% firstReady — laws/decomposition.lawspec:182
 first_ready(Entries, Done, Candidates) ->
     case Candidates of
         [] ->
@@ -334,7 +350,7 @@ first_ready(Entries, Done, Candidates) ->
             end
     end.
 
-%% hasDependency — laws/decomposition.lawspec:137
+%% hasDependency — laws/decomposition.lawspec:145
 has_dependency(Entry) ->
     Value =
         case Entry of
@@ -354,7 +370,7 @@ has_dependency(Entry) ->
         end,
     (not Value_2).
 
-%% isReady — laws/decomposition.lawspec:156
+%% isReady — laws/decomposition.lawspec:164
 is_ready(Entries, Done, I) ->
     ((not (not lists:all(
         fun(Item) ->
@@ -459,7 +475,7 @@ lawspec_matchers_matchers_same_items_list_integer_list_integer(Xs, Ys) ->
             end
     end.
 
-%% plainEntries — laws/decomposition.lawspec:129
+%% plainEntries — laws/decomposition.lawspec:137
 plain_entries(Questions) ->
     case Questions of
         [] ->
@@ -475,7 +491,7 @@ plain_entries(Questions) ->
             ]
     end.
 
-%% withBadDependency — laws/decomposition.lawspec:118
+%% withBadDependency — laws/decomposition.lawspec:126
 with_bad_dependency(Entries, Dep) ->
     case Entries of
         [] ->
@@ -507,100 +523,44 @@ with_bad_dependency(Entries, Dep) ->
             [Value_2 | Selection_2]
     end.
 
-%% fits — laws/generation.lawspec:144
-fits(Schema_2, Parsed) ->
-    case Parsed of
-        #{'__struct__' := 'Elixir.LawSpec.Data.ParsedDecomposed', value := _} ->
-            (Schema_2 =:= #{'__struct__' => 'Elixir.LawSpec.Data.SchemaDecompositionSchema'});
-        #{'__struct__' := 'Elixir.LawSpec.Data.ParsedStepped', value := _} ->
-            (Schema_2 =:= #{'__struct__' => 'Elixir.LawSpec.Data.SchemaIrcotSchema'});
-        #{'__struct__' := 'Elixir.LawSpec.Data.ParsedUnrecognised'} ->
-            false
-    end.
-
-%% hasText — laws/generation.lawspec:153
-has_text(Outcome) ->
-    case Outcome of
-        absent ->
-            true;
-        {present, Selection} ->
-            Value =
-                case Selection of
-                    #{
-                        '__struct__' := 'Elixir.LawSpec.Data.Completion',
-                        text := Text,
-                        finish_reason := _,
-                        usage := _,
-                        model := _
-                    } ->
-                        Text
-                end,
-            (Value =/= <<>>)
-    end.
-
-%% emptied — laws/generation.lawspec:161
-emptied(Draft) ->
-    Value =
-        case Draft of
-            #{
-                '__struct__' := 'Elixir.LawSpec.Data.Completion',
-                text := _,
-                finish_reason := FinishReason,
-                usage := _,
-                model := _
-            } ->
-                FinishReason
-        end,
-    RecordField = Value,
-    Value_2 =
-        case Draft of
-            #{
-                '__struct__' := 'Elixir.LawSpec.Data.Completion',
-                text := _,
-                finish_reason := _,
-                usage := Usage,
-                model := _
-            } ->
-                Usage
-        end,
-    RecordField_2 = Value_2,
-    Value_3 =
-        case Draft of
-            #{
-                '__struct__' := 'Elixir.LawSpec.Data.Completion',
-                text := _,
-                finish_reason := _,
-                usage := _,
-                model := Model
-            } ->
-                Model
-        end,
-    RecordField_3 = Value_3,
+%% atomicJson — laws/decomposition_llm.lawspec:72
+atomic_json(_Ignored) ->
     #{
-        '__struct__' => 'Elixir.LawSpec.Data.Completion',
-        text => <<>>,
-        finish_reason => RecordField,
-        usage => RecordField_2,
-        model => RecordField_3
+        '__struct__' => 'Elixir.LawSpec.Data.DecompositionJson',
+        atomic => {present, true},
+        sub_questions => absent
     }.
 
-%% documented — laws/generation.lawspec:186
-documented(Reason) ->
-    case Reason of
-        #{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonUndocumented', value := _} ->
-            false;
-        #{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonStop'} ->
-            true;
-        #{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonLength'} ->
-            true;
-        #{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonContentFilter'} ->
-            true;
-        #{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonToolUse'} ->
-            true
-    end.
+%% atomicOf — laws/decomposition_llm.lawspec:103
+atomic_of(Question) ->
+    RecordField = lawspec_beam_fast:key_val_of(
+        [
+            {Key, Value}
+         || #{
+                '__struct__' := 'Elixir.LawSpec.Data.LawspecCollectionsTypeEntry',
+                key := Key,
+                value := Value
+            } <- []
+        ]
+    ),
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.Decomposition',
+        original_question => Question,
+        strategy => #{'__struct__' => 'Elixir.LawSpec.Data.StrategyAtomic'},
+        sub_questions => [],
+        question_index => RecordField
+    }.
 
-%% countsNotNegative — laws/generation.lawspec:194
-counts_not_negative(Usage) ->
+%% bothJson — laws/decomposition_llm.lawspec:88
+both_json(SubQuestions) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.DecompositionJson',
+        atomic => {present, true},
+        sub_questions => {present, SubQuestions}
+    }.
+
+%% cakeLawsGenerationCountsNotNegative — laws/generation.lawspec:194
+cake_laws_generation_counts_not_negative(Usage) ->
     Value =
         case Usage of
             #{
@@ -647,8 +607,100 @@ counts_not_negative(Usage) ->
         end,
     Logic_2.
 
-%% lawful — laws/generation.lawspec:429
-lawful(Draft) ->
+%% cakeLawsGenerationDocumented — laws/generation.lawspec:186
+cake_laws_generation_documented(Reason) ->
+    case Reason of
+        #{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonUndocumented', value := _} ->
+            false;
+        #{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonStop'} ->
+            true;
+        #{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonLength'} ->
+            true;
+        #{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonContentFilter'} ->
+            true;
+        #{'__struct__' := 'Elixir.LawSpec.Data.FinishReasonToolUse'} ->
+            true
+    end.
+
+%% cakeLawsGenerationEmptied — laws/generation.lawspec:161
+cake_laws_generation_emptied(Draft) ->
+    Value =
+        case Draft of
+            #{
+                '__struct__' := 'Elixir.LawSpec.Data.Completion',
+                text := _,
+                finish_reason := FinishReason,
+                usage := _,
+                model := _
+            } ->
+                FinishReason
+        end,
+    RecordField = Value,
+    Value_2 =
+        case Draft of
+            #{
+                '__struct__' := 'Elixir.LawSpec.Data.Completion',
+                text := _,
+                finish_reason := _,
+                usage := Usage,
+                model := _
+            } ->
+                Usage
+        end,
+    RecordField_2 = Value_2,
+    Value_3 =
+        case Draft of
+            #{
+                '__struct__' := 'Elixir.LawSpec.Data.Completion',
+                text := _,
+                finish_reason := _,
+                usage := _,
+                model := Model
+            } ->
+                Model
+        end,
+    RecordField_3 = Value_3,
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.Completion',
+        text => <<>>,
+        finish_reason => RecordField,
+        usage => RecordField_2,
+        model => RecordField_3
+    }.
+
+%% cakeLawsGenerationFits — laws/generation.lawspec:144
+cake_laws_generation_fits(Schema_2, Parsed) ->
+    case Parsed of
+        #{'__struct__' := 'Elixir.LawSpec.Data.ParsedDecomposed', value := _} ->
+            (Schema_2 =:= #{'__struct__' => 'Elixir.LawSpec.Data.SchemaDecompositionSchema'});
+        #{'__struct__' := 'Elixir.LawSpec.Data.ParsedStepped', value := _} ->
+            (Schema_2 =:= #{'__struct__' => 'Elixir.LawSpec.Data.SchemaIrcotSchema'});
+        #{'__struct__' := 'Elixir.LawSpec.Data.ParsedUnrecognised'} ->
+            false
+    end.
+
+%% cakeLawsGenerationHasText — laws/generation.lawspec:153
+cake_laws_generation_has_text(Outcome) ->
+    case Outcome of
+        absent ->
+            true;
+        {present, Selection} ->
+            Value =
+                case Selection of
+                    #{
+                        '__struct__' := 'Elixir.LawSpec.Data.Completion',
+                        text := Text,
+                        finish_reason := _,
+                        usage := _,
+                        model := _
+                    } ->
+                        Text
+                end,
+            (Value =/= <<>>)
+    end.
+
+%% cakeLawsGenerationLawful — laws/generation.lawspec:429
+cake_laws_generation_lawful(Draft) ->
     Value =
         case Draft of
             #{
@@ -674,7 +726,7 @@ lawful(Draft) ->
                         } ->
                             Usage
                     end,
-                counts_not_negative(Value_2);
+                cake_laws_generation_counts_not_negative(Value_2);
             false ->
                 false
         end,
@@ -692,14 +744,14 @@ lawful(Draft) ->
                         } ->
                             FinishReason
                     end,
-                documented(Value_3);
+                cake_laws_generation_documented(Value_3);
             false ->
                 false
         end,
     Logic_2.
 
-%% noUsage — laws/generation.lawspec:503
-no_usage(_Ignored) ->
+%% cakeLawsGenerationNoUsage — laws/generation.lawspec:503
+cake_laws_generation_no_usage(_Ignored) ->
     #{
         '__struct__' => 'Elixir.LawSpec.Data.Usage',
         input_tokens => 0,
@@ -707,9 +759,9 @@ no_usage(_Ignored) ->
         total_tokens => 0
     }.
 
-%% scriptedJson — laws/generation.lawspec:519
-scripted_json(Parsed) ->
-    RecordField = no_usage(ok),
+%% cakeLawsGenerationScriptedJson — laws/generation.lawspec:519
+cake_laws_generation_scripted_json(Parsed) ->
+    RecordField = cake_laws_generation_no_usage(ok),
     RecordField_2 = #{
         '__struct__' => 'Elixir.LawSpec.Data.Completion',
         text => <<"{}">>,
@@ -721,6 +773,140 @@ scripted_json(Parsed) ->
         '__struct__' => 'Elixir.LawSpec.Data.JsonCompletion',
         completion => RecordField_2,
         parsed => Parsed
+    }.
+
+%% defaultModel — laws/decomposition_llm.lawspec:54
+default_model(_Ignored) ->
+    <<"gpt-4o-mini">>.
+
+%% keyValFromItems — <lawspec.collections>:58
+lawspec_collections_key_val_from_items_list_entry_integer_entry_list_entry_integer_entry(Es, Acc) ->
+    case Es of
+        [] ->
+            Acc;
+        [Selection | Selection_2] ->
+            case Selection of
+                #{
+                    '__struct__' := 'Elixir.LawSpec.Data.LawspecCollectionsTypeEntry',
+                    key := MatchSelection,
+                    value := MatchSelection_2
+                } ->
+                    lawspec_collections_key_val_from_items_list_entry_integer_entry_list_entry_integer_entry(
+                        Selection_2,
+                        lawspec_collections_key_val_put_items_integer_entry_list_entry_integer_entry(
+                            MatchSelection,
+                            MatchSelection_2,
+                            Acc
+                        )
+                    )
+            end
+    end.
+
+%% keyValOf — <lawspec.collections>:81
+lawspec_collections_key_val_of_list_entry_integer_entry(Es) ->
+    lawspec_beam_fast:key_val_of(
+        [
+            {Key, Value}
+         || #{
+                '__struct__' := 'Elixir.LawSpec.Data.LawspecCollectionsTypeEntry',
+                key := Key,
+                value := Value
+            } <- Es
+        ]
+    ).
+
+%% keyValPutItems — <lawspec.collections>:19
+lawspec_collections_key_val_put_items_integer_entry_list_entry_integer_entry(K, V, Es) ->
+    case Es of
+        [] ->
+            [
+                #{
+                    '__struct__' => 'Elixir.LawSpec.Data.LawspecCollectionsTypeEntry',
+                    key => K,
+                    value => V
+                }
+            ];
+        [Selection | Selection_2] ->
+            case Selection of
+                #{
+                    '__struct__' := 'Elixir.LawSpec.Data.LawspecCollectionsTypeEntry',
+                    key := MatchSelection,
+                    value := _
+                } ->
+                    It = lawspec_ordering(lawspec_beam_fast:compare(K, MatchSelection)),
+                    case It of
+                        #{'__struct__' := 'Elixir.LawSpec.Data.OrderingLess'} ->
+                            [
+                                #{
+                                    '__struct__' =>
+                                        'Elixir.LawSpec.Data.LawspecCollectionsTypeEntry',
+                                    key => K,
+                                    value => V
+                                }
+                                | Es
+                            ];
+                        #{'__struct__' := 'Elixir.LawSpec.Data.OrderingEqual'} ->
+                            [
+                                #{
+                                    '__struct__' =>
+                                        'Elixir.LawSpec.Data.LawspecCollectionsTypeEntry',
+                                    key => K,
+                                    value => V
+                                }
+                                | Selection_2
+                            ];
+                        #{'__struct__' := 'Elixir.LawSpec.Data.OrderingGreater'} ->
+                            [
+                                Selection
+                                | lawspec_collections_key_val_put_items_integer_entry_list_entry_integer_entry(
+                                    K,
+                                    V,
+                                    Selection_2
+                                )
+                            ]
+                    end
+            end
+    end.
+
+%% modelAsked — laws/decomposition_llm.lawspec:56
+model_asked(Model) ->
+    case Model of
+        absent ->
+            default_model(ok);
+        {present, Selection} ->
+            Selection
+    end.
+
+%% neitherJson — laws/decomposition_llm.lawspec:96
+neither_json(DeniesAtomic) ->
+    Value =
+        case DeniesAtomic of
+            true ->
+                {present, false};
+            false ->
+                absent
+        end,
+    RecordField = Value,
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.DecompositionJson',
+        atomic => RecordField,
+        sub_questions => absent
+    }.
+
+%% subQuestionJson — laws/decomposition_llm.lawspec:80
+sub_question_json(DeniesAtomic, SubQuestions) ->
+    Value =
+        case DeniesAtomic of
+            true ->
+                {present, false};
+            false ->
+                absent
+        end,
+    RecordField = Value,
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.DecompositionJson',
+        atomic => RecordField,
+        sub_questions => {present, SubQuestions}
     }.
 
 %% exchangesOf — laws/prompt_context.lawspec:215
@@ -1533,6 +1719,36 @@ from_dynamic_completion(
         model => Model
     }.
 
+%% From the dynamic value of cake.laws.decomposition::type::Decomposition
+from_dynamic_decomposition(
+    {
+        ls_data,
+        <<"cake.laws.decomposition::type::Decomposition::Decomposition">>,
+        [OriginalQuestion, Strategy, SubQuestions, QuestionIndex]
+    }
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.Decomposition',
+        original_question => OriginalQuestion,
+        strategy => from_dynamic_strategy(Strategy),
+        sub_questions => from_dynamic_list_entry(SubQuestions),
+        question_index => from_dynamic_key_val_integer_entry(QuestionIndex)
+    }.
+
+%% From the dynamic value of cake.laws.generation::type::DecompositionJson
+from_dynamic_decomposition_json(
+    {
+        ls_data,
+        <<"cake.laws.generation::type::DecompositionJson::DecompositionJson">>,
+        [Atomic, SubQuestions]
+    }
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.DecompositionJson',
+        atomic => from_dynamic_maybe_bool(Atomic),
+        sub_questions => from_dynamic_maybe_list_text(SubQuestions)
+    }.
+
 %% From the dynamic value of cake.laws.decomposition::type::Entry
 from_dynamic_entry(
     {ls_data, <<"cake.laws.decomposition::type::Entry::Entry">>, [Question, DependsOn]}
@@ -1807,6 +2023,24 @@ from_dynamic_usage(
         total_tokens => TotalTokens
     }.
 
+%% From the native value of cake.laws.decomposition::type::Decomposition
+from_native_decomposition(
+    #{
+        '__struct__' := 'Elixir.LawSpec.Data.Decomposition',
+        original_question := OriginalQuestion,
+        strategy := Strategy,
+        sub_questions := SubQuestions,
+        question_index := QuestionIndex
+    }
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.Decomposition',
+        original_question => OriginalQuestion,
+        strategy => Strategy,
+        sub_questions => SubQuestions,
+        question_index => from_native_key_val_integer_entry(QuestionIndex)
+    }.
+
 %% From the native value of lawspec.collections::type::KeyVal (Integer) (cake.laws.decomposition::type::Entry)
 from_native_key_val_integer_entry(
     #{'__struct__' := 'Elixir.LawSpec.Data.KeyVal', value := Entries}
@@ -1836,6 +2070,41 @@ to_dynamic_completion(
         ls_data,
         <<"cake.laws.generation::type::Completion::Completion">>,
         [Text, to_dynamic_finish_reason(FinishReason), to_dynamic_usage(Usage), Model]
+    }.
+
+%% To the dynamic value of cake.laws.decomposition::type::Decomposition
+to_dynamic_decomposition(
+    #{
+        '__struct__' := 'Elixir.LawSpec.Data.Decomposition',
+        original_question := OriginalQuestion,
+        strategy := Strategy,
+        sub_questions := SubQuestions,
+        question_index := QuestionIndex
+    }
+) ->
+    {
+        ls_data,
+        <<"cake.laws.decomposition::type::Decomposition::Decomposition">>,
+        [
+            OriginalQuestion,
+            to_dynamic_strategy(Strategy),
+            to_dynamic_list_entry(SubQuestions),
+            to_dynamic_key_val_integer_entry(QuestionIndex)
+        ]
+    }.
+
+%% To the dynamic value of cake.laws.generation::type::DecompositionJson
+to_dynamic_decomposition_json(
+    #{
+        '__struct__' := 'Elixir.LawSpec.Data.DecompositionJson',
+        atomic := Atomic,
+        sub_questions := SubQuestions
+    }
+) ->
+    {
+        ls_data,
+        <<"cake.laws.generation::type::DecompositionJson::DecompositionJson">>,
+        [to_dynamic_maybe_bool(Atomic), to_dynamic_maybe_list_text(SubQuestions)]
     }.
 
 %% To the dynamic value of cake.laws.decomposition::type::Entry
@@ -2111,6 +2380,24 @@ to_dynamic_usage(
         [InputTokens, OutputTokens, TotalTokens]
     }.
 
+%% To the native value of cake.laws.decomposition::type::Decomposition
+to_native_decomposition(
+    #{
+        '__struct__' := 'Elixir.LawSpec.Data.Decomposition',
+        original_question := OriginalQuestion,
+        strategy := Strategy,
+        sub_questions := SubQuestions,
+        question_index := QuestionIndex
+    }
+) ->
+    #{
+        '__struct__' => 'Elixir.LawSpec.Data.Decomposition',
+        original_question => OriginalQuestion,
+        strategy => Strategy,
+        sub_questions => SubQuestions,
+        question_index => to_native_key_val_integer_entry(QuestionIndex)
+    }.
+
 %% To the native value of lawspec.collections::type::KeyVal (Integer) (cake.laws.decomposition::type::Entry)
 to_native_key_val_integer_entry(Map) ->
     #{
@@ -2131,20 +2418,6 @@ from_dynamic_answer_pair(
 ) ->
     #{'__struct__' => 'Elixir.LawSpec.Data.AnswerPair', question => Question, answer => Answer}.
 
-%% From the dynamic value of cake.laws.generation::type::DecompositionJson
-from_dynamic_decomposition_json(
-    {
-        ls_data,
-        <<"cake.laws.generation::type::DecompositionJson::DecompositionJson">>,
-        [Atomic, SubQuestions]
-    }
-) ->
-    #{
-        '__struct__' => 'Elixir.LawSpec.Data.DecompositionJson',
-        atomic => from_dynamic_maybe_bool(Atomic),
-        sub_questions => from_dynamic_maybe_list_text(SubQuestions)
-    }.
-
 %% From the dynamic value of lawspec.collections::type::Entry (Integer) (cake.laws.decomposition::type::Entry)
 from_dynamic_entry_integer_entry(
     {ls_data, <<"lawspec.collections::type::Entry::Entry">>, [Key, Value]}
@@ -2164,6 +2437,18 @@ from_dynamic_ircot_json(
         reasoning => Reasoning,
         retrieval_query => from_dynamic_maybe_text(RetrievalQuery)
     }.
+
+%% From the dynamic value of Maybe (Bool)
+from_dynamic_maybe_bool({ls_data, <<"Maybe::Absent">>, []}) ->
+    absent;
+from_dynamic_maybe_bool({ls_data, <<"Maybe::Present">>, [Value]}) ->
+    {present, Value}.
+
+%% From the dynamic value of Maybe (List (Text))
+from_dynamic_maybe_list_text({ls_data, <<"Maybe::Absent">>, []}) ->
+    absent;
+from_dynamic_maybe_list_text({ls_data, <<"Maybe::Present">>, [Value]}) ->
+    {present, Value}.
 
 %% From the dynamic value of cake.laws.prompt_context::type::Message
 from_dynamic_message(
@@ -2199,6 +2484,18 @@ from_dynamic_scored_result(
         score => from_dynamic_maybe_integer(Score)
     }.
 
+%% From the dynamic value of cake.laws.decomposition::type::Strategy
+from_dynamic_strategy({ls_data, <<"cake.laws.decomposition::type::Strategy::Atomic">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.StrategyAtomic'};
+from_dynamic_strategy({ls_data, <<"cake.laws.decomposition::type::Strategy::Flat">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.StrategyFlat'};
+from_dynamic_strategy({ls_data, <<"cake.laws.decomposition::type::Strategy::Sequential">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.StrategySequential'};
+from_dynamic_strategy({ls_data, <<"cake.laws.decomposition::type::Strategy::SelfAsk">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.StrategySelfAsk'};
+from_dynamic_strategy({ls_data, <<"cake.laws.decomposition::type::Strategy::Ircot">>, []}) ->
+    #{'__struct__' => 'Elixir.LawSpec.Data.StrategyIrcot'}.
+
 %% From the dynamic value of cake.laws.search_query::type::TermValue
 from_dynamic_term_value(
     {ls_data, <<"cake.laws.search_query::type::TermValue::TextValue">>, [Value]}
@@ -2219,20 +2516,6 @@ to_dynamic_answer_pair(
 ) ->
     {ls_data, <<"cake.laws.prompt_drivers::type::AnswerPair::AnswerPair">>, [Question, Answer]}.
 
-%% To the dynamic value of cake.laws.generation::type::DecompositionJson
-to_dynamic_decomposition_json(
-    #{
-        '__struct__' := 'Elixir.LawSpec.Data.DecompositionJson',
-        atomic := Atomic,
-        sub_questions := SubQuestions
-    }
-) ->
-    {
-        ls_data,
-        <<"cake.laws.generation::type::DecompositionJson::DecompositionJson">>,
-        [to_dynamic_maybe_bool(Atomic), to_dynamic_maybe_list_text(SubQuestions)]
-    }.
-
 %% To the dynamic value of lawspec.collections::type::Entry (Integer) (cake.laws.decomposition::type::Entry)
 to_dynamic_entry_integer_entry(
     #{'__struct__' := 'Elixir.LawSpec.Data.LawspecCollectionsTypeEntry', key := Key, value := Value}
@@ -2252,6 +2535,18 @@ to_dynamic_ircot_json(
         <<"cake.laws.generation::type::IrcotJson::IrcotJson">>,
         [Reasoning, to_dynamic_maybe_text(RetrievalQuery)]
     }.
+
+%% To the dynamic value of Maybe (Bool)
+to_dynamic_maybe_bool(absent) ->
+    {ls_data, <<"Maybe::Absent">>, []};
+to_dynamic_maybe_bool({present, Value}) ->
+    {ls_data, <<"Maybe::Present">>, [Value]}.
+
+%% To the dynamic value of Maybe (List (Text))
+to_dynamic_maybe_list_text(absent) ->
+    {ls_data, <<"Maybe::Absent">>, []};
+to_dynamic_maybe_list_text({present, Value}) ->
+    {ls_data, <<"Maybe::Present">>, [Value]}.
 
 %% To the dynamic value of cake.laws.prompt_context::type::Message
 to_dynamic_message(
@@ -2289,6 +2584,18 @@ to_dynamic_scored_result(
         [Context, to_dynamic_maybe_integer(Score)]
     }.
 
+%% To the dynamic value of cake.laws.decomposition::type::Strategy
+to_dynamic_strategy(#{'__struct__' := 'Elixir.LawSpec.Data.StrategyAtomic'}) ->
+    {ls_data, <<"cake.laws.decomposition::type::Strategy::Atomic">>, []};
+to_dynamic_strategy(#{'__struct__' := 'Elixir.LawSpec.Data.StrategyFlat'}) ->
+    {ls_data, <<"cake.laws.decomposition::type::Strategy::Flat">>, []};
+to_dynamic_strategy(#{'__struct__' := 'Elixir.LawSpec.Data.StrategySequential'}) ->
+    {ls_data, <<"cake.laws.decomposition::type::Strategy::Sequential">>, []};
+to_dynamic_strategy(#{'__struct__' := 'Elixir.LawSpec.Data.StrategySelfAsk'}) ->
+    {ls_data, <<"cake.laws.decomposition::type::Strategy::SelfAsk">>, []};
+to_dynamic_strategy(#{'__struct__' := 'Elixir.LawSpec.Data.StrategyIrcot'}) ->
+    {ls_data, <<"cake.laws.decomposition::type::Strategy::Ircot">>, []}.
+
 %% To the dynamic value of cake.laws.search_query::type::TermValue
 to_dynamic_term_value(
     #{'__struct__' := 'Elixir.LawSpec.Data.TermValueTextValue', value := Value}
@@ -2303,18 +2610,6 @@ to_dynamic_term_value(
 ) ->
     {ls_data, <<"cake.laws.search_query::type::TermValue::BoolValue">>, [Value]}.
 
-%% From the dynamic value of Maybe (Bool)
-from_dynamic_maybe_bool({ls_data, <<"Maybe::Absent">>, []}) ->
-    absent;
-from_dynamic_maybe_bool({ls_data, <<"Maybe::Present">>, [Value]}) ->
-    {present, Value}.
-
-%% From the dynamic value of Maybe (List (Text))
-from_dynamic_maybe_list_text({ls_data, <<"Maybe::Absent">>, []}) ->
-    absent;
-from_dynamic_maybe_list_text({ls_data, <<"Maybe::Present">>, [Value]}) ->
-    {present, Value}.
-
 %% From the dynamic value of cake.laws.prompt_context::type::Role
 from_dynamic_role({ls_data, <<"cake.laws.prompt_context::type::Role::System">>, []}) ->
     #{'__struct__' => 'Elixir.LawSpec.Data.RoleSystem'};
@@ -2323,18 +2618,6 @@ from_dynamic_role({ls_data, <<"cake.laws.prompt_context::type::Role::User">>, []
 from_dynamic_role({ls_data, <<"cake.laws.prompt_context::type::Role::Assistant">>, []}) ->
     #{'__struct__' => 'Elixir.LawSpec.Data.RoleAssistant'}.
 
-%% To the dynamic value of Maybe (Bool)
-to_dynamic_maybe_bool(absent) ->
-    {ls_data, <<"Maybe::Absent">>, []};
-to_dynamic_maybe_bool({present, Value}) ->
-    {ls_data, <<"Maybe::Present">>, [Value]}.
-
-%% To the dynamic value of Maybe (List (Text))
-to_dynamic_maybe_list_text(absent) ->
-    {ls_data, <<"Maybe::Absent">>, []};
-to_dynamic_maybe_list_text({present, Value}) ->
-    {ls_data, <<"Maybe::Present">>, [Value]}.
-
 %% To the dynamic value of cake.laws.prompt_context::type::Role
 to_dynamic_role(#{'__struct__' := 'Elixir.LawSpec.Data.RoleSystem'}) ->
     {ls_data, <<"cake.laws.prompt_context::type::Role::System">>, []};
@@ -2342,3 +2625,7 @@ to_dynamic_role(#{'__struct__' := 'Elixir.LawSpec.Data.RoleUser'}) ->
     {ls_data, <<"cake.laws.prompt_context::type::Role::User">>, []};
 to_dynamic_role(#{'__struct__' := 'Elixir.LawSpec.Data.RoleAssistant'}) ->
     {ls_data, <<"cake.laws.prompt_context::type::Role::Assistant">>, []}.
+
+lawspec_ordering(-1) -> #{'__struct__' => 'Elixir.LawSpec.Data.OrderingLess'};
+lawspec_ordering(0) -> #{'__struct__' => 'Elixir.LawSpec.Data.OrderingEqual'};
+lawspec_ordering(1) -> #{'__struct__' => 'Elixir.LawSpec.Data.OrderingGreater'}.

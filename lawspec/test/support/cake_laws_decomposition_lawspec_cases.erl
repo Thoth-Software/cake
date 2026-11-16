@@ -2,6 +2,7 @@
 -module(cake_laws_decomposition_lawspec_cases).
 -export([
     law_plain_sub_questions_become_dependency_free_test_/0,
+    law_the_original_question_is_kept_test_/0,
     law_the_question_index_is_dense_and_positional_test_/0,
     law_the_strategy_is_sequential_exactly_when_a_test_/0,
     law_dependency_cycles_are_rejected_test_/0,
@@ -12,6 +13,7 @@
     law_the_smallest_ready_sub_question_resolves_next_test_/0,
     law_flat_decompositions_resolve_in_positional_order_test_/0,
     law_plain_sub_questions_become_dependency_free_case_at/1,
+    law_the_original_question_is_kept_case_at/1,
     law_the_question_index_is_dense_and_positional_case_at/1,
     law_the_strategy_is_sequential_exactly_when_a_case_at/1,
     law_dependency_cycles_are_rejected_case_at/1,
@@ -27,17 +29,17 @@
     <<"cake.laws.decomposition::|plain sub-questions become dependency-free entries|">>
 ).
 
-%% |plain sub-questions become dependency-free entries| — laws/decomposition.lawspec:201
+%% |plain sub-questions become dependency-free entries| — laws/decomposition.lawspec:209
 %% Sub-questions given as strings normalize to entries with no dependencies;
 %%     no sub-questions is atomic, and one or more is flat.
-%% for all (q :: Text) (questions :: List (Text)) => match (decomposeQuestions q questions) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldsubQuestions } = plainEntries questions and match (decomposeQuestions q questions) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldstrategy } = (if match (questions) { List::Nil  -> true; List::Cons head tail -> false } then cake.laws.decomposition::type::Strategy::Atomic() else cake.laws.decomposition::type::Strategy::Flat()) end for all
+%% for all (q :: Text) (questions :: List (Text)) => match (decomposeQuestions q questions) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldoriginalQuestion lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldsubQuestions } = plainEntries questions and match (decomposeQuestions q questions) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldoriginalQuestion lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldstrategy } = (if match (questions) { List::Nil  -> true; List::Cons head tail -> false } then cake.laws.decomposition::type::Strategy::Atomic() else cake.laws.decomposition::type::Strategy::Flat()) end for all
 law_plain_sub_questions_become_dependency_free(Schema, Symbols, [Q, Questions]) ->
     (lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
             lawspec_definitions:decompose_questions(Schema, Symbols, Q, Questions),
             #{
                 <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                    [_Strategy, SubQuestions, _QuestionIndex]
+                    [_OriginalQuestion, _Strategy, SubQuestions, _QuestionIndex]
                 ) ->
                     SubQuestions
                 end
@@ -51,7 +53,7 @@ law_plain_sub_questions_become_dependency_free(Schema, Symbols, [Q, Questions]) 
                 lawspec_definitions:decompose_questions(Schema, Symbols, Q, Questions),
                 #{
                     <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                        [Strategy, _SubQuestions, _QuestionIndex]
+                        [_OriginalQuestion, Strategy, _SubQuestions, _QuestionIndex]
                     ) ->
                         Strategy
                     end
@@ -361,7 +363,7 @@ law_plain_sub_questions_become_dependency_free_test_() ->
 law_plain_sub_questions_become_dependency_free_case_at(Index) ->
     lawspec_beam_finite:case_at(law_plain_sub_questions_become_dependency_free_plan(), Index).
 
-%% |plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:216
+%% |plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:224
 law_plain_sub_questions_become_dependency_free__no_sub_questions_is_atomic() ->
     {Schema, Symbols} = lawspec_data:context(),
     Q = <<"What is a GenServer?">>,
@@ -375,31 +377,31 @@ law_plain_sub_questions_become_dependency_free__no_sub_questions_is_atomic() ->
             lawspec_definitions:decompose_questions(Schema, Symbols, Q, Questions),
             #{
                 <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                    [Strategy, _SubQuestions, _QuestionIndex]
+                    [_OriginalQuestion, Strategy, _SubQuestions, _QuestionIndex]
                 ) ->
                     Strategy
                 end
             }
         ),
         make_atomic([], Schema),
-        <<"|plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:216"/utf8>>
+        <<"|plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:224"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
             lawspec_definitions:decompose_questions(Schema, Symbols, Q, Questions),
             #{
                 <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                    [_Strategy, SubQuestions, _QuestionIndex]
+                    [_OriginalQuestion, _Strategy, SubQuestions, _QuestionIndex]
                 ) ->
                     SubQuestions
                 end
             }
         ),
         [],
-        <<"|plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:217"/utf8>>
+        <<"|plain sub-questions become dependency-free entries| example |no sub-questions is atomic| — laws/decomposition.lawspec:225"/utf8>>
     ).
 
-%% |plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:222
+%% |plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:230
 law_plain_sub_questions_become_dependency_free__two_strings_are_flat() ->
     {Schema, Symbols} = lawspec_data:context(),
     Q = <<"Compare Task and GenServer">>,
@@ -413,21 +415,21 @@ law_plain_sub_questions_become_dependency_free__two_strings_are_flat() ->
             lawspec_definitions:decompose_questions(Schema, Symbols, Q, Questions),
             #{
                 <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                    [Strategy, _SubQuestions, _QuestionIndex]
+                    [_OriginalQuestion, Strategy, _SubQuestions, _QuestionIndex]
                 ) ->
                     Strategy
                 end
             }
         ),
         make_flat([], Schema),
-        <<"|plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:222"/utf8>>
+        <<"|plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:230"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
             lawspec_definitions:decompose_questions(Schema, Symbols, Q, Questions),
             #{
                 <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                    [_Strategy, SubQuestions, _QuestionIndex]
+                    [_OriginalQuestion, _Strategy, SubQuestions, _QuestionIndex]
                 ) ->
                     SubQuestions
                 end
@@ -440,10 +442,10 @@ law_plain_sub_questions_become_dependency_free__two_strings_are_flat() ->
             ],
             Schema
         ),
-        <<"|plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:223"/utf8>>
+        <<"|plain sub-questions become dependency-free entries| example |two strings are flat| — laws/decomposition.lawspec:231"/utf8>>
     ).
 
-%% |plain sub-questions become dependency-free entries| property — laws/decomposition.lawspec:201
+%% |plain sub-questions become dependency-free entries| property — laws/decomposition.lawspec:209
 law_plain_sub_questions_become_dependency_free__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -529,14 +531,847 @@ law_plain_sub_questions_become_dependency_free__property() ->
         [{numtests, 100}, {constraint_tries, 10000}, {max_shrinks, 1000}]
     ).
 
+-define(LAW_THE_ORIGINAL_QUESTION_IS_KEPT,
+    <<"cake.laws.decomposition::|the original question is kept|">>
+).
+
+%% |the original question is kept| — laws/decomposition.lawspec:237
+%% A decomposition carries the question it was built from, unchanged,
+%%     whatever its sub-questions.
+%% for all (q :: Text) (questions :: List (Text)) (nodes :: List (cake.laws.decomposition::type::Node)) => match (decomposeQuestions q questions) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldoriginalQuestion lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldoriginalQuestion } = q and match (decompose q (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldoriginalQuestion lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldoriginalQuestion } = q end for all
+law_the_original_question_is_kept(Schema, Symbols, [Q, Questions, Nodes]) ->
+    (lawspec_beam_runtime:assert_equal(
+        lawspec_beam_schema:match(
+            lawspec_definitions:decompose_questions(Schema, Symbols, Q, Questions),
+            #{
+                <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
+                    [OriginalQuestion, _Strategy, _SubQuestions, _QuestionIndex]
+                ) ->
+                    OriginalQuestion
+                end
+            }
+        ),
+        Q,
+        ?LAW_THE_ORIGINAL_QUESTION_IS_KEPT
+    ) andalso
+        lawspec_beam_runtime:assert_equal(
+            lawspec_beam_schema:match(
+                lawspec_definitions:decompose(
+                    Schema,
+                    Symbols,
+                    Q,
+                    lawspec_definitions:dag_of(Schema, Symbols, Nodes)
+                ),
+                #{
+                    <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
+                        [OriginalQuestion, _Strategy, _SubQuestions, _QuestionIndex]
+                    ) ->
+                        OriginalQuestion
+                    end
+                }
+            ),
+            Q,
+            ?LAW_THE_ORIGINAL_QUESTION_IS_KEPT
+        )).
+
+law_the_original_question_is_kept_plan() ->
+    [
+        {
+            fixed,
+            [
+                {
+                    "|the original question is kept| example |an atomic question|",
+                    fun law_the_original_question_is_kept__an_atomic_question/0
+                }
+            ]
+        },
+        {
+            finite,
+            {
+                branches,
+                [
+                    {
+                        {values, [fun(_Symbols) -> <<>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_1(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_18(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<" ">> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_2(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_23(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"Hello, World!">> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_3(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_24(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"λ日本語😀"/utf8>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_4(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_25(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"a\n\t\"\\$\x{0}z">> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_26(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"é"/utf8>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_27(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_7(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_28(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"\x{0}aλ😀\x{10ffff}"/utf8>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_8(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_27(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_9(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_28(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<" ">> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_10(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_31(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"Hello, World!">> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_11(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_32(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"λ日本語😀"/utf8>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_12(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_27(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"a\n\t\"\\$\x{0}z">> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_13(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_28(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"é"/utf8>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_14(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_34(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_15(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_35(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"\x{0}aλ😀\x{10ffff}"/utf8>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_4(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_27(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_28(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<" ">> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_16(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_31(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"Hello, World!">> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_17(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_32(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"λ日本語😀"/utf8>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_1(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_27(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"a\n\t\"\\$\x{0}z">> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_2(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_28(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"é"/utf8>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_3(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_38(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_4(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_39(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<"\x{0}aλ😀\x{10ffff}"/utf8>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_5(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_42(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        {values, [fun(_Symbols) -> <<>> end]},
+                        {
+                            branches,
+                            [
+                                {
+                                    {values, [fun(Symbols) -> finite_literal_6(Symbols) end]},
+                                    {
+                                        branches,
+                                        [
+                                            {
+                                                {
+                                                    values,
+                                                    [fun(Symbols) -> finite_literal_43(Symbols) end]
+                                                },
+                                                {copies, 1}
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            fun(CaseIndex, CaseFactories) ->
+                {
+                    lawspec_beam_finite:description(
+                        <<"|the original question is kept|">>,
+                        CaseIndex
+                    ),
+                    fun() ->
+                        {Schema, Symbols} = lawspec_data:context(),
+                        lawspec_beam_runtime:require(
+                            law_the_original_question_is_kept(
+                                Schema,
+                                Symbols,
+                                lawspec_beam_finite:values(Symbols, CaseFactories)
+                            ),
+                            ?LAW_THE_ORIGINAL_QUESTION_IS_KEPT
+                        )
+                    end
+                }
+            end
+        },
+        {
+            fixed,
+            [
+                {
+                    "|the original question is kept| property",
+                    fun law_the_original_question_is_kept__property/0
+                }
+            ]
+        }
+    ].
+
+law_the_original_question_is_kept_test_() ->
+    lawspec_beam_finite:plan_cases(law_the_original_question_is_kept_plan()).
+
+law_the_original_question_is_kept_case_at(Index) ->
+    lawspec_beam_finite:case_at(law_the_original_question_is_kept_plan(), Index).
+
+%% |the original question is kept| example |an atomic question| — laws/decomposition.lawspec:256
+law_the_original_question_is_kept__an_atomic_question() ->
+    {Schema, Symbols} = lawspec_data:context(),
+    Q = <<"What is a GenServer?">>,
+    Questions = [],
+    Nodes = [],
+    lawspec_beam_runtime:require(
+        law_the_original_question_is_kept(Schema, Symbols, [Q, Questions, Nodes]),
+        ?LAW_THE_ORIGINAL_QUESTION_IS_KEPT
+    ),
+    lawspec_beam_runtime:assert_equal(
+        lawspec_beam_schema:match(
+            lawspec_definitions:decompose_questions(Schema, Symbols, Q, Questions),
+            #{
+                <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
+                    [OriginalQuestion, _Strategy, _SubQuestions, _QuestionIndex]
+                ) ->
+                    OriginalQuestion
+                end
+            }
+        ),
+        <<"What is a GenServer?">>,
+        <<"|the original question is kept| example |an atomic question| — laws/decomposition.lawspec:256"/utf8>>
+    ).
+
+%% |the original question is kept| property — laws/decomposition.lawspec:237
+law_the_original_question_is_kept__property() ->
+    {Schema, Symbols} = lawspec_data:context(),
+    lawspec_beam_search:replay(
+        ?LAW_THE_ORIGINAL_QUESTION_IS_KEPT,
+        [
+            <<"(text)">>,
+            <<"(list (text))">>,
+            <<"(data cake.laws.decomposition::type::Node (ctor cake.laws.decomposition::type::Node::Node (int UInt8 0 255) (list (int UInt8 0 255)))) (list (ref cake.laws.decomposition::type::Node))">>
+        ],
+        fun([Q, Questions, Nodes]) ->
+            lawspec_beam_runtime:require(
+                law_the_original_question_is_kept(Schema, Symbols, [Q, Questions, Nodes]),
+                ?LAW_THE_ORIGINAL_QUESTION_IS_KEPT
+            )
+        end
+    ),
+    'Elixir.LawSpec.Beam.StreamData':check(
+        ?LAW_THE_ORIGINAL_QUESTION_IS_KEPT,
+        'Elixir.LawSpec.Beam.StreamData':forall(
+            'Elixir.LawSpec.Beam.StreamData':complete(
+                'Elixir.LawSpec.Beam.StreamData':bind(
+                    'Elixir.LawSpec.Beam.StreamData':generator(
+                        {<<"Text">>, []},
+                        Schema,
+                        Symbols,
+                        [],
+                        [
+                            <<>>,
+                            <<" ">>,
+                            <<"Hello, World!">>,
+                            <<"λ日本語😀"/utf8>>,
+                            <<"a\n\t\"\\$\x{0}z">>,
+                            <<"é"/utf8>>,
+                            <<>>,
+                            <<"\x{0}aλ😀\x{10ffff}"/utf8>>
+                        ],
+                        none
+                    ),
+                    fun(Q) ->
+                        'Elixir.LawSpec.Beam.StreamData':bind(
+                            'Elixir.LawSpec.Beam.StreamData':generator(
+                                {<<"List">>, [{<<"Text">>, []}]},
+                                Schema,
+                                Symbols,
+                                [],
+                                [
+                                    finite_literal_1(Symbols),
+                                    finite_literal_2(Symbols),
+                                    finite_literal_3(Symbols),
+                                    finite_literal_4(Symbols),
+                                    finite_literal_5(Symbols),
+                                    finite_literal_6(Symbols),
+                                    finite_literal_7(Symbols),
+                                    finite_literal_8(Symbols),
+                                    finite_literal_9(Symbols),
+                                    finite_literal_10(Symbols),
+                                    finite_literal_11(Symbols),
+                                    finite_literal_12(Symbols),
+                                    finite_literal_13(Symbols),
+                                    finite_literal_14(Symbols),
+                                    finite_literal_15(Symbols),
+                                    finite_literal_4(Symbols),
+                                    finite_literal_5(Symbols),
+                                    finite_literal_16(Symbols),
+                                    finite_literal_17(Symbols)
+                                ],
+                                none
+                            ),
+                            fun(Questions) ->
+                                'Elixir.LawSpec.Beam.StreamData':bind(
+                                    'Elixir.LawSpec.Beam.StreamData':generator(
+                                        {
+                                            <<"List">>,
+                                            [{<<"cake.laws.decomposition::type::Node">>, []}]
+                                        },
+                                        Schema,
+                                        Symbols,
+                                        [],
+                                        [
+                                            finite_literal_18(Symbols),
+                                            finite_literal_23(Symbols),
+                                            finite_literal_24(Symbols),
+                                            finite_literal_25(Symbols),
+                                            finite_literal_26(Symbols),
+                                            finite_literal_27(Symbols),
+                                            finite_literal_28(Symbols),
+                                            finite_literal_27(Symbols),
+                                            finite_literal_28(Symbols),
+                                            finite_literal_31(Symbols),
+                                            finite_literal_32(Symbols),
+                                            finite_literal_27(Symbols),
+                                            finite_literal_28(Symbols),
+                                            finite_literal_34(Symbols),
+                                            finite_literal_35(Symbols),
+                                            finite_literal_27(Symbols),
+                                            finite_literal_28(Symbols),
+                                            finite_literal_31(Symbols),
+                                            finite_literal_32(Symbols),
+                                            finite_literal_27(Symbols),
+                                            finite_literal_28(Symbols),
+                                            finite_literal_38(Symbols),
+                                            finite_literal_39(Symbols),
+                                            finite_literal_42(Symbols),
+                                            finite_literal_43(Symbols)
+                                        ],
+                                        none
+                                    ),
+                                    fun(Nodes) ->
+                                        'Elixir.LawSpec.Beam.StreamData':exactly(
+                                            [Q, Questions, Nodes]
+                                        )
+                                    end
+                                )
+                            end
+                        )
+                    end
+                )
+            ),
+            fun(Values) ->
+                lawspec_beam_search:guard(
+                    ?LAW_THE_ORIGINAL_QUESTION_IS_KEPT,
+                    [
+                        <<"(text)">>,
+                        <<"(list (text))">>,
+                        <<"(data cake.laws.decomposition::type::Node (ctor cake.laws.decomposition::type::Node::Node (int UInt8 0 255) (list (int UInt8 0 255)))) (list (ref cake.laws.decomposition::type::Node))">>
+                    ],
+                    Values,
+                    fun() -> law_the_original_question_is_kept(Schema, Symbols, Values) end
+                )
+            end
+        ),
+        [{numtests, 100}, {constraint_tries, 10000}, {max_shrinks, 1000}]
+    ).
+
 -define(LAW_THE_QUESTION_INDEX_IS_DENSE_AND_POSITIONAL,
     <<"cake.laws.decomposition::|the question index is dense and positional|">>
 ).
 
-%% |the question index is dense and positional| — laws/decomposition.lawspec:229
+%% |the question index is dense and positional| — laws/decomposition.lawspec:261
 %% The question index has exactly the keys 0 to n - 1, and key i maps to
 %%     the i-th sub-question.
-%% for all (nodes :: List (cake.laws.decomposition::type::Node)) => keyValKeys (match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldquestionIndex }) = Range(0, Length(nodes)) and keyValValues (match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldquestionIndex }) = match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldsubQuestions } end for all
+%% for all (nodes :: List (cake.laws.decomposition::type::Node)) => keyValKeys (match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldoriginalQuestion lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldquestionIndex }) = Range(0, Length(nodes)) and keyValValues (match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldoriginalQuestion lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldquestionIndex }) = match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldoriginalQuestion lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldsubQuestions } end for all
 law_the_question_index_is_dense_and_positional(Schema, Symbols, [Nodes]) ->
     (lawspec_beam_runtime:assert_equal(
         lawspec_definitions:lawspec_collections_key_val_keys_key_val_integer_entry(
@@ -551,7 +1386,7 @@ law_the_question_index_is_dense_and_positional(Schema, Symbols, [Nodes]) ->
                 ),
                 #{
                     <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                        [_Strategy, _SubQuestions, QuestionIndex]
+                        [_OriginalQuestion, _Strategy, _SubQuestions, QuestionIndex]
                     ) ->
                         QuestionIndex
                     end
@@ -587,7 +1422,7 @@ law_the_question_index_is_dense_and_positional(Schema, Symbols, [Nodes]) ->
                     ),
                     #{
                         <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                            [_Strategy, _SubQuestions, QuestionIndex]
+                            [_OriginalQuestion, _Strategy, _SubQuestions, QuestionIndex]
                         ) ->
                             QuestionIndex
                         end
@@ -603,7 +1438,7 @@ law_the_question_index_is_dense_and_positional(Schema, Symbols, [Nodes]) ->
                 ),
                 #{
                     <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                        [_Strategy, SubQuestions, _QuestionIndex]
+                        [_OriginalQuestion, _Strategy, SubQuestions, _QuestionIndex]
                     ) ->
                         SubQuestions
                     end
@@ -691,7 +1526,7 @@ law_the_question_index_is_dense_and_positional_test_() ->
 law_the_question_index_is_dense_and_positional_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_question_index_is_dense_and_positional_plan(), Index).
 
-%% |the question index is dense and positional| property — laws/decomposition.lawspec:229
+%% |the question index is dense and positional| property — laws/decomposition.lawspec:261
 law_the_question_index_is_dense_and_positional__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -768,10 +1603,10 @@ law_the_question_index_is_dense_and_positional__property() ->
     <<"cake.laws.decomposition::|the strategy is sequential exactly when a dependency exists|">>
 ).
 
-%% |the strategy is sequential exactly when a dependency exists| — laws/decomposition.lawspec:243
+%% |the strategy is sequential exactly when a dependency exists| — laws/decomposition.lawspec:275
 %% A decomposition with sub-questions is sequential when any sub-question
 %%     depends on another, and flat otherwise.
-%% for all (nodes :: List (cake.laws.decomposition::type::Node)) => match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldstrategy } = (if Not(allElements (dagOf nodes) (~lawspecAnyItem -> Not(hasDependency ~lawspecAnyItem))) then cake.laws.decomposition::type::Strategy::Sequential() else cake.laws.decomposition::type::Strategy::Flat()) end for all
+%% for all (nodes :: List (cake.laws.decomposition::type::Node)) => match (decompose "q" (dagOf nodes)) { cake.laws.decomposition::type::Decomposition::Decomposition lawspecFieldoriginalQuestion lawspecFieldstrategy lawspecFieldsubQuestions lawspecFieldquestionIndex -> lawspecFieldstrategy } = (if Not(allElements (dagOf nodes) (~lawspecAnyItem -> Not(hasDependency ~lawspecAnyItem))) then cake.laws.decomposition::type::Strategy::Sequential() else cake.laws.decomposition::type::Strategy::Flat()) end for all
 law_the_strategy_is_sequential_exactly_when_a(Schema, Symbols, [Nodes]) ->
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -783,7 +1618,7 @@ law_the_strategy_is_sequential_exactly_when_a(Schema, Symbols, [Nodes]) ->
             ),
             #{
                 <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                    [Strategy, _SubQuestions, _QuestionIndex]
+                    [_OriginalQuestion, Strategy, _SubQuestions, _QuestionIndex]
                 ) ->
                     Strategy
                 end
@@ -896,7 +1731,7 @@ law_the_strategy_is_sequential_exactly_when_a_test_() ->
 law_the_strategy_is_sequential_exactly_when_a_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_strategy_is_sequential_exactly_when_a_plan(), Index).
 
-%% |the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:259
+%% |the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:291
 law_the_strategy_is_sequential_exactly_when_a__one_dependency_makes_it_sequential() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5(
@@ -916,7 +1751,7 @@ law_the_strategy_is_sequential_exactly_when_a__one_dependency_makes_it_sequentia
             ],
             Schema
         ),
-        <<"|the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:259"/utf8>>
+        <<"|the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:291"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -928,17 +1763,17 @@ law_the_strategy_is_sequential_exactly_when_a__one_dependency_makes_it_sequentia
             ),
             #{
                 <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                    [Strategy, _SubQuestions, _QuestionIndex]
+                    [_OriginalQuestion, Strategy, _SubQuestions, _QuestionIndex]
                 ) ->
                     Strategy
                 end
             }
         ),
         make_sequential([], Schema),
-        <<"|the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:262"/utf8>>
+        <<"|the strategy is sequential exactly when a dependency exists| example |one dependency makes it sequential| — laws/decomposition.lawspec:294"/utf8>>
     ).
 
-%% |the strategy is sequential exactly when a dependency exists| example |equal ranks keep it flat| — laws/decomposition.lawspec:268
+%% |the strategy is sequential exactly when a dependency exists| example |equal ranks keep it flat| — laws/decomposition.lawspec:300
 law_the_strategy_is_sequential_exactly_when_a__equal_ranks_keep_it_flat() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5(
@@ -959,17 +1794,17 @@ law_the_strategy_is_sequential_exactly_when_a__equal_ranks_keep_it_flat() ->
             ),
             #{
                 <<"cake.laws.decomposition::type::Decomposition::Decomposition">> => fun(
-                    [Strategy, _SubQuestions, _QuestionIndex]
+                    [_OriginalQuestion, Strategy, _SubQuestions, _QuestionIndex]
                 ) ->
                     Strategy
                 end
             }
         ),
         make_flat([], Schema),
-        <<"|the strategy is sequential exactly when a dependency exists| example |equal ranks keep it flat| — laws/decomposition.lawspec:268"/utf8>>
+        <<"|the strategy is sequential exactly when a dependency exists| example |equal ranks keep it flat| — laws/decomposition.lawspec:300"/utf8>>
     ).
 
-%% |the strategy is sequential exactly when a dependency exists| property — laws/decomposition.lawspec:243
+%% |the strategy is sequential exactly when a dependency exists| property — laws/decomposition.lawspec:275
 law_the_strategy_is_sequential_exactly_when_a__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -1068,7 +1903,7 @@ law_the_strategy_is_sequential_exactly_when_a__property() ->
     <<"cake.laws.decomposition::|dependency cycles are rejected|">>
 ).
 
-%% |dependency cycles are rejected| — laws/decomposition.lawspec:274
+%% |dependency cycles are rejected| — laws/decomposition.lawspec:306
 %% A ring of two or more sub-questions, each depending on the next, cannot
 %%     be resolved and is rejected.
 %% for all (size :: BigUInt) => match (attempt (decompose "q" (ringOf size))) { Either::Left lawspecFailure -> let it = lawspecFailure in match (it) { cake.laws.decomposition::type::Rejection::InvalidDecomposition _lawspecSelection0x0 -> true }; Either::Right lawspecResult -> false } = true end for all
@@ -1167,7 +2002,7 @@ law_dependency_cycles_are_rejected_test_() ->
 law_dependency_cycles_are_rejected_case_at(Index) ->
     lawspec_beam_finite:case_at(law_dependency_cycles_are_rejected_plan(), Index).
 
-%% |dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:286
+%% |dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:318
 law_dependency_cycles_are_rejected__two_sub_questions_waiting_on_each_other() ->
     {Schema, Symbols} = lawspec_data:context(),
     Size = 2,
@@ -1184,7 +2019,7 @@ law_dependency_cycles_are_rejected__two_sub_questions_waiting_on_each_other() ->
             ],
             Schema
         ),
-        <<"|dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:286"/utf8>>
+        <<"|dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:318"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_beam_schema:match(
@@ -1249,10 +2084,10 @@ law_dependency_cycles_are_rejected__two_sub_questions_waiting_on_each_other() ->
             }
         ),
         true,
-        <<"|dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:289"/utf8>>
+        <<"|dependency cycles are rejected| example |two sub-questions waiting on each other| — laws/decomposition.lawspec:321"/utf8>>
     ).
 
-%% |dependency cycles are rejected| property — laws/decomposition.lawspec:274
+%% |dependency cycles are rejected| property — laws/decomposition.lawspec:306
 law_dependency_cycles_are_rejected__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -1305,7 +2140,7 @@ law_dependency_cycles_are_rejected__property() ->
     <<"cake.laws.decomposition::|dependencies outside the sub-questions are rejected|">>
 ).
 
-%% |dependencies outside the sub-questions are rejected| — laws/decomposition.lawspec:293
+%% |dependencies outside the sub-questions are rejected| — laws/decomposition.lawspec:325
 %% A dependency must be the index of another sub-question: a negative
 %%     index, or one at or past the number of sub-questions, is rejected.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) (dep :: Integer) => match (attempt (decompose "q" (withBadDependency (dagOf nodes) dep))) { Either::Left lawspecFailure -> let it = lawspecFailure in match (it) { cake.laws.decomposition::type::Rejection::InvalidDecomposition _lawspecSelection0x0 -> true }; Either::Right lawspecResult -> false } = true end for all
@@ -1689,7 +2524,7 @@ law_dependencies_outside_the_sub_questions_are_test_() ->
 law_dependencies_outside_the_sub_questions_are_case_at(Index) ->
     lawspec_beam_finite:case_at(law_dependencies_outside_the_sub_questions_are_plan(), Index).
 
-%% |dependencies outside the sub-questions are rejected| example |an index one past the end| — laws/decomposition.lawspec:310
+%% |dependencies outside the sub-questions are rejected| example |an index one past the end| — laws/decomposition.lawspec:342
 law_dependencies_outside_the_sub_questions_are__an_index_one_past_the_end() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5([make_node([0, []], Schema), []], Schema),
@@ -1766,10 +2601,10 @@ law_dependencies_outside_the_sub_questions_are__an_index_one_past_the_end() ->
             }
         ),
         true,
-        <<"|dependencies outside the sub-questions are rejected| example |an index one past the end| — laws/decomposition.lawspec:310"/utf8>>
+        <<"|dependencies outside the sub-questions are rejected| example |an index one past the end| — laws/decomposition.lawspec:342"/utf8>>
     ).
 
-%% |dependencies outside the sub-questions are rejected| example |a negative index| — laws/decomposition.lawspec:317
+%% |dependencies outside the sub-questions are rejected| example |a negative index| — laws/decomposition.lawspec:349
 law_dependencies_outside_the_sub_questions_are__a_negative_index() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5(
@@ -1849,10 +2684,10 @@ law_dependencies_outside_the_sub_questions_are__a_negative_index() ->
             }
         ),
         true,
-        <<"|dependencies outside the sub-questions are rejected| example |a negative index| — laws/decomposition.lawspec:317"/utf8>>
+        <<"|dependencies outside the sub-questions are rejected| example |a negative index| — laws/decomposition.lawspec:349"/utf8>>
     ).
 
-%% |dependencies outside the sub-questions are rejected| property — laws/decomposition.lawspec:293
+%% |dependencies outside the sub-questions are rejected| property — laws/decomposition.lawspec:325
 law_dependencies_outside_the_sub_questions_are__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -1998,7 +2833,7 @@ law_dependencies_outside_the_sub_questions_are__property() ->
     <<"cake.laws.decomposition::|a sub-question cannot depend on itself|">>
 ).
 
-%% |a sub-question cannot depend on itself| — laws/decomposition.lawspec:322
+%% |a sub-question cannot depend on itself| — laws/decomposition.lawspec:354
 %% An entry that names its own index as a dependency is rejected.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) => match (attempt (decompose "q" (withBadDependency (dagOf nodes) 0))) { Either::Left lawspecFailure -> let it = lawspecFailure in match (it) { cake.laws.decomposition::type::Rejection::InvalidDecomposition _lawspecSelection0x0 -> true }; Either::Right lawspecResult -> false } = true end for all
 law_a_sub_question_cannot_depend_on_itself(Schema, Symbols, [Nodes]) ->
@@ -2151,7 +2986,7 @@ law_a_sub_question_cannot_depend_on_itself_test_() ->
 law_a_sub_question_cannot_depend_on_itself_case_at(Index) ->
     lawspec_beam_finite:case_at(law_a_sub_question_cannot_depend_on_itself_plan(), Index).
 
-%% |a sub-question cannot depend on itself| property — laws/decomposition.lawspec:322
+%% |a sub-question cannot depend on itself| property — laws/decomposition.lawspec:354
 law_a_sub_question_cannot_depend_on_itself__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -2248,7 +3083,7 @@ law_a_sub_question_cannot_depend_on_itself__property() ->
     <<"cake.laws.decomposition::|every sub-question resolves exactly once|">>
 ).
 
-%% |every sub-question resolves exactly once| — laws/decomposition.lawspec:336
+%% |every sub-question resolves exactly once| — laws/decomposition.lawspec:368
 %% The resolution order is a permutation of the sub-question indices.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) => lawspecMatchersMatchersSameItems (resolutionOrder "q" (dagOf nodes)) (Range(0, Length(nodes))) = true end for all
 law_every_sub_question_resolves_exactly_once(Schema, Symbols, [Nodes]) ->
@@ -2360,7 +3195,7 @@ law_every_sub_question_resolves_exactly_once_test_() ->
 law_every_sub_question_resolves_exactly_once_case_at(Index) ->
     lawspec_beam_finite:case_at(law_every_sub_question_resolves_exactly_once_plan(), Index).
 
-%% |every sub-question resolves exactly once| property — laws/decomposition.lawspec:336
+%% |every sub-question resolves exactly once| property — laws/decomposition.lawspec:368
 law_every_sub_question_resolves_exactly_once__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -2437,7 +3272,7 @@ law_every_sub_question_resolves_exactly_once__property() ->
     <<"cake.laws.decomposition::|dependencies resolve first|">>
 ).
 
-%% |dependencies resolve first| — laws/decomposition.lawspec:348
+%% |dependencies resolve first| — laws/decomposition.lawspec:380
 %% Every sub-question resolves after all of the sub-questions it depends on.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) => dependenciesFirst (dagOf nodes) (List::Nil()) (resolutionOrder "q" (dagOf nodes)) = true end for all
 law_dependencies_resolve_first(Schema, Symbols, [Nodes]) ->
@@ -2534,7 +3369,7 @@ law_dependencies_resolve_first_test_() ->
 law_dependencies_resolve_first_case_at(Index) ->
     lawspec_beam_finite:case_at(law_dependencies_resolve_first_plan(), Index).
 
-%% |dependencies resolve first| property — laws/decomposition.lawspec:348
+%% |dependencies resolve first| property — laws/decomposition.lawspec:380
 law_dependencies_resolve_first__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -2609,7 +3444,7 @@ law_dependencies_resolve_first__property() ->
     <<"cake.laws.decomposition::|the smallest ready sub-question resolves next|">>
 ).
 
-%% |the smallest ready sub-question resolves next| — laws/decomposition.lawspec:359
+%% |the smallest ready sub-question resolves next| — laws/decomposition.lawspec:391
 %% At every step the smallest index whose dependencies have resolved goes
 %%     next, including an index the previous step just unlocked.
 %% for all (nodes :: List (cake.laws.decomposition::type::Node)) => resolutionOrder "q" (dagOf nodes) = referenceOrder (dagOf nodes) end for all
@@ -2721,7 +3556,7 @@ law_the_smallest_ready_sub_question_resolves_next_test_() ->
 law_the_smallest_ready_sub_question_resolves_next_case_at(Index) ->
     lawspec_beam_finite:case_at(law_the_smallest_ready_sub_question_resolves_next_plan(), Index).
 
-%% |the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:374
+%% |the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:406
 law_the_smallest_ready_sub_question_resolves_next__an_unlocked_lower_index_goes_before_a_higher() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5(
@@ -2753,7 +3588,7 @@ law_the_smallest_ready_sub_question_resolves_next__an_unlocked_lower_index_goes_
             ],
             Schema
         ),
-        <<"|the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:374"/utf8>>
+        <<"|the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:406"/utf8>>
     ),
     lawspec_beam_runtime:assert_equal(
         lawspec_definitions:resolution_order(
@@ -2763,10 +3598,10 @@ law_the_smallest_ready_sub_question_resolves_next__an_unlocked_lower_index_goes_
             lawspec_definitions:dag_of(Schema, Symbols, Nodes)
         ),
         [1, 0, 2],
-        <<"|the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:378"/utf8>>
+        <<"|the smallest ready sub-question resolves next| example |an unlocked lower index goes before a higher ready one| — laws/decomposition.lawspec:410"/utf8>>
     ).
 
-%% |the smallest ready sub-question resolves next| example |a dependency on a later index| — laws/decomposition.lawspec:385
+%% |the smallest ready sub-question resolves next| example |a dependency on a later index| — laws/decomposition.lawspec:417
 law_the_smallest_ready_sub_question_resolves_next__a_dependency_on_a_later_index() ->
     {Schema, Symbols} = lawspec_data:context(),
     Nodes = make_cons_5(
@@ -2791,10 +3626,10 @@ law_the_smallest_ready_sub_question_resolves_next__a_dependency_on_a_later_index
             lawspec_definitions:dag_of(Schema, Symbols, Nodes)
         ),
         [1, 2, 0],
-        <<"|the smallest ready sub-question resolves next| example |a dependency on a later index| — laws/decomposition.lawspec:385"/utf8>>
+        <<"|the smallest ready sub-question resolves next| example |a dependency on a later index| — laws/decomposition.lawspec:417"/utf8>>
     ).
 
-%% |the smallest ready sub-question resolves next| property — laws/decomposition.lawspec:359
+%% |the smallest ready sub-question resolves next| property — laws/decomposition.lawspec:391
 law_the_smallest_ready_sub_question_resolves_next__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
@@ -2871,7 +3706,7 @@ law_the_smallest_ready_sub_question_resolves_next__property() ->
     <<"cake.laws.decomposition::|flat decompositions resolve in positional order|">>
 ).
 
-%% |flat decompositions resolve in positional order| — laws/decomposition.lawspec:389
+%% |flat decompositions resolve in positional order| — laws/decomposition.lawspec:421
 %% With no dependencies, sub-questions resolve in the order they were given;
 %%     an atomic decomposition resolves nothing.
 %% for all (questions :: List (Text)) => resolutionOrder "q" (plainEntries questions) = Range(0, Length(questions)) end for all
@@ -2978,7 +3813,7 @@ law_flat_decompositions_resolve_in_positional_order_test_() ->
 law_flat_decompositions_resolve_in_positional_order_case_at(Index) ->
     lawspec_beam_finite:case_at(law_flat_decompositions_resolve_in_positional_order_plan(), Index).
 
-%% |flat decompositions resolve in positional order| example |atomic| — laws/decomposition.lawspec:402
+%% |flat decompositions resolve in positional order| example |atomic| — laws/decomposition.lawspec:434
 law_flat_decompositions_resolve_in_positional_order__atomic() ->
     {Schema, Symbols} = lawspec_data:context(),
     Questions = [],
@@ -2994,10 +3829,10 @@ law_flat_decompositions_resolve_in_positional_order__atomic() ->
             lawspec_definitions:plain_entries(Schema, Symbols, Questions)
         ),
         [],
-        <<"|flat decompositions resolve in positional order| example |atomic| — laws/decomposition.lawspec:402"/utf8>>
+        <<"|flat decompositions resolve in positional order| example |atomic| — laws/decomposition.lawspec:434"/utf8>>
     ).
 
-%% |flat decompositions resolve in positional order| example |three in a row| — laws/decomposition.lawspec:406
+%% |flat decompositions resolve in positional order| example |three in a row| — laws/decomposition.lawspec:438
 law_flat_decompositions_resolve_in_positional_order__three_in_a_row() ->
     {Schema, Symbols} = lawspec_data:context(),
     Questions = [<<"a">>, <<"b">>, <<"c">>],
@@ -3013,10 +3848,10 @@ law_flat_decompositions_resolve_in_positional_order__three_in_a_row() ->
             lawspec_definitions:plain_entries(Schema, Symbols, Questions)
         ),
         [0, 1, 2],
-        <<"|flat decompositions resolve in positional order| example |three in a row| — laws/decomposition.lawspec:406"/utf8>>
+        <<"|flat decompositions resolve in positional order| example |three in a row| — laws/decomposition.lawspec:438"/utf8>>
     ).
 
-%% |flat decompositions resolve in positional order| property — laws/decomposition.lawspec:389
+%% |flat decompositions resolve in positional order| property — laws/decomposition.lawspec:421
 law_flat_decompositions_resolve_in_positional_order__property() ->
     {Schema, Symbols} = lawspec_data:context(),
     lawspec_beam_search:replay(
