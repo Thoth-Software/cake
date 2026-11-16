@@ -8,6 +8,7 @@ Elixir these are StreamData properties inside ExUnit.
 | Specification | Covers |
 | --- | --- |
 | `laws/decomposition.lawspec` | `Cake.Decomposition.Result`: `new/2` and `topological_order/1` |
+| `laws/decomposition_llm.lawspec` | `Cake.Decomposition.LLM.decompose/2`, with `scripted` as its generation module: `atomic: true` alone is the atomic result; `sub_questions` without `atomic: true` is `Result.new/2` of the question and the list as the model gave it, an empty list being atomic and a blank or repeated sub-question an entry like any other; `atomic: true` beside `sub_questions`, and a reply with neither, are invalid responses; every reply that fits the schema gets one of those answers, and none raises; a generation failure comes back as that failure; the result keeps the original question and is never sequential, self-ask or IRCoT; and each call makes one `complete_json/3` request, with the decomposition prompt, the `:model` given or `gpt-4o-mini`, and `schema/0` |
 | `laws/citations.lawspec` | `Cake.Citations.extract/2`: valid citations and hallucinated indices, each in first-appearance order against a reference model; totality; leading zeros; and `[0]`, which is always hallucinated because `Cake.Prompt` numbers from 1 |
 | `laws/responses.lawspec` | `Cake.Responses.process/3` and `build_citation_map/1`: the chunk map; one citation per retrieval unit, numbered `1..K` by first appearance; the final text against a reference model of marker rewriting and whitespace tidying; warnings, download actions, and the untouched `raw_text` and empty `media` |
 | `laws/candidates.lawspec` | `Cake.Candidates`: `group_by_document/1` against a reference model (one group per document id, in first-seen order, candidates in input order, text keys) and as a permutation of its input; `all_chunk_ids/1` and `expand_to_chunk_ids/2` against a reference model of a selection, with expansion distributing over appended selections; `document_metadata/1`'s title, 100-character preview and page label, which counts distinct pages; and a group for every candidate whatever its `Cake.Citable` id |
@@ -116,7 +117,7 @@ What the binding does not do:
 | `laws/*.lawspec` | you | the specifications |
 | `lawspec.edn` | you | the manifest: sources, verification layers, the Elixir target, and its native failure mappings |
 | `lib/cake_laws_<unit>.ex` | you | adapters: each translates LawSpec's generated data to and from the Cake module it covers. For a unit that declares an ability, the adapter also holds its native handlers (`Cake.Laws.Generation`) |
-| `lib/cake_laws/*.ex` | you | support modules adapters share: `Cake.Laws.FakeUnit`, and `Cake.Laws.Quiet`, which silences the warnings Cake logs on generated input |
+| `lib/cake_laws/*.ex` | you | support modules adapters share: `Cake.Laws.FakeUnit`; `Cake.Laws.Quiet`, which silences the warnings Cake logs on generated input; and `Cake.Laws.HandlerGeneration`, which hands a `Generation` handler to Cake code as a `Cake.Generation` module |
 | `mix.exs`, `test/test_helper.exs` | you | the Mix project, set up as LawSpec's Elixir target guide asks. The test helper also sets the application config a covered module reads (`Cake.Generation.OpenAI`'s endpoint, key and plug) |
 | `.lawspec/generated.json` | LawSpec | the ownership manifest; commit it |
 | everything else in `lib/` (including `lib/cake_laws_<unit>_definitions.ex`), `src/`, `test/` | LawSpec | generated; never edit by hand |
@@ -286,10 +287,59 @@ end law
 - `using recording scripted` also counts calls: `calls of complete`, and
   `calls of completeJson with (...)` for calls with exactly those
   arguments.
-- By LawSpec's handler reference, an adapter whose signature ends `uses
-  Generation` receives the handler before its other arguments and calls an
-  operation as `handler.complete.(messages, model)`. No unit here has such
-  an adapter yet; #334 will be the first.
+
+**An adapter that takes the handler.** An adapter whose signature ends
+`uses Generation` receives the handler before its other arguments, as the
+generated struct of functions. `laws/decomposition_llm.lawspec` has the
+first (#334):
+
+```lawspec fragment
+llmDecompose :: Text -> Maybe Text -> Either DecompositionError Decomposition
+  uses Generation
+```
+
+- **Cake takes a module, not a struct.** `Cake.Decomposition.LLM` calls
+  `generation.complete_json(messages, model, opts)` on the module it is
+  given. `Cake.Laws.HandlerGeneration` (`lib/cake_laws/handler_generation.ex`)
+  is that module: `with_handler(handler, fun)` installs the struct for the
+  calling process, and inside `fun` the module's `complete/3` and
+  `complete_json/3` ask it. The adapter passes `generation:
+  Cake.Laws.HandlerGeneration`. The handler lives in the process
+  dictionary, so this works only for Cake code that calls its generation
+  module in the caller's process. `Cake.Conversation` does not: it
+  generates in a task.
+- **It translates and repairs nothing.** Messages, the model and the
+  schema reach the handler as Cake sent them. A schema that is neither
+  `Cake.Decomposition.LLM.schema/0` nor `Cake.Prompt.ircot_schema/0` has no
+  `Schema` constructor, so the module raises and the law fails: that is
+  how a law pins the schema Cake sends. A failure's response body, which
+  `GenerationError` leaves out, reaches Cake as `nil`.
+- **The law sequences the reply and the call.** A checked definition
+  cannot call an adapter (see the list under "Changing a specification"),
+  so no procedure can queue a reply and then ask the adapter. The law does
+  both, in order, around `&&`:
+
+  ```lawspec fragment
+  procedure modelSays (reply :: Reply) -> Bool uses Provider is
+    willReply reply; true
+  end procedure
+
+  law "|an atomic reply is an atomic decomposition| using scripted is
+    definition :
+      for all (question :: Text) =>
+        modelSaysJson (atomicJson unitValue) && llmDecompose question Absent =
+          Right (atomicOf question)
+      end for all
+    end definition
+  end law
+  ```
+
+  The left of `&&` runs first. Were it otherwise the script would be empty
+  when the adapter asked, and every such law would fail. An example states
+  the same conjunction and expects `true`.
+- **Counting works through the adapter.** Under `using recording
+  scripted` the handler the adapter receives is the recording one, so
+  `calls of completeJson with (...)` counts what Cake asked.
 
 **Most generated replies are failures.** `GenerationError` has ten
 constructors and most carry little, so the generator favours them (see
@@ -438,7 +488,7 @@ Commit the specification, the regenerated files and `.lawspec/generated.json`
 together. CI fails on an unformatted specification (`lawspec fmt --check`)
 and on stale generated files (`lawspec generate --check`).
 
-Thirteen things `npm run check`, `npm run generate` and the generator are
+Fifteen things `npm run check`, `npm run generate` and the generator are
 strict or quiet about:
 
 - **Definition names are global.** Two units that each define a function of
@@ -462,6 +512,26 @@ strict or quiet about:
   complete messages model` inside a definition is a parse error (`Expected
   end for all`). Put the sequence in a `procedure` and call that, as
   `answer` does in `laws/generation.lawspec`.
+- **A checked definition cannot call an adapter.** A `function` or
+  `procedure` that calls one fails `check` with `total definition calls an
+  adapter or unknown definition`. Only a law's definition and an example
+  can. When an effect must come before the adapter call, put the effect in
+  a procedure that returns `true` and join the two with `&&` in the law, as
+  `modelSays` does in `laws/decomposition_llm.lawspec`.
+- **A number inside an imported constructor, in an example, imports
+  `lawspec.resilience`.** As of LawSpec 0.32.0, an example that binds a
+  variable to a constructor of an imported type which carries a number
+  (`error = generation.Timeout 60000`, or `generation.Http 500`) brings
+  LawSpec's built-in resilience unit into the specification. Nothing says
+  so. `check` then counts 42 runtime-checked obligations where there were
+  26, `generate` writes that unit's rate limiters, circuit breaker and
+  bulkhead into `lib/` and `src/` (21 more files), and a type imported by
+  name whose constructors include `RateLimited` fails `check` with
+  `RateLimited is imported from more than one unit`. A constructor with a
+  text payload or with none does not do it, and neither does generating
+  the same type in a law. Bind such an example to one of those
+  (`generation.Auth "..."`), and check `git status` after `generate` for
+  files the specification did not ask for.
 - **No braces in a description.** A description that holds `{` or `}`, as
   an Elixir tuple does, fails `check` with `unknown or unclosed metadata
   reference` and no line number. Describe the value in words.
