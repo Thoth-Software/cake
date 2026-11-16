@@ -61,8 +61,8 @@ defmodule CakeLaws.MixProject do
   defp deps do
     [
       {:boundary, "== 0.10.4", runtime: false},
-      {:ecto, "== 3.13.5"},
-      {:ex_json_schema, "== 0.11.3"},
+      {:ecto, "== 3.14.3"},
+      {:ex_json_schema, "== 0.11.5"},
       {:finch, "== 0.20.0"},
       {:jason, "== 1.4.5"},
       {:plug, "== 1.19.1"},
