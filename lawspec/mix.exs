@@ -65,7 +65,7 @@ defmodule CakeLaws.MixProject do
       {:ex_json_schema, "== 0.11.5"},
       {:finch, "== 0.20.0"},
       {:jason, "== 1.4.5"},
-      {:plug, "== 1.19.1"},
+      {:plug, "== 1.20.3"},
       {:req, "== 0.5.16"},
       {:snap, "== 0.12.2"},
       {:stream_data, "== 1.4.0", only: :test}
