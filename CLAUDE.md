@@ -69,7 +69,7 @@ On-push CI (`.github/workflows/quality.yml`) runs the same checks **plus** gates
 - `mix dialyzer` — the `dialyzer` job runs on every push to master and every PR targeting master, with no event guard (PLT caching makes repeat runs cheap); run `mix quality` before pushing spec-heavy changes rather than waiting for it.
 - `mix coveralls.json --exclude integration` — coverage must not drop below the minimum in `coveralls.json` (the SSOT for the threshold).
 - The `laws` job (#323): the LawSpec specifications in `lawspec/`, on Erlang/OTP 29 in their own Mix project (`npm run check`, `npm run fmt:check`, `npm run generate:check`, `mix test`; run LawSpec through these npm scripts, not `npx lawspec`, which segfaults on Node 22 once its cache is warm, `lawspec/README.md` "Running LawSpec"). `mix precommit` never runs them; run them yourself when you touch a module a `.lawspec` file covers (`lawspec/README.md`). In Claude Code on the web the session-start hook installs that toolchain beside Cake's and prints `!! lawspec:` if it could not; run each step there as `otp29 <command>` from `lawspec/` (`otp29 mix test`), since a plain `mix` is Cake's.
-- The `security` job: `mix deps.unlock --check-unused`, `mix hex.audit` + `mix deps.audit` (report-only until #206 clears) and `mix sobelow --config --exit` (`.claude/rules/security-gate.md`).
+- The `security` job, every step blocking: `mix deps.unlock --check-unused`, `mix hex.audit` + `mix deps.audit` (zero advisories, nothing ignored: a red audit means a new advisory, fixed by bumping the package) and `mix sobelow --config --exit`. `.claude/rules/security-gate.md` has the detail, including what else a dependency bump has to move.
 
 Tests tagged `:integration`, `:network` and `:llm` are excluded on-push and run separately as merge gates (see "Test tags and run modes" below). PRs additionally run the compose smoke test, `ci/compose_smoke.sh`, which gates the containers rather than the code (`.claude/rules/compose-smoke.md`). A failure there is a finding about the containers: fix `Dockerfile`, `entrypoint.sh` or the compose files, never loosen an assertion.
 
@@ -163,7 +163,6 @@ After any task that changes architecture, module boundaries, conventions, or too
 
 If your task touches these, flag rather than silently resolving or ignoring. One line each; the detail lives in the linked issue.
 - **Post-demo formats** (README "Roadmap"): Word, Excel, CSV, JPG pipelines are explicitly deferred.
-- **Advisory backlog (#206):** `mix hex.audit` / `mix deps.audit` are report-only in CI until the backlog clears, then flip to blocking.
 - **xref coupling ratchet (#208):** `--fail-above 3` baseline comes from `Conversation.State`'s defstruct DI defaults; ratchets to 0 once those are decoupled.
 - **Book status after a sweep (#305, found by #248):** `Books.Pipeline.ingest_with_sweep/5` leaves `embedding_status` at `:failed` after `retry_from_chunk` resolves a book's last failing chunk.
 - **Hexdocs sources with several top-level forms (#291, found by #248):** `Hexdoc.to_parsed_docs/1` accepts only a bare `defmodule` AST, so `enum.ex`, `kernel.ex`, `string.ex` and the like yield no `ParsedDocument` and no `FailedIngest`.

@@ -64,8 +64,10 @@ project's `mix.lock`, so a covered module behaves here as it does in Cake:
 
 When Cake's lock moves one of these, move it here too. `stream_data` is the
 exception: it is pinned to the version LawSpec's Elixir target requires.
-Advisories `mix deps.get` reports for these packages are Cake's own (the
-report-only backlog, #206); this project is test-only and never deployed.
+An advisory `mix deps.get` reports for one of these packages is cleared the
+same way as in Cake, by Cake's bump being moved here: Cake's audits are
+blocking (`.claude/rules/security-gate.md`), and this project, which is
+test-only and never deployed, has no audit of its own.
 
 **Why `snap` (#332).** The search query unit takes `snap` and `finch` for
 one pure function, `to_query_map/1`. The alternative was to leave
