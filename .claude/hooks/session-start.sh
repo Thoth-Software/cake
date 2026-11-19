@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# SessionStart hook for Cake — installs Erlang/Elixir, Rust, Postgres,
-# fetches/compiles deps, and prepares the test database so that Claude
-# Code on the web sessions can run `mix compile`, `mix credo`, `mix test`,
-# and the full `mix precommit` chain immediately. It also installs the
+# SessionStart hook for Cake — installs the Erlang/OTP and Elixir that
+# .tool-versions pins, Rust and Postgres, fetches/compiles deps, and
+# prepares the test database so that Claude Code on the web sessions can run
+# `mix compile`, `mix credo`, `mix test`, and the full `mix precommit` chain
+# immediately, on the toolchain CI uses (section 1). It also installs the
 # LawSpec toolchain (Erlang/OTP 29) beside Cake's own, reached through the
 # `otp29` wrapper, so the `laws` job's steps run in lawspec/ (section 6).
 #
@@ -39,92 +40,228 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
 fi
 
 ###############################################################################
-# 1. Erlang/OTP + Elixir (precompiled tarballs from builds.hex.pm).
+# 1. Erlang/OTP + Elixir (precompiled builds from builds.hex.pm).
 #
-# Ubuntu Noble's `erlang` apt package is OTP 25, which has a `:httpc` bug
-# that emits an empty `te:` header — the egress proxy in front of Fastly
-# rejects every such request with 503, so `mix deps.get` fails even when
-# repo.hex.pm is allowlisted. The bug is fixed in OTP 26.2.5 / 27.0+, so
-# we install a precompiled OTP tarball from builds.hex.pm (already
-# allowlisted) instead of using apt. Ubuntu's `elixir` package is also
-# too old for mix.exs (`~> 1.17`), so we drop a precompiled Elixir tarball
-# into /opt/elixir.
+# The versions are the ones .tool-versions pins, read from it here so the
+# hook cannot drift from it again (#351): a session compiles, checks and
+# tests Cake on the OTP and Elixir the Dockerfile and quality.yml are on.
+# An asdf name is a builds.hex.pm name: `erlang 28.5` is
+# builds/otp/ubuntu-24.04/OTP-28.5.tar.gz, and `elixir 1.20.2-otp-28` is
+# builds/elixir/v1.20.2-otp-28.zip. OTP_VERSION and ELIXIR_VERSION in the
+# environment override the file for one run.
+#
+# Never apt's packages. Ubuntu Noble's `erlang` is OTP 25, whose `:httpc`
+# sends an empty `te:` header: the egress proxy in front of Fastly answers
+# every such request with 503, so `mix deps.get` fails even with repo.hex.pm
+# allowlisted (fixed in OTP 26.2.5 / 27.0). Its `elixir` is 1.14, older than
+# mix.exs allows (`~> 1.15`).
+#
+# The toolchain is installed whenever what is on PATH is not exactly the
+# pinned one: nothing there, apt's, or an older install of this hook's that
+# a cached environment kept. OTP and Elixir are replaced together or not at
+# all: a version with no build, a corrupt archive, a failed ./Install or an
+# Elixir that will not install after OTP did each leave the old toolchain
+# as it was (toolchain, below). A failure prints `!! toolchain:` and the
+# hook carries on with whatever Elixir is on PATH; with none there is
+# nothing to carry on with.
 ###############################################################################
-OTP_VERSION="${OTP_VERSION:-27.3.4.11}"
-OTP_MIN_MAJOR="${OTP_MIN_MAJOR:-27}"
-ELIXIR_VERSION="${ELIXIR_VERSION:-1.17.3}"
-
-current_otp_major() {
-  command -v erl >/dev/null 2>&1 || { echo 0; return; }
-  erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().' 2>/dev/null \
-    || echo 0
+tool_version() {
+  awk -v tool="$1" '$1 == tool { print $2; exit }' .tool-versions 2>/dev/null || true
 }
 
-OTP_MAJOR_NOW="$(current_otp_major)"
-if [ "${OTP_MAJOR_NOW}" -lt "${OTP_MIN_MAJOR}" ] 2>/dev/null; then
-  # Apt's `erlang` package on Ubuntu Noble is OTP 25, which has the empty
-  # `te:` header bug — the egress proxy rejects every request. The plain
-  # `command -v erl` check is not enough: it sees apt's /usr/bin/erl and
-  # short-circuits, so we must install OTP >= ${OTP_MIN_MAJOR} ourselves
-  # whenever the active erl is older.
-  echo "==> Active erl is OTP ${OTP_MAJOR_NOW:-none} (< ${OTP_MIN_MAJOR}); installing OTP ${OTP_VERSION}..."
+OTP_VERSION="${OTP_VERSION:-$(tool_version erlang)}"
+ELIXIR_VERSION="${ELIXIR_VERSION:-$(tool_version elixir)}"
+# asdf's `1.20.2-otp-28` names the OTP major as well; it is taken from
+# OTP_VERSION, so the two lines cannot disagree here.
+ELIXIR_VERSION="${ELIXIR_VERSION%%-otp-*}"
+OTP_MAJOR="${OTP_VERSION%%.*}"
+ELIXIR_WANTED="Elixir ${ELIXIR_VERSION} (compiled with Erlang/OTP ${OTP_MAJOR})"
+OTP_LINKS=(erl erlc escript dialyzer ct_run epmd run_erl to_erl)
+ELIXIR_LINKS=(elixir elixirc iex mix)
+TOOLCHAIN_REPLACED=""
+OTP_ARCHIVE=""
+ELIXIR_ARCHIVE=""
+SET_ASIDE=()
 
-  echo "==> Installing build deps..."
-  # Tolerate failing third-party PPAs; we only need the main Ubuntu archive.
-  $SUDO apt-get update -y || true
-  $SUDO apt-get install -y --no-install-recommends \
-    build-essential \
-    libssl-dev \
-    libncurses6 \
-    inotify-tools \
-    git \
-    curl \
-    unzip \
-    ca-certificates
+# The full version (28.5), not the release (28): `erl` only starts once
+# ./Install has run, so this never passes for a half-installed runtime.
+active_otp_version() {
+  command -v erl >/dev/null 2>&1 || return 0
+  erl -noshell -eval '
+    File = filename:join([code:root_dir(), "releases",
+                          erlang:system_info(otp_release), "OTP_VERSION"]),
+    {ok, Version} = file:read_file(File),
+    io:format("~s", [string:trim(Version)]),
+    halt().' 2>/dev/null || true
+}
 
-  echo "==> Installing Erlang/OTP ${OTP_VERSION} (precompiled from builds.hex.pm)..."
-  $SUDO mkdir -p /opt/otp
-  curl -fsSL \
-    "https://builds.hex.pm/builds/otp/ubuntu-24.04/OTP-${OTP_VERSION}.tar.gz" \
-    | $SUDO tar -xz -C /opt/otp --strip-components=1
-  ( cd /opt/otp && $SUDO ./Install -minimal /opt/otp )
-  for bin in erl erlc escript dialyzer ct_run epmd run_erl to_erl; do
-    if [ -x "/opt/otp/bin/${bin}" ]; then
-      # Force the symlink so we shadow apt's /usr/bin/erl on $PATH
-      # (/usr/local/bin precedes /usr/bin).
-      $SUDO ln -sf "/opt/otp/bin/${bin}" "/usr/local/bin/${bin}"
+# "Elixir 1.20.2 (compiled with Erlang/OTP 28)", or nothing: also nothing
+# unless `mix` runs and reports the same, since every later step of this
+# hook is a `mix` call. Running it is the check: a `mix` on PATH is a script
+# for whichever `elixir` is on PATH, so where the file lives says little.
+active_elixir() {
+  local elixir mix
+
+  command -v elixir >/dev/null 2>&1 && command -v mix >/dev/null 2>&1 || return 0
+  elixir="$(elixir --version 2>/dev/null | tail -n 1 || true)"
+  mix="$(mix --version 2>/dev/null | tail -n 1 || true)"
+  if [ -n "$elixir" ] && [ "Elixir ${mix#Mix }" = "$elixir" ]; then echo "$elixir"; fi
+}
+
+toolchain_ready() {
+  [ "$(active_otp_version)" = "$OTP_VERSION" ] && [ "$(active_elixir)" = "$ELIXIR_WANTED" ]
+}
+
+# Everything from here to toolchain() runs inside an `if` condition, where
+# `set -e` is off, so each step returns its own failure.
+
+# The two installs are replaced as one: set_aside moves a directory out of
+# the way for a new one to be filled in its place, and put_back returns it.
+# A directory is filled in place and not staged beside it, because OTP's
+# ./Install writes the directory it is given into bin/erl. The
+# /usr/local/bin links point into the directories, so putting one back
+# restores its links too.
+set_aside() {
+  $SUDO rm -rf "$1.previous" || return 1
+  if [ -e "$1" ]; then $SUDO mv "$1" "$1.previous" || return 1; fi
+  SET_ASIDE+=("$1")
+  $SUDO mkdir -p "$1"
+}
+
+put_back() {
+  $SUDO rm -rf "$1"
+  if [ -e "$1.previous" ]; then $SUDO mv "$1.previous" "$1"; fi
+}
+
+# A link into a directory that put_back found nothing to return to would
+# shadow whatever `erl` or `elixir` was on PATH before.
+drop_dangling_links() {
+  local bin
+
+  for bin in "${OTP_LINKS[@]}" "${ELIXIR_LINKS[@]}"; do
+    if [ -L "/usr/local/bin/${bin}" ] && [ ! -e "/usr/local/bin/${bin}" ]; then
+      $SUDO rm -f "/usr/local/bin/${bin}"
     fi
   done
-  hash -r
-fi
-
-# Reinstall Elixir whenever it's missing or built against a different OTP
-# major than the currently-active erl. Otherwise an OTP upgrade above
-# would leave us with an Elixir compiled for the old OTP.
-OTP_MAJOR="$(current_otp_major)"
-elixir_otp_major() {
-  command -v elixir >/dev/null 2>&1 || { echo ""; return; }
-  elixir --version 2>/dev/null \
-    | sed -n 's/.*compiled with Erlang\/OTP \([0-9]\+\).*/\1/p'
 }
-ELIXIR_OTP_MAJOR="$(elixir_otp_major)"
 
-if ! command -v elixir >/dev/null 2>&1 \
-  || ! command -v mix >/dev/null 2>&1 \
-  || [ "${ELIXIR_OTP_MAJOR}" != "${OTP_MAJOR}" ]; then
-  echo "==> Installing Elixir ${ELIXIR_VERSION} for OTP ${OTP_MAJOR}..."
-  $SUDO mkdir -p /opt/elixir
-  curl -fsSL \
-    "https://github.com/elixir-lang/elixir/releases/download/v${ELIXIR_VERSION}/elixir-otp-${OTP_MAJOR}.zip" \
-    -o /tmp/elixir.zip
-  $SUDO unzip -oq /tmp/elixir.zip -d /opt/elixir
-  for bin in elixir elixirc iex mix; do
-    $SUDO ln -sf "/opt/elixir/bin/${bin}" "/usr/local/bin/${bin}"
+# Both archives are downloaded before either install is touched, so a
+# version with no build, or a network failure between the two, changes
+# nothing. Elixir is fetched when what is there is not the pinned build for
+# this OTP major, which is known before OTP is replaced.
+fetch_archives() {
+  local packages=(build-essential libssl-dev libncurses6 inotify-tools git curl unzip ca-certificates)
+
+  if ! dpkg -s "${packages[@]}" >/dev/null 2>&1; then
+    echo "==> Installing build deps..."
+    # Tolerate failing third-party PPAs; we only need the main Ubuntu archive.
+    $SUDO apt-get update -y || true
+    $SUDO apt-get install -y --no-install-recommends "${packages[@]}" || return 1
+  fi
+
+  if [ "$(active_otp_version)" != "$OTP_VERSION" ]; then
+    echo "==> Fetching Erlang/OTP ${OTP_VERSION} (precompiled, from builds.hex.pm)..."
+    OTP_ARCHIVE="/tmp/otp-${OTP_VERSION}.tar.gz"
+    curl -fsSL \
+      "https://builds.hex.pm/builds/otp/ubuntu-24.04/OTP-${OTP_VERSION}.tar.gz" \
+      -o "$OTP_ARCHIVE" || return 1
+  fi
+  if [ "$(active_elixir)" != "$ELIXIR_WANTED" ]; then
+    echo "==> Fetching Elixir ${ELIXIR_VERSION} for OTP ${OTP_MAJOR} (from builds.hex.pm)..."
+    ELIXIR_ARCHIVE="/tmp/elixir-${ELIXIR_VERSION}-otp-${OTP_MAJOR}.zip"
+    curl -fsSL \
+      "https://builds.hex.pm/builds/elixir/v${ELIXIR_VERSION}-otp-${OTP_MAJOR}.zip" \
+      -o "$ELIXIR_ARCHIVE" || return 1
+  fi
+}
+
+# Each install goes into a new directory, never over the old one: an older
+# release's lib/ directories would otherwise stay beside the new ones. The
+# links are forced, so they shadow apt's /usr/bin/erl on PATH
+# (/usr/local/bin precedes /usr/bin).
+install_archives() {
+  local bin
+
+  if [ -n "$OTP_ARCHIVE" ]; then
+    echo "==> Installing Erlang/OTP ${OTP_VERSION}..."
+    set_aside /opt/otp || return 1
+    $SUDO tar -xzf "$OTP_ARCHIVE" -C /opt/otp --strip-components=1 || return 1
+    ( cd /opt/otp && $SUDO ./Install -minimal /opt/otp >/dev/null ) || return 1
+    for bin in "${OTP_LINKS[@]}"; do
+      if [ -x "/opt/otp/bin/${bin}" ]; then
+        $SUDO ln -sf "/opt/otp/bin/${bin}" "/usr/local/bin/${bin}" || return 1
+      fi
+    done
+  fi
+  if [ -n "$ELIXIR_ARCHIVE" ]; then
+    echo "==> Installing Elixir ${ELIXIR_VERSION} for OTP ${OTP_MAJOR}..."
+    set_aside /opt/elixir || return 1
+    $SUDO unzip -oq "$ELIXIR_ARCHIVE" -d /opt/elixir || return 1
+    for bin in "${ELIXIR_LINKS[@]}"; do
+      $SUDO ln -sf "/opt/elixir/bin/${bin}" "/usr/local/bin/${bin}" || return 1
+    done
+  fi
+  hash -r
+}
+
+toolchain() {
+  local dir
+
+  [ -n "$OTP_VERSION" ] && [ -n "$ELIXIR_VERSION" ] || return 1
+
+  # A run that was stopped between set_aside and its end: what it set aside
+  # is the last toolchain known to work.
+  for dir in /opt/otp /opt/elixir; do
+    if [ -e "$dir.previous" ]; then put_back "$dir"; fi
   done
   hash -r
+
+  if toolchain_ready; then return 0; fi
+  fetch_archives || { rm -f "$OTP_ARCHIVE" "$ELIXIR_ARCHIVE"; return 1; }
+
+  # Kept only if what is on PATH afterwards is the pinned toolchain, OTP and
+  # Elixir both; otherwise both are put back, never one without the other.
+  if install_archives && toolchain_ready; then
+    for dir in "${SET_ASIDE[@]}"; do $SUDO rm -rf "$dir.previous"; done
+    rm -f "$OTP_ARCHIVE" "$ELIXIR_ARCHIVE"
+    TOOLCHAIN_REPLACED=1
+  else
+    for dir in "${SET_ASIDE[@]}"; do put_back "$dir"; done
+    drop_dangling_links
+    hash -r
+    rm -f "$OTP_ARCHIVE" "$ELIXIR_ARCHIVE"
+    return 1
+  fi
+}
+
+if toolchain; then
+  TOOLCHAIN_ELIXIR_FOUND="$ELIXIR_WANTED"
+else
+  TOOLCHAIN_OTP_FOUND="$(active_otp_version)"
+  TOOLCHAIN_ELIXIR_FOUND="$(active_elixir)"
+  cat <<WARN
+!! toolchain: could not install the toolchain .tool-versions pins
+   (Erlang/OTP ${OTP_VERSION:-?}, Elixir ${ELIXIR_VERSION:-?}). On PATH instead:
+   Erlang/OTP ${TOOLCHAIN_OTP_FOUND:-none}, ${TOOLCHAIN_ELIXIR_FOUND:-no Elixir}.
+   \`mix precommit\` here can disagree with CI, on warnings under
+   --warnings-as-errors and on what dialyzer reports, until the pinned
+   toolchain is installed: see section 1 of .claude/hooks/session-start.sh.
+WARN
+  if [ -z "$TOOLCHAIN_ELIXIR_FOUND" ]; then
+    echo "!! toolchain: no Elixir with Mix on PATH; nothing else in this hook can run."
+    exit 1
+  fi
 fi
 
-echo "==> elixir: $(elixir --version | tail -1)"
+# Build artifacts of the toolchain just replaced: Mix recompiles the Elixir
+# code by itself, but not what elixir_make built against the old erts
+# headers.
+if [ -n "$TOOLCHAIN_REPLACED" ] && [ -d _build ]; then
+  echo "==> Toolchain changed; removing _build..."
+  rm -rf _build
+fi
+
+echo "==> elixir: ${TOOLCHAIN_ELIXIR_FOUND}"
 
 ###############################################################################
 # 2. Rust toolchain (Rustler NIF in deps)
@@ -201,7 +338,13 @@ echo "==> postgres: $(pg_isready -h localhost -p 5432 || true)"
 echo "==> Installing Hex and Rebar..."
 # builds.hex.pm CDN is blocked in some sandboxes; use the GitHub fallback
 # for Hex and a prebuilt rebar3 binary instead.
-if ! mix local.hex --force --if-missing 2>/dev/null; then
+#
+# The Hex archive in ~/.mix is built for one Elixir, so a replaced toolchain
+# installs its own over the one a cached environment kept.
+HEX_IF_MISSING="--if-missing"
+if [ -n "$TOOLCHAIN_REPLACED" ]; then HEX_IF_MISSING=""; fi
+# shellcheck disable=SC2086
+if ! mix local.hex --force $HEX_IF_MISSING 2>/dev/null; then
   echo "    hex.pm CDN unreachable; installing Hex from GitHub..."
   mix archive.install github hexpm/hex branch latest --force
 fi

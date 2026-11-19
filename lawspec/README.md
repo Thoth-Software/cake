@@ -421,9 +421,10 @@ otp29 npm run generate:check
 otp29 mix test
 ```
 
-A plain `mix` there is Cake's, on another OTP release, and LawSpec's doctor
-refuses it. The hook prints `!! lawspec:` at session start if it could not
-install the toolchain.
+A plain `mix` there is Cake's, on the OTP 28 release that the repository's
+`.tool-versions` pins (section 1 of the hook installs it), and LawSpec's
+doctor refuses it. The hook prints `!! lawspec:` at session start if it could
+not install the LawSpec toolchain.
 
 - `npm run lawspec -- explain` words every law in plain English. Add
   `--view math` for mathematical notation.
