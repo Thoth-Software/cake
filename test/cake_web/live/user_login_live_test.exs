@@ -13,6 +13,14 @@ defmodule CakeWeb.UserLoginLiveTest do
       assert html =~ "Forgot your password?"
     end
 
+    test "asks for a username and a password, and not for an email", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+
+      assert has_element?(lv, ~s|#login_form input[name="user[username]"][required]|)
+      assert has_element?(lv, ~s|#login_form input[name="user[password]"][required]|)
+      refute has_element?(lv, ~s|#login_form input[name="user[email]"]|)
+    end
+
     test "redirects if already logged in", %{conn: conn} do
       result =
         conn
@@ -32,7 +40,9 @@ defmodule CakeWeb.UserLoginLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 
       form =
-        form(lv, "#login_form", user: %{email: user.email, password: password, remember_me: true})
+        form(lv, "#login_form",
+          user: %{username: user.username, password: password, remember_me: true}
+        )
 
       conn = submit_form(form, conn)
 
@@ -46,14 +56,28 @@ defmodule CakeWeb.UserLoginLiveTest do
 
       form =
         form(lv, "#login_form",
-          user: %{email: "test@email.com", password: "123456", remember_me: true}
+          user: %{username: "no.such-member", password: "123456", remember_me: true}
         )
 
       conn = submit_form(form, conn)
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid username or password"
 
       assert redirected_to(conn) == "/users/log_in"
+    end
+
+    test "keeps the typed username in the form after a refused log in", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+
+      form = form(lv, "#login_form", user: %{username: "no.such-member", password: "123456"})
+      conn = submit_form(form, conn)
+
+      {:ok, reopened, _html} = live(conn, ~p"/users/log_in")
+
+      assert has_element?(
+               reopened,
+               ~s|#login_form input[name="user[username]"][value="no.such-member"]|
+             )
     end
   end
 

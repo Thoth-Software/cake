@@ -10,4 +10,8 @@
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
 
-Cake.Accounts.register_user(%{email: "admin@fake.com", password: "adminpassword@1234"})
+Cake.Accounts.register_user(%{
+  username: "admin",
+  email: "admin@fake.com",
+  password: "adminpassword@1234"
+})

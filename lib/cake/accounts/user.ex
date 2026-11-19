@@ -1,14 +1,23 @@
 defmodule Cake.Accounts.User do
   @moduledoc """
-  Ecto schema for a user account: email plus a bcrypt-hashed password and the
-  confirmation timestamp. Provides the registration, email-change, and
-  password-change changesets along with `valid_password?/2` for authentication.
+  Ecto schema for a user account: a username, an optional email, a
+  bcrypt-hashed password and the confirmation timestamp. Provides the
+  registration, email-change, and password-change changesets along with
+  `valid_password?/2` for authentication.
+
+  A user logs in with the username. It is 3 to 32 characters from `a-z`,
+  `0-9`, `_`, `.` and `-`, with letters accepted in either case. The column
+  is `citext`: the name is stored as typed and compared case-insensitively,
+  so `Caleb` and `caleb` are one username. The email is optional, and the
+  flows that send mail (confirmation, password reset, email change) apply
+  only to a user who has one.
   """
 
   use Cake.Schema
   import Ecto.Changeset
 
   schema "users" do
+    field :username, :string
     field :email, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
@@ -19,12 +28,15 @@ defmodule Cake.Accounts.User do
   end
 
   @typedoc """
-  A registered user. `password` and `current_password` are virtual fields that
-  only changesets read; the stored secret is `hashed_password`.
+  A registered user. `username` is what the user logs in with; `email` is
+  `nil` for a user registered without one. `password` and `current_password`
+  are virtual fields that only changesets read; the stored secret is
+  `hashed_password`.
   """
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,
+          username: String.t() | nil,
           email: String.t() | nil,
           password: String.t() | nil,
           hashed_password: String.t() | nil,
@@ -41,6 +53,15 @@ defmodule Cake.Accounts.User do
 
   @doc """
   A user changeset for registration.
+
+  A username and a password are required; an email is optional, and is
+  validated when given.
+
+  The username must be 3 to 32 characters from `a-z`, `0-9`, `_`, `.` and
+  `-`, in either letter case. Anything else is a validation error, a NUL
+  byte included: the username is validated as it was typed, before
+  `sanitize_text_fields/1` strips NUL bytes from the changes, so a name
+  cannot become valid by losing one.
 
   It is important to validate the length of both email and password.
   Otherwise databases may truncate the email without warnings, which
@@ -61,19 +82,64 @@ defmodule Cake.Accounts.User do
       using this changeset for validations on a LiveView form before
       submitting the form), this option can be set to `false`.
       Defaults to `true`.
+
+    * `:validate_username` - Validates the uniqueness of the username,
+      whatever its letter case. Set it to `false` for the same reason as
+      `:validate_email`: it queries the database. Defaults to `true`.
   """
-  @spec registration_changeset(%__MODULE__{}, map(), keyword()) :: Ecto.Changeset.t()
+  @spec registration_changeset(t(), map(), keyword()) :: Ecto.Changeset.t()
   def registration_changeset(user, attrs, opts \\ []) do
     user
     |> cast(attrs, [:email, :password])
+    |> cast_username(attrs)
+    |> validate_username(opts)
     |> validate_email(opts)
     |> validate_password(opts)
     |> sanitize_text_fields()
   end
 
+  # `cast/4` trims a value before it decides whether the value is empty, so a
+  # username of nothing but whitespace (spaces, a lone newline) would be cast
+  # to nil and reported as "can't be blank". Whitespace is outside the
+  # username set like any other character, so the username is cast untrimmed:
+  # only the empty string is empty, and such a name reaches the format check.
+  defp cast_username(changeset, attrs) do
+    cast(changeset, attrs, [:username], trim_values: fn _type, value -> value end)
+  end
+
+  # Runs before `sanitize_text_fields/1`, on the value as typed. The anchors
+  # are `\A` and `\z` because `$` also matches before a trailing newline, and
+  # the letters are spelled out in both cases rather than matched with the
+  # `i` modifier, which under Unicode also accepts the characters that
+  # case-fold to ASCII letters (the Kelvin sign, the long s).
+  defp validate_username(changeset, opts) do
+    changeset
+    |> validate_required([:username])
+    |> validate_format(:username, ~r/\A[a-zA-Z0-9_.-]+\z/,
+      message: "can only contain letters a-z, digits, underscores, dots and hyphens"
+    )
+    |> validate_length(:username, min: 3, max: 32)
+    |> maybe_validate_unique_username(opts)
+  end
+
+  # The column is `citext`, so the uniqueness query and the unique index both
+  # compare case-insensitively. `unsafe_validate_unique/3` skips its query for
+  # a username that already has an error, so an ill-formed name (one with a
+  # NUL byte, which Postgres refuses as text) is never sent to the database.
+  defp maybe_validate_unique_username(changeset, opts) do
+    if Keyword.get(opts, :validate_username, true) do
+      changeset
+      |> unsafe_validate_unique(:username, Cake.Repo)
+      |> unique_constraint(:username)
+    else
+      changeset
+    end
+  end
+
+  # Does not require the email: registration leaves it optional, and
+  # `email_changeset/3` requires it itself.
   defp validate_email(changeset, opts) do
     changeset
-    |> validate_required([:email])
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
     |> validate_length(:email, max: 160)
     |> maybe_validate_unique_email(opts)
@@ -124,11 +190,12 @@ defmodule Cake.Accounts.User do
 
   It requires the email to change otherwise an error is added.
   """
-  @spec email_changeset(%__MODULE__{}, map(), keyword()) :: Ecto.Changeset.t()
+  @spec email_changeset(t(), map(), keyword()) :: Ecto.Changeset.t()
   def email_changeset(user, attrs, opts \\ []) do
     changeset =
       user
       |> cast(attrs, [:email])
+      |> validate_required([:email])
       |> validate_email(opts)
 
     case changeset do

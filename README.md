@@ -224,7 +224,7 @@ Every custom struct in Cake, its module, and its purpose. Every one of them defi
 | `ParsedDocument` | `Cake.Documents.ParsedDocument` | Programming documentation entry, with its `embedding` and the `embedding_model` that produced it. Both GDS identity and retrieval unit for the Documents GDS. |
 | `Hexdoc` | `Cake.Documents.Hexdocs.Hexdoc` | Raw Elixir source cloned from the elixir-lang/elixir repository. Intermediate storage (raw data struct). |
 | `FailedIngest` | `Cake.FailedIngests.FailedIngest` | Persists item-level pipeline failures for retry via `Cake.Pipelines.sweep/3`, tagged with the recording run's `run_id`. |
-| `User` | `Cake.Accounts.User` | Phoenix authentication user record. |
+| `User` | `Cake.Accounts.User` | Phoenix authentication user record: a `username` (what a user logs in with; 3 to 32 characters, compared case-insensitively and stored as typed), an optional `email`, and a hashed password. |
 | `UserToken` | `Cake.Accounts.UserToken` | Session and email confirmation tokens. |
 
 ### Non-Ecto Domain Structs

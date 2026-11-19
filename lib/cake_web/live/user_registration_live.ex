@@ -32,7 +32,8 @@ defmodule CakeWeb.UserRegistrationLive do
           Oops, something went wrong! Please check the errors below.
         </.error>
 
-        <.input field={@form[:email]} type="email" label="Email" required />
+        <.input field={@form[:username]} type="text" label="Username" required />
+        <.input field={@form[:email]} type="email" label="Email (optional)" />
         <.input field={@form[:password]} type="password" label="Password" required />
 
         <:actions>
@@ -61,11 +62,7 @@ defmodule CakeWeb.UserRegistrationLive do
   def handle_event("save", %{"user" => user_params}, socket) do
     case Accounts.register_user(user_params) do
       {:ok, user} ->
-        {:ok, _} =
-          Accounts.deliver_user_confirmation_instructions(
-            user,
-            &url(~p"/users/confirm/#{&1}")
-          )
+        :ok = deliver_confirmation_instructions(user)
 
         changeset = Accounts.change_user_registration(user)
         {:noreply, socket |> assign(trigger_submit: true) |> assign_form(changeset)}
@@ -78,6 +75,16 @@ defmodule CakeWeb.UserRegistrationLive do
   def handle_event("validate", %{"user" => user_params}, socket) do
     changeset = Accounts.change_user_registration(%User{}, user_params)
     {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+  end
+
+  # Confirmation is by email, so it applies only to a user who gave one.
+  defp deliver_confirmation_instructions(%User{email: nil}), do: :ok
+
+  defp deliver_confirmation_instructions(%User{} = user) do
+    {:ok, _} =
+      Accounts.deliver_user_confirmation_instructions(user, &url(~p"/users/confirm/#{&1}"))
+
+    :ok
   end
 
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do
