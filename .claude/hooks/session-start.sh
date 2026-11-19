@@ -58,10 +58,11 @@ fi
 #
 # The toolchain is installed whenever what is on PATH is not exactly the
 # pinned one: nothing there, apt's, or an older install of this hook's that
-# a cached environment kept. Each download is complete before the install it
-# replaces is removed, so a version with no build leaves the old toolchain
-# in place. A failure prints `!! toolchain:` and the hook carries on with
-# whatever Elixir is on PATH; with none there is nothing to carry on with.
+# a cached environment kept. An install is replaced only by one that
+# unpacked and starts: a version with no build, a corrupt archive or a
+# failed ./Install leaves the old toolchain in place (replace_install). A
+# failure prints `!! toolchain:` and the hook carries on with whatever
+# Elixir is on PATH; with none there is nothing to carry on with.
 ###############################################################################
 tool_version() {
   awk -v tool="$1" '$1 == tool { print $2; exit }' .tool-versions 2>/dev/null || true
@@ -88,14 +89,49 @@ active_otp_version() {
     halt().' 2>/dev/null || true
 }
 
-# "Elixir 1.20.2 (compiled with Erlang/OTP 28)", or nothing.
+# "Elixir 1.20.2 (compiled with Erlang/OTP 28)", or nothing: also nothing
+# when `mix` is not beside it, so an install that stopped between the two
+# links is repaired here and not found by the first `mix` call below.
 active_elixir() {
-  command -v elixir >/dev/null 2>&1 || return 0
+  command -v elixir >/dev/null 2>&1 && command -v mix >/dev/null 2>&1 || return 0
   elixir --version 2>/dev/null | tail -n 1 || true
 }
 
-# Both installers are called as `if` conditions, where `set -e` is off, so
-# each step returns its own failure.
+# Everything from here to toolchain() runs inside an `if` condition, where
+# `set -e` is off, so each step returns its own failure.
+
+# replace_install DIR FILL...: moves DIR aside, runs FILL to fill a new one,
+# and puts the old DIR back if FILL fails, so an archive that does not
+# unpack or a runtime that does not start costs nothing. The /usr/local/bin
+# links point into DIR, so putting it back restores them too. DIR is filled
+# in place and not staged beside it: OTP's ./Install writes the directory it
+# is given into bin/erl.
+replace_install() {
+  local dir="$1" previous="$1.previous"
+  shift
+
+  $SUDO rm -rf "$previous" || return 1
+  if [ -e "$dir" ]; then $SUDO mv "$dir" "$previous" || return 1; fi
+  if $SUDO mkdir -p "$dir" && "$@"; then
+    $SUDO rm -rf "$previous"
+  else
+    $SUDO rm -rf "$dir"
+    if [ -e "$previous" ]; then $SUDO mv "$previous" "$dir"; fi
+    return 1
+  fi
+}
+
+unpack_otp() {
+  $SUDO tar -xzf "$1" -C /opt/otp --strip-components=1 || return 1
+  ( cd /opt/otp && $SUDO ./Install -minimal /opt/otp >/dev/null ) || return 1
+  /opt/otp/bin/erl -noshell -eval 'halt().' >/dev/null 2>&1
+}
+
+unpack_elixir() {
+  $SUDO unzip -oq "$1" -d /opt/elixir || return 1
+  /opt/elixir/bin/elixir --version >/dev/null 2>&1 && [ -x /opt/elixir/bin/mix ]
+}
+
 install_otp() {
   local tarball="/tmp/otp-${OTP_VERSION}.tar.gz"
   local packages=(build-essential libssl-dev libncurses6 inotify-tools git curl unzip ca-certificates)
@@ -111,12 +147,10 @@ install_otp() {
   curl -fsSL \
     "https://builds.hex.pm/builds/otp/ubuntu-24.04/OTP-${OTP_VERSION}.tar.gz" \
     -o "$tarball" || return 1
-  # Emptied first: an older release's lib/ directories would otherwise stay
-  # beside the new ones.
-  $SUDO rm -rf /opt/otp && $SUDO mkdir -p /opt/otp || return 1
-  $SUDO tar -xzf "$tarball" -C /opt/otp --strip-components=1 || return 1
+  # A new directory, never unpacked over the old one: an older release's
+  # lib/ directories would otherwise stay beside the new ones.
+  replace_install /opt/otp unpack_otp "$tarball" || { rm -f "$tarball"; return 1; }
   rm -f "$tarball"
-  ( cd /opt/otp && $SUDO ./Install -minimal /opt/otp >/dev/null ) || return 1
   for bin in erl erlc escript dialyzer ct_run epmd run_erl to_erl; do
     if [ -x "/opt/otp/bin/${bin}" ]; then
       # Force the symlink so we shadow apt's /usr/bin/erl on $PATH
@@ -134,8 +168,7 @@ install_elixir() {
   curl -fsSL \
     "https://builds.hex.pm/builds/elixir/v${ELIXIR_VERSION}-otp-${OTP_MAJOR}.zip" \
     -o "$zip" || return 1
-  $SUDO rm -rf /opt/elixir && $SUDO mkdir -p /opt/elixir || return 1
-  $SUDO unzip -oq "$zip" -d /opt/elixir || return 1
+  replace_install /opt/elixir unpack_elixir "$zip" || { rm -f "$zip"; return 1; }
   rm -f "$zip"
   for bin in elixir elixirc iex mix; do
     $SUDO ln -sf "/opt/elixir/bin/${bin}" "/usr/local/bin/${bin}" || return 1
@@ -173,7 +206,7 @@ if ! toolchain; then
    toolchain is installed: see section 1 of .claude/hooks/session-start.sh.
 WARN
   if [ -z "$TOOLCHAIN_ELIXIR_FOUND" ]; then
-    echo "!! toolchain: no Elixir on PATH; nothing else in this hook can run."
+    echo "!! toolchain: no Elixir with Mix on PATH; nothing else in this hook can run."
     exit 1
   fi
 fi
