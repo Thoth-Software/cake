@@ -20,10 +20,13 @@ defmodule Cake.Repo.Migrations.AddUsernameToUsers do
   #
   # Down: `email` is required again, so a user registered without one is given
   # `<username>@users.invalid` (`.invalid` is reserved by RFC 2606 and never
-  # deliverable). Migrating up again makes the same username from it. What a
-  # rollback cannot keep is the username of a user who also has an email:
-  # the old table has no column for it, and the next `up` derives a new one
-  # from the email.
+  # deliverable). Nothing stops another user from having typed that very
+  # address as their email, so where it is taken the domain becomes
+  # `users-2.invalid`, `users-3.invalid` and so on. It is the domain that
+  # changes and not the local part, so migrating up again still makes the
+  # same username from it. What a rollback cannot keep is the username of a
+  # user who also has an email: the old table has no column for it, and the
+  # next `up` derives a new one from the email.
   def up do
     alter table(:users) do
       add :username, :citext
@@ -73,7 +76,29 @@ defmodule Cake.Repo.Migrations.AddUsernameToUsers do
   end
 
   def down do
-    execute "UPDATE users SET email = username || '@users.invalid' WHERE email IS NULL"
+    execute """
+    DO $$
+    DECLARE
+      account RECORD;
+      candidate citext;
+      attempt integer;
+    BEGIN
+      FOR account IN
+        SELECT id, username FROM users WHERE email IS NULL ORDER BY inserted_at, id
+      LOOP
+        candidate := account.username || '@users.invalid';
+        attempt := 1;
+
+        WHILE EXISTS (SELECT 1 FROM users WHERE email = candidate) LOOP
+          attempt := attempt + 1;
+          candidate := account.username || '@users-' || attempt || '.invalid';
+        END LOOP;
+
+        UPDATE users SET email = candidate WHERE id = account.id;
+      END LOOP;
+    END
+    $$;
+    """
 
     drop unique_index(:users, [:username])
 
