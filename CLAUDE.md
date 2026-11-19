@@ -62,6 +62,8 @@ mix precommit  # MIX_ENV=dev: compile --force --warnings-as-errors → format --
 
 The compile, format and credo steps run in the dev env (so `--warnings-as-errors` enforces `boundary`); the test step runs in the test env. Every gate must pass before presenting changes: zero warnings, zero credo issues (no inline disables without approval), zero test failures. Two lighter aliases exist for iteration: `mix quality.fast` (compile + credo + `deps.unlock --check-unused`, never touches the database) and `mix quality` (the same plus dialyzer). The test step expects the Postgres role `postgres` to have the password `postgres` (config/{dev,test}.exs); the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first, and in Claude Code on the web the session-start hook sets that password and prints `!! postgres:` if it could not.
 
+In Claude Code on the web that hook (`.claude/hooks/session-start.sh`) also installs the toolchain the gates run on: the Erlang/OTP and Elixir that `.tool-versions` pins, read from that file, so a session compiles and tests on the release lines CI and the `Dockerfile` use. It prints `!! toolchain:` if it could not, and a session on any other toolchain can disagree with CI, on warnings under `--warnings-as-errors` and on what dialyzer reports. To move Cake to another OTP or Elixir, change `.tool-versions` (with the `Dockerfile` and `quality.yml`), never the hook.
+
 On-push CI (`.github/workflows/quality.yml`) runs the same checks **plus** gates with no local alias, so run them yourself when a change is likely to trip one:
 
 - `mix docs --warnings-as-errors` — the documentation gate (#204): zero broken `@moduledoc`/`@doc` references; runs in the dev env.
