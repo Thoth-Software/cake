@@ -58,11 +58,12 @@ fi
 #
 # The toolchain is installed whenever what is on PATH is not exactly the
 # pinned one: nothing there, apt's, or an older install of this hook's that
-# a cached environment kept. An install is replaced only by one that
-# unpacked and starts: a version with no build, a corrupt archive or a
-# failed ./Install leaves the old toolchain in place (replace_install). A
-# failure prints `!! toolchain:` and the hook carries on with whatever
-# Elixir is on PATH; with none there is nothing to carry on with.
+# a cached environment kept. OTP and Elixir are replaced together or not at
+# all: a version with no build, a corrupt archive, a failed ./Install or an
+# Elixir that will not install after OTP did each leave the old toolchain
+# as it was (toolchain, below). A failure prints `!! toolchain:` and the
+# hook carries on with whatever Elixir is on PATH; with none there is
+# nothing to carry on with.
 ###############################################################################
 tool_version() {
   awk -v tool="$1" '$1 == tool { print $2; exit }' .tool-versions 2>/dev/null || true
@@ -75,7 +76,12 @@ ELIXIR_VERSION="${ELIXIR_VERSION:-$(tool_version elixir)}"
 ELIXIR_VERSION="${ELIXIR_VERSION%%-otp-*}"
 OTP_MAJOR="${OTP_VERSION%%.*}"
 ELIXIR_WANTED="Elixir ${ELIXIR_VERSION} (compiled with Erlang/OTP ${OTP_MAJOR})"
+OTP_LINKS=(erl erlc escript dialyzer ct_run epmd run_erl to_erl)
+ELIXIR_LINKS=(elixir elixirc iex mix)
 TOOLCHAIN_REPLACED=""
+OTP_ARCHIVE=""
+ELIXIR_ARCHIVE=""
+SET_ASIDE=()
 
 # The full version (28.5), not the release (28): `erl` only starts once
 # ./Install has run, so this never passes for a half-installed runtime.
@@ -90,50 +96,60 @@ active_otp_version() {
 }
 
 # "Elixir 1.20.2 (compiled with Erlang/OTP 28)", or nothing: also nothing
-# when `mix` is not beside it, so an install that stopped between the two
-# links is repaired here and not found by the first `mix` call below.
+# unless `mix` runs and reports the same, since every later step of this
+# hook is a `mix` call. Running it is the check: a `mix` on PATH is a script
+# for whichever `elixir` is on PATH, so where the file lives says little.
 active_elixir() {
+  local elixir mix
+
   command -v elixir >/dev/null 2>&1 && command -v mix >/dev/null 2>&1 || return 0
-  elixir --version 2>/dev/null | tail -n 1 || true
+  elixir="$(elixir --version 2>/dev/null | tail -n 1 || true)"
+  mix="$(mix --version 2>/dev/null | tail -n 1 || true)"
+  if [ -n "$elixir" ] && [ "Elixir ${mix#Mix }" = "$elixir" ]; then echo "$elixir"; fi
+}
+
+toolchain_ready() {
+  [ "$(active_otp_version)" = "$OTP_VERSION" ] && [ "$(active_elixir)" = "$ELIXIR_WANTED" ]
 }
 
 # Everything from here to toolchain() runs inside an `if` condition, where
 # `set -e` is off, so each step returns its own failure.
 
-# replace_install DIR FILL...: moves DIR aside, runs FILL to fill a new one,
-# and puts the old DIR back if FILL fails, so an archive that does not
-# unpack or a runtime that does not start costs nothing. The /usr/local/bin
-# links point into DIR, so putting it back restores them too. DIR is filled
-# in place and not staged beside it: OTP's ./Install writes the directory it
-# is given into bin/erl.
-replace_install() {
-  local dir="$1" previous="$1.previous"
-  shift
-
-  $SUDO rm -rf "$previous" || return 1
-  if [ -e "$dir" ]; then $SUDO mv "$dir" "$previous" || return 1; fi
-  if $SUDO mkdir -p "$dir" && "$@"; then
-    $SUDO rm -rf "$previous"
-  else
-    $SUDO rm -rf "$dir"
-    if [ -e "$previous" ]; then $SUDO mv "$previous" "$dir"; fi
-    return 1
-  fi
+# The two installs are replaced as one: set_aside moves a directory out of
+# the way for a new one to be filled in its place, and put_back returns it.
+# A directory is filled in place and not staged beside it, because OTP's
+# ./Install writes the directory it is given into bin/erl. The
+# /usr/local/bin links point into the directories, so putting one back
+# restores its links too.
+set_aside() {
+  $SUDO rm -rf "$1.previous" || return 1
+  if [ -e "$1" ]; then $SUDO mv "$1" "$1.previous" || return 1; fi
+  SET_ASIDE+=("$1")
+  $SUDO mkdir -p "$1"
 }
 
-unpack_otp() {
-  $SUDO tar -xzf "$1" -C /opt/otp --strip-components=1 || return 1
-  ( cd /opt/otp && $SUDO ./Install -minimal /opt/otp >/dev/null ) || return 1
-  /opt/otp/bin/erl -noshell -eval 'halt().' >/dev/null 2>&1
+put_back() {
+  $SUDO rm -rf "$1"
+  if [ -e "$1.previous" ]; then $SUDO mv "$1.previous" "$1"; fi
 }
 
-unpack_elixir() {
-  $SUDO unzip -oq "$1" -d /opt/elixir || return 1
-  /opt/elixir/bin/elixir --version >/dev/null 2>&1 && [ -x /opt/elixir/bin/mix ]
+# A link into a directory that put_back found nothing to return to would
+# shadow whatever `erl` or `elixir` was on PATH before.
+drop_dangling_links() {
+  local bin
+
+  for bin in "${OTP_LINKS[@]}" "${ELIXIR_LINKS[@]}"; do
+    if [ -L "/usr/local/bin/${bin}" ] && [ ! -e "/usr/local/bin/${bin}" ]; then
+      $SUDO rm -f "/usr/local/bin/${bin}"
+    fi
+  done
 }
 
-install_otp() {
-  local tarball="/tmp/otp-${OTP_VERSION}.tar.gz"
+# Both archives are downloaded before either install is touched, so a
+# version with no build, or a network failure between the two, changes
+# nothing. Elixir is fetched when what is there is not the pinned build for
+# this OTP major, which is known before OTP is replaced.
+fetch_archives() {
   local packages=(build-essential libssl-dev libncurses6 inotify-tools git curl unzip ca-certificates)
 
   if ! dpkg -s "${packages[@]}" >/dev/null 2>&1; then
@@ -143,58 +159,84 @@ install_otp() {
     $SUDO apt-get install -y --no-install-recommends "${packages[@]}" || return 1
   fi
 
-  echo "==> Installing Erlang/OTP ${OTP_VERSION} (precompiled from builds.hex.pm)..."
-  curl -fsSL \
-    "https://builds.hex.pm/builds/otp/ubuntu-24.04/OTP-${OTP_VERSION}.tar.gz" \
-    -o "$tarball" || return 1
-  # A new directory, never unpacked over the old one: an older release's
-  # lib/ directories would otherwise stay beside the new ones.
-  replace_install /opt/otp unpack_otp "$tarball" || { rm -f "$tarball"; return 1; }
-  rm -f "$tarball"
-  for bin in erl erlc escript dialyzer ct_run epmd run_erl to_erl; do
-    if [ -x "/opt/otp/bin/${bin}" ]; then
-      # Force the symlink so we shadow apt's /usr/bin/erl on $PATH
-      # (/usr/local/bin precedes /usr/bin).
-      $SUDO ln -sf "/opt/otp/bin/${bin}" "/usr/local/bin/${bin}" || return 1
-    fi
-  done
-  hash -r
-}
-
-install_elixir() {
-  local zip="/tmp/elixir-${ELIXIR_VERSION}-otp-${OTP_MAJOR}.zip"
-
-  echo "==> Installing Elixir ${ELIXIR_VERSION} for OTP ${OTP_MAJOR}..."
-  curl -fsSL \
-    "https://builds.hex.pm/builds/elixir/v${ELIXIR_VERSION}-otp-${OTP_MAJOR}.zip" \
-    -o "$zip" || return 1
-  replace_install /opt/elixir unpack_elixir "$zip" || { rm -f "$zip"; return 1; }
-  rm -f "$zip"
-  for bin in elixir elixirc iex mix; do
-    $SUDO ln -sf "/opt/elixir/bin/${bin}" "/usr/local/bin/${bin}" || return 1
-  done
-  hash -r
-}
-
-# Elixir is checked after OTP, on the erl that is active by then: an Elixir
-# built for another OTP major, or left behind by an OTP that failed to
-# install, is replaced or reported.
-toolchain() {
-  [ -n "$OTP_VERSION" ] && [ -n "$ELIXIR_VERSION" ] || return 1
-
   if [ "$(active_otp_version)" != "$OTP_VERSION" ]; then
-    install_otp || return 1
-    TOOLCHAIN_REPLACED=1
+    echo "==> Fetching Erlang/OTP ${OTP_VERSION} (precompiled, from builds.hex.pm)..."
+    OTP_ARCHIVE="/tmp/otp-${OTP_VERSION}.tar.gz"
+    curl -fsSL \
+      "https://builds.hex.pm/builds/otp/ubuntu-24.04/OTP-${OTP_VERSION}.tar.gz" \
+      -o "$OTP_ARCHIVE" || return 1
   fi
   if [ "$(active_elixir)" != "$ELIXIR_WANTED" ]; then
-    install_elixir || return 1
-    TOOLCHAIN_REPLACED=1
+    echo "==> Fetching Elixir ${ELIXIR_VERSION} for OTP ${OTP_MAJOR} (from builds.hex.pm)..."
+    ELIXIR_ARCHIVE="/tmp/elixir-${ELIXIR_VERSION}-otp-${OTP_MAJOR}.zip"
+    curl -fsSL \
+      "https://builds.hex.pm/builds/elixir/v${ELIXIR_VERSION}-otp-${OTP_MAJOR}.zip" \
+      -o "$ELIXIR_ARCHIVE" || return 1
   fi
-
-  [ "$(active_otp_version)" = "$OTP_VERSION" ] && [ "$(active_elixir)" = "$ELIXIR_WANTED" ]
 }
 
-if ! toolchain; then
+# Each install goes into a new directory, never over the old one: an older
+# release's lib/ directories would otherwise stay beside the new ones. The
+# links are forced, so they shadow apt's /usr/bin/erl on PATH
+# (/usr/local/bin precedes /usr/bin).
+install_archives() {
+  local bin
+
+  if [ -n "$OTP_ARCHIVE" ]; then
+    echo "==> Installing Erlang/OTP ${OTP_VERSION}..."
+    set_aside /opt/otp || return 1
+    $SUDO tar -xzf "$OTP_ARCHIVE" -C /opt/otp --strip-components=1 || return 1
+    ( cd /opt/otp && $SUDO ./Install -minimal /opt/otp >/dev/null ) || return 1
+    for bin in "${OTP_LINKS[@]}"; do
+      if [ -x "/opt/otp/bin/${bin}" ]; then
+        $SUDO ln -sf "/opt/otp/bin/${bin}" "/usr/local/bin/${bin}" || return 1
+      fi
+    done
+  fi
+  if [ -n "$ELIXIR_ARCHIVE" ]; then
+    echo "==> Installing Elixir ${ELIXIR_VERSION} for OTP ${OTP_MAJOR}..."
+    set_aside /opt/elixir || return 1
+    $SUDO unzip -oq "$ELIXIR_ARCHIVE" -d /opt/elixir || return 1
+    for bin in "${ELIXIR_LINKS[@]}"; do
+      $SUDO ln -sf "/opt/elixir/bin/${bin}" "/usr/local/bin/${bin}" || return 1
+    done
+  fi
+  hash -r
+}
+
+toolchain() {
+  local dir
+
+  [ -n "$OTP_VERSION" ] && [ -n "$ELIXIR_VERSION" ] || return 1
+
+  # A run that was stopped between set_aside and its end: what it set aside
+  # is the last toolchain known to work.
+  for dir in /opt/otp /opt/elixir; do
+    if [ -e "$dir.previous" ]; then put_back "$dir"; fi
+  done
+  hash -r
+
+  if toolchain_ready; then return 0; fi
+  fetch_archives || { rm -f "$OTP_ARCHIVE" "$ELIXIR_ARCHIVE"; return 1; }
+
+  # Kept only if what is on PATH afterwards is the pinned toolchain, OTP and
+  # Elixir both; otherwise both are put back, never one without the other.
+  if install_archives && toolchain_ready; then
+    for dir in "${SET_ASIDE[@]}"; do $SUDO rm -rf "$dir.previous"; done
+    rm -f "$OTP_ARCHIVE" "$ELIXIR_ARCHIVE"
+    TOOLCHAIN_REPLACED=1
+  else
+    for dir in "${SET_ASIDE[@]}"; do put_back "$dir"; done
+    drop_dangling_links
+    hash -r
+    rm -f "$OTP_ARCHIVE" "$ELIXIR_ARCHIVE"
+    return 1
+  fi
+}
+
+if toolchain; then
+  TOOLCHAIN_ELIXIR_FOUND="$ELIXIR_WANTED"
+else
   TOOLCHAIN_OTP_FOUND="$(active_otp_version)"
   TOOLCHAIN_ELIXIR_FOUND="$(active_elixir)"
   cat <<WARN
@@ -219,7 +261,7 @@ if [ -n "$TOOLCHAIN_REPLACED" ] && [ -d _build ]; then
   rm -rf _build
 fi
 
-echo "==> elixir: $(active_elixir)"
+echo "==> elixir: ${TOOLCHAIN_ELIXIR_FOUND}"
 
 ###############################################################################
 # 2. Rust toolchain (Rustler NIF in deps)
