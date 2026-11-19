@@ -104,8 +104,13 @@ defmodule Cake.SchemaPropertyTest do
 
   # Each schema's own changeset entry point, as production calls it. Options
   # keep the entry points off the Repo (no uniqueness query, no bcrypt).
-  defp entry_point(User, attrs),
-    do: User.registration_changeset(%User{}, attrs, hash_password: false, validate_email: false)
+  defp entry_point(User, attrs) do
+    User.registration_changeset(%User{}, attrs,
+      hash_password: false,
+      validate_email: false,
+      validate_username: false
+    )
+  end
 
   defp entry_point(QuestionForm, attrs), do: QuestionForm.changeset(attrs)
 
@@ -188,8 +193,9 @@ defmodule Cake.SchemaPropertyTest do
 
       for field <- string_fields(schema) do
         case Ecto.Changeset.get_change(changeset, field) do
-          # A field the entry point does not cast (User casts only :email
-          # and :password; :hashed_password is set by hashing) has no change.
+          # A field the entry point does not cast (User casts only :username,
+          # :email and :password; :hashed_password is set by hashing) has no
+          # change.
           nil -> :ok
           value -> assert value == strip_nuls(Map.fetch!(attrs, field))
         end

@@ -51,6 +51,41 @@ defmodule Cake.Accounts do
   end
 
   @doc """
+  Gets a user by username and password, for logging in.
+
+  The username matches whatever its letter case. An unknown username and a
+  wrong password both return `nil`, and both pay for a password check
+  (`Cake.Accounts.User.valid_password?/2`), so neither the answer nor the
+  time it takes says which half was wrong.
+
+  A username Postgres cannot take as text (one with a NUL byte, or invalid
+  UTF-8) is an unknown username: it returns `nil` without a query, where the
+  query would raise.
+
+  ## Examples
+
+      iex> get_user_by_username_and_password("caleb", "correct_password")
+      %User{}
+
+      iex> get_user_by_username_and_password("CALEB", "correct_password")
+      %User{}
+
+      iex> get_user_by_username_and_password("caleb", "invalid_password")
+      nil
+
+  """
+  @spec get_user_by_username_and_password(String.t(), String.t()) :: User.t() | nil
+  def get_user_by_username_and_password(username, password)
+      when is_binary(username) and is_binary(password) do
+    user = if text_parameter?(username), do: Repo.get_by(User, username: username)
+    if User.valid_password?(user, password), do: user
+  end
+
+  # Postgres refuses a text parameter that holds a NUL byte or is not valid
+  # UTF-8, with an encoding error (22021) rather than an empty result.
+  defp text_parameter?(value), do: String.valid?(value) and not String.contains?(value, <<0>>)
+
+  @doc """
   Gets a single user.
 
   Raises `Ecto.NoResultsError` if the User does not exist.
@@ -99,7 +134,11 @@ defmodule Cake.Accounts do
   """
   @spec change_user_registration(User.t(), map()) :: Ecto.Changeset.t()
   def change_user_registration(%User{} = user, attrs \\ %{}) do
-    User.registration_changeset(user, attrs, hash_password: false, validate_email: false)
+    User.registration_changeset(user, attrs,
+      hash_password: false,
+      validate_email: false,
+      validate_username: false
+    )
   end
 
   ## Settings
