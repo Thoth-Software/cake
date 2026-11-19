@@ -124,12 +124,21 @@ defmodule Cake.AccountsTest do
     end
 
     # Known hazards for a character-set rule: an email, a `$` anchor (which a
-    # trailing newline passes), and the non-ASCII characters that case-fold to
-    # ASCII letters (the Kelvin sign, the long s). The general case, and
-    # uniqueness whatever the letter case, are properties in
-    # `accounts/user_property_test.exs`.
+    # trailing newline passes), the non-ASCII characters that case-fold to
+    # ASCII letters (the Kelvin sign, the long s), and a name of nothing but
+    # whitespace, which `cast/4` takes for blank by default (found by the
+    # property test). The general case, and uniqueness whatever the letter
+    # case, are properties in `accounts/user_property_test.exs`.
     test "refuses a username with a character outside the set" do
-      for username <- ["someone@example.com", "member\n", " member", "\u212Aelvin", "mi\u017Fter"] do
+      for username <- [
+            "someone@example.com",
+            "member\n",
+            " member",
+            "\u212Aelvin",
+            "mi\u017Fter",
+            "\n",
+            "   "
+          ] do
         {:error, changeset} = Accounts.register_user(valid_user_attributes(username: username))
 
         assert @username_character_error in errors_on(changeset).username

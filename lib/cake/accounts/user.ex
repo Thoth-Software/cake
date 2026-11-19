@@ -90,11 +90,21 @@ defmodule Cake.Accounts.User do
   @spec registration_changeset(t(), map(), keyword()) :: Ecto.Changeset.t()
   def registration_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:username, :email, :password])
+    |> cast(attrs, [:email, :password])
+    |> cast_username(attrs)
     |> validate_username(opts)
     |> validate_email(opts)
     |> validate_password(opts)
     |> sanitize_text_fields()
+  end
+
+  # `cast/4` trims a value before it decides whether the value is empty, so a
+  # username of nothing but whitespace (spaces, a lone newline) would be cast
+  # to nil and reported as "can't be blank". Whitespace is outside the
+  # username set like any other character, so the username is cast untrimmed:
+  # only the empty string is empty, and such a name reaches the format check.
+  defp cast_username(changeset, attrs) do
+    cast(changeset, attrs, [:username], trim_values: fn _type, value -> value end)
   end
 
   # Runs before `sanitize_text_fields/1`, on the value as typed. The anchors
