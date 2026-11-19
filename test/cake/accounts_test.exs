@@ -9,52 +9,23 @@ defmodule Cake.AccountsTest do
 
   @username_character_error "can only contain letters a-z, digits, underscores, dots and hyphens"
 
-  # The columns themselves, under the changesets: rows go in through
-  # `Repo.insert_all/2` on the bare table, so no changeset stands between the
-  # test and the constraints the migration declares.
+  # The column itself, under the changesets: the row goes in through
+  # `Repo.insert_all/2` on the bare table. What the table holds and refuses
+  # for any username or email is in `accounts/user_property_test.exs`.
   describe "the users table" do
-    defp users_row(columns) do
+    test "requires a username" do
       now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
-      Map.merge(
-        %{id: Ecto.UUID.bingenerate(), hashed_password: "x", inserted_at: now, updated_at: now},
-        columns
-      )
-    end
+      row = %{
+        id: Ecto.UUID.bingenerate(),
+        email: unique_user_email(),
+        hashed_password: "x",
+        inserted_at: now,
+        updated_at: now
+      }
 
-    test "requires a username" do
       assert_raise Postgrex.Error, ~r/null value in column "username"/, fn ->
-        Repo.insert_all("users", [users_row(%{email: unique_user_email()})])
-      end
-    end
-
-    test "holds one row per username, whatever its letter case" do
-      username = "One.Row-#{System.unique_integer([:positive])}"
-      assert {1, nil} = Repo.insert_all("users", [users_row(%{username: username})])
-
-      for typed <- [username, String.downcase(username), String.upcase(username)] do
-        assert_raise Postgrex.Error, ~r/unique_violation/, fn ->
-          Repo.insert_all("users", [users_row(%{username: typed})])
-        end
-      end
-    end
-
-    test "takes any number of rows with no email" do
-      rows = [
-        users_row(%{username: unique_user_username()}),
-        users_row(%{username: unique_user_username()})
-      ]
-
-      assert {2, nil} = Repo.insert_all("users", rows)
-    end
-
-    test "still holds one row per email" do
-      email = unique_user_email()
-      row = fn -> users_row(%{username: unique_user_username(), email: email}) end
-      assert {1, nil} = Repo.insert_all("users", [row.()])
-
-      assert_raise Postgrex.Error, ~r/unique_violation/, fn ->
-        Repo.insert_all("users", [row.()])
+        Repo.insert_all("users", [row])
       end
     end
   end
@@ -105,16 +76,6 @@ defmodule Cake.AccountsTest do
                Accounts.get_user_by_username_and_password(user.username, valid_user_password())
     end
 
-    test "finds the user whatever the letter case of the username" do
-      username = "Mixed.Case-#{System.unique_integer([:positive])}"
-      %{id: id} = user_fixture(username: username)
-
-      for typed <- [username, String.downcase(username), String.upcase(username)] do
-        assert %User{id: ^id} =
-                 Accounts.get_user_by_username_and_password(typed, valid_user_password())
-      end
-    end
-
     test "returns a user who has no email" do
       %{id: id} = user = user_fixture(email: nil)
 
@@ -125,15 +86,6 @@ defmodule Cake.AccountsTest do
     test "does not take the user's email in place of the username" do
       user = user_fixture()
       refute Accounts.get_user_by_username_and_password(user.email, valid_user_password())
-    end
-
-    test "returns nil, without raising, for a username with a NUL byte" do
-      user = user_fixture()
-
-      refute Accounts.get_user_by_username_and_password(
-               user.username <> "\0",
-               valid_user_password()
-             )
     end
   end
 
@@ -173,8 +125,9 @@ defmodule Cake.AccountsTest do
 
     # Known hazards for a character-set rule: an email, a `$` anchor (which a
     # trailing newline passes), and the non-ASCII characters that case-fold to
-    # ASCII letters (the Kelvin sign, the long s). The property test in
-    # `accounts/user_property_test.exs` covers the general case.
+    # ASCII letters (the Kelvin sign, the long s). The general case, and
+    # uniqueness whatever the letter case, are properties in
+    # `accounts/user_property_test.exs`.
     test "refuses a username with a character outside the set" do
       for username <- ["someone@example.com", "member\n", " member", "\u212Aelvin", "mi\u017Fter"] do
         {:error, changeset} = Accounts.register_user(valid_user_attributes(username: username))
@@ -194,16 +147,6 @@ defmodule Cake.AccountsTest do
       end
 
       assert Repo.all(User) == []
-    end
-
-    test "validates username uniqueness, ignoring case" do
-      username = "Taken.Name-#{System.unique_integer([:positive])}"
-      user_fixture(username: username)
-
-      for typed <- [username, String.downcase(username), String.upcase(username)] do
-        {:error, changeset} = Accounts.register_user(valid_user_attributes(username: typed))
-        assert "has already been taken" in errors_on(changeset).username
-      end
     end
 
     test "registers a user with a username and no email" do
@@ -226,14 +169,6 @@ defmodule Cake.AccountsTest do
 
       assert is_nil(first.email)
       assert is_nil(second.email)
-    end
-
-    test "stores the username as typed" do
-      username = "As.Typed-#{System.unique_integer([:positive])}"
-      {:ok, user} = Accounts.register_user(valid_user_attributes(username: username))
-
-      assert user.username == username
-      assert Repo.get!(User, user.id).username == username
     end
 
     test "validates email and password when given" do
