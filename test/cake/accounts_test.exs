@@ -7,6 +7,58 @@ defmodule Cake.AccountsTest do
   alias Cake.Accounts.User
   alias Cake.Accounts.UserToken
 
+  @username_character_error "can only contain letters a-z, digits, underscores, dots and hyphens"
+
+  # The columns themselves, under the changesets: rows go in through
+  # `Repo.insert_all/2` on the bare table, so no changeset stands between the
+  # test and the constraints the migration declares.
+  describe "the users table" do
+    defp users_row(columns) do
+      now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      Map.merge(
+        %{id: Ecto.UUID.bingenerate(), hashed_password: "x", inserted_at: now, updated_at: now},
+        columns
+      )
+    end
+
+    test "requires a username" do
+      assert_raise Postgrex.Error, ~r/null value in column "username"/, fn ->
+        Repo.insert_all("users", [users_row(%{email: unique_user_email()})])
+      end
+    end
+
+    test "holds one row per username, whatever its letter case" do
+      username = "One.Row-#{System.unique_integer([:positive])}"
+      assert {1, nil} = Repo.insert_all("users", [users_row(%{username: username})])
+
+      for typed <- [username, String.downcase(username), String.upcase(username)] do
+        assert_raise Postgrex.Error, ~r/unique_violation/, fn ->
+          Repo.insert_all("users", [users_row(%{username: typed})])
+        end
+      end
+    end
+
+    test "takes any number of rows with no email" do
+      rows = [
+        users_row(%{username: unique_user_username()}),
+        users_row(%{username: unique_user_username()})
+      ]
+
+      assert {2, nil} = Repo.insert_all("users", rows)
+    end
+
+    test "still holds one row per email" do
+      email = unique_user_email()
+      row = fn -> users_row(%{username: unique_user_username(), email: email}) end
+      assert {1, nil} = Repo.insert_all("users", [row.()])
+
+      assert_raise Postgrex.Error, ~r/unique_violation/, fn ->
+        Repo.insert_all("users", [row.()])
+      end
+    end
+  end
+
   describe "get_user_by_email/1" do
     test "does not return the user if the email does not exist" do
       refute Accounts.get_user_by_email("unknown@example.com")
@@ -36,6 +88,55 @@ defmodule Cake.AccountsTest do
     end
   end
 
+  describe "get_user_by_username_and_password/2" do
+    test "does not return the user if the username does not exist" do
+      refute Accounts.get_user_by_username_and_password("nobody.by-that_name", "hello world!")
+    end
+
+    test "does not return the user if the password is not valid" do
+      user = user_fixture()
+      refute Accounts.get_user_by_username_and_password(user.username, "invalid")
+    end
+
+    test "returns the user if the username and password are valid" do
+      %{id: id} = user = user_fixture()
+
+      assert %User{id: ^id} =
+               Accounts.get_user_by_username_and_password(user.username, valid_user_password())
+    end
+
+    test "finds the user whatever the letter case of the username" do
+      username = "Mixed.Case-#{System.unique_integer([:positive])}"
+      %{id: id} = user_fixture(username: username)
+
+      for typed <- [username, String.downcase(username), String.upcase(username)] do
+        assert %User{id: ^id} =
+                 Accounts.get_user_by_username_and_password(typed, valid_user_password())
+      end
+    end
+
+    test "returns a user who has no email" do
+      %{id: id} = user = user_fixture(email: nil)
+
+      assert %User{id: ^id, email: nil} =
+               Accounts.get_user_by_username_and_password(user.username, valid_user_password())
+    end
+
+    test "does not take the user's email in place of the username" do
+      user = user_fixture()
+      refute Accounts.get_user_by_username_and_password(user.email, valid_user_password())
+    end
+
+    test "returns nil, without raising, for a username with a NUL byte" do
+      user = user_fixture()
+
+      refute Accounts.get_user_by_username_and_password(
+               user.username <> "\0",
+               valid_user_password()
+             )
+    end
+  end
+
   describe "get_user!/1" do
     test "raises if id is invalid" do
       assert_raise Ecto.NoResultsError, fn ->
@@ -50,13 +151,89 @@ defmodule Cake.AccountsTest do
   end
 
   describe "register_user/1" do
-    test "requires email and password to be set" do
+    test "requires username and password to be set, and no email" do
       {:error, changeset} = Accounts.register_user(%{})
+      errors = errors_on(changeset)
 
-      assert %{
-               password: ["can't be blank"],
-               email: ["can't be blank"]
-             } = errors_on(changeset)
+      assert %{password: ["can't be blank"], username: ["can't be blank"]} = errors
+      refute Map.has_key?(errors, :email)
+    end
+
+    test "validates the username when given" do
+      {:error, too_short} = Accounts.register_user(%{username: "ab"})
+      assert errors_on(too_short).username == ["should be at least 3 character(s)"]
+
+      {:error, too_long} = Accounts.register_user(%{username: String.duplicate("a", 33)})
+      assert errors_on(too_long).username == ["should be at most 32 character(s)"]
+
+      {:error, bad_character} = Accounts.register_user(%{username: "not valid"})
+
+      assert errors_on(bad_character).username == [@username_character_error]
+    end
+
+    # Known hazards for a character-set rule: an email, a `$` anchor (which a
+    # trailing newline passes), and the non-ASCII characters that case-fold to
+    # ASCII letters (the Kelvin sign, the long s). The property test in
+    # `accounts/user_property_test.exs` covers the general case.
+    test "refuses a username with a character outside the set" do
+      for username <- ["someone@example.com", "member\n", " member", "\u212Aelvin", "mi\u017Fter"] do
+        {:error, changeset} = Accounts.register_user(valid_user_attributes(username: username))
+
+        assert @username_character_error in errors_on(changeset).username
+      end
+    end
+
+    # #340: a NUL byte passes the email validation today, because the changeset
+    # validates first and strips NUL bytes afterwards. A username must not
+    # repeat that: the NUL byte is an error, not something to strip and accept.
+    test "refuses a username with a NUL byte, and inserts nothing" do
+      for username <- ["mem\0ber", "\0member", "member\0"] do
+        {:error, changeset} = Accounts.register_user(valid_user_attributes(username: username))
+
+        assert @username_character_error in errors_on(changeset).username
+      end
+
+      assert Repo.all(User) == []
+    end
+
+    test "validates username uniqueness, ignoring case" do
+      username = "Taken.Name-#{System.unique_integer([:positive])}"
+      user_fixture(username: username)
+
+      for typed <- [username, String.downcase(username), String.upcase(username)] do
+        {:error, changeset} = Accounts.register_user(valid_user_attributes(username: typed))
+        assert "has already been taken" in errors_on(changeset).username
+      end
+    end
+
+    test "registers a user with a username and no email" do
+      username = unique_user_username()
+
+      {:ok, user} =
+        Accounts.register_user(%{username: username, password: valid_user_password()})
+
+      assert user.username == username
+      assert is_nil(user.email)
+
+      stored = Repo.get!(User, user.id)
+      assert stored.username == username
+      assert is_nil(stored.email)
+    end
+
+    test "registers more than one user with no email" do
+      {:ok, first} = Accounts.register_user(valid_user_attributes(email: nil))
+      {:ok, second} = Accounts.register_user(valid_user_attributes(email: nil))
+
+      assert is_nil(first.email)
+      assert is_nil(second.email)
+    end
+
+    test "stores the username as typed" do
+      username = "As.Typed-#{System.unique_integer([:positive])}"
+      {:ok, user} = Accounts.register_user(valid_user_attributes(username: username))
+
+      assert user.username == username
+      assert Repo.get!(User, user.id).username == username
     end
 
     test "validates email and password when given" do
@@ -87,8 +264,13 @@ defmodule Cake.AccountsTest do
 
     test "registers users with a hashed password" do
       email = unique_user_email()
-      {:ok, user} = Accounts.register_user(valid_user_attributes(email: email))
+      username = unique_user_username()
+
+      {:ok, user} =
+        Accounts.register_user(valid_user_attributes(email: email, username: username))
+
       assert user.email == email
+      assert user.username == username
       assert user.hashed_password =~ ~r/^\$2[aby]\$/
       assert is_nil(user.confirmed_at)
       assert is_nil(user.password)
@@ -98,20 +280,22 @@ defmodule Cake.AccountsTest do
   describe "change_user_registration/2" do
     test "returns a changeset" do
       assert %Ecto.Changeset{} = changeset = Accounts.change_user_registration(%User{})
-      assert changeset.required == [:password, :email]
+      assert Enum.sort(changeset.required) == [:password, :username]
     end
 
     test "allows fields to be set" do
+      username = unique_user_username()
       email = unique_user_email()
       password = valid_user_password()
 
       changeset =
         Accounts.change_user_registration(
           %User{},
-          valid_user_attributes(email: email, password: password)
+          valid_user_attributes(username: username, email: email, password: password)
         )
 
       assert changeset.valid?
+      assert get_change(changeset, :username) == username
       assert get_change(changeset, :email) == email
       assert get_change(changeset, :password) == password
       assert is_nil(get_change(changeset, :hashed_password))

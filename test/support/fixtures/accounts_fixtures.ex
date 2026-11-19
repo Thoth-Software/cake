@@ -6,12 +6,20 @@ defmodule Cake.AccountsFixtures do
 
   @spec unique_user_email() :: String.t()
   def unique_user_email, do: "user#{System.unique_integer()}@example.com"
+
+  # Never a substring of `unique_user_email/0` (another prefix, another
+  # integer), so a page that shows the email cannot pass for one that shows
+  # the username.
+  @spec unique_user_username() :: String.t()
+  def unique_user_username, do: "member#{System.unique_integer([:positive])}"
+
   @spec valid_user_password() :: String.t()
   def valid_user_password, do: "hello world!"
 
   @spec valid_user_attributes(map()) :: map()
   def valid_user_attributes(attrs \\ %{}) do
     Enum.into(attrs, %{
+      username: unique_user_username(),
       email: unique_user_email(),
       password: valid_user_password()
     })
