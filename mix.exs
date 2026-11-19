@@ -83,7 +83,7 @@ defmodule Cake.MixProject do
   defp deps do
     [
       {:bcrypt_elixir, "~> 3.0"},
-      {:phoenix, "~> 1.7.20"},
+      {:phoenix, "~> 1.8"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.10"},
       {:postgrex, ">= 0.0.0"},
@@ -110,7 +110,7 @@ defmodule Cake.MixProject do
       {:ex_json_schema, "~> 0.10"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:req, "~> 0.5.10"},
+      {:req, "~> 0.6.3"},
       {:snap, "~> 0.12.1"},
       {:mox, "~> 1.2.0"},
       {:credo, "~> 1.7", only: [:dev, :test]},

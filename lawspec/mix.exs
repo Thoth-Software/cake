@@ -61,12 +61,12 @@ defmodule CakeLaws.MixProject do
   defp deps do
     [
       {:boundary, "== 0.10.4", runtime: false},
-      {:ecto, "== 3.13.5"},
-      {:ex_json_schema, "== 0.11.3"},
-      {:finch, "== 0.20.0"},
-      {:jason, "== 1.4.4"},
-      {:plug, "== 1.19.1"},
-      {:req, "== 0.5.16"},
+      {:ecto, "== 3.14.3"},
+      {:ex_json_schema, "== 0.11.5"},
+      {:finch, "== 0.24.0"},
+      {:jason, "== 1.4.5"},
+      {:plug, "== 1.20.4"},
+      {:req, "== 0.6.3"},
       {:snap, "== 0.12.2"},
       {:stream_data, "== 1.4.0", only: :test}
     ]

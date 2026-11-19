@@ -130,19 +130,17 @@ jobs:
       - name: Sobelow (static security analysis)
         run: mix sobelow --config --exit
 
-      # Report-only: surfaces retired/vulnerable Hex packages without failing
-      # the build. There is a pre-existing advisory backlog (see #206); this
-      # becomes a blocking gate once that backlog is cleared upstream.
-      - name: Hex audit (report-only)
+      # Blocking: fails on any retired Hex package or any package under a
+      # security advisory. The backlog #206 tracked is cleared, so a failure
+      # here is a new advisory: bump the package in the PR that turns it red
+      # (.claude/rules/security-gate.md says how).
+      - name: Hex audit
         run: mix hex.audit
-        continue-on-error: true
 
-      # Report-only: checks deps against the mix_audit advisory database.
-      # Blocked by the same backlog (#206); becomes a blocking gate — with the
-      # single unfixable advisory ignored — once that backlog is remediated.
-      - name: Dependency audit (report-only)
+      # Blocking: checks deps against the mix_audit advisory database, a
+      # second source that overlaps the one above. No advisory is ignored.
+      - name: Dependency audit
         run: mix deps.audit
-        continue-on-error: true
 
   test:
     name: Tests
