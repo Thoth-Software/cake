@@ -24,6 +24,14 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   who commits first, so the second property gives the range: a promotion that
   lands first can spare one refusal, and no more.
 
+  One user can also be the subject of two requests at once. The dangerous
+  pair is a promotion and its undoing: a demotion or deletion that looks
+  before the promotion commits (nobody is an admin, so this is not the last
+  one) and acts after it. Two tests fix that interleaving exactly, by holding
+  the promotion's transaction open until the database reports the second
+  request waiting on a lock, and a third property races several promotions
+  and demotions of the same two users from a table with no admin at all.
+
   The SQL sandbox gives a test one connection, on which nothing can race. So
   this module does not use it: every database call runs through
   `Ecto.Adapters.SQL.Sandbox.unboxed_run/2`, on a connection of its own, and
@@ -198,6 +206,95 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   end
 
   # ---------------------------------------------------------------------------
+  # One user, two requests: a promotion still uncommitted, and its undoing
+  # ---------------------------------------------------------------------------
+
+  # Found in review on #387. A request to demote or delete a user can arrive
+  # while that same user's promotion is still uncommitted. If it decides from
+  # what it read before the promotion committed (nobody is an admin, so this
+  # cannot be the last one) and acts after, the one admin there is goes.
+  #
+  # These two tests hold the promotion's transaction open, start the second
+  # request, wait until the database reports a session waiting on a lock, and
+  # only then let the promotion commit. So the interleaving is the same on
+  # every run, and nothing sleeps: the wait is a poll of `pg_stat_activity`.
+
+  defp create_member do
+    unboxed(fn ->
+      {:ok, member} =
+        Accounts.create_user(%{
+          username: "#{@username_prefix}solo",
+          password: @password,
+          role: :member
+        })
+
+      member
+    end)
+  end
+
+  # Promotes `user` in a transaction that stays open until it is sent
+  # `:commit`, and tells `test` once the promotion is made and uncommitted.
+  defp promote_and_hold(user, test) do
+    Task.async(fn ->
+      unboxed(fn ->
+        Repo.transaction(fn ->
+          {:ok, promoted} = Accounts.update_user_role(user, :admin)
+          send(test, :promotion_uncommitted)
+
+          receive do
+            :commit -> promoted
+          end
+        end)
+      end)
+    end)
+  end
+
+  defp sessions_waiting_on_a_lock do
+    %{rows: [[count]]} =
+      unboxed(fn ->
+        Repo.query!("""
+        SELECT count(*) FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock'
+        """)
+      end)
+
+    count
+  end
+
+  # Returns once `task` is waiting on a lock, or has already answered.
+  defp await_blocked_or_done(task, polls_left \\ 20_000) do
+    cond do
+      sessions_waiting_on_a_lock() > 0 -> :blocked
+      Task.yield(task, 0) != nil -> flunk("the request answered while the promotion was open")
+      polls_left == 0 -> flunk("the request neither answered nor waited on a lock")
+      true -> await_blocked_or_done(task, polls_left - 1)
+    end
+  end
+
+  for {name, request} <- [
+        {"demotion", quote(do: &Accounts.update_user_role(&1, :member))},
+        {"deletion", quote(do: &Accounts.delete_user/1)}
+      ] do
+    test "a #{name} that arrives while the same user's promotion is uncommitted is refused once it commits" do
+      member = create_member()
+      request = unquote(request)
+
+      promotion = promote_and_hold(member, self())
+      assert_receive :promotion_uncommitted
+
+      undoing = Task.async(fn -> unboxed(fn -> request.(member) end) end)
+      assert await_blocked_or_done(undoing) == :blocked
+
+      send(promotion.pid, :commit)
+      assert {:ok, %User{}} = Task.await(promotion, 15_000)
+
+      # The promotion committed first, so the user is the only admin.
+      assert Task.await(undoing, 15_000) == {:error, :last_admin}
+      assert stored_roles() == %{member.id => :admin}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Properties
   # ---------------------------------------------------------------------------
 
@@ -224,6 +321,39 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
       least = max(0, most - promotions)
 
       assert Enum.count(users, &refused?/1) in least..most
+    end
+  end
+
+  # Several requests for the same user at once, starting from no admin at
+  # all. Run one after another in any order, the first promotion makes an
+  # admin and from then on there is always one. So when anything is promoted,
+  # an admin is left; and when nothing is, every demotion is of a member and
+  # is allowed.
+  property "from no admins, whatever promotions and demotions of the same users race, an admin is left exactly when one was promoted" do
+    check all(
+            requests <-
+              list_of(
+                tuple({integer(0..1), member_of([:promote, :demote])}),
+                min_length: 1,
+                max_length: most_users()
+              ),
+            max_runs: @max_runs
+          ) do
+      delete_racers()
+      users = create_users([{:member, :none}, {:member, :none}])
+
+      answers =
+        race(for {n, request} <- requests, do: ask(Enum.at(users, n).user, request))
+
+      for answer <- answers do
+        assert match?({:ok, %User{}}, answer) or answer == {:error, :last_admin},
+               "a request was answered #{inspect(answer)}"
+      end
+
+      admin_left? = Enum.any?(stored_roles(), fn {_id, role} -> role == :admin end)
+      promoted? = Enum.any?(requests, fn {_n, request} -> request == :promote end)
+
+      assert admin_left? == promoted?
     end
   end
 end
