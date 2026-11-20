@@ -94,7 +94,7 @@ defmodule CakeWeb.ParsedBookLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/documents")
 
       assert [title] = html |> parse() |> Floki.find(~s|#{row(book)} a[data-part="title"]|)
-      assert Floki.text(title) |> String.trim() == "Annual Report"
+      assert title |> Floki.text() |> String.trim() == "Annual Report"
       assert Floki.attribute(title, "href") == [~p"/documents/#{book}"]
     end
 
@@ -131,14 +131,14 @@ defmodule CakeWeb.ParsedBookLiveTest do
 
       books = for {status, _} <- expected, do: parsed_book_fixture(%{embedding_status: status})
       {:ok, _lv, html} = live(conn, ~p"/documents")
-      html = parse(html)
+      doc = parse(html)
 
       for {book, {_status, {label, variant}}} <- Enum.zip(books, expected) do
         badge = ~s|#{row(book)} [data-part="status"]|
 
-        assert text(html, badge) == label
-        assert "badge" in classes(html, badge)
-        assert variant in classes(html, badge)
+        assert text(doc, badge) == label
+        assert "badge" in classes(doc, badge)
+        assert variant in classes(doc, badge)
       end
     end
 
@@ -182,15 +182,15 @@ defmodule CakeWeb.ParsedBookLiveTest do
 
     test "says so in a sentence and links to Upload, with no table", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/documents")
-      html = parse(html)
+      doc = parse(html)
 
-      assert [_] = Floki.find(html, "#documents-empty")
+      assert [_] = Floki.find(doc, "#documents-empty")
 
-      assert Floki.attribute(html, ~s|#documents-empty [data-part="action"] a|, "href") == [
+      assert Floki.attribute(doc, ~s|#documents-empty [data-part="action"] a|, "href") == [
                ~p"/upload"
              ]
 
-      assert Floki.find(html, "#page table") == []
+      assert Floki.find(doc, "#page table") == []
     end
 
     test "a list with a document in it has no empty state", %{conn: conn} do
@@ -215,9 +215,9 @@ defmodule CakeWeb.ParsedBookLiveTest do
       newer = book_uploaded_at(%{}, ~U[2026-02-01 09:00:00Z])
       refute has_element?(lv, row(newer))
 
-      html = lv |> element("#documents-refresh") |> render_click()
+      refreshed = lv |> element("#documents-refresh") |> render_click()
 
-      assert row_ids(html) == ["documents-#{newer.id}", "documents-#{older.id}"]
+      assert row_ids(refreshed) == ["documents-#{newer.id}", "documents-#{older.id}"]
     end
 
     test "shows a status that has changed since", %{conn: conn} do
@@ -285,40 +285,40 @@ defmodule CakeWeb.ParsedBookLiveTest do
       chunk_fixture()
 
       {:ok, _lv, html} = live(conn, ~p"/documents/#{book}")
-      html = parse(html)
+      doc = parse(html)
 
-      assert text(html, "#document-authors") == "Ada Lovelace, Grace Hopper"
-      assert text(html, "#document-pages") == "317"
-      assert text(html, "#document-word-count") == "98765"
-      assert text(html, "#document-chunk-count") == "3"
-      assert text(html, ~s|#document-status [data-part="status"]|) == "Completed"
-      assert "badge-success" in classes(html, ~s|#document-status [data-part="status"]|)
+      assert text(doc, "#document-authors") == "Ada Lovelace, Grace Hopper"
+      assert text(doc, "#document-pages") == "317"
+      assert text(doc, "#document-word-count") == "98765"
+      assert text(doc, "#document-chunk-count") == "3"
+      assert text(doc, ~s|#document-status [data-part="status"]|) == "Completed"
+      assert "badge-success" in classes(doc, ~s|#document-status [data-part="status"]|)
 
-      assert Floki.attribute(html, "#document-uploaded time", "datetime") == [
+      assert Floki.attribute(doc, "#document-uploaded time", "datetime") == [
                "2026-11-20T14:05:09Z"
              ]
 
-      assert text(html, "#document-uploaded") == "2026-11-20 14:05 UTC"
-      assert Floki.attribute(html, "a#document-source", "href") == [download_path(key)]
+      assert text(doc, "#document-uploaded") == "2026-11-20 14:05 UTC"
+      assert Floki.attribute(doc, "a#document-source", "href") == [download_path(key)]
     end
 
     test "shows a dash for what a document does not have, and zero chunks as 0", %{conn: conn} do
       book = parsed_book_fixture(%{authors: [], total_pages: nil})
       {:ok, _lv, html} = live(conn, ~p"/documents/#{book}")
-      html = parse(html)
+      doc = parse(html)
 
-      assert text(html, "#document-authors") == "—"
-      assert text(html, "#document-pages") == "—"
-      assert text(html, "#document-chunk-count") == "0"
+      assert text(doc, "#document-authors") == "—"
+      assert text(doc, "#document-pages") == "—"
+      assert text(doc, "#document-chunk-count") == "0"
     end
 
     test "links back to the list, in the page and in the top bar", %{conn: conn} do
       book = parsed_book_fixture()
       {:ok, _lv, html} = live(conn, ~p"/documents/#{book}")
-      html = parse(html)
+      doc = parse(html)
 
-      assert Floki.attribute(html, "a#document-back", "href") == [~p"/documents"]
-      assert ~p"/documents" in Floki.attribute(html, "#main-nav a", "href")
+      assert Floki.attribute(doc, "a#document-back", "href") == [~p"/documents"]
+      assert ~p"/documents" in Floki.attribute(doc, "#main-nav a", "href")
     end
 
     test "offers nothing that edits or deletes", %{conn: conn} do
