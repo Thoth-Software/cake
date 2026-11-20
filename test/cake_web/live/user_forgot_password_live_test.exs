@@ -76,7 +76,10 @@ defmodule CakeWeb.UserForgotPasswordLiveTest do
       %{user: user_fixture(email: nil)}
     end
 
-    test "sends nothing, whatever the user types in place of an email", %{conn: conn, user: user} do
+    test "sends nothing for the username, or nothing, typed in place of an email", %{
+      conn: conn,
+      user: user
+    } do
       for typed <- [user.username, ""] do
         {:ok, lv, _html} = live(conn, ~p"/users/reset_password")
 

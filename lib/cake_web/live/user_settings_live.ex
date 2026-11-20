@@ -92,7 +92,7 @@ defmodule CakeWeb.UserSettingsLive do
               autocomplete="current-password"
               required
             />
-            <.button phx-disable-with="Changing..." variant="primary" class="btn btn-primary mt-2">
+            <.button phx-disable-with="Changing..." class="btn btn-primary mt-2">
               Change Password
             </.button>
           </.form>
