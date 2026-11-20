@@ -45,10 +45,26 @@ defmodule CakeWeb.ChatLiveTest do
       refute has_element?(view, "#chat-empty")
     end
 
-    test "shows manual selection toggle", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/chat")
+    test "shows manual selection as a labelled toggle with a line saying what it does",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
 
-      assert html =~ "Manual selection"
+      assert has_element?(view, ~s(label[for="question-mode"]), "Manual selection")
+
+      assert has_element?(
+               view,
+               ~s(input#question-mode.toggle[type=checkbox][value=manual][aria-describedby="question-mode-help"])
+             )
+
+      assert has_element?(view, "#question-mode-help")
+    end
+
+    # The chat is the one screen the conventions give the wide column, and
+    # it takes it from the shell rather than setting a width of its own.
+    test "asks the shell for the wide column", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      assert has_element?(view, ~s(#page[data-width="wide"]))
     end
 
     test "stops its Conversation when the LiveView process exits", %{conn: conn} do
@@ -85,6 +101,31 @@ defmodule CakeWeb.ChatLiveTest do
 
       assert has_element?(view, "#msg-0", "What is Cake?")
       assert has_element?(view, "#msg-0", "You")
+    end
+
+    test "the question and the answer are chat bubbles on opposite sides", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      view
+      |> form("#question-form", question_form: %{question: "What is Cake?", mode: "auto"})
+      |> render_submit()
+
+      broadcast_to_view(view, {:response_ready, %{response: "A RAG framework.", citations: []}})
+
+      assert has_element?(view, "#msg-0.chat.chat-end .chat-bubble", "What is Cake?")
+      assert has_element?(view, "#msg-1.chat.chat-start .chat-bubble", "A RAG framework.")
+    end
+
+    test "the send button is disabled until there is a question to send", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      assert has_element?(view, "#question-form button[type=submit][disabled]")
+
+      view
+      |> form("#question-form", question_form: %{question: "What is Cake?", mode: "auto"})
+      |> render_change()
+
+      refute has_element?(view, "#question-form button[type=submit][disabled]")
     end
 
     # The page now has wording of its own (the empty conversation's prompt),
@@ -185,6 +226,9 @@ defmodule CakeWeb.ChatLiveTest do
       html = render(view)
       assert html =~ "something went wrong"
       refute html =~ "some_failure"
+      # An error reply looks like an error, not like an answer.
+      assert has_element?(view, "#msg-0.alert-error[role=alert]", "something went wrong")
+      refute has_element?(view, "#msg-0.chat")
       refute has_element?(view, "#chat-retrieving")
       refute has_element?(view, "#chat-generating")
       assert has_element?(view, "#question-form")
@@ -216,6 +260,7 @@ defmodule CakeWeb.ChatLiveTest do
       html = render(view)
       assert html =~ "ended unexpectedly"
       refute html =~ "boom"
+      assert has_element?(view, "#msg-0.alert-error[role=alert]", "ended unexpectedly")
     end
 
     test "a dead conversation disarms the question form instead of crashing the view",

@@ -150,7 +150,7 @@ defmodule CakeWeb.ChatLive do
     {:noreply,
      socket
      |> append_message(%{
-       role: :assistant,
+       role: :error,
        text: "Sorry, something went wrong while answering your question. Please try again."
      })
      |> reset_to_idle()}
@@ -162,7 +162,7 @@ defmodule CakeWeb.ChatLive do
     {:noreply,
      socket
      |> append_message(%{
-       role: :assistant,
+       role: :error,
        text: "Sorry, the conversation ended unexpectedly. Please start a new conversation."
      })
      |> reset_to_idle()
@@ -172,84 +172,97 @@ defmodule CakeWeb.ChatLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_user={@current_user} current_page={:chat}>
-      <div class="max-w-2xl mx-auto p-4">
-        <h1 class="text-2xl font-bold mb-4">Cake Chat</h1>
-        <.message_list messages={@messages} />
+    <Layouts.app flash={@flash} current_user={@current_user} current_page={:chat} width={:wide}>
+      <.header>
+        Cake Chat
+        <:subtitle>Answers come from the uploaded documents and cite their sources.</:subtitle>
+      </.header>
 
-        <%= case @conversation_state do %>
-          <% busy when busy in [:retrieving, :generating] -> %>
-            <.thinking_indicator />
-          <% :awaiting_selection -> %>
-            <.selection_panel
-              candidates={@candidates}
-              available_doc_ids={@available_doc_ids}
-              selection_form={@selection_form}
-            />
-          <% state -> %>
-            <div :if={state == :ended} class="mb-4">
-              <.button type="button" phx-click="new_conversation">Start a new conversation</.button>
-            </div>
-            <.simple_form for={@question_form} phx-submit="submit" phx-change="validate_question">
-              <.input
-                field={@question_form[:question]}
-                type="text"
-                placeholder="Ask a question..."
-                disabled={is_nil(@convo_pid)}
-              />
-              <div class="flex items-center gap-2">
-                <input type="hidden" name={@question_form[:mode].name} value="auto" />
-                <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name={@question_form[:mode].name}
-                    value="manual"
-                    checked={to_string(@question_form[:mode].value) == "manual"}
-                    class="rounded border-gray-300"
-                  /> Manual selection
-                </label>
-              </div>
-              <:actions>
-                <.button
-                  type="submit"
-                  disabled={is_nil(@convo_pid) or not @question_form.source.valid?}
-                >
-                  Send
+      <%!-- A column that reaches the bottom of the screen, so the bar under
+      the messages sits there even when the conversation is short. What is
+      subtracted is what the shell and the heading take above and below it:
+      the top bar, the page's padding and the heading, whose subtitle runs
+      to two lines on a phone. --%>
+      <div
+        id="chat"
+        class="flex min-h-[calc(100dvh-15.5rem)] flex-col sm:min-h-[calc(100dvh-14.5rem)]"
+      >
+        <div id="chat-messages" class="flex-1 space-y-2 pb-4">
+          <.empty_state :if={@messages == []} id="chat-empty">
+            Ask a question about the uploaded documents.
+            <:action>
+              <.link navigate={~p"/upload"} class="link link-primary">Upload a document</.link>
+            </:action>
+          </.empty_state>
+
+          <.message
+            :for={{msg, i} <- Enum.with_index(Enum.reverse(@messages))}
+            id={"msg-#{i}"}
+            message={msg}
+          />
+
+          <.selection_panel
+            :if={@conversation_state == :awaiting_selection}
+            candidates={@candidates}
+            available_doc_ids={@available_doc_ids}
+            selection_form={@selection_form}
+          />
+        </div>
+
+        <%!-- The bar stays at the bottom of the screen while the messages
+        scroll above it. It holds the composer, or, while the conversation
+        is working, the line saying which of its two stages it is in. --%>
+        <div id="chat-bar" class="sticky bottom-0 z-10 border-t border-base-300 bg-base-100 py-4">
+          <%= case @conversation_state do %>
+            <% :retrieving -> %>
+              <.working id="chat-retrieving">Searching the documents...</.working>
+            <% :generating -> %>
+              <.working id="chat-generating">Writing an answer...</.working>
+            <% :awaiting_selection -> %>
+            <% state -> %>
+              <div :if={state == :ended} class="mb-4">
+                <.button type="button" phx-click="new_conversation">
+                  Start a new conversation
                 </.button>
-              </:actions>
-            </.simple_form>
-        <% end %>
+              </div>
+              <.composer form={@question_form} disabled={is_nil(@convo_pid)} />
+          <% end %>
+        </div>
       </div>
     </Layouts.app>
     """
   end
 
-  attr :messages, :list, required: true
+  # One entry of the history: the user's question on one side, the answer on
+  # the other, each under its label. An error reply is a notice, so it does
+  # not read as something the documents said.
+  attr :id, :string, required: true
+  attr :message, :map, required: true
 
-  defp message_list(assigns) do
+  defp message(%{message: %{role: :error}} = assigns) do
     ~H"""
-    <div class="space-y-4 mb-8">
-      <div
-        :for={{msg, i} <- Enum.with_index(Enum.reverse(@messages))}
-        id={"msg-#{i}"}
-        class={[
-          "p-3 rounded-lg max-w-xl",
-          msg.role == :user && "ml-auto bg-blue-100 text-right",
-          msg.role == :assistant && "mr-auto bg-gray-100"
-        ]}
-      >
-        <span class="text-xs font-semibold text-gray-500 block mb-1">
-          {if msg.role == :user, do: "You", else: "Cake"}
-        </span>
-        <span class="text-sm whitespace-pre-wrap">{msg.text}</span>
+    <.notice id={@id} kind={:error}>{@message.text}</.notice>
+    """
+  end
 
+  defp message(assigns) do
+    ~H"""
+    <div id={@id} class={["chat", if(@message.role == :user, do: "chat-end", else: "chat-start")]}>
+      <div class="chat-header text-base-content/70">
+        {if @message.role == :user, do: "You", else: "Cake"}
+      </div>
+      <div class={["chat-bubble", @message.role == :user && "chat-bubble-primary"]}>
+        <%!-- Plain text with its line breaks kept (Markdown is not rendered),
+        so the template's own whitespace must stay out of it. A question can
+        be one long unbroken word: it wraps anywhere. --%>
+        <p class="whitespace-pre-wrap wrap-anywhere" phx-no-format>{@message.text}</p>
         <div
-          :if={msg[:citations] != nil and msg[:citations] != []}
+          :if={@message[:citations] != nil and @message[:citations] != []}
           class="mt-2 text-sm text-gray-600 border-t pt-2"
         >
           <div class="font-semibold mb-1">Sources:</div>
           <div class="space-y-1">
-            <div :for={cite <- msg.citations} class="relative group inline-block">
+            <div :for={cite <- @message.citations} class="relative group inline-block">
               <a href={"/books/download/#{cite.source_ref}"} class="text-blue-600 hover:underline">
                 [{cite.new_index}] {sanitize_title(cite.label)}
               </a>
@@ -261,6 +274,52 @@ defmodule CakeWeb.ChatLive do
         </div>
       </div>
     </div>
+    """
+  end
+
+  # The question box, its Send button and the manual-selection toggle. Enter
+  # sends: the box is a single-line input in a form.
+  attr :form, Phoenix.HTML.Form, required: true
+  attr :disabled, :boolean, required: true
+
+  defp composer(assigns) do
+    ~H"""
+    <.form for={@form} id="question-form" phx-submit="submit" phx-change="validate_question">
+      <div class="flex items-start gap-2">
+        <div class="flex-1">
+          <.input
+            field={@form[:question]}
+            type="text"
+            placeholder="Ask a question..."
+            aria-label="Question"
+            autocomplete="off"
+            disabled={@disabled}
+          />
+        </div>
+        <.button type="submit" variant="primary" disabled={@disabled or not @form.source.valid?}>
+          Send
+        </.button>
+      </div>
+      <%!-- The mode is "auto" unless the toggle is on: the hidden field is
+      what an unchecked checkbox leaves behind. --%>
+      <input type="hidden" name={@form[:mode].name} value="auto" />
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <label for="question-mode" class="label cursor-pointer gap-2 text-base-content">
+          <input
+            type="checkbox"
+            id="question-mode"
+            name={@form[:mode].name}
+            value="manual"
+            checked={to_string(@form[:mode].value) == "manual"}
+            aria-describedby="question-mode-help"
+            class="toggle toggle-sm toggle-primary"
+          /> Manual selection
+        </label>
+        <span id="question-mode-help" class="text-sm text-base-content/70">
+          Choose which documents the answer may use before it is written.
+        </span>
+      </div>
+    </.form>
     """
   end
 
@@ -324,14 +383,6 @@ defmodule CakeWeb.ChatLive do
           </button>
         </div>
       </.form>
-    </div>
-    """
-  end
-
-  defp thinking_indicator(assigns) do
-    ~H"""
-    <div class="flex items-center gap-2 text-gray-500 italic mb-4">
-      <span class="inline-block h-2 w-2 rounded-full bg-gray-400 animate-pulse"></span> Thinking...
     </div>
     """
   end
