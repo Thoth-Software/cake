@@ -112,8 +112,9 @@ defmodule CakeWeb.UserRegistrationLiveTest do
       user = Accounts.get_user_by_username_and_password(username, password)
       assert is_nil(user.email)
 
-      # No address, so no confirmation instructions.
+      # No address, so no confirmation instructions and no token for them.
       assert_no_email_sent()
+      refute Cake.Repo.get_by(Accounts.UserToken, user_id: user.id, context: "confirm")
     end
 
     # The form has no role field; a hand-made request that adds one gets a member.

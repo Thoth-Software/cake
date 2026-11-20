@@ -2,6 +2,7 @@ defmodule CakeWeb.UserConfirmationInstructionsLiveTest do
   use CakeWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import Swoosh.TestAssertions
   import Cake.AccountsFixtures
 
   alias Cake.Accounts
@@ -62,6 +63,26 @@ defmodule CakeWeb.UserConfirmationInstructionsLiveTest do
                "If your email is in our system"
 
       assert Repo.all(Accounts.UserToken) == []
+    end
+
+    # Confirmation is of an email address. A user without one has nothing
+    # to confirm and is never sent, or asked for, anything.
+    test "sends nothing for a user with no email", %{conn: conn} do
+      user = user_fixture(email: nil)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/confirm")
+
+      {:ok, conn} =
+        lv
+        |> element("#resend_confirmation_form")
+        |> render_submit(user: %{email: user.username})
+        |> follow_redirect(conn, ~p"/")
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~
+               "If your email is in our system"
+
+      refute Repo.get_by(Accounts.UserToken, user_id: user.id)
+      assert_no_email_sent()
     end
   end
 end

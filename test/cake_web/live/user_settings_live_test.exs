@@ -2,9 +2,12 @@ defmodule CakeWeb.UserSettingsLiveTest do
   use CakeWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import Swoosh.TestAssertions
   import Cake.AccountsFixtures
 
   alias Cake.Accounts
+  alias Cake.Accounts.UserToken
+  alias Cake.Repo
 
   describe "Settings page" do
     test "renders settings page", %{conn: conn} do
@@ -17,12 +20,94 @@ defmodule CakeWeb.UserSettingsLiveTest do
       assert html =~ "Change Password"
     end
 
+    # Changing a username is an admin's action (#376), so the page shows it
+    # and has no field for it. The hidden input is the password form's, for
+    # the log-in that follows a password change.
+    test "shows the username, with no field to change it", %{conn: conn} do
+      user = user_fixture()
+      {:ok, lv, _html} = conn |> log_in_user(user) |> live(~p"/users/settings")
+
+      assert has_element?(lv, "#settings-username", user.username)
+      refute has_element?(lv, ~s|input[name="user[username]"]:not([type="hidden"])|)
+    end
+
+    test "offers a user who has an email both forms", %{conn: conn} do
+      {:ok, lv, _html} = conn |> log_in_user(user_fixture()) |> live(~p"/users/settings")
+
+      assert has_element?(lv, "#email_form")
+      assert has_element?(lv, "#password_form")
+    end
+
     test "redirects if user is not logged in", %{conn: conn} do
       assert {:error, redirect} = live(conn, ~p"/users/settings")
 
       assert {:redirect, %{to: path, flash: flash}} = redirect
       assert path == ~p"/users/log_in"
       assert %{"error" => "You must log in to access this page."} = flash
+    end
+  end
+
+  # Changing an email is confirmed by mail to the old and the new address.
+  # A user with no email has no address to confirm from, so the page does
+  # not offer it; the password form does not depend on mail.
+  describe "a user with no email" do
+    setup %{conn: conn} do
+      password = valid_user_password()
+      user = user_fixture(%{email: nil, password: password})
+      %{conn: log_in_user(conn, user), user: user, password: password}
+    end
+
+    test "is offered the password form and no email form", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      assert has_element?(lv, "#settings-username", user.username)
+      assert has_element?(lv, "#password_form")
+      refute has_element?(lv, "#email_form")
+    end
+
+    test "changes the password", %{conn: conn, user: user, password: password} do
+      new_password = "a new valid password"
+
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      form =
+        form(lv, "#password_form", %{
+          "current_password" => password,
+          "user" => %{
+            "username" => user.username,
+            "password" => new_password,
+            "password_confirmation" => new_password
+          }
+        })
+
+      render_submit(form)
+      new_password_conn = follow_trigger_action(form, conn)
+
+      assert redirected_to(new_password_conn) == ~p"/users/settings"
+      assert Accounts.get_user_by_username_and_password(user.username, new_password)
+    end
+
+    # The form is absent, but the event is still the LiveView's to answer:
+    # a hand-made one must not set an email or send mail.
+    test "a hand-made email change request changes nothing", %{
+      conn: conn,
+      user: user,
+      password: password
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      params = %{"current_password" => password, "user" => %{"email" => unique_user_email()}}
+
+      render_hook(lv, "validate_email", params)
+      render_hook(lv, "update_email", params)
+
+      contexts =
+        for token <- Repo.all(UserToken.by_user_and_contexts_query(user, :all)), do: token.context
+
+      assert_no_email_sent()
+      assert contexts == ["session"]
+      assert is_nil(Accounts.get_user!(user.id).email)
+      refute has_element?(lv, "#email_form")
     end
   end
 
