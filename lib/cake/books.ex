@@ -8,6 +8,8 @@ defmodule Cake.Books do
     deps: [Cake, Cake.Search, Cake.Embeddings, Cake.Pipelines],
     exports: [Adapters, ParsedBook, Chunk, Pipeline, Pdf.Pipeline, ZipExtractor]
 
+  import Ecto.Query, only: [from: 2]
+
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
   alias Cake.Repo
@@ -24,6 +26,39 @@ defmodule Cake.Books do
   @spec list_parsed_books() :: [ParsedBook.t()]
   def list_parsed_books do
     Repo.all(ParsedBook)
+  end
+
+  @doc """
+  Returns every parsed_book, newest upload first: by `inserted_at`
+  descending.
+
+  `inserted_at` is stored to the second, and the books of one batch upload
+  land within one, so books that share a time are ordered by `id`: the
+  order is the same on every read.
+
+  ## Examples
+
+      iex> list_parsed_books_newest_first()
+      [%ParsedBook{}, ...]
+
+  """
+  @spec list_parsed_books_newest_first() :: [ParsedBook.t()]
+  def list_parsed_books_newest_first do
+    Repo.all(from b in ParsedBook, order_by: [desc: b.inserted_at, asc: b.id])
+  end
+
+  @doc """
+  Returns how many chunks the given parsed_book has.
+
+  ## Examples
+
+      iex> count_chunks(parsed_book)
+      42
+
+  """
+  @spec count_chunks(ParsedBook.t()) :: non_neg_integer()
+  def count_chunks(%ParsedBook{id: id}) do
+    Repo.aggregate(from(c in Chunk, where: c.parsed_book_id == ^id), :count)
   end
 
   @doc """
