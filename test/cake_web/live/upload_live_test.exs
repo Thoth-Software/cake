@@ -19,18 +19,49 @@ defmodule CakeWeb.UploadLiveTest do
 
   describe "mount" do
     test "renders the upload page in idle state", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/upload")
+      {:ok, view, _html} = live(conn, ~p"/upload")
 
-      assert html =~ "Upload Documents"
-      assert html =~ "Upload Files"
-      assert html =~ "Upload Folder"
-      assert html =~ "Upload and Ingest"
+      assert has_element?(view, "#page h1", "Upload documents")
+      assert has_element?(view, "#upload-form #upload-dropzone")
+      assert has_element?(view, "#upload-form #upload-folder")
+      assert has_element?(view, "#upload-submit", "Upload and ingest")
+
+      for id <- ~w(upload-queue upload-working upload-results upload-error rejected-archives) do
+        refute has_element?(view, "#" <> id)
+      end
     end
 
     test "submit button is disabled with no files queued", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/upload")
 
-      assert has_element?(view, "button[disabled]", "Upload and Ingest")
+      assert has_element?(view, "#upload-submit[disabled]")
+    end
+
+    test "the drop zone states what is accepted and the limits the page enforces", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      limits = view |> element("#upload-dropzone #upload-limits") |> render()
+
+      assert limits =~ "PDF"
+      assert limits =~ "ZIP"
+      assert limits =~ "20 files"
+      assert limits =~ "100 MB"
+    end
+
+    test "the drop zone hands dropped files to the files input, and the folder option has its own",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+      html = view |> render() |> Floki.parse_document!()
+
+      assert [files_ref] = Floki.attribute(html, "#upload-dropzone", "phx-drop-target")
+
+      assert [^files_ref] =
+               Floki.attribute(html, ~s(#upload-dropzone input[name="documents"]), "id")
+
+      assert [_folder_input] =
+               Floki.find(html, ~s(#upload-folder input[name="folder"][webkitdirectory]))
+
+      assert Floki.find(html, ~s(#upload-dropzone input[name="folder"])) == []
     end
   end
 
@@ -52,7 +83,31 @@ defmodule CakeWeb.UploadLiveTest do
       refute html =~ "File type not accepted"
     end
 
-    test "rejects non-accepted file types at preflight", %{conn: conn} do
+    test "a queued file shows its name, its size, a progress bar and a remove button", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "doc.pdf", content: "fake-pdf-content", type: "application/pdf"}
+        ])
+
+      assert {:ok, _} = preflight_upload(upload)
+
+      assert has_element?(view, ~s(#upload-queue [data-part="name"]), "doc.pdf")
+      assert has_element?(view, ~s(#upload-queue [data-part="size"]), "16 B")
+      assert has_element?(view, ~s(#upload-queue progress[max="100"]))
+      refute has_element?(view, ~s(#upload-queue [data-part="error"]))
+      refute has_element?(view, "#upload-submit[disabled]")
+
+      view |> element(~s(#upload-queue button[phx-click="cancel-upload"])) |> render_click()
+
+      refute has_element?(view, "#upload-queue")
+      assert has_element?(view, "#upload-submit[disabled]")
+    end
+
+    test "rejects non-accepted file types at preflight, and says so on the file", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/upload")
 
       upload =
@@ -60,7 +115,62 @@ defmodule CakeWeb.UploadLiveTest do
           %{name: "readme.txt", content: "not a pdf", type: "text/plain"}
         ])
 
-      assert {:error, [[_ref, :not_accepted]]} = preflight_upload(upload)
+      assert {:error, [[ref, :not_accepted]]} = preflight_upload(upload)
+
+      assert has_element?(
+               view,
+               ~s(#upload-entry-#{ref} [data-part="error"]),
+               "File type not accepted"
+             )
+
+      # A file that was refused is not uploaded, so it has no progress to show.
+      refute has_element?(view, "#upload-entry-#{ref} progress")
+    end
+
+    # The browser sends nothing while a queued file is refused, so the button
+    # would do nothing: it is disabled, and the page says what to do.
+    test "cannot submit while a queued file is refused, until it is removed", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      good =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "doc.pdf", content: "fake-pdf-content", type: "application/pdf"}
+        ])
+
+      assert {:ok, _} = preflight_upload(good)
+      refute has_element?(view, "#upload-blocked")
+
+      bad =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "readme.txt", content: "not a pdf", type: "text/plain"}
+        ])
+
+      assert {:error, [[ref, :not_accepted]]} = preflight_upload(bad)
+
+      assert has_element?(view, "#upload-submit[disabled]")
+      assert has_element?(view, "#upload-blocked")
+
+      view
+      |> element(~s(#upload-entry-#{ref} button[phx-click="cancel-upload"]))
+      |> render_click()
+
+      refute has_element?(view, "#upload-submit[disabled]")
+      refute has_element?(view, "#upload-blocked")
+    end
+
+    test "says when more files are queued than one upload takes", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(
+          view,
+          "#upload-form",
+          :documents,
+          for(n <- 1..21, do: %{name: "doc#{n}.pdf", content: "fake", type: "application/pdf"})
+        )
+
+      assert {:error, [[_upload_ref, :too_many_files]]} = preflight_upload(upload)
+      assert has_element?(view, ~s(#upload-queue [data-part="queue-error"]), "Too many files")
     end
   end
 
@@ -198,16 +308,107 @@ defmodule CakeWeb.UploadLiveTest do
 
       processing_html = view |> element("#upload-form") |> render_submit()
 
-      assert processing_html =~ "Processing documents"
-      assert has_element?(view, ~s(#rejected-archives[role="status"]), "bomb.zip")
+      assert has_element?(view, "#upload-working")
+      assert has_element?(view, ~s(#rejected-archives.alert-warning[role="alert"]), "bomb.zip")
+      assert processing_html =~ "These archives were not ingested:"
       assert processing_html =~ "bomb.zip"
       assert processing_html =~ limit_text
 
       {done_html, _log} = with_log(fn -> render_async(view) end)
 
-      refute done_html =~ "Processing documents"
+      refute has_element?(view, "#upload-working")
       assert done_html =~ "bomb.zip"
       assert done_html =~ limit_text
+    end
+  end
+
+  describe "the page's error" do
+    test "is an error alert, with a way back to the form", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "upload.zip", content: "not a zip at all", type: "application/zip"}
+        ])
+
+      render_upload(upload, "upload.zip")
+      view |> element("#upload-form") |> render_submit()
+
+      assert has_element?(
+               view,
+               ~s(#upload-error.alert-error[role="alert"]),
+               "Failed to process upload.zip: it is not a ZIP archive, or it is damaged"
+             )
+
+      refute has_element?(view, "#upload-form")
+
+      view |> element("#upload-retry") |> render_click()
+
+      assert has_element?(view, "#upload-form")
+      refute has_element?(view, "#upload-error")
+    end
+  end
+
+  describe "while ingesting" do
+    setup :ingest_that_fails_to_read
+
+    test "says that it shows no progress, and to keep the tab open", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+      submit_one_pdf(view)
+
+      assert has_element?(view, ~s(#upload-working[role="status"]))
+      assert has_element?(view, "#upload-working #upload-keep-open", "Keep this tab open")
+      refute has_element?(view, "#upload-form")
+
+      {_html, _log} = with_log(fn -> render_async(view) end)
+
+      refute has_element?(view, "#upload-working")
+      refute has_element?(view, "#upload-keep-open")
+    end
+  end
+
+  describe "when ingestion finishes" do
+    setup :ingest_that_fails_to_read
+
+    test "reports the figures, and that nothing was ingested when nothing was", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+      submit_one_pdf(view)
+      {_html, _log} = with_log(fn -> render_async(view) end)
+
+      assert has_element?(view, ~s(#upload-results [data-part="indexed"]), "0 indexed")
+      assert has_element?(view, ~s(#upload-results [data-part="failed"]), "1 failed")
+      refute has_element?(view, ~s(#upload-results [data-part="skipped"]))
+
+      assert has_element?(
+               view,
+               ~s(#upload-results.alert-error[role="alert"]),
+               "No items were successfully ingested."
+             )
+    end
+
+    test "links onward to the chat", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+      submit_one_pdf(view)
+      {_html, _log} = with_log(fn -> render_async(view) end)
+
+      assert has_element?(view, ~s(#upload-onward a[href="/chat"]))
+    end
+
+    test "\"Upload more\" goes back to an empty form, and is not the primary button", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+      submit_one_pdf(view)
+      {_html, _log} = with_log(fn -> render_async(view) end)
+
+      assert has_element?(view, "#upload-onward #upload-more", "Upload more")
+      refute has_element?(view, "#upload-more.btn-primary")
+
+      view |> element("#upload-more") |> render_click()
+
+      assert has_element?(view, "#upload-form")
+      refute has_element?(view, "#upload-queue")
+      refute has_element?(view, "#upload-results")
     end
   end
 
@@ -227,5 +428,23 @@ defmodule CakeWeb.UploadLiveTest do
       assert socket.assigns.error == "Ingestion failed: #{inspect(reason)}"
       assert log =~ inspect(reason)
     end
+  end
+
+  # The PDF is stored, then read back by the ingest task; failing the read
+  # ends ingestion quickly, without a real PDF, as one document that failed.
+  defp ingest_that_fails_to_read(_context) do
+    stub(Cake.Books.Adapters.Mock, :write, fn _key, _binary -> :ok end)
+    stub(Cake.Books.Adapters.Mock, :read, fn _key -> {:error, :enoent} end)
+    :ok
+  end
+
+  defp submit_one_pdf(view) do
+    upload =
+      file_input(view, "#upload-form", :documents, [
+        %{name: "good.pdf", content: "%PDF-1.7 fake", type: "application/pdf"}
+      ])
+
+    render_upload(upload, "good.pdf")
+    view |> element("#upload-form") |> render_submit()
   end
 end
