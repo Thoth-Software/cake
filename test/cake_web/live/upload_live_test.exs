@@ -101,7 +101,7 @@ defmodule CakeWeb.UploadLiveTest do
       refute has_element?(view, ~s(#upload-queue [data-part="error"]))
       refute has_element?(view, "#upload-submit[disabled]")
 
-      view |> element(~s(#upload-queue button[phx-click="cancel-upload"])) |> render_click()
+      view |> element(~s(#upload-queue [data-part="remove"])) |> render_click()
 
       refute has_element?(view, "#upload-queue")
       assert has_element?(view, "#upload-submit[disabled]")
@@ -151,7 +151,7 @@ defmodule CakeWeb.UploadLiveTest do
       assert has_element?(view, "#upload-blocked")
 
       view
-      |> element(~s(#upload-entry-#{ref} button[phx-click="cancel-upload"]))
+      |> element(~s(#upload-entry-#{ref} [data-part="remove"]))
       |> render_click()
 
       refute has_element?(view, "#upload-submit[disabled]")
@@ -390,14 +390,12 @@ defmodule CakeWeb.UploadLiveTest do
                ~s(#upload-results.alert-error[role="alert"]),
                "No items were successfully ingested."
              )
-    end
 
-    test "links onward to the chat", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/upload")
-      submit_one_pdf(view)
-      {_html, _log} = with_log(fn -> render_async(view) end)
-
-      assert has_element?(view, ~s(#upload-onward a[href="/chat"]))
+      # Nothing was ingested: the pipeline's banner would contradict the
+      # error beside it, and there is nothing to go and ask about.
+      refute render(view) =~ "Successfully ingested"
+      refute has_element?(view, "#upload-onward a")
+      assert has_element?(view, "#upload-onward #upload-more")
     end
 
     test "\"Upload more\" goes back to an empty form, and is not the primary button", %{
@@ -415,6 +413,48 @@ defmodule CakeWeb.UploadLiveTest do
       assert has_element?(view, "#upload-form")
       refute has_element?(view, "#upload-queue")
       refute has_element?(view, "#upload-results")
+    end
+  end
+
+  # A run that ingests something needs a real PDF and the NIF, which the unit
+  # suite has neither of, so the finished page is rendered from its assigns.
+  describe "the completion summary" do
+    test "is a success with the pipeline's banner and a link to the chat", %{user: user} do
+      html = done_html(user, %{indexed: 3, failed: 0})
+
+      assert [_] = Floki.find(html, ~s(#upload-results.alert-success[role="status"]))
+      assert Floki.text(html) =~ "Successfully ingested PDF books"
+      assert part_text(html, "indexed") == "3 indexed"
+      assert Floki.find(html, ~s(#upload-results [data-part="failed"])) == []
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/chat"]))
+      assert [_] = Floki.find(html, "#upload-onward #upload-more")
+    end
+
+    test "is a warning when some failed, and still links to the chat", %{user: user} do
+      html = done_html(user, %{indexed: 3, failed: 2})
+
+      assert [_] = Floki.find(html, ~s(#upload-results.alert-warning[role="alert"]))
+      assert part_text(html, "indexed") == "3 indexed"
+      assert part_text(html, "failed") == "2 failed"
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/chat"]))
+    end
+
+    # A file that is already in the library is skipped, not counted: the run
+    # succeeds with nothing indexed and nothing failed.
+    test "says that nothing new was indexed when nothing was, without calling it a success",
+         %{user: user} do
+      html = done_html(user, %{indexed: 0, failed: 0})
+
+      assert [_] = Floki.find(html, ~s(#upload-results.alert-info[role="status"]))
+      assert Floki.text(html) =~ "Nothing new was indexed."
+      refute Floki.text(html) =~ "Successfully ingested"
+      assert Floki.find(html, "#upload-onward a") == []
+    end
+
+    test "counts the non-PDF files that were skipped", %{user: user} do
+      html = done_html(user, %{indexed: 1, failed: 0}, skipped_count: 2)
+
+      assert part_text(html, "skipped") == "2 non-PDF files skipped"
     end
   end
 
@@ -442,6 +482,27 @@ defmodule CakeWeb.UploadLiveTest do
     stub(Cake.Books.Adapters.Mock, :write, fn _key, _binary -> :ok end)
     stub(Cake.Books.Adapters.Mock, :read, fn _key -> {:error, :enoent} end)
     :ok
+  end
+
+  defp done_html(user, counts, opts \\ []) do
+    assigns = [
+      flash: %{},
+      current_user: user,
+      status: :done,
+      results: Map.put(counts, :message, "Successfully ingested PDF books"),
+      error: nil,
+      skipped_count: Keyword.get(opts, :skipped_count, 0),
+      rejected_archives: []
+    ]
+
+    (&UploadLive.render/1) |> render_component(assigns) |> Floki.parse_document!()
+  end
+
+  defp part_text(html, part) do
+    html
+    |> Floki.find(~s(#upload-results [data-part="#{part}"]))
+    |> Floki.text()
+    |> String.trim()
   end
 
   defp submit_one_pdf(view) do
