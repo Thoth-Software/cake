@@ -52,6 +52,9 @@ defmodule CakeWeb.ChatLiveTest do
 
       assert has_element?(view, ~s(label[for="question-mode"]), "Manual selection")
 
+      # A daisyUI toggle is what the issue asks for, so the class is what is
+      # pinned.
+
       assert has_element?(
                view,
                ~s(input#question-mode.toggle[type=checkbox][value=manual][aria-describedby="question-mode-help"])
@@ -125,11 +128,15 @@ defmodule CakeWeb.ChatLiveTest do
 
       # Selected by side, not by position: the submitted question starts a
       # real turn, which may add a reply of its own in between.
-      assert has_element?(view, "#chat-messages .chat.chat-end .chat-bubble", "What is Cake?")
+      assert has_element?(
+               view,
+               ~s(#chat-messages .chat-end [data-part="bubble"]),
+               "What is Cake?"
+             )
 
       assert has_element?(
                view,
-               "#chat-messages .chat.chat-start .chat-bubble",
+               ~s(#chat-messages .chat-start [data-part="bubble"]),
                "A RAG framework."
              )
     end
@@ -232,8 +239,8 @@ defmodule CakeWeb.ChatLiveTest do
 
       # The chip carries the number its [N] marker has in the answer.
       assert has_element?(view, "#msg-0", "See [1] and [2].")
-      assert has_element?(view, "#msg-0-sources #msg-0-source-1.badge", "[1] Test Book")
-      assert has_element?(view, "#msg-0-sources #msg-0-source-2.badge", "[2] Other Book")
+      assert has_element?(view, "#msg-0-sources #msg-0-source-1", "[1] Test Book")
+      assert has_element?(view, "#msg-0-sources #msg-0-source-2", "[2] Other Book")
     end
 
     # A preview that opened only on hover could not be reached from a
@@ -255,6 +262,22 @@ defmodule CakeWeb.ChatLiveTest do
                view,
                ~s(#msg-0-source-1 [tabindex="0"][aria-describedby="msg-0-preview-1"])
              )
+    end
+
+    # A preview centred on a narrow chip ran off the left edge of a phone.
+    # Each preview is placed against the row of sources instead, which is
+    # the positioned ancestor, so it starts where the row starts.
+    test "a source's preview is placed against the row of sources, not its own chip",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      citations = [
+        %{new_index: 1, label: "FAQ", source_ref: "abc123", preview: "A preview snippet"}
+      ]
+
+      broadcast_to_view(view, {:response_ready, %{response: "See [1].", citations: citations}})
+
+      assert has_element?(view, "#msg-0-sources.relative > .tooltip.static > #msg-0-preview-1")
     end
 
     test "a source's chip still links to the download, by name", %{conn: conn} do
@@ -307,7 +330,8 @@ defmodule CakeWeb.ChatLiveTest do
       broadcast_to_view(view, {:candidates_ready, build_candidates()})
 
       assert has_element?(view, "#selection-panel", "1 found")
-      assert has_element?(view, "#candidate-0.card .card-title", "Test Book Title")
+      # A card is what the issue asks for, so the class is what is pinned.
+      assert has_element?(view, ~s(#candidate-0.card [data-part="title"]), "Test Book Title")
       assert has_element?(view, "#candidate-0", "1 chunk")
       assert has_element?(view, "#candidate-0", "PDF page 1")
       assert has_element?(view, "#candidate-0", "This is a preview of the chunk content")
@@ -359,6 +383,18 @@ defmodule CakeWeb.ChatLiveTest do
       })
 
       assert has_element?(view, "#use-selected[disabled]")
+    end
+
+    # A second select_docs/2 reaches a conversation that is already
+    # generating, which has no clause for it and dies. "Use selected" is a
+    # form submit, which LiveView locks; "Use all" is a click, so it disables
+    # itself until the click is acknowledged.
+    test "Use all disables itself while its click is in flight", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(view, {:candidates_ready, build_candidates()})
+
+      assert has_element?(view, "#use-all[phx-disable-with]")
     end
 
     test "Use selected submits the selection form from the bar under the cards",
@@ -490,6 +526,9 @@ defmodule CakeWeb.ChatLiveTest do
 
       assert has_element?(view, "#chat-ended.alert-warning[role=alert]")
       assert has_element?(view, "button#new-conversation.btn-primary", "Start a new conversation")
+      # One primary button per view: Send gives the variant up while the
+      # form is disarmed, and takes it back with a new conversation.
+      assert has_element?(view, "#question-form button[type=submit].btn-soft")
       assert has_element?(view, "#msg-0", "An earlier answer.")
       assert has_element?(view, "#msg-1.alert-error", "ended unexpectedly")
 
@@ -497,6 +536,7 @@ defmodule CakeWeb.ChatLiveTest do
 
       refute has_element?(view, "#chat-ended")
       refute has_element?(view, "#new-conversation")
+      refute has_element?(view, "#question-form button[type=submit].btn-soft")
       assert has_element?(view, "#msg-0", "An earlier answer.")
       assert has_element?(view, "#msg-1.alert-error", "ended unexpectedly")
     end

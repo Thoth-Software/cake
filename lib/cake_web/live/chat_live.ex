@@ -233,7 +233,7 @@ defmodule CakeWeb.ChatLive do
                   it will not remember what was asked.
                 </.notice>
                 <%!-- The view's main action while the form under it is
-                disarmed: Send is disabled, and a disabled button is grey. --%>
+                disarmed, so it has the primary variant and Send does not. --%>
                 <.button
                   type="button"
                   id="new-conversation"
@@ -269,7 +269,7 @@ defmodule CakeWeb.ChatLive do
       <div class="chat-header text-base-content/70">
         {if @message.role == :user, do: "You", else: "Cake"}
       </div>
-      <div class={["chat-bubble", @message.role == :user && "chat-bubble-primary"]}>
+      <div data-part="bubble" class={["chat-bubble", @message.role == :user && "chat-bubble-primary"]}>
         <%!-- Plain text with its line breaks kept (Markdown is not rendered),
         so the template's own whitespace must stay out of it. A question can
         be one long unbroken word: it wraps anywhere. --%>
@@ -286,24 +286,35 @@ defmodule CakeWeb.ChatLive do
   # hover, from the keyboard and by tap, as the search screen's page chips
   # do. Its arrow is the link to the source: a label that was itself the
   # link would start the download on the tap meant to open the preview.
+  #
+  # daisyUI centres a tooltip on what it is around, and a preview centred on
+  # a narrow chip ran off the edge of a phone. So the row is the positioned
+  # ancestor (`relative`, with each tooltip `static`): every preview opens
+  # above the row, starts where the row starts and is no wider than it. The
+  # tail that would point at the chip is hidden, and the chip whose preview
+  # is open is ringed instead: on hover, and on focus, which is what a tap
+  # gives it (Tailwind applies `hover` only where the device can hover).
   attr :id, :string, required: true
   attr :citations, :list, required: true
 
   defp sources(assigns) do
     ~H"""
-    <div id={"#{@id}-sources"} class="chat-footer mt-1 flex-wrap items-center gap-2 text-sm">
+    <div id={"#{@id}-sources"} class="chat-footer relative mt-1 flex-wrap items-center gap-2 text-sm">
       <span class="text-base-content/70">Sources:</span>
-      <div :for={cite <- @citations} class="tooltip max-w-full">
+      <div :for={cite <- @citations} class="group tooltip static max-w-full after:hidden">
+        <%!-- `left-0` puts the preview's centre on the row's start, where
+        daisyUI's own transform expects the chip's centre; `translate-x-1/2`
+        moves it back by half its width. --%>
         <div
           id={"#{@id}-preview-#{cite.new_index}"}
           role="tooltip"
-          class="tooltip-content max-w-xs text-left"
+          class="tooltip-content left-0 max-w-[min(20rem,100%)] translate-x-1/2 text-left"
         >
           {cite.preview}
         </div>
         <span
           id={"#{@id}-source-#{cite.new_index}"}
-          class="badge badge-soft badge-primary h-auto min-h-6 gap-2 whitespace-normal py-0.5 text-left"
+          class="badge badge-soft badge-primary h-auto min-h-8 gap-1 whitespace-normal py-0.5 text-left ring-primary group-hover:ring-1 group-has-[:focus]:ring-1"
         >
           <span
             tabindex="0"
@@ -312,11 +323,12 @@ defmodule CakeWeb.ChatLive do
           >
             [{cite.new_index}] {sanitize_title(cite.label)}
           </span>
+          <%!-- A target a finger can hit: 32px, where the icon alone is 16. --%>
           <a
             :if={cite.source_ref}
             href={"/books/download/#{cite.source_ref}"}
             aria-label={"Download #{sanitize_title(cite.label)}"}
-            class="flex"
+            class="-mr-2 flex size-8 flex-none items-center justify-center rounded-full"
           >
             <.icon name="hero-arrow-down-tray" class="size-4" />
           </a>
@@ -345,7 +357,13 @@ defmodule CakeWeb.ChatLive do
             disabled={@disabled}
           />
         </div>
-        <.button type="submit" variant="primary" disabled={@disabled or not @form.source.valid?}>
+        <%!-- The view's one primary button, except while the form is
+        disarmed: then "Start a new conversation" is. --%>
+        <.button
+          type="submit"
+          variant={if !@disabled, do: "primary"}
+          disabled={@disabled or not @form.source.valid?}
+        >
           Send
         </.button>
       </div>
@@ -415,7 +433,9 @@ defmodule CakeWeb.ChatLive do
               class="checkbox checkbox-primary mt-1"
             />
             <div class="min-w-0 flex-1 space-y-1">
-              <h3 class="card-title wrap-anywhere">{sanitize_title(meta.title)}</h3>
+              <h3 data-part="title" class="card-title wrap-anywhere">
+                {sanitize_title(meta.title)}
+              </h3>
               <p class="text-sm text-base-content/70">
                 {length(chunks)} chunk{if length(chunks) != 1, do: "s"}{if meta.page_label,
                   do: " · #{meta.page_label}"}
@@ -446,7 +466,15 @@ defmodule CakeWeb.ChatLive do
       >
         Use selected
       </button>
-      <button type="button" id="use-all" phx-click="use_all" class="btn btn-outline">
+      <%!-- Disabled while its click is in flight: a second one would reach a
+      conversation that is already generating, which has no clause for it. --%>
+      <button
+        type="button"
+        id="use-all"
+        phx-click="use_all"
+        phx-disable-with="Use all"
+        class="btn btn-outline"
+      >
         Use all
       </button>
     </div>

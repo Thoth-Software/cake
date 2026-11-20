@@ -138,7 +138,7 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
       assert html =~ corpus.book.title
       assert html =~ "3 chunks"
       assert html =~ "PDF pages 1-3"
-      assert has_element?(view, "#candidate-0.card .card-title", corpus.book.title)
+      assert has_element?(view, ~s(#candidate-0.card [data-part="title"]), corpus.book.title)
       refute has_element?(view, "#candidate-1")
 
       view |> element("#use-all") |> render_click()
