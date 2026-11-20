@@ -14,7 +14,7 @@ defmodule Cake.AccountsPropertyTest do
   rule has to go by the database, not by the struct it is handed.
 
   Two requests racing for the last admin are in
-  `test/cake/accounts_concurrency_test.exs`; example tests are in
+  `test/cake/accounts_concurrency_property_test.exs`; example tests are in
   `test/cake/accounts_test.exs`.
   """
 
