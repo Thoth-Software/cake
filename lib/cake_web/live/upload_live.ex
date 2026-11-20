@@ -472,41 +472,42 @@ defmodule CakeWeb.UploadLive do
     """
   end
 
+  # Ingestion reports nothing until it is done, and it runs in a task this
+  # LiveView owns: leaving the page, by closing the tab or by following a
+  # link, stops it. The page has to say both for as long as that is so.
   defp processing_indicator(assigns) do
     ~H"""
-    <div class="flex items-center justify-center p-8">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 mr-3"></div>
-      <span class="text-gray-600">Processing documents...</span>
-    </div>
+    <.working id="upload-working">
+      Ingesting your documents. A large PDF takes minutes, and there is no progress to show until it is done.
+      <strong id="upload-keep-open" class="block font-semibold text-base-content">
+        Keep this tab open, on this page: leaving it stops the ingestion.
+      </strong>
+    </.working>
     """
   end
 
   defp results_panel(assigns) do
     ~H"""
-    <div class="space-y-4">
-      <div class="rounded-lg border p-4">
-        <h2 class="text-lg font-semibold mb-2">Ingestion Complete</h2>
-        <p class="text-sm text-gray-600">{@results.message}</p>
-        <div class="mt-2 flex gap-4 text-sm">
-          <span class="text-green-600">{@results.indexed} indexed</span>
-          <span :if={@results.failed > 0} class="text-red-600">{@results.failed} failed</span>
-          <span :if={@skipped_count > 0} class="text-gray-500">
-            {@skipped_count} non-PDF files skipped
-          </span>
-        </div>
-      </div>
+    <.notice id="upload-results" kind={results_kind(@results, @error)} title="Ingestion complete">
+      <p class="wrap-anywhere">{@results.message}</p>
+      <p class="flex flex-wrap gap-x-4">
+        <span data-part="indexed">{@results.indexed} indexed</span>
+        <span :if={@results.failed > 0} data-part="failed">{@results.failed} failed</span>
+        <span :if={@skipped_count > 0} data-part="skipped">
+          {@skipped_count} non-PDF files skipped
+        </span>
+      </p>
+      <p :if={@error}>{@error}</p>
+    </.notice>
 
-      <div :if={@error} class="p-3 bg-yellow-100 text-yellow-800 rounded text-sm">
-        {@error}
-      </div>
-
-      <button
-        type="button"
-        phx-click="reset"
-        class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
-      >
-        Upload More
+    <%!-- The documents list joins these when its route exists (#380). --%>
+    <div id="upload-onward" class="flex flex-wrap items-center gap-2">
+      <button id="upload-more" type="button" phx-click="reset" class="btn btn-outline">
+        Upload more
       </button>
+      <.link navigate={~p"/chat"} class="btn btn-ghost">
+        Ask about them in Chat <.icon name="hero-arrow-right" class="size-5" />
+      </.link>
     </div>
     """
   end
@@ -554,6 +555,13 @@ defmodule CakeWeb.UploadLive do
   # configured in, not the binary ones format_size/1 shows a file's size in.
   @spec max_size(Phoenix.LiveView.UploadConfig.t()) :: String.t()
   defp max_size(upload), do: "#{div(upload.max_file_size, 1_000_000)} MB"
+
+  # Nothing ingested is an error; some documents failing is a warning.
+  @spec results_kind(Cake.Pipelines.ingest_summary(), String.t() | nil) ::
+          :success | :warning | :error
+  defp results_kind(_results, error) when is_binary(error), do: :error
+  defp results_kind(%{failed: failed}, nil) when failed > 0, do: :warning
+  defp results_kind(_results, nil), do: :success
 
   @spec format_size(non_neg_integer()) :: String.t()
   defp format_size(bytes) when bytes < 1024, do: "#{bytes} B"
