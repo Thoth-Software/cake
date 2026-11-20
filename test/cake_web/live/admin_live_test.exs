@@ -16,11 +16,23 @@ defmodule CakeWeb.AdminLiveTest do
   @not_authorized "You are not authorized to access this page."
   @must_log_in "You must log in to access this page."
 
-  describe "GET /admin, as a LiveView" do
-    test "mounts for an admin", %{conn: conn} do
-      {:ok, _lv, html} = conn |> log_in_user(admin_fixture()) |> live(~p"/admin")
+  # The text content of the one element `selector` matches in the LiveView,
+  # without the whitespace the template puts around it. `element/2` raises
+  # unless exactly one element matches.
+  defp text_of(lv, selector) do
+    lv
+    |> element(selector)
+    |> render()
+    |> Floki.parse_fragment!()
+    |> Floki.text()
+    |> String.trim()
+  end
 
-      assert html =~ "Admin"
+  describe "GET /admin, as a LiveView" do
+    test "mounts for an admin, under the heading Admin", %{conn: conn} do
+      {:ok, lv, _html} = conn |> log_in_user(admin_fixture()) |> live(~p"/admin")
+
+      assert text_of(lv, "h1") == "Admin"
     end
 
     test "sends a member to the home page with a not-authorized flash", %{conn: conn} do
@@ -81,10 +93,10 @@ defmodule CakeWeb.AdminLiveTest do
   # The same route over plain HTTP, where the plug answers before any
   # LiveView is rendered.
   describe "GET /admin, as a request" do
-    test "renders for an admin", %{conn: conn} do
+    test "answers an admin with the page", %{conn: conn} do
       conn = conn |> log_in_user(admin_fixture()) |> get(~p"/admin")
 
-      assert html_response(conn, 200) =~ "Admin"
+      assert html_response(conn, 200)
     end
 
     test "redirects a member to the home page with a not-authorized flash", %{conn: conn} do

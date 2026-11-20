@@ -42,7 +42,8 @@ defmodule Cake.AccountsPropertyTest do
 
   # A role as a form or a caller might send it: the two real ones, as atoms
   # and as strings, among arbitrary other names. Never blank: a blank role is
-  # no role given, not a wrong one.
+  # no role given, which `create_user/1` refuses as missing, not as invalid
+  # (an example in `accounts_test.exs`).
   defp candidate_role do
     one_of([
       member_of([:member, :admin, "member", "admin"]),

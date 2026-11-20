@@ -275,14 +275,22 @@ defmodule Cake.AccountsTest do
       assert found.role == :admin
     end
 
-    test "creates a member when the role says so, and when no role is given" do
-      {:ok, named} = Accounts.create_user(valid_user_attributes(role: :member))
-      assert Repo.get!(User, named.id).role == :member
+    test "creates a member when the role says so" do
+      {:ok, user} = Accounts.create_user(valid_user_attributes(role: :member))
+      assert Repo.get!(User, user.id).role == :member
+    end
 
-      {:ok, unnamed} =
-        Accounts.create_user(%{username: unique_user_username(), password: valid_user_password()})
+    # Unlike registration, which always makes a member, the caller here has
+    # to say which role it means: none given, nil and blank are all refused.
+    test "requires a role, and inserts nothing without one" do
+      attrs = %{username: unique_user_username(), password: valid_user_password()}
 
-      assert Repo.get!(User, unnamed.id).role == :member
+      for without_role <- [attrs, Map.put(attrs, :role, nil), Map.put(attrs, :role, "")] do
+        {:error, changeset} = Accounts.create_user(without_role)
+        assert errors_on(changeset).role == ["can't be blank"]
+      end
+
+      assert Repo.all(User) == []
     end
 
     test "takes the role as a string, as a form or a shell sends it" do
@@ -298,8 +306,10 @@ defmodule Cake.AccountsTest do
 
     test "requires a username and a password" do
       {:error, changeset} = Accounts.create_user(%{role: :admin})
+      errors = errors_on(changeset)
 
-      assert %{username: ["can't be blank"], password: ["can't be blank"]} = errors_on(changeset)
+      assert %{username: ["can't be blank"], password: ["can't be blank"]} = errors
+      refute Map.has_key?(errors, :role)
     end
 
     test "holds the username and the password to the rules registration holds them to" do
