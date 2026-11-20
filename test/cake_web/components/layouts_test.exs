@@ -195,6 +195,43 @@ defmodule CakeWeb.LayoutsTest do
     end
   end
 
+  describe "app/1, the page column" do
+    # The page is rendered into one column, `#page`. A form or a page of prose
+    # reads best narrow; a table of records and the chat need the room (#392).
+    defp page_column(attrs) do
+      [column] =
+        (&Layouts.app/1)
+        |> render_component([flash: %{}, current_user: member(), inner_block: []] ++ attrs)
+        |> Floki.parse_fragment!()
+        |> Floki.find("#page")
+
+      column
+    end
+
+    defp column_classes(column) do
+      column |> Floki.attribute("class") |> Enum.flat_map(&String.split/1)
+    end
+
+    test "is narrow unless told otherwise" do
+      column = page_column([])
+
+      assert attribute(column, "data-width") == "narrow"
+      assert "max-w-2xl" in column_classes(column)
+    end
+
+    test "is wide when asked" do
+      column = page_column(width: :wide)
+
+      assert attribute(column, "data-width") == "wide"
+      assert "max-w-5xl" in column_classes(column)
+      refute "max-w-2xl" in column_classes(column)
+    end
+
+    test "is narrow when asked" do
+      assert attribute(page_column(width: :narrow), "data-width") == "narrow"
+    end
+  end
+
   describe "flash_group/1" do
     test "an info flash is titled Success! and an error flash Error!" do
       html = flash_group(%{"info" => "Password updated", "error" => "Invalid token"})

@@ -21,7 +21,8 @@ defmodule CakeWeb.SearchLive do
        results: [],
        loading: false,
        form: to_form(%{"query" => ""}),
-       error: nil
+       error: nil,
+       last_query: nil
      )}
   end
 
@@ -29,24 +30,51 @@ defmodule CakeWeb.SearchLive do
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("search", %{"query" => query}, socket) do
-    if String.trim(query) == "" do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> assign(loading: true, error: nil)
-       |> start_async(:search, fn -> run_search(query) end)}
+    case String.trim(query) do
+      "" ->
+        {:noreply, socket}
+
+      query ->
+        {:noreply,
+         socket
+         |> assign(loading: true, error: nil)
+         |> start_async(:search, fn -> {query, run_search(query)} end)}
     end
   end
 
+  # What the function given to `start_async` in the "search" event returns:
+  # the query as it was searched for, and what the search made of it. This
+  # module produces it, so the spec below names it; the `:exit` reason comes
+  # from the runtime and stays `term()`.
+  @typep search_outcome :: {String.t(), {:ok, [book_result()]} | {:error, term()}}
+
+  # One book's hits, as the template shows them.
+  @typep book_result :: %{
+           book_title: String.t() | nil,
+           source_file_path: String.t(),
+           total_pages: non_neg_integer() | nil,
+           hit_count: pos_integer(),
+           pages: [map()]
+         }
+
   @impl Phoenix.LiveView
-  @spec handle_async(atom(), {:ok, term()} | {:exit, term()}, Phoenix.LiveView.Socket.t()) ::
+  @spec handle_async(
+          :search,
+          {:ok, search_outcome()} | {:exit, term()},
+          Phoenix.LiveView.Socket.t()
+        ) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
-  def handle_async(:search, {:ok, {:ok, results}}, socket) do
-    {:noreply, assign(socket, results: results, loading: false, form: to_form(%{"query" => ""}))}
+  def handle_async(:search, {:ok, {query, {:ok, results}}}, socket) do
+    {:noreply,
+     assign(socket,
+       results: results,
+       loading: false,
+       last_query: query,
+       form: to_form(%{"query" => ""})
+     )}
   end
 
-  def handle_async(:search, {:ok, {:error, error}}, socket) do
+  def handle_async(:search, {:ok, {_query, {:error, error}}}, socket) do
     Logger.error("SearchLive search failed: #{inspect(error)}")
     {:noreply, assign(socket, loading: false, error: "Search failed. Please try again.")}
   end
@@ -126,14 +154,19 @@ defmodule CakeWeb.SearchLive do
         <.button type="submit" variant="primary" disabled={@loading}>Search</.button>
       </.form>
 
-      <div :if={@loading} id="search-loading" class="flex items-center gap-2 text-base-content/70">
-        <span class="loading loading-spinner loading-sm"></span> Searching...
-      </div>
+      <.working :if={@loading} id="search-loading">Searching...</.working>
 
-      <div :if={@error} id="search-error" role="alert" class="alert alert-error">
-        <.icon name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <span>{@error}</span>
-      </div>
+      <.notice :if={@error} id="search-error" kind={:error}>{@error}</.notice>
+
+      <%!-- A finished search that found nothing. It gives way to the
+      indicator while the next search runs, and to the error if that fails. --%>
+      <.empty_state
+        :if={@last_query && @results == [] && !@loading && !@error}
+        id="search-empty"
+        icon="hero-magnifying-glass"
+      >
+        No sections matched “{@last_query}”.
+      </.empty_state>
 
       <div :if={@results != []} id="search-results" class="space-y-4">
         <article

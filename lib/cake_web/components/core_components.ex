@@ -436,6 +436,122 @@ defmodule CakeWeb.CoreComponents do
   end
 
   @doc """
+  Renders the empty state of a screen or a list: an icon, one sentence and,
+  optionally, what to do about it.
+
+  Every screen with nothing to show yet uses this, so that an empty chat, an
+  empty document list and a search with no matches look alike.
+
+  ## Examples
+
+      <.empty_state id="no-documents">Nothing has been uploaded yet.</.empty_state>
+
+      <.empty_state id="no-documents" icon="hero-document">
+        Nothing has been uploaded yet.
+        <:action><.link navigate={~p"/upload"} class="link link-primary">Upload a document</.link></:action>
+      </.empty_state>
+  """
+  attr :id, :string, default: nil
+  attr :icon, :string, default: "hero-inbox", doc: "a Heroicon name, as `icon/1` takes"
+
+  slot :inner_block, required: true, doc: "the sentence"
+  slot :action, doc: "a link or a button to what fills the screen"
+
+  @spec empty_state(map()) :: Phoenix.LiveView.Rendered.t()
+  def empty_state(assigns) do
+    ~H"""
+    <div id={@id} class="flex flex-col items-center gap-3 px-4 py-10 text-center text-base-content/70">
+      <.icon name={@icon} class="size-10 opacity-60" />
+      <%!-- The sentence may quote what the user typed: a long unbroken
+      word wraps instead of pushing the page sideways. --%>
+      <p class="max-w-full wrap-anywhere">{render_slot(@inner_block)}</p>
+      <div :if={@action != []} data-part="action">{render_slot(@action)}</div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a line saying that something is under way, beside an indicator
+  that shows no progress: searching, retrieving, ingesting.
+
+  The line is marked as a status (`role="status"`) and the indicator, which
+  is decoration, is hidden from a screen reader. Whether the line is spoken
+  when it appears depends on the screen reader: a status that is put on the
+  page with its text already in it is not announced by all of them. That has
+  not been checked with one.
+
+  ## Examples
+
+      <.working :if={@loading} id="search-loading">Searching...</.working>
+  """
+  attr :id, :string, default: nil
+
+  slot :inner_block, required: true, doc: "what is under way"
+
+  @spec working(map()) :: Phoenix.LiveView.Rendered.t()
+  def working(assigns) do
+    ~H"""
+    <div id={@id} role="status" class="flex items-center gap-2 text-base-content/70">
+      <span data-part="indicator" class="loading loading-spinner loading-sm" aria-hidden="true">
+      </span>
+      <span>{render_slot(@inner_block)}</span>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a message that is part of a page: something to know, something
+  that worked, a warning, or an error.
+
+  `flash/1` is for the passing message after an action, which the user
+  dismisses. A notice stays where the page puts it. An error or a warning is
+  marked as an alert (`role="alert"`), which a screen reader speaks at once;
+  information and success are marked as a status, with the caveat `working/1`
+  describes.
+
+  ## Examples
+
+      <.notice :if={@error} id="search-error" kind={:error}>{@error}</.notice>
+
+      <.notice id="rejected-archives" kind={:warning} title="These archives were not ingested">
+        ...
+      </.notice>
+  """
+  attr :id, :string, default: nil
+  attr :kind, :atom, values: [:info, :success, :warning, :error], default: :info
+  attr :title, :string, default: nil
+
+  slot :inner_block, required: true, doc: "the message"
+
+  @spec notice(map()) :: Phoenix.LiveView.Rendered.t()
+  def notice(assigns) do
+    ~H"""
+    <div id={@id} role={notice_role(@kind)} class={["alert", notice_class(@kind)]}>
+      <.icon name={notice_icon(@kind)} class="size-5 shrink-0" />
+      <div class="min-w-0">
+        <p :if={@title} data-part="title" class="font-semibold">{@title}</p>
+        <div data-part="body">{render_slot(@inner_block)}</div>
+      </div>
+    </div>
+    """
+  end
+
+  # The class names are spelled out in full: Tailwind keeps only the classes
+  # it finds written in the source.
+  defp notice_class(:info), do: "alert-info"
+  defp notice_class(:success), do: "alert-success"
+  defp notice_class(:warning), do: "alert-warning"
+  defp notice_class(:error), do: "alert-error"
+
+  defp notice_role(kind) when kind in [:warning, :error], do: "alert"
+  defp notice_role(kind) when kind in [:info, :success], do: "status"
+
+  defp notice_icon(:info), do: "hero-information-circle"
+  defp notice_icon(:success), do: "hero-check-circle"
+  defp notice_icon(:warning), do: "hero-exclamation-triangle"
+  defp notice_icon(:error), do: "hero-exclamation-circle"
+
+  @doc """
   Renders a [Heroicon](https://heroicons.com).
 
   Heroicons come in three styles – outline, solid, and mini.

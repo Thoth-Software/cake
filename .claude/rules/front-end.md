@@ -24,6 +24,23 @@ Auto-loaded when working on `assets/`, the components and layouts, a LiveView or
 - **Nothing new calls `CakeWeb.TransitionalComponents`.** It holds the 1.7 `simple_form/1` and `error/1` for the screens not yet migrated. A migrated screen uses `<.form>` and `<.input>`; when the last caller of a function goes, so does the function, and with the last function the module and its import in `lib/cake_web.ex`.
 - **LiveView is 1.0.** The kit is written for `phoenix_live_view ~> 1.2`. What needs the newer one is left out: colocated hooks (the `phoenix-colocated/cake` import in `app.js`), colocated CSS (its import and `@source` in `app.css`) and the `:phoenix_live_view` compiler in `mix.exs`. A hook goes in `assets/js/` and is passed to `LiveSocket` by hand. Bring the three back together when LiveView is bumped.
 
+## Look and feel
+
+Screens are built by different sessions at different times, and they have to look like one product. What keeps them alike is that they share the pieces below and do not restyle them. The reference screenshots in `docs/ui-reference/` show the result: the home page, the shell for a member and for an admin, and the search screen in each of its states, at desktop and phone width, in both themes. Put a new screen beside them before calling it done.
+
+- **Width.** Content goes straight into `Layouts.app`, which renders it into one column. A form or a page of prose uses the default; a table of records or the chat asks for `width={:wide}`. A screen does not set a width of its own. The chat, upload and account pages still wrap their content in one from before this rule; #376 to #380 remove those as they rebuild each screen.
+- **Heading.** One `<.header>` per screen, first in the page. Its `:subtitle` and `:actions` slots hold the line under it and the buttons beside it.
+- **Buttons.** One primary button per view (`<.button variant="primary">`), for its main action. Secondary actions are `btn btn-ghost` or `btn btn-outline`. A destructive action is `btn btn-error`, behind a confirmation (`data-confirm`).
+- **Records and results.** Tabular records (documents, users) are a `<.table>`; one record's fields are a `<.list>`. Content results (search hits, candidate documents) are cards, as the search screen does them: `card card-border bg-base-100`, a `card-title`, then the detail.
+- **States.** Nothing to show yet is `<.empty_state>`; work under way is `<.working>`; a message that is part of the page is `<.notice>` with its `kind` (`:info`, `:success`, `:warning`, `:error`). Never a one-off spinner, alert or "nothing here" line. `<.flash>` stays the dismissible message after an action.
+- **Previews.** A preview that opens on hover also opens from the keyboard and by tap: a daisyUI `tooltip` around a focusable element (`tabindex="0"`) that the preview describes (`aria-describedby`, `role="tooltip"`), as the search screen's page chips do.
+- **Chips and badges.** `badge badge-soft` with a semantic colour. A status uses the same colour everywhere: `badge-success` for done, `badge-warning` for under way, `badge-error` for failed, `badge-ghost` for not started.
+- **Icons.** Heroicons outline through `<.icon>`, `size-5` inline with text and `size-10` in an empty state.
+- **Secondary text** is `text-base-content/70`, not a grey from the palette.
+- **Phone width.** Nothing scrolls sideways at 360px, and the primary action stays reachable. Text the user typed can be one long unbroken word: where a page shows it back, it has to wrap (`wrap-anywhere`), as `empty_state/1` does. The reference phone shots are 390px wide, so check 360px in a browser as well.
+- **Test selectors.** Anything a test selects carries an `id`, or a `data-part` inside a component; a test does not select by class or by wording it does not mean to pin. The exception is a class that is the thing being pinned: which icon (`hero-…`), which daisyUI variant (`alert-error`), which width.
+- **A shared need becomes a shared component.** A component a second screen will also need goes into `CakeWeb.CoreComponents` once, with a `@doc`, a `@spec` and a test in `CakeWeb.CoreComponentsTest`, and is named on the epic (#371) so screens being built in parallel use it. A screen does not keep a private copy.
+
 ## Traps
 
 - **`<.button class="...">` replaces the classes, it does not add to them.** The 1.8 `button/1` uses its own `btn btn-primary btn-soft` only when the caller passes no `class`. A caller that passes one writes the whole list: `class="btn btn-primary w-full"`.
