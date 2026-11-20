@@ -75,6 +75,20 @@ defmodule CakeWeb.ChatLiveTest do
       assert has_element?(view, ~s(#chat[phx-hook="FollowNewest"] #question-form))
     end
 
+    # A new answer is announced to a screen reader: the messages are a log.
+    # The candidates are not in it, or every card would be read out as it
+    # arrived.
+    test "the messages are a log, and the candidate panel is outside it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(view, {:response_ready, %{response: "An answer.", citations: []}})
+      assert has_element?(view, ~s(#chat-log[role="log"] #msg-0), "An answer.")
+
+      broadcast_to_view(view, {:candidates_ready, build_candidates()})
+      assert has_element?(view, "#chat-messages #selection-panel")
+      refute has_element?(view, "#chat-log #selection-panel")
+    end
+
     test "asks the shell for the wide column", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
@@ -192,6 +206,17 @@ defmodule CakeWeb.ChatLiveTest do
       refute has_element?(view, "#question-form")
     end
 
+    # An auto turn reports :generating for the whole of it, the search
+    # included (only a manual turn reports :retrieving), so that line must
+    # not claim the answer is already being written.
+    test "the :generating line does not say which stage the turn is in", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(view, {:state_change, :generating})
+
+      assert has_element?(view, "#chat-generating", "Working on an answer...")
+    end
+
     test "neither working line is on the page while the conversation is idle", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
@@ -264,10 +289,11 @@ defmodule CakeWeb.ChatLiveTest do
              )
     end
 
-    # A preview centred on a narrow chip ran off the left edge of a phone.
-    # Each preview is placed against the row of sources instead, which is
-    # the positioned ancestor, so it starts where the row starts.
-    test "a source's preview is placed against the row of sources, not its own chip",
+    # A preview centred on a narrow chip ran off the left edge of a phone, so
+    # each is placed against the row of sources instead. Where it lands is a
+    # matter of style, which the suite cannot see and a browser check covers;
+    # what is pinned here is that the preview is inside the row.
+    test "a source's preview sits inside the row of sources",
          %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
@@ -277,7 +303,7 @@ defmodule CakeWeb.ChatLiveTest do
 
       broadcast_to_view(view, {:response_ready, %{response: "See [1].", citations: citations}})
 
-      assert has_element?(view, "#msg-0-sources.relative > .tooltip.static > #msg-0-preview-1")
+      assert has_element?(view, "#msg-0-sources #msg-0-preview-1[role=tooltip]")
     end
 
     test "a source's chip still links to the download, by name", %{conn: conn} do

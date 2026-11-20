@@ -199,11 +199,15 @@ defmodule CakeWeb.ChatLive do
             </:action>
           </.empty_state>
 
-          <.message
-            :for={{msg, i} <- Enum.with_index(Enum.reverse(@messages))}
-            id={"msg-#{i}"}
-            message={msg}
-          />
+          <%!-- A log, so a screen reader announces each message as it is
+          added. The empty prompt and the candidates stay outside it. --%>
+          <div id="chat-log" role="log" aria-label="Conversation" class="space-y-2">
+            <.message
+              :for={{msg, i} <- Enum.with_index(Enum.reverse(@messages))}
+              id={"msg-#{i}"}
+              message={msg}
+            />
+          </div>
 
           <.selection_panel
             :if={@conversation_state == :awaiting_selection}
@@ -221,7 +225,9 @@ defmodule CakeWeb.ChatLive do
             <% :retrieving -> %>
               <.working id="chat-retrieving">Searching the documents...</.working>
             <% :generating -> %>
-              <.working id="chat-generating">Writing an answer...</.working>
+              <%!-- An auto turn reports :generating for the whole of it,
+              the search included, so this does not say "writing". --%>
+              <.working id="chat-generating">Working on an answer...</.working>
             <% :awaiting_selection -> %>
               <.selection_actions selection_form={@selection_form} />
             <% state -> %>
