@@ -11,18 +11,6 @@ defmodule CakeWeb.Layouts do
   # and other static content.
   embed_templates "layouts/*"
 
-  # Transitional (#374), gone in the next commit. `use CakeWeb, :live_view`
-  # still names a layout, and a layout is handed `@inner_content`, where
-  # `app/1` takes a slot. This adapts one to the other until every LiveView
-  # calls `<Layouts.app>` from its own template.
-  @doc false
-  @spec live_app(map()) :: Phoenix.LiveView.Rendered.t()
-  def live_app(assigns) do
-    ~H"""
-    <.app flash={@flash}>{@inner_content}</.app>
-    """
-  end
-
   @doc """
   Renders your app layout.
 

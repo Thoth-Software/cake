@@ -67,8 +67,7 @@ defmodule CakeWeb do
   @spec live_view() :: Macro.t()
   def live_view do
     quote do
-      use Phoenix.LiveView,
-        layout: {CakeWeb.Layouts, :live_app}
+      use Phoenix.LiveView
 
       unquote(html_helpers())
     end

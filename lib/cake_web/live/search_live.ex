@@ -107,49 +107,51 @@ defmodule CakeWeb.SearchLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="max-w-2xl mx-auto p-4">
-      <h1 class="text-2xl font-bold mb-4">Cake Search</h1>
+    <Layouts.app flash={@flash}>
+      <div class="max-w-2xl mx-auto p-4">
+        <h1 class="text-2xl font-bold mb-4">Cake Search</h1>
 
-      <.simple_form for={@form} phx-submit="search">
-        <.input field={@form[:query]} type="text" placeholder="Search books..." />
-        <:actions>
-          <.button type="submit" disabled={@loading}>Search</.button>
-        </:actions>
-      </.simple_form>
+        <.simple_form for={@form} phx-submit="search">
+          <.input field={@form[:query]} type="text" placeholder="Search books..." />
+          <:actions>
+            <.button type="submit" disabled={@loading}>Search</.button>
+          </:actions>
+        </.simple_form>
 
-      <div :if={@loading} class="text-gray-500 italic mt-4">Searching...</div>
+        <div :if={@loading} class="text-gray-500 italic mt-4">Searching...</div>
 
-      <div :if={@error} class="mt-4 p-3 bg-red-100 text-red-700 rounded">
-        {@error}
-      </div>
+        <div :if={@error} class="mt-4 p-3 bg-red-100 text-red-700 rounded">
+          {@error}
+        </div>
 
-      <div :if={@results != []} class="mt-6 space-y-6">
-        <div :for={result <- @results} class="border-t pt-4">
-          <a
-            href={"/books/download/#{result.source_file_path}"}
-            class="text-blue-600 hover:underline font-semibold"
-          >
-            {result.book_title}
-          </a>
-          <p class="text-gray-500 text-sm mt-0.5">
-            {result.hit_count} relevant sections found
-          </p>
-          <div class="mt-2 flex flex-wrap gap-1">
-            <div :for={page <- result.pages} class="relative group inline-block mr-2 mb-1">
-              <span class="text-blue-600 cursor-help text-sm">
-                p. {page.page_number}
-                <span :if={page.section_title} class="text-gray-500">
-                  — {page.section_title}
+        <div :if={@results != []} class="mt-6 space-y-6">
+          <div :for={result <- @results} class="border-t pt-4">
+            <a
+              href={"/books/download/#{result.source_file_path}"}
+              class="text-blue-600 hover:underline font-semibold"
+            >
+              {result.book_title}
+            </a>
+            <p class="text-gray-500 text-sm mt-0.5">
+              {result.hit_count} relevant sections found
+            </p>
+            <div class="mt-2 flex flex-wrap gap-1">
+              <div :for={page <- result.pages} class="relative group inline-block mr-2 mb-1">
+                <span class="text-blue-600 cursor-help text-sm">
+                  p. {page.page_number}
+                  <span :if={page.section_title} class="text-gray-500">
+                    — {page.section_title}
+                  </span>
                 </span>
-              </span>
-              <div class="hidden group-hover:block absolute z-10 bottom-full left-0 mb-1 w-80 p-3 bg-gray-800 text-white text-xs rounded shadow-lg">
-                {page.chunk_preview}
+                <div class="hidden group-hover:block absolute z-10 bottom-full left-0 mb-1 w-80 p-3 bg-gray-800 text-white text-xs rounded shadow-lg">
+                  {page.chunk_preview}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </Layouts.app>
     """
   end
 end

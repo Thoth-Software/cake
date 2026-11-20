@@ -172,50 +172,55 @@ defmodule CakeWeb.ChatLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="max-w-2xl mx-auto p-4">
-      <h1 class="text-2xl font-bold mb-4">Cake Chat</h1>
-      <.message_list messages={@messages} />
+    <Layouts.app flash={@flash}>
+      <div class="max-w-2xl mx-auto p-4">
+        <h1 class="text-2xl font-bold mb-4">Cake Chat</h1>
+        <.message_list messages={@messages} />
 
-      <%= case @conversation_state do %>
-        <% busy when busy in [:retrieving, :generating] -> %>
-          <.thinking_indicator />
-        <% :awaiting_selection -> %>
-          <.selection_panel
-            candidates={@candidates}
-            available_doc_ids={@available_doc_ids}
-            selection_form={@selection_form}
-          />
-        <% state -> %>
-          <div :if={state == :ended} class="mb-4">
-            <.button type="button" phx-click="new_conversation">Start a new conversation</.button>
-          </div>
-          <.simple_form for={@question_form} phx-submit="submit" phx-change="validate_question">
-            <.input
-              field={@question_form[:question]}
-              type="text"
-              placeholder="Ask a question..."
-              disabled={is_nil(@convo_pid)}
+        <%= case @conversation_state do %>
+          <% busy when busy in [:retrieving, :generating] -> %>
+            <.thinking_indicator />
+          <% :awaiting_selection -> %>
+            <.selection_panel
+              candidates={@candidates}
+              available_doc_ids={@available_doc_ids}
+              selection_form={@selection_form}
             />
-            <div class="flex items-center gap-2">
-              <input type="hidden" name={@question_form[:mode].name} value="auto" />
-              <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  name={@question_form[:mode].name}
-                  value="manual"
-                  checked={to_string(@question_form[:mode].value) == "manual"}
-                  class="rounded border-gray-300"
-                /> Manual selection
-              </label>
+          <% state -> %>
+            <div :if={state == :ended} class="mb-4">
+              <.button type="button" phx-click="new_conversation">Start a new conversation</.button>
             </div>
-            <:actions>
-              <.button type="submit" disabled={is_nil(@convo_pid) or not @question_form.source.valid?}>
-                Send
-              </.button>
-            </:actions>
-          </.simple_form>
-      <% end %>
-    </div>
+            <.simple_form for={@question_form} phx-submit="submit" phx-change="validate_question">
+              <.input
+                field={@question_form[:question]}
+                type="text"
+                placeholder="Ask a question..."
+                disabled={is_nil(@convo_pid)}
+              />
+              <div class="flex items-center gap-2">
+                <input type="hidden" name={@question_form[:mode].name} value="auto" />
+                <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name={@question_form[:mode].name}
+                    value="manual"
+                    checked={to_string(@question_form[:mode].value) == "manual"}
+                    class="rounded border-gray-300"
+                  /> Manual selection
+                </label>
+              </div>
+              <:actions>
+                <.button
+                  type="submit"
+                  disabled={is_nil(@convo_pid) or not @question_form.source.valid?}
+                >
+                  Send
+                </.button>
+              </:actions>
+            </.simple_form>
+        <% end %>
+      </div>
+    </Layouts.app>
     """
   end
 
