@@ -264,9 +264,11 @@ defmodule CakeWeb.ParsedBookLiveTest do
 
     # A refresh that finds nothing new changes no row, so the page says when
     # the list was last read: that is what shows the button did something.
+    # The time is shown to the second and carried to the microsecond, so two
+    # reads within one second are still told apart here.
     test "says when the list was read, and reads it again", %{conn: conn} do
       parsed_book_fixture()
-      opened_at = DateTime.utc_now(:second)
+      opened_at = DateTime.utc_now()
       {:ok, lv, html} = live(conn, ~p"/documents")
 
       read_at = fn html ->
@@ -281,7 +283,7 @@ defmodule CakeWeb.ParsedBookLiveTest do
       assert DateTime.compare(first, opened_at) != :lt
 
       second = lv |> element("#documents-refresh") |> render_click() |> read_at.()
-      assert DateTime.compare(second, first) != :lt
+      assert DateTime.compare(second, first) == :gt
     end
 
     test "shows a status that has changed since", %{conn: conn} do

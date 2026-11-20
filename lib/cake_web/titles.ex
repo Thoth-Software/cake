@@ -1,13 +1,19 @@
 defmodule CakeWeb.Titles do
   @moduledoc """
-  How a document's title is displayed, the same on every screen that shows
-  one: the chat's citations and candidates, the documents list and a
-  document's page.
+  How a document's title is displayed: one cleanup, used by the chat, the
+  documents list and a document's page.
 
   A title comes from the parser as it found it in the file. `display/1`
   removes what is never meant to be seen and corrects nothing else: a title
-  the parser got wrong is shown wrong (#86). `display_citation_label/1` is
-  the same for a citation's label, with its page spelled out.
+  the parser got wrong is shown wrong (#86). The documents pages show a
+  stored title with it.
+
+  `display_citation_label/1` is the same cleanup for a citation's label,
+  with its page spelled out. The chat uses it for citations and, as it did
+  before this module existed, for candidate titles too. It rewrites every
+  ", p. N" it finds, so a title that itself mentions a page reads
+  differently in the chat than on the documents pages. The search screen
+  uses neither and shows the stored title as it is.
   """
 
   # What a document is called when it has no title that can be shown.

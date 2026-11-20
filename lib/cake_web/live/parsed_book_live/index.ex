@@ -50,7 +50,7 @@ defmodule CakeWeb.ParsedBookLive.Index do
         <:col :let={{_id, parsed_book}} label="Title">
           <.link
             data-part="title"
-            navigate={~p"/documents/#{parsed_book}"}
+            navigate={~p"/documents/#{parsed_book.id}"}
             class="link link-hover font-medium wrap-anywhere"
           >
             {Titles.display(parsed_book.title)}
@@ -114,7 +114,7 @@ defmodule CakeWeb.ParsedBookLive.Index do
 
     socket
     |> assign(:empty?, parsed_books == [])
-    |> assign(:read_at, DateTime.utc_now(:second))
+    |> assign(:read_at, DateTime.utc_now())
     |> stream(:documents, parsed_books, reset: true)
   end
 end

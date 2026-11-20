@@ -51,20 +51,23 @@ defmodule Cake.BooksTest do
     end
 
     # The documents list shows six fields of a book. The rest, the `metadata`
-    # and `table_of_contents` maps among them, can be large and are not read.
-    test "list_parsed_books_newest_first/0 loads the fields the documents list shows, and no others" do
+    # and `table_of_contents` maps among them, can be large and are not read:
+    # what comes back is a listing, a map of those six fields, not a
+    # `ParsedBook` with the others left empty.
+    test "list_parsed_books_newest_first/0 returns a listing of each book: the fields the documents list shows, and no others" do
       book =
         parsed_book_fixture(%{metadata: %{"big" => "map"}, table_of_contents: %{"1" => "Intro"}})
 
-      assert [listed] = Books.list_parsed_books_newest_first()
-
-      for field <- [:id, :title, :total_pages, :embedding_status, :inserted_at, :source_file_path] do
-        assert Map.fetch!(listed, field) == Map.fetch!(book, field), "#{field}"
-      end
-
-      assert listed.metadata == nil
-      assert listed.table_of_contents == nil
-      assert listed.word_count == nil
+      assert Books.list_parsed_books_newest_first() == [
+               %{
+                 id: book.id,
+                 title: book.title,
+                 total_pages: book.total_pages,
+                 embedding_status: book.embedding_status,
+                 inserted_at: book.inserted_at,
+                 source_file_path: book.source_file_path
+               }
+             ]
     end
 
     # `inserted_at` is stored to the second and a batch upload lands within
