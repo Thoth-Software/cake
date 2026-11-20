@@ -270,4 +270,125 @@ defmodule CakeWeb.UserAuthTest do
       refute conn.status
     end
   end
+
+  # A halted LiveView socket, as the hooks leave it when they turn a visitor
+  # away: one that can carry a flash and a redirect.
+  defp live_socket do
+    %LiveView.Socket{endpoint: CakeWeb.Endpoint, assigns: %{__changed__: %{}, flash: %{}}}
+  end
+
+  defp session_for(conn, user) do
+    conn |> put_session(:user_token, Accounts.generate_user_session_token(user)) |> get_session()
+  end
+
+  describe "on_mount :ensure_admin" do
+    test "lets an admin through, with current_user assigned", %{conn: conn} do
+      admin = admin_fixture()
+
+      {:cont, updated_socket} =
+        UserAuth.on_mount(:ensure_admin, %{}, session_for(conn, admin), live_socket())
+
+      assert updated_socket.assigns.current_user.id == admin.id
+    end
+
+    test "sends a member to the home page with a not-authorized flash", %{conn: conn, user: user} do
+      {:halt, updated_socket} =
+        UserAuth.on_mount(:ensure_admin, %{}, session_for(conn, user), live_socket())
+
+      assert {:redirect, %{to: "/"}} = updated_socket.redirected
+
+      assert Phoenix.Flash.get(updated_socket.assigns.flash, :error) ==
+               "You are not authorized to access this page."
+    end
+
+    # The hook is safe on its own: it does not rely on `:ensure_authenticated`
+    # having run before it.
+    test "sends a visitor with no user_token to the log-in page", %{conn: conn} do
+      {:halt, updated_socket} =
+        UserAuth.on_mount(:ensure_admin, %{}, get_session(conn), live_socket())
+
+      assert updated_socket.assigns.current_user == nil
+      assert {:redirect, %{to: "/users/log_in"}} = updated_socket.redirected
+
+      assert Phoenix.Flash.get(updated_socket.assigns.flash, :error) ==
+               "You must log in to access this page."
+    end
+
+    test "sends a visitor with an invalid user_token to the log-in page", %{conn: conn} do
+      session = conn |> put_session(:user_token, "invalid_token") |> get_session()
+
+      {:halt, updated_socket} = UserAuth.on_mount(:ensure_admin, %{}, session, live_socket())
+
+      assert updated_socket.assigns.current_user == nil
+      assert {:redirect, %{to: "/users/log_in"}} = updated_socket.redirected
+    end
+
+    test "reads the role when it mounts: a demoted admin is turned away", %{conn: conn} do
+      admin = admin_fixture()
+      admin_fixture()
+      session = session_for(conn, admin)
+
+      assert {:cont, _socket} = UserAuth.on_mount(:ensure_admin, %{}, session, live_socket())
+
+      {:ok, _demoted} = Accounts.update_user_role(admin, :member)
+
+      assert {:halt, updated_socket} =
+               UserAuth.on_mount(:ensure_admin, %{}, session, live_socket())
+
+      assert {:redirect, %{to: "/"}} = updated_socket.redirected
+    end
+  end
+
+  describe "require_admin/2" do
+    test "does not redirect an admin", %{conn: conn} do
+      conn = conn |> assign(:current_user, admin_fixture()) |> UserAuth.require_admin([])
+
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "sends a member to the home page with a not-authorized flash", %{conn: conn, user: user} do
+      conn = conn |> fetch_flash() |> assign(:current_user, user) |> UserAuth.require_admin([])
+
+      assert conn.halted
+      assert redirected_to(conn) == ~p"/"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "You are not authorized to access this page."
+    end
+
+    # The plug is safe on its own: it does not rely on
+    # `require_authenticated_user/2` having run before it.
+    test "sends a visitor who is not logged in to the log-in page", %{conn: conn} do
+      conn = conn |> fetch_flash() |> UserAuth.require_admin([])
+
+      assert conn.halted
+      assert redirected_to(conn) == ~p"/users/log_in"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "You must log in to access this page."
+    end
+
+    test "stores the path a visitor who is not logged in asked for, on GET", %{conn: conn} do
+      halted_conn =
+        %{conn | path_info: ["admin"], query_string: ""}
+        |> fetch_flash()
+        |> UserAuth.require_admin([])
+
+      assert halted_conn.halted
+      assert get_session(halted_conn, :user_return_to) == "/admin"
+    end
+
+    # A member is not coming back to this page after logging in again.
+    test "does not store the path a member asked for", %{conn: conn, user: user} do
+      halted_conn =
+        %{conn | path_info: ["admin"], query_string: ""}
+        |> fetch_flash()
+        |> assign(:current_user, user)
+        |> UserAuth.require_admin([])
+
+      assert halted_conn.halted
+      refute get_session(halted_conn, :user_return_to)
+    end
+  end
 end

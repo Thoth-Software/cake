@@ -114,6 +114,23 @@ defmodule CakeWeb.UserRegistrationLiveTest do
       assert_no_email_sent()
     end
 
+    # The form has no role field; a hand-made request that adds one gets a member.
+    test "creates a member even when the request carries a role", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      username = unique_user_username()
+      password = valid_user_password()
+
+      lv
+      |> element("#registration_form")
+      |> render_submit(%{
+        "user" => %{"username" => username, "password" => password, "role" => "admin"}
+      })
+
+      user = Accounts.get_user_by_username_and_password(username, password)
+      assert user.role == :member
+    end
+
     test "renders errors for a duplicated username, whatever its letter case", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/register")
 
