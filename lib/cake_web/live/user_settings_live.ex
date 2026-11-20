@@ -6,7 +6,7 @@ defmodule CakeWeb.UserSettingsLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <.header class="text-center">
         Account Settings
         <:subtitle>Manage your account email address and password settings</:subtitle>
@@ -98,6 +98,7 @@ defmodule CakeWeb.UserSettingsLive do
 
     socket =
       socket
+      |> assign(:page_title, "Account settings")
       |> assign(:current_password, nil)
       |> assign(:email_form_current_password, nil)
       |> assign(:current_username, user.username)

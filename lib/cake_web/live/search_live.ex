@@ -17,6 +17,7 @@ defmodule CakeWeb.SearchLive do
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
+       page_title: "Search",
        results: [],
        loading: false,
        form: to_form(%{"query" => ""}),
@@ -107,49 +108,76 @@ defmodule CakeWeb.SearchLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
-      <div class="max-w-2xl mx-auto p-4">
-        <h1 class="text-2xl font-bold mb-4">Cake Search</h1>
+    <Layouts.app flash={@flash} current_user={@current_user} current_page={:search}>
+      <.header>Cake Search</.header>
 
-        <.simple_form for={@form} phx-submit="search">
+      <%!-- The box is a one-shot query: nothing is recovered into it after a
+      reconnect, as nothing was before, and it has no change event. --%>
+      <.form
+        for={@form}
+        id="search-form"
+        phx-submit="search"
+        phx-auto-recover="ignore"
+        class="flex items-start gap-2"
+      >
+        <div class="flex-1">
           <.input field={@form[:query]} type="text" placeholder="Search books..." />
-          <:actions>
-            <.button type="submit" disabled={@loading}>Search</.button>
-          </:actions>
-        </.simple_form>
-
-        <div :if={@loading} class="text-gray-500 italic mt-4">Searching...</div>
-
-        <div :if={@error} class="mt-4 p-3 bg-red-100 text-red-700 rounded">
-          {@error}
         </div>
+        <.button type="submit" variant="primary" disabled={@loading}>Search</.button>
+      </.form>
 
-        <div :if={@results != []} class="mt-6 space-y-6">
-          <div :for={result <- @results} class="border-t pt-4">
-            <a
-              href={"/books/download/#{result.source_file_path}"}
-              class="text-blue-600 hover:underline font-semibold"
-            >
-              {result.book_title}
-            </a>
-            <p class="text-gray-500 text-sm mt-0.5">
+      <div :if={@loading} id="search-loading" class="flex items-center gap-2 text-base-content/70">
+        <span class="loading loading-spinner loading-sm"></span> Searching...
+      </div>
+
+      <div :if={@error} id="search-error" role="alert" class="alert alert-error">
+        <.icon name="hero-exclamation-circle" class="size-5 shrink-0" />
+        <span>{@error}</span>
+      </div>
+
+      <div :if={@results != []} id="search-results" class="space-y-4">
+        <article
+          :for={{result, book_index} <- Enum.with_index(@results)}
+          class="card card-border bg-base-100"
+        >
+          <div class="card-body">
+            <h2 class="card-title">
+              <a
+                href={~p"/books/download/#{String.split(result.source_file_path, "/")}"}
+                class="link link-hover link-primary"
+              >
+                {result.book_title}
+              </a>
+            </h2>
+            <p class="text-sm text-base-content/70">
               {result.hit_count} relevant sections found
             </p>
-            <div class="mt-2 flex flex-wrap gap-1">
-              <div :for={page <- result.pages} class="relative group inline-block mr-2 mb-1">
-                <span class="text-blue-600 cursor-help text-sm">
-                  p. {page.page_number}
-                  <span :if={page.section_title} class="text-gray-500">
+            <div class="flex flex-wrap gap-2">
+              <%!-- The chip is focusable so the preview opens from the keyboard
+              too: daisyUI shows a tooltip on hover and when something inside
+              it has focus. --%>
+              <div :for={page <- result.pages} class="tooltip max-w-full">
+                <div
+                  id={"preview-#{book_index}-#{page.page_number}"}
+                  role="tooltip"
+                  class="tooltip-content max-w-xs text-left"
+                >
+                  {page.chunk_preview}
+                </div>
+                <span
+                  tabindex="0"
+                  aria-describedby={"preview-#{book_index}-#{page.page_number}"}
+                  class="badge badge-soft badge-primary h-auto min-h-6 cursor-help whitespace-normal py-0.5 text-left"
+                >
+                  <span class="whitespace-nowrap">p. {page.page_number}</span>
+                  <span :if={page.section_title} class="text-base-content/70">
                     — {page.section_title}
                   </span>
                 </span>
-                <div class="hidden group-hover:block absolute z-10 bottom-full left-0 mb-1 w-80 p-3 bg-gray-800 text-white text-xs rounded shadow-lg">
-                  {page.chunk_preview}
-                </div>
               </div>
             </div>
           </div>
-        </div>
+        </article>
       </div>
     </Layouts.app>
     """

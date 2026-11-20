@@ -4,13 +4,13 @@ defmodule CakeWeb.UserLoginLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <div class="mx-auto max-w-sm">
         <.header class="text-center">
           Log in to account
           <:subtitle>
             Don't have an account?
-            <.link navigate={~p"/users/register"} class="font-semibold text-brand hover:underline">
+            <.link navigate={~p"/users/register"} class="link link-hover link-primary font-semibold">
               Sign up
             </.link>
             for an account now.
@@ -43,6 +43,6 @@ defmodule CakeWeb.UserLoginLive do
   def mount(_params, _session, socket) do
     username = Phoenix.Flash.get(socket.assigns.flash, :username)
     form = to_form(%{"username" => username}, as: "user")
-    {:ok, assign(socket, form: form), temporary_assigns: [form: form]}
+    {:ok, assign(socket, page_title: "Log in", form: form), temporary_assigns: [form: form]}
   end
 end

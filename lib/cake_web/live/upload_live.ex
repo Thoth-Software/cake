@@ -39,6 +39,7 @@ defmodule CakeWeb.UploadLive do
        max_file_size: 100_000_000
      )
      |> assign(
+       page_title: "Upload",
        status: :idle,
        results: nil,
        error: nil,
@@ -312,7 +313,7 @@ defmodule CakeWeb.UploadLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user} current_page={:upload}>
       <div class="max-w-2xl mx-auto p-4">
         <h1 class="text-2xl font-bold mb-4">Upload Documents</h1>
 

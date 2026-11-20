@@ -7,13 +7,13 @@ defmodule CakeWeb.UserRegistrationLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <div class="mx-auto max-w-sm">
         <.header class="text-center">
           Register for an account
           <:subtitle>
             Already registered?
-            <.link navigate={~p"/users/log_in"} class="font-semibold text-brand hover:underline">
+            <.link navigate={~p"/users/log_in"} class="link link-hover link-primary font-semibold">
               Log in
             </.link>
             to your account now.
@@ -55,7 +55,7 @@ defmodule CakeWeb.UserRegistrationLive do
 
     socket =
       socket
-      |> assign(trigger_submit: false, check_errors: false)
+      |> assign(page_title: "Register", trigger_submit: false, check_errors: false)
       |> assign_form(changeset)
 
     {:ok, socket, temporary_assigns: [form: nil]}

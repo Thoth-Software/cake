@@ -6,7 +6,7 @@ defmodule CakeWeb.UserForgotPasswordLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <div class="mx-auto max-w-sm">
         <.header class="text-center">
           Forgot your password?
@@ -33,7 +33,7 @@ defmodule CakeWeb.UserForgotPasswordLive do
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, form: to_form(%{}, as: "user"))}
+    {:ok, assign(socket, page_title: "Reset password", form: to_form(%{}, as: "user"))}
   end
 
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::

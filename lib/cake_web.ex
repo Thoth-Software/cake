@@ -30,7 +30,7 @@ defmodule CakeWeb do
     exports: [Endpoint, Telemetry]
 
   @spec static_paths() :: [String.t()]
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
+  def static_paths, do: ~w(assets fonts images robots.txt)
 
   @spec router() :: Macro.t()
   def router do
