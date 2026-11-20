@@ -72,7 +72,10 @@ defmodule CakeWeb.ParsedBookLive.Index do
             href={~p"/books/download/#{String.split(parsed_book.source_file_path, "/")}"}
             class="link link-primary"
           >
-            Download
+            <%!-- On a phone the word gives way to an icon, to leave the title
+            room; the word stays for a screen reader. --%>
+            <.icon name="hero-arrow-down-tray" class="size-5 sm:hidden" />
+            <span class="sr-only sm:not-sr-only">Download</span>
           </.link>
         </:col>
       </.table>
