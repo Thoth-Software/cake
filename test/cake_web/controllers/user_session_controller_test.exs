@@ -17,10 +17,12 @@ defmodule CakeWeb.UserSessionControllerTest do
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/"
 
-      # Now do a logged in request and assert on the menu: it names the user
-      # by username, and the email is no longer shown.
-      logged_in_conn = get(conn, ~p"/")
-      response = html_response(logged_in_conn, 200)
+      # Now do logged in requests. The home page sends a signed-in user on
+      # to the chat (#375), whose menu names the user by username; the
+      # email is no longer shown.
+      assert conn |> get(~p"/") |> redirected_to() == ~p"/chat"
+
+      response = conn |> get(~p"/chat") |> html_response(200)
       assert response =~ user.username
       refute response =~ user.email
       assert response =~ ~p"/users/settings"
@@ -41,7 +43,7 @@ defmodule CakeWeb.UserSessionControllerTest do
         assert redirected_to(conn) == ~p"/"
 
         # The menu shows the username as it was registered, not as it was typed.
-        assert conn |> get(~p"/") |> html_response(200) =~ username
+        assert conn |> get(~p"/chat") |> html_response(200) =~ username
       end
     end
 
@@ -55,7 +57,7 @@ defmodule CakeWeb.UserSessionControllerTest do
 
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/"
-      assert conn |> get(~p"/") |> html_response(200) =~ user.username
+      assert conn |> get(~p"/chat") |> html_response(200) =~ user.username
     end
 
     test "logs the user in with remember me", %{conn: conn, user: user} do

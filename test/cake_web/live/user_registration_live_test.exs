@@ -79,13 +79,15 @@ defmodule CakeWeb.UserRegistrationLiveTest do
 
       assert redirected_to(conn) == ~p"/"
 
-      # Now do a logged in request and assert on the menu: it names the user
-      # by username, and the email is no longer shown.
-      logged_in_conn = get(conn, "/")
-      response = html_response(logged_in_conn, 200)
+      # Now do logged in requests. The home page sends a signed-in user on
+      # to the chat (#375), whose menu names the user by username; the
+      # email is no longer shown.
+      assert conn |> get("/") |> redirected_to() == ~p"/chat"
+
+      response = conn |> get(~p"/chat") |> html_response(200)
       assert response =~ username
       refute response =~ email
-      assert response =~ "Settings"
+      assert response =~ "Change password"
       assert response =~ "Log out"
 
       # A user who gave an email is still sent the confirmation instructions.
@@ -105,7 +107,7 @@ defmodule CakeWeb.UserRegistrationLiveTest do
       conn = follow_trigger_action(form, conn)
 
       assert redirected_to(conn) == ~p"/"
-      assert conn |> get("/") |> html_response(200) =~ username
+      assert conn |> get(~p"/chat") |> html_response(200) =~ username
 
       user = Accounts.get_user_by_username_and_password(username, password)
       assert is_nil(user.email)
