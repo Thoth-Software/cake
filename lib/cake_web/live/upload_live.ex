@@ -459,16 +459,11 @@ defmodule CakeWeb.UploadLive do
 
   defp rejected_archives(assigns) do
     ~H"""
-    <div
-      id="rejected-archives"
-      role="status"
-      class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded text-sm"
-    >
-      <p class="font-medium">These archives were not ingested:</p>
-      <ul class="list-disc ml-5">
-        <li :for={archive <- @archives}>{archive}</li>
+    <.notice id="rejected-archives" kind={:warning} title="These archives were not ingested:">
+      <ul class="ml-5 list-disc">
+        <li :for={archive <- @archives} class="wrap-anywhere">{archive}</li>
       </ul>
-    </div>
+    </.notice>
     """
   end
 
@@ -514,18 +509,12 @@ defmodule CakeWeb.UploadLive do
 
   defp error_panel(assigns) do
     ~H"""
-    <div class="space-y-4">
-      <div class="p-4 bg-red-100 text-red-700 rounded">
-        {@error}
-      </div>
-      <button
-        type="button"
-        phx-click="reset"
-        class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
-      >
-        Try Again
-      </button>
-    </div>
+    <.notice id="upload-error" kind={:error}>
+      <span class="wrap-anywhere">{@error}</span>
+    </.notice>
+    <button id="upload-retry" type="button" phx-click="reset" class="btn btn-outline">
+      Try again
+    </button>
     """
   end
 
