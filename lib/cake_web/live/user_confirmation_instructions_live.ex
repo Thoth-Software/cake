@@ -7,26 +7,32 @@ defmodule CakeWeb.UserConfirmationInstructionsLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <div class="mx-auto max-w-sm">
-        <.header class="text-center">
-          No confirmation instructions received?
-          <:subtitle>We'll send a new confirmation link to your inbox</:subtitle>
-        </.header>
+      <.header>
+        No confirmation instructions received?
+        <:subtitle>We'll send a new confirmation link to your inbox</:subtitle>
+      </.header>
 
-        <.simple_form for={@form} id="resend_confirmation_form" phx-submit="send_instructions">
-          <.input field={@form[:email]} type="email" placeholder="Email" required />
-          <:actions>
-            <.button phx-disable-with="Sending..." class="btn btn-primary w-full">
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <%!-- A one-field request: nothing worth recovering after a reconnect. --%>
+          <.form
+            for={@form}
+            id="resend_confirmation_form"
+            phx-submit="send_instructions"
+            phx-auto-recover="ignore"
+          >
+            <.input field={@form[:email]} type="email" label="Email" autocomplete="email" required />
+            <.button phx-disable-with="Sending..." class="btn btn-primary mt-2 w-full">
               Resend confirmation instructions
             </.button>
-          </:actions>
-        </.simple_form>
-
-        <p class="text-center mt-4">
-          <.link href={~p"/users/register"}>Register</.link>
-          | <.link href={~p"/users/log_in"}>Log in</.link>
-        </p>
+          </.form>
+        </div>
       </div>
+
+      <p class="text-center text-sm">
+        <.link href={~p"/users/register"} class="link link-hover">Register</.link>
+        | <.link href={~p"/users/log_in"} class="link link-hover">Log in</.link>
+      </p>
     </Layouts.app>
     """
   end

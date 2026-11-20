@@ -7,38 +7,45 @@ defmodule CakeWeb.UserResetPasswordLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <div class="mx-auto max-w-sm">
-        <.header class="text-center">Reset Password</.header>
+      <.header>Reset Password</.header>
 
-        <.simple_form
-          for={@form}
-          id="reset_password_form"
-          phx-submit="reset_password"
-          phx-change="validate"
-        >
-          <.error :if={@form.errors != []}>
-            Oops, something went wrong! Please check the errors below.
-          </.error>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <.form
+            for={@form}
+            id="reset_password_form"
+            phx-submit="reset_password"
+            phx-change="validate"
+          >
+            <.notice :if={@form.errors != []} id="reset-password-errors" kind={:error}>
+              Oops, something went wrong! Please check the errors below.
+            </.notice>
 
-          <.input field={@form[:password]} type="password" label="New password" required />
-          <.input
-            field={@form[:password_confirmation]}
-            type="password"
-            label="Confirm new password"
-            required
-          />
-          <:actions>
-            <.button phx-disable-with="Resetting..." class="btn btn-primary w-full">
+            <.input
+              field={@form[:password]}
+              type="password"
+              label="New password"
+              autocomplete="new-password"
+              required
+            />
+            <.input
+              field={@form[:password_confirmation]}
+              type="password"
+              label="Confirm new password"
+              autocomplete="new-password"
+              required
+            />
+            <.button phx-disable-with="Resetting..." class="btn btn-primary mt-2 w-full">
               Reset Password
             </.button>
-          </:actions>
-        </.simple_form>
-
-        <p class="text-center text-sm mt-4">
-          <.link href={~p"/users/register"}>Register</.link>
-          | <.link href={~p"/users/log_in"}>Log in</.link>
-        </p>
+          </.form>
+        </div>
       </div>
+
+      <p class="text-center text-sm">
+        <.link href={~p"/users/register"} class="link link-hover">Register</.link>
+        | <.link href={~p"/users/log_in"} class="link link-hover">Log in</.link>
+      </p>
     </Layouts.app>
     """
   end

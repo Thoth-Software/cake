@@ -8,41 +8,51 @@ defmodule CakeWeb.UserRegistrationLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <div class="mx-auto max-w-sm">
-        <.header class="text-center">
-          Register for an account
-          <:subtitle>
-            Already registered?
-            <.link navigate={~p"/users/log_in"} class="link link-hover link-primary font-semibold">
-              Log in
-            </.link>
-            to your account now.
-          </:subtitle>
-        </.header>
+      <.header>
+        Register for an account
+        <:subtitle>
+          Already registered?
+          <.link navigate={~p"/users/log_in"} class="link link-primary">Log in</.link>
+          to your account now.
+        </:subtitle>
+      </.header>
 
-        <.simple_form
-          for={@form}
-          id="registration_form"
-          phx-submit="save"
-          phx-change="validate"
-          phx-trigger-action={@trigger_submit}
-          action={~p"/users/log_in?_action=registered"}
-          method="post"
-        >
-          <.error :if={@check_errors}>
-            Oops, something went wrong! Please check the errors below.
-          </.error>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <.form
+            for={@form}
+            id="registration_form"
+            phx-submit="save"
+            phx-change="validate"
+            phx-trigger-action={@trigger_submit}
+            action={~p"/users/log_in?_action=registered"}
+            method="post"
+          >
+            <.notice :if={@check_errors} id="registration-errors" kind={:error}>
+              Oops, something went wrong! Please check the errors below.
+            </.notice>
 
-          <.input field={@form[:username]} type="text" label="Username" required />
-          <.input field={@form[:email]} type="email" label="Email (optional)" />
-          <.input field={@form[:password]} type="password" label="Password" required />
+            <.input
+              field={@form[:username]}
+              type="text"
+              label="Username"
+              autocomplete="username"
+              required
+            />
+            <.input field={@form[:email]} type="email" label="Email (optional)" autocomplete="email" />
+            <.input
+              field={@form[:password]}
+              type="password"
+              label="Password"
+              autocomplete="new-password"
+              required
+            />
 
-          <:actions>
-            <.button phx-disable-with="Creating account..." class="btn btn-primary w-full">
+            <.button phx-disable-with="Creating account..." class="btn btn-primary mt-2 w-full">
               Create an account
             </.button>
-          </:actions>
-        </.simple_form>
+          </.form>
+        </div>
       </div>
     </Layouts.app>
     """

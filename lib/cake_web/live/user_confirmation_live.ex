@@ -7,23 +7,32 @@ defmodule CakeWeb.UserConfirmationLive do
   def render(%{live_action: :edit} = assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <div class="mx-auto max-w-sm">
-        <.header class="text-center">Confirm Account</.header>
+      <.header>
+        Confirm Account
+        <:subtitle>Confirm the email address this link was sent to</:subtitle>
+      </.header>
 
-        <.simple_form for={@form} id="confirmation_form" phx-submit="confirm_account">
-          <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
-          <:actions>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <%!-- The form carries only the link's token: nothing to recover. --%>
+          <.form
+            for={@form}
+            id="confirmation_form"
+            phx-submit="confirm_account"
+            phx-auto-recover="ignore"
+          >
+            <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
             <.button phx-disable-with="Confirming..." class="btn btn-primary w-full">
               Confirm my account
             </.button>
-          </:actions>
-        </.simple_form>
-
-        <p class="text-center mt-4">
-          <.link href={~p"/users/register"}>Register</.link>
-          | <.link href={~p"/users/log_in"}>Log in</.link>
-        </p>
+          </.form>
+        </div>
       </div>
+
+      <p class="text-center text-sm">
+        <.link href={~p"/users/register"} class="link link-hover">Register</.link>
+        | <.link href={~p"/users/log_in"} class="link link-hover">Log in</.link>
+      </p>
     </Layouts.app>
     """
   end
