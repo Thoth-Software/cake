@@ -352,6 +352,13 @@ defmodule CakeWeb.CoreComponents do
         <:col :let={user} label="id">{user.id}</:col>
         <:col :let={user} label="username">{user.username}</:col>
       </.table>
+
+  A column's `class` goes on its heading and on each of its cells. It is how
+  a table of records fits a phone: a column that can be done without there
+  is hidden below a breakpoint (`class="hidden sm:table-cell"`), so the
+  table does not scroll sideways.
+
+      <:col :let={user} label="Created" class="hidden sm:table-cell">{user.inserted_at}</:col>
   """
   attr :id, :string, required: true
   attr :rows, :list, required: true
@@ -364,6 +371,7 @@ defmodule CakeWeb.CoreComponents do
 
   slot :col, required: true do
     attr :label, :string
+    attr :class, :string, doc: "classes for the column's heading and cells"
   end
 
   slot :action, doc: "the slot for showing user actions in the last table column"
@@ -379,7 +387,7 @@ defmodule CakeWeb.CoreComponents do
     <table class="table table-zebra">
       <thead>
         <tr>
-          <th :for={col <- @col}>{col[:label]}</th>
+          <th :for={col <- @col} class={col[:class]}>{col[:label]}</th>
           <th :if={@action != []}>
             <span class="sr-only">{gettext("Actions")}</span>
           </th>
@@ -390,7 +398,7 @@ defmodule CakeWeb.CoreComponents do
           <td
             :for={col <- @col}
             phx-click={@row_click && @row_click.(row)}
-            class={@row_click && "hover:cursor-pointer"}
+            class={[col[:class], @row_click && "hover:cursor-pointer"]}
           >
             {render_slot(col, @row_item.(row))}
           </td>

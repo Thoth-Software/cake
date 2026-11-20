@@ -4,6 +4,11 @@ defmodule CakeWeb.Admin.UserLive.Index do
   role and created date, with the way to a login's own page, to its form,
   to a new one, and the button that deletes it.
 
+  On a phone the table keeps the username, the role and Delete, and drops
+  the rest (the created date, the email, the Edit shortcut) so that it does
+  not scroll sideways: the username leads to the login's own page, which has
+  them.
+
   Deleting goes through `Cake.Accounts.delete_user/1`, so the last admin
   cannot be deleted, and an admin cannot delete their own login: their row
   has no button, and a request for it is refused. A refusal is shown as a
@@ -35,45 +40,43 @@ defmodule CakeWeb.Admin.UserLive.Index do
 
       <.notice :if={@refusal} id="users-refusal" kind={:error}>{@refusal}</.notice>
 
-      <div class="overflow-x-auto">
-        <.table id="users" rows={@streams.users}>
-          <:col :let={{_id, user}} label="Username">
-            <.link navigate={~p"/admin/users/#{user}"} class="link link-hover wrap-anywhere">
-              {user.username}
-            </.link>
-          </:col>
-          <:col :let={{_id, user}} :if={@show_email?} label="Email">
-            <span class="wrap-anywhere">{user.email}</span>
-          </:col>
-          <:col :let={{_id, user}} label="Role">
-            <span class={["badge badge-soft", role_badge(user.role)]}>{user.role}</span>
-          </:col>
-          <:col :let={{_id, user}} label="Created">
-            <span class="whitespace-nowrap">{created_on(user)}</span>
-          </:col>
-          <:action :let={{_id, user}}>
-            <.link
-              id={"edit-#{user.id}"}
-              navigate={~p"/admin/users/#{user}/edit"}
-              class="btn btn-ghost btn-sm"
-            >
-              Edit
-            </.link>
-          </:action>
-          <:action :let={{_id, user}}>
-            <button
-              :if={user.id != @current_user.id}
-              id={"delete-#{user.id}"}
-              type="button"
-              class="btn btn-error btn-sm"
-              phx-click={JS.push("delete", value: %{id: user.id})}
-              data-confirm={"Delete the login #{user.username}? This cannot be undone."}
-            >
-              Delete
-            </button>
-          </:action>
-        </.table>
-      </div>
+      <.table id="users" rows={@streams.users}>
+        <:col :let={{_id, user}} label="Username">
+          <.link navigate={~p"/admin/users/#{user}"} class="link link-hover wrap-anywhere">
+            {user.username}
+          </.link>
+        </:col>
+        <:col :let={{_id, user}} :if={@show_email?} label="Email" class="hidden lg:table-cell">
+          <span class="wrap-anywhere">{user.email}</span>
+        </:col>
+        <:col :let={{_id, user}} label="Role">
+          <span class={["badge badge-soft", role_badge(user.role)]}>{user.role}</span>
+        </:col>
+        <:col :let={{_id, user}} label="Created" class="hidden sm:table-cell">
+          <span class="whitespace-nowrap">{created_on(user)}</span>
+        </:col>
+        <:action :let={{_id, user}}>
+          <.link
+            id={"edit-#{user.id}"}
+            navigate={~p"/admin/users/#{user}/edit"}
+            class="btn btn-ghost btn-sm hidden sm:inline-flex"
+          >
+            Edit
+          </.link>
+        </:action>
+        <:action :let={{_id, user}}>
+          <button
+            :if={user.id != @current_user.id}
+            id={"delete-#{user.id}"}
+            type="button"
+            class="btn btn-error btn-sm"
+            phx-click={JS.push("delete", value: %{id: user.id})}
+            data-confirm={"Delete the login #{user.username}? This cannot be undone."}
+          >
+            Delete
+          </button>
+        </:action>
+      </.table>
     </Layouts.app>
     """
   end

@@ -17,18 +17,7 @@ defmodule CakeWeb.Admin.UserLive.Show do
     <Layouts.app flash={@flash} current_user={@current_user}>
       <.header>
         <span class="wrap-anywhere">{@user.username}</span>
-        <:subtitle>A login.</:subtitle>
         <:actions>
-          <.link id="back-to-logins" navigate={~p"/admin/users"} class="btn btn-ghost">
-            <.icon name="hero-arrow-left" class="size-5" /> Logins
-          </.link>
-          <.link
-            id="set-password"
-            navigate={~p"/admin/users/#{@user}/password"}
-            class="btn btn-outline"
-          >
-            Set password
-          </.link>
           <.button
             id="edit-login"
             variant="primary"
@@ -48,6 +37,15 @@ defmodule CakeWeb.Admin.UserLive.Show do
             <span class="wrap-anywhere">{@user.email}</span>
           </:item>
         </.list>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <.link id="set-password" navigate={~p"/admin/users/#{@user}/password"} class="btn btn-outline">
+          Set password
+        </.link>
+        <.link id="back-to-logins" navigate={~p"/admin/users"} class="btn btn-ghost">
+          <.icon name="hero-arrow-left" class="size-5" /> All logins
+        </.link>
       </div>
     </Layouts.app>
     """

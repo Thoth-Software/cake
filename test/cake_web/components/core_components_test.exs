@@ -1,7 +1,8 @@
 defmodule CakeWeb.CoreComponentsTest do
   @moduledoc """
   The three state components every screen shares (#392): `empty_state/1`,
-  `working/1` and `notice/1`.
+  `working/1` and `notice/1`; and what Cake adds to the kit's `table/1`
+  (#376).
 
   Each is rendered on its own, with no request and no database. Every value
   of an attribute is enumerated, so nothing is left for a property to sample.
@@ -28,6 +29,36 @@ defmodule CakeWeb.CoreComponentsTest do
 
   defp classes(node) do
     node |> Floki.attribute("class") |> Enum.flat_map(&String.split/1)
+  end
+
+  # The kit's table, with the one thing Cake adds to it (#376): a column can
+  # carry a class, so a table of records can drop a column on a narrow
+  # screen instead of scrolling sideways.
+  describe "table/1" do
+    test "puts a column's class on its heading and on each of its cells, and leaves the other columns bare" do
+      assigns = %{
+        rows: [%{id: "a", name: "Abe", joined: "2026"}, %{id: "b", name: "Bea", joined: "2025"}]
+      }
+
+      html =
+        parse(~H"""
+        <CoreComponents.table id="people" rows={@rows} row_id={&"person-#{&1.id}"}>
+          <:col :let={row} label="Name">{row.name}</:col>
+          <:col :let={row} label="Joined" class="hidden sm:table-cell">{row.joined}</:col>
+        </CoreComponents.table>
+        """)
+
+      assert [name_heading, joined_heading] = Floki.find(html, "thead th")
+      assert classes([name_heading]) == []
+      assert classes([joined_heading]) == ["hidden", "sm:table-cell"]
+
+      for id <- ["person-a", "person-b"] do
+        assert [name, joined] = Floki.find(html, "##{id} td")
+        refute "hidden" in classes([name])
+        assert "hidden" in classes([joined])
+        assert "sm:table-cell" in classes([joined])
+      end
+    end
   end
 
   describe "empty_state/1" do
