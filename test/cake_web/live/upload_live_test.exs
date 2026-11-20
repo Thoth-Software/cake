@@ -308,7 +308,10 @@ defmodule CakeWeb.UploadLiveTest do
 
       processing_html = view |> element("#upload-form") |> render_submit()
 
-      assert has_element?(view, "#upload-working")
+      # The submit's own render, as above: the task may already be done.
+      assert [_working] =
+               processing_html |> Floki.parse_document!() |> Floki.find("#upload-working")
+
       assert has_element?(view, ~s(#rejected-archives.alert-warning[role="alert"]), "bomb.zip")
       assert processing_html =~ "These archives were not ingested:"
       assert processing_html =~ "bomb.zip"
@@ -354,11 +357,14 @@ defmodule CakeWeb.UploadLiveTest do
 
     test "says that it shows no progress, and to keep the tab open", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/upload")
-      submit_one_pdf(view)
+      # What the submit itself rendered: the ingest task ends at once here,
+      # so a later render may already show the result.
+      working = view |> submit_one_pdf() |> Floki.parse_document!()
 
-      assert has_element?(view, ~s(#upload-working[role="status"]))
-      assert has_element?(view, "#upload-working #upload-keep-open", "Keep this tab open")
-      refute has_element?(view, "#upload-form")
+      assert [_status] = Floki.find(working, ~s(#upload-working[role="status"]))
+      assert [keep_open] = Floki.find(working, "#upload-working #upload-keep-open")
+      assert Floki.text(keep_open) =~ "Keep this tab open"
+      assert Floki.find(working, "#upload-form") == []
 
       {_html, _log} = with_log(fn -> render_async(view) end)
 
