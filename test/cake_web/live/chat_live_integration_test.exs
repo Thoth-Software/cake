@@ -95,6 +95,21 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
       assert html =~ "[2] " <> rendered_label(warranty)
       assert html =~ "/books/download/" <> corpus.book.source_file_path
       assert html =~ Citable.metadata(pump).preview
+
+      # The same, as the page lays it out: the question is #msg-0 and the
+      # answer #msg-1, whose sources are chips numbered as its markers are,
+      # each with its preview and the link to its download.
+      assert has_element?(view, "#msg-0.chat-end", @question)
+      assert has_element?(view, "#msg-1.chat-start", "[1], warranted five years [2].")
+      assert has_element?(view, "#msg-1-source-1", "[1] " <> rendered_label(pump))
+      assert has_element?(view, "#msg-1-source-2", "[2] " <> rendered_label(warranty))
+      assert has_element?(view, "#msg-1-preview-1[role=tooltip]", Citable.metadata(pump).preview)
+
+      assert has_element?(
+               view,
+               ~s(#msg-1-source-1 a[href="/books/download/#{corpus.book.source_file_path}"])
+             )
+
       refute has_element?(view, "#chat-retrieving")
       refute has_element?(view, "#chat-generating")
       assert html =~ "Ask a question..."
@@ -123,8 +138,10 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
       assert html =~ corpus.book.title
       assert html =~ "3 chunks"
       assert html =~ "PDF pages 1-3"
+      assert has_element?(view, "#candidate-0.card .card-title", corpus.book.title)
+      refute has_element?(view, "#candidate-1")
 
-      view |> element("button[phx-click=use_all]") |> render_click()
+      view |> element("#use-all") |> render_click()
 
       assert_receive {:response_ready, %{citations: [citation]}}
       assert_receive {:state_change, :idle}
@@ -134,6 +151,8 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
       assert answered =~ "The P-100 [1]."
       assert answered =~ "[1] " <> rendered_label(pump)
       refute answered =~ "Select documents to use"
+      refute has_element?(view, "#selection-panel")
+      assert has_element?(view, "#question-form")
     end
   end
 end
