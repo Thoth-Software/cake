@@ -166,6 +166,7 @@ defmodule CakeWeb.Layouts do
   defp member_links do
     [
       {:chat, "Chat", ~p"/chat"},
+      {:documents, "Documents", ~p"/documents"},
       {:upload, "Upload", ~p"/upload"},
       {:search, "Search", ~p"/search"}
     ]
