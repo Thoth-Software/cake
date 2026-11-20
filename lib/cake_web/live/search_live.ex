@@ -108,7 +108,7 @@ defmodule CakeWeb.SearchLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_user={@current_user}>
+    <Layouts.app flash={@flash} current_user={@current_user} current_page={:search}>
       <.header>Cake Search</.header>
 
       <%!-- The box is a one-shot query: nothing is recovered into it after a

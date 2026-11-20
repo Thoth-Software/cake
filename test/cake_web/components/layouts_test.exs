@@ -26,10 +26,16 @@ defmodule CakeWeb.LayoutsTest do
   @member_links ["/chat", "/upload", "/search"]
   @admin_links ["/chat", "/upload", "/search", "/admin"]
 
-  # The shell around an empty page, for a user or for `nil`, a visitor.
-  defp app_layout(current_user) do
+  # The shell around an empty page, for a user or for `nil`, a visitor, and
+  # for the page the shell is told it is on, if any.
+  defp app_layout(current_user, current_page \\ nil) do
     (&Layouts.app/1)
-    |> render_component(flash: %{}, current_user: current_user, inner_block: [])
+    |> render_component(
+      flash: %{},
+      current_user: current_user,
+      current_page: current_page,
+      inner_block: []
+    )
     |> Floki.parse_fragment!()
   end
 
@@ -90,6 +96,50 @@ defmodule CakeWeb.LayoutsTest do
     end
   end
 
+  # A link to the page you are on would remount it and throw away what it
+  # holds: on the chat, the conversation.
+  describe "app/1, told which page it is on" do
+    test "shows that page's entry as the current page, not as a link, in both menus" do
+      for {page, label, path} <- [
+            {:chat, "Chat", "/chat"},
+            {:upload, "Upload", "/upload"},
+            {:search, "Search", "/search"},
+            {:admin, "Admin", "/admin"}
+          ],
+          nav <- ["#main-nav", "#mobile-nav"] do
+        html = app_layout(admin(), page)
+
+        assert links(html, nav) == @admin_links -- [path]
+        assert [current] = Floki.find(html, ~s|#{nav} [aria-current="page"]|)
+        assert current |> Floki.text() |> String.trim() == label
+        assert attribute(current, "href") == nil
+      end
+    end
+
+    test "keeps the entries in the same order" do
+      html = app_layout(admin(), :upload)
+
+      assert html |> Floki.find("#main-nav li") |> Enum.map(&String.trim(Floki.text(&1))) ==
+               ["Chat", "Upload", "Search", "Admin"]
+    end
+
+    test "marks no entry when the page is not one of the shell's" do
+      html = app_layout(admin())
+
+      assert links(html, "#main-nav") == @admin_links
+      assert Floki.find(html, ~s|header [aria-current="page"]|) == []
+    end
+
+    test "makes the product name inert on the chat, where it would otherwise link" do
+      [on_chat] = Floki.find(app_layout(member(), :chat), "#brand")
+      [elsewhere] = Floki.find(app_layout(member(), :search), "#brand")
+
+      assert attribute(on_chat, "href") == nil
+      assert on_chat |> Floki.text() |> String.trim() == "Cake"
+      assert attribute(elsewhere, "href") == "/chat"
+    end
+  end
+
   describe "app/1, for anyone" do
     test "names the product; the name links home for a visitor and to the chat for a user" do
       for {current_user, href} <- [{nil, "/"}, {member(), "/chat"}, {admin(), "/chat"}] do
@@ -108,11 +158,13 @@ defmodule CakeWeb.LayoutsTest do
       assert html |> Floki.find("header nav") |> Floki.attribute("aria-label") == ["Main", "Main"]
     end
 
-    test "both menu buttons say they open a menu" do
+    # What opens is a list of links, not a menu of commands, so neither
+    # button may promise a screen reader a menu.
+    test "neither menu button claims to open an ARIA menu" do
       triggers = Floki.find(app_layout(member()), ~s|header [role="button"]|)
 
       assert length(triggers) == 2
-      assert Enum.all?(triggers, &(attribute(&1, "aria-haspopup") == "menu"))
+      assert Enum.all?(triggers, &(attribute(&1, "aria-haspopup") == nil))
     end
 
     test "each theme button names the theme it selects" do
@@ -149,6 +201,16 @@ defmodule CakeWeb.LayoutsTest do
 
       assert flash_text(html, "#flash-info") == "Success! Password updated"
       assert flash_text(html, "#flash-error") == "Error! Invalid token"
+    end
+
+    # At the top the flash covered the account menu and the menu that opens
+    # under it.
+    test "a flash is placed in the bottom corner, clear of the top bar" do
+      html = flash_group(%{"info" => "Password updated"})
+
+      assert [classes] = Floki.attribute(html, "#flash-info", "class")
+      assert "toast-bottom" in String.split(classes)
+      refute "toast-top" in String.split(classes)
     end
 
     test "a flash that is not set is not rendered" do

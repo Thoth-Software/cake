@@ -178,7 +178,7 @@ Every page is rendered inside one shell, `CakeWeb.Layouts.app/1`: a top bar, the
 | A member | Chat, Upload, Search | a menu under the username: Change password (the settings page), Log out |
 | An admin | Chat, Upload, Search, Admin | the same menu |
 
-The links come from the user's role as it was when the page was loaded, and they are only links: the routes are guarded by `CakeWeb.UserAuth` whatever the bar shows. Below the `lg` breakpoint the page links collapse into a menu button and the username into an icon, so the bar fits a phone; the links are rendered twice, in `#main-nav` and `#mobile-nav`.
+The links come from the user's role as it was when the page was loaded, and they are only links: the routes are guarded by `CakeWeb.UserAuth` whatever the bar shows. A page the bar links to tells the shell which one it is (`current_page`), and its own entry is shown as the current page and is not a link: a link to the page being shown would remount it and discard what it holds, on the chat the whole conversation. For the same reason the product name is not a link on the chat. Below the `lg` breakpoint the page links collapse into a menu button and the username into an icon, so the bar fits a phone; the links are rendered twice, in `#main-nav` and `#mobile-nav`.
 
 **`CakeWeb.PageController`** serves the home page at `/`. A visitor gets the product name, one sentence about it and a log-in button, inside the shell. A signed-in user is redirected to `/chat`, with any flash carried along; log-in itself still lands on `/`, so this is where a user arrives after logging in.
 
@@ -470,6 +470,8 @@ The domain-level `:cake` application-env keys that `lib/` reads, grouped by cons
 ## Roadmap: Planned and Deferred
 
 **Shipped since first draft:** query decomposition in its own `Cake.Decomposition` boundary (not inside `Prompt` as originally sketched): flat concurrent fan-out end-to-end, plus the `Conversation`-side machinery for the other three tiers — sequential least-to-most, the self-ask loop and the IRCoT loop. The shipped LLM strategy emits atomic-or-flat decompositions only, so `:sequential` awaits a strategy that emits dependency edges, and `:self_ask`/`:ircot` await one that marks them (`Result.new/2` never derives either). See "Query Decomposition" under Layer 3. Conversation layer decomposition: `Prompt` and `Generation` are their own boundaries, and `Responses` is collapsed to post-processing only (it makes no HTTP calls).
+
+**Needed before the demo:** an icon for Cake. The Phoenix favicon and logo were removed with the rest of the Phoenix branding (#375) and nothing replaces them yet: the root layout declares an empty icon (`<link rel="icon" href="data:,">`), so a browser tab shows none. When there is one, put it in `priv/static/`, add it to `CakeWeb.static_paths/0`, and point that `<link>` at it.
 
 **Post-demo planned:** test coverage expansion, Word/Excel/CSV/JPG pipelines.
 

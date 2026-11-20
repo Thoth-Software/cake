@@ -28,6 +28,14 @@ defmodule CakeWeb.Layouts do
         <h1>Content</h1>
       </Layouts.app>
 
+  A page the top bar links to also says which one it is:
+
+      <Layouts.app flash={@flash} current_user={@current_user} current_page={:chat}>
+
+  Its own entry is then shown as the current page and is not a link. A link
+  to the page being shown would remount it and discard what it holds: on the
+  chat, the conversation. For the same reason the product name, which links
+  a signed-in user to the chat, is not a link on the chat.
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
 
@@ -35,23 +43,25 @@ defmodule CakeWeb.Layouts do
     required: true,
     doc: "the signed-in `Cake.Accounts.User`, or `nil` for a visitor"
 
+  attr :current_page, :atom,
+    default: nil,
+    values: [nil, :chat, :upload, :search, :admin],
+    doc: "which of the top bar's pages this is, or `nil` for any other page"
+
   slot :inner_block, required: true
 
   @spec app(map()) :: Phoenix.LiveView.Rendered.t()
   def app(assigns) do
-    assigns = assign(assigns, :nav_links, nav_links(assigns.current_user))
+    assigns =
+      assigns
+      |> assign(:nav_links, nav_links(assigns.current_user))
+      |> assign(:brand_path, brand_path(assigns.current_user, assigns.current_page))
 
     ~H"""
     <header class="navbar border-b border-base-300 bg-base-100 px-2 sm:px-6 lg:px-8">
       <div class="flex flex-none items-center">
         <nav :if={@nav_links != []} aria-label="Main" class="dropdown lg:hidden">
-          <div
-            tabindex="0"
-            role="button"
-            aria-haspopup="menu"
-            aria-label="Menu"
-            class="btn btn-ghost btn-square"
-          >
+          <div tabindex="0" role="button" aria-label="Menu" class="btn btn-ghost btn-square">
             <.icon name="hero-bars-3" class="size-5" />
           </div>
           <ul
@@ -59,24 +69,21 @@ defmodule CakeWeb.Layouts do
             tabindex="-1"
             class="menu dropdown-content z-20 mt-2 w-52 rounded-box bg-base-100 p-2 shadow"
           >
-            <li :for={{label, path} <- @nav_links}>
-              <.link navigate={path}>{label}</.link>
+            <li :for={{page, label, path} <- @nav_links}>
+              <.nav_entry current={page == @current_page} label={label} path={path} />
             </li>
           </ul>
         </nav>
-        <a
-          id="brand"
-          href={if @current_user, do: ~p"/chat", else: ~p"/"}
-          class="btn btn-ghost px-2 text-xl"
-        >
+        <a :if={@brand_path} id="brand" href={@brand_path} class="btn btn-ghost px-2 text-xl">
           Cake
         </a>
+        <span :if={!@brand_path} id="brand" class="px-2 text-xl font-semibold">Cake</span>
       </div>
 
       <nav id="main-nav" aria-label="Main" class="hidden flex-1 justify-center lg:flex">
         <ul class="menu menu-horizontal gap-1 px-1">
-          <li :for={{label, path} <- @nav_links}>
-            <.link navigate={path}>{label}</.link>
+          <li :for={{page, label, path} <- @nav_links}>
+            <.nav_entry current={page == @current_page} label={label} path={path} />
           </li>
         </ul>
       </nav>
@@ -84,7 +91,7 @@ defmodule CakeWeb.Layouts do
       <div class="ml-auto flex flex-none items-center gap-2">
         <.theme_toggle />
         <div :if={@current_user} id="user-menu" class="dropdown dropdown-end">
-          <div tabindex="0" role="button" aria-haspopup="menu" class="btn btn-ghost px-2">
+          <div tabindex="0" role="button" class="btn btn-ghost px-2">
             <.icon name="hero-user-circle" class="size-6 sm:hidden" />
             <span id="user-menu-username" class="sr-only sm:not-sr-only sm:max-w-[12rem] sm:truncate">
               {@current_user.username}
@@ -117,19 +124,43 @@ defmodule CakeWeb.Layouts do
     """
   end
 
-  # The pages the top bar links to, as `{label, path}`, for the user given:
-  # none for a visitor, and the admin area for an admin only.
-  @spec nav_links(User.t() | nil) :: [{String.t(), String.t()}]
+  # One entry of the top bar: a link, or, for the page being shown, its name
+  # marked as the current page.
+  attr :current, :boolean, required: true
+  attr :label, :string, required: true
+  attr :path, :string, required: true
+
+  defp nav_entry(assigns) do
+    ~H"""
+    <span :if={@current} class="menu-active" aria-current="page">{@label}</span>
+    <.link :if={!@current} navigate={@path}>{@label}</.link>
+    """
+  end
+
+  # The pages the top bar links to, as `{page, label, path}`, for the user
+  # given: none for a visitor, and the admin area for an admin only.
+  @spec nav_links(User.t() | nil) :: [{atom(), String.t(), String.t()}]
   defp nav_links(nil), do: []
 
   defp nav_links(%User{role: :admin}), do: member_links() ++ admin_links()
   defp nav_links(%User{}), do: member_links()
 
   defp member_links do
-    [{"Chat", ~p"/chat"}, {"Upload", ~p"/upload"}, {"Search", ~p"/search"}]
+    [
+      {:chat, "Chat", ~p"/chat"},
+      {:upload, "Upload", ~p"/upload"},
+      {:search, "Search", ~p"/search"}
+    ]
   end
 
-  defp admin_links, do: [{"Admin", ~p"/admin"}]
+  defp admin_links, do: [{:admin, "Admin", ~p"/admin"}]
+
+  # Where the product name links: home for a visitor, the chat for a
+  # signed-in user, and nowhere on the chat itself.
+  @spec brand_path(User.t() | nil, atom()) :: String.t() | nil
+  defp brand_path(nil, _current_page), do: ~p"/"
+  defp brand_path(%User{}, :chat), do: nil
+  defp brand_path(%User{}, _current_page), do: ~p"/chat"
 
   @doc """
   Shows the flash group with standard titles and content.

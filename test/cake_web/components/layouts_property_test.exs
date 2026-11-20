@@ -23,9 +23,14 @@ defmodule CakeWeb.LayoutsPropertyTest do
     string([?a..?z, ?A..?Z, ?0..?9, ?_, ?., ?-], min_length: 3, max_length: 32)
   end
 
-  defp app_layout(current_user) do
+  defp app_layout(current_user, current_page \\ nil) do
     (&Layouts.app/1)
-    |> render_component(flash: %{}, current_user: current_user, inner_block: [])
+    |> render_component(
+      flash: %{},
+      current_user: current_user,
+      current_page: current_page,
+      inner_block: []
+    )
     |> Floki.parse_fragment!()
   end
 
@@ -56,6 +61,25 @@ defmodule CakeWeb.LayoutsPropertyTest do
 
       assert html |> Floki.find("#user-menu-username") |> Floki.text() |> String.trim() ==
                username
+    end
+  end
+
+  property "on any of its pages the shell links to every other page and not to that one" do
+    pages = %{chat: "/chat", upload: "/upload", search: "/search", admin: "/admin"}
+
+    check all(
+            username <- username(),
+            role <- member_of([:member, :admin]),
+            page <-
+              member_of(if(role == :admin, do: Map.keys(pages), else: [:chat, :upload, :search]))
+          ) do
+      html = app_layout(%User{username: username, role: role}, page)
+      all_links = if role == :admin, do: @admin_links, else: @member_links
+
+      for nav <- ["#main-nav", "#mobile-nav"] do
+        assert links(html, nav) == all_links -- [pages[page]]
+        assert length(Floki.find(html, ~s|#{nav} [aria-current="page"]|)) == 1
+      end
     end
   end
 end

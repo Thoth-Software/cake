@@ -172,7 +172,7 @@ defmodule CakeWeb.ChatLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_user={@current_user}>
+    <Layouts.app flash={@flash} current_user={@current_user} current_page={:chat}>
       <div class="max-w-2xl mx-auto p-4">
         <h1 class="text-2xl font-bold mb-4">Cake Chat</h1>
         <.message_list messages={@messages} />
