@@ -45,7 +45,8 @@ defmodule Cake.BooksPropertyTest do
           |> Enum.sort_by(& &1.id)
           |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
 
-        assert Books.list_parsed_books_newest_first() == expected
+        assert Enum.map(Books.list_parsed_books_newest_first(), & &1.id) ==
+                 Enum.map(expected, & &1.id)
       end
     end
   end

@@ -34,17 +34,23 @@ defmodule CakeWeb.TitlesTest do
       assert Titles.display("  Plan  ") == "Plan"
     end
 
-    test "calls a missing title Untitled, and leaves an emptied one empty" do
+    # A title with nothing left to show would be a link nobody can click and
+    # a heading nobody can read.
+    test "calls a missing title Untitled, and one with nothing left in it too" do
       assert Titles.display(nil) == "Untitled"
-      assert Titles.display("\u0001") == ""
+      assert Titles.display("") == "Untitled"
+      assert Titles.display("   ") == "Untitled"
+      assert Titles.display("\u0001\uFFFD") == "Untitled"
+      assert Titles.display("Microsoft Word - ") == "Untitled"
     end
 
-    property "never shows a control or replacement character, nor space at either end" do
+    property "never shows a control or replacement character, nor space at either end, and is never empty" do
       check all(title <- string(:printable), junk <- string([0..0x1F, 0xFFFD])) do
         shown = Titles.display(junk <> title <> junk)
 
         refute shown =~ ~r/[\x{fffd}\x{0}-\x{1f}]/u
         assert shown == String.trim(shown)
+        assert shown != ""
       end
     end
   end

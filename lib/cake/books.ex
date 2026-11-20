@@ -28,9 +28,19 @@ defmodule Cake.Books do
     Repo.all(ParsedBook)
   end
 
+  # The fields the documents list shows.
+  @listed_fields [:id, :title, :total_pages, :embedding_status, :inserted_at, :source_file_path]
+
   @doc """
   Returns every parsed_book, newest upload first: by `inserted_at`
   descending.
+
+  This is the read behind the documents list, and it loads only the fields
+  that list shows: `id`, `title`, `total_pages`, `embedding_status`,
+  `inserted_at` and `source_file_path`. Every other field of the returned
+  structs is `nil`, whatever the row holds: the `metadata` and
+  `table_of_contents` maps can be large, and the list is read whole. Use
+  `get_parsed_book!/1` for a complete book.
 
   `inserted_at` is stored to the second, and the books of one batch upload
   land within one, so books that share a time are ordered by `id`: the
@@ -44,7 +54,11 @@ defmodule Cake.Books do
   """
   @spec list_parsed_books_newest_first() :: [ParsedBook.t()]
   def list_parsed_books_newest_first do
-    Repo.all(from b in ParsedBook, order_by: [desc: b.inserted_at, asc: b.id])
+    Repo.all(
+      from b in ParsedBook,
+        select: struct(b, ^@listed_fields),
+        order_by: [desc: b.inserted_at, asc: b.id]
+    )
   end
 
   @doc """

@@ -40,12 +40,31 @@ defmodule Cake.BooksTest do
       |> Cake.Repo.update!()
     end
 
+    defp ids(books), do: Enum.map(books, & &1.id)
+
     test "list_parsed_books_newest_first/0 returns the books by upload time, newest first" do
       oldest = book_uploaded_at(~U[2026-01-01 09:00:00Z])
       newest = book_uploaded_at(~U[2026-03-01 09:00:00Z])
       middle = book_uploaded_at(~U[2026-02-01 09:00:00Z])
 
-      assert Books.list_parsed_books_newest_first() == [newest, middle, oldest]
+      assert ids(Books.list_parsed_books_newest_first()) == ids([newest, middle, oldest])
+    end
+
+    # The documents list shows six fields of a book. The rest, the `metadata`
+    # and `table_of_contents` maps among them, can be large and are not read.
+    test "list_parsed_books_newest_first/0 loads the fields the documents list shows, and no others" do
+      book =
+        parsed_book_fixture(%{metadata: %{"big" => "map"}, table_of_contents: %{"1" => "Intro"}})
+
+      assert [listed] = Books.list_parsed_books_newest_first()
+
+      for field <- [:id, :title, :total_pages, :embedding_status, :inserted_at, :source_file_path] do
+        assert Map.fetch!(listed, field) == Map.fetch!(book, field), "#{field}"
+      end
+
+      assert listed.metadata == nil
+      assert listed.table_of_contents == nil
+      assert listed.word_count == nil
     end
 
     # `inserted_at` is stored to the second and a batch upload lands within
@@ -53,7 +72,7 @@ defmodule Cake.BooksTest do
     test "list_parsed_books_newest_first/0 orders books uploaded in the same second by id" do
       books = for _ <- 1..4, do: book_uploaded_at(~U[2026-01-01 09:00:00Z])
 
-      assert Books.list_parsed_books_newest_first() == Enum.sort_by(books, & &1.id)
+      assert ids(Books.list_parsed_books_newest_first()) == Enum.sort(ids(books))
     end
 
     test "list_parsed_books_newest_first/0 returns an empty list when there are no books" do

@@ -22,7 +22,7 @@ defmodule CakeWeb.ParsedBookLive.Show do
         <span class="wrap-anywhere">{@title}</span>
         <:subtitle>
           <.link id="document-back" navigate={~p"/documents"} class="link link-hover">
-            <.icon name="hero-arrow-left" class="size-4" /> Documents
+            <.icon name="hero-arrow-left" class="size-5" /> Documents
           </.link>
         </:subtitle>
         <:actions>

@@ -9,13 +9,17 @@ defmodule CakeWeb.Titles do
   the parser got wrong is shown wrong (#86).
   """
 
+  # What a document is called when it has no title that can be shown.
+  @untitled "Untitled"
+
   @doc """
   Returns `title` as a screen shows it.
 
   Control characters and the Unicode replacement character are removed,
   Word's "Microsoft Word - " prefix is dropped, a citation label's
   ", p. N" reads ", PDF page N", and the ends are trimmed. A missing title
-  is "Untitled"; a title with nothing left in it is the empty string.
+  is "Untitled", and so is one with nothing left in it: a title is a link
+  and a heading, and an empty one could be neither clicked nor read.
 
   ## Examples
 
@@ -27,6 +31,9 @@ defmodule CakeWeb.Titles do
 
       iex> CakeWeb.Titles.display(nil)
       "Untitled"
+
+      iex> CakeWeb.Titles.display("\uFFFD")
+      "Untitled"
   """
   @spec display(String.t() | nil) :: String.t()
   def display(title) when is_binary(title) do
@@ -35,7 +42,11 @@ defmodule CakeWeb.Titles do
     |> String.replace(~r/^Microsoft Word - /, "")
     |> String.replace(~r/, p\. (\d+)/, ", PDF page \\1")
     |> String.trim()
+    |> untitled_if_empty()
   end
 
-  def display(nil), do: "Untitled"
+  def display(nil), do: @untitled
+
+  defp untitled_if_empty(""), do: @untitled
+  defp untitled_if_empty(shown), do: shown
 end

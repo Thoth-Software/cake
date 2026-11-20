@@ -109,6 +109,16 @@ defmodule CakeWeb.ParsedBookLiveTest do
                "Quarterly Plan.docx"
     end
 
+    test "calls a document Untitled when nothing of its title can be shown, and still links to it",
+         %{conn: conn} do
+      book = parsed_book_fixture(%{title: "\uFFFD\u0001"})
+      {:ok, _lv, html} = live(conn, ~p"/documents")
+
+      assert [title] = html |> parse() |> Floki.find(~s|#{row(book)} a[data-part="title"]|)
+      assert title |> Floki.text() |> String.trim() == "Untitled"
+      assert Floki.attribute(title, "href") == [~p"/documents/#{book}"]
+    end
+
     test "shows the page count, and a dash for a document that has none", %{conn: conn} do
       counted = parsed_book_fixture(%{total_pages: 317})
       uncounted = parsed_book_fixture(%{total_pages: nil})
@@ -161,6 +171,21 @@ defmodule CakeWeb.ParsedBookLiveTest do
 
       assert html |> parse() |> Floki.attribute(~s|#{row(book)} a[data-part="source"]|, "href") ==
                [download_path(key)]
+    end
+
+    # Every row has a download link; a screen reader lists links out of their
+    # rows, so each one's name says which document it fetches.
+    test "names each download link after its document", %{conn: conn} do
+      report = parsed_book_fixture(%{title: "Annual Report"})
+      notes = parsed_book_fixture(%{title: "Microsoft Word - Field Notes"})
+      {:ok, _lv, html} = live(conn, ~p"/documents")
+      doc = parse(html)
+
+      assert Floki.attribute(doc, ~s|#{row(report)} a[data-part="source"]|, "aria-label") ==
+               ["Download Annual Report"]
+
+      assert Floki.attribute(doc, ~s|#{row(notes)} a[data-part="source"]|, "aria-label") ==
+               ["Download Field Notes"]
     end
 
     test "offers nothing that creates, edits or deletes", %{conn: conn} do
@@ -218,6 +243,28 @@ defmodule CakeWeb.ParsedBookLiveTest do
       refreshed = lv |> element("#documents-refresh") |> render_click()
 
       assert row_ids(refreshed) == ["documents-#{newer.id}", "documents-#{older.id}"]
+    end
+
+    # A refresh that finds nothing new changes no row, so the page says when
+    # the list was last read: that is what shows the button did something.
+    test "says when the list was read, and reads it again", %{conn: conn} do
+      parsed_book_fixture()
+      opened_at = DateTime.utc_now(:second)
+      {:ok, lv, html} = live(conn, ~p"/documents")
+
+      read_at = fn html ->
+        assert [time] = html |> parse() |> Floki.find("time#documents-read-at")
+        assert [iso] = Floki.attribute(time, "datetime")
+        assert {:ok, at, 0} = DateTime.from_iso8601(iso)
+        assert time |> Floki.text() |> String.trim() == Calendar.strftime(at, "%H:%M:%S UTC")
+        at
+      end
+
+      first = read_at.(html)
+      assert DateTime.compare(first, opened_at) != :lt
+
+      second = lv |> element("#documents-refresh") |> render_click() |> read_at.()
+      assert DateTime.compare(second, first) != :lt
     end
 
     test "shows a status that has changed since", %{conn: conn} do
@@ -319,6 +366,15 @@ defmodule CakeWeb.ParsedBookLiveTest do
 
       assert Floki.attribute(doc, "a#document-back", "href") == [~p"/documents"]
       assert ~p"/documents" in Floki.attribute(doc, "#main-nav a", "href")
+    end
+
+    test "is headed Untitled when nothing of its title can be shown", %{conn: conn} do
+      book = parsed_book_fixture(%{title: "\uFFFD\u0001"})
+
+      doc = conn |> get(~p"/documents/#{book}") |> html_response(200) |> parse()
+
+      assert text(doc, "#page h1") == "Untitled"
+      assert text(doc, "title") == "Untitled · Cake"
     end
 
     test "offers nothing that edits or deletes", %{conn: conn} do

@@ -7,7 +7,7 @@ defmodule CakeWeb.ParsedBookLive.Index do
   screen is "Documents".
 
   The list is read when the page opens and when the Refresh button is
-  pressed. Nothing tells the page that an ingest finished: that would need
+  pressed, and the page says when that was. Nothing tells the page that an ingest finished: that would need
   the ingestion layer to broadcast. Each row shows what the database says,
   so a status the pipeline left stale (#305) is shown stale.
   """
@@ -25,7 +25,12 @@ defmodule CakeWeb.ParsedBookLive.Index do
       <.header>
         Documents
         <:subtitle>
-          What has been uploaded, newest first. Refresh to see new uploads and changed statuses.
+          What has been uploaded, newest first, as of <time
+            id="documents-read-at"
+            datetime={DateTime.to_iso8601(@read_at)}
+            phx-no-format
+          >{Calendar.strftime(@read_at, "%H:%M:%S UTC")}</time>.
+          Refresh to see new uploads and changed statuses.
         </:subtitle>
         <:actions>
           <.button id="documents-refresh" phx-click="refresh" class="btn btn-ghost">
@@ -69,13 +74,15 @@ defmodule CakeWeb.ParsedBookLive.Index do
         <:col :let={{_id, parsed_book}} label="Source">
           <.link
             data-part="source"
+            aria-label={"Download #{Titles.display(parsed_book.title)}"}
             href={~p"/books/download/#{String.split(parsed_book.source_file_path, "/")}"}
             class="link link-primary"
           >
             <%!-- On a phone the word gives way to an icon, to leave the title
-            room; the word stays for a screen reader. --%>
+            room. The link is named by its `aria-label`, which says which
+            document it fetches. --%>
             <.icon name="hero-arrow-down-tray" class="size-5 sm:hidden" />
-            <span class="sr-only sm:not-sr-only">Download</span>
+            <span class="hidden sm:inline">Download</span>
           </.link>
         </:col>
       </.table>
@@ -100,12 +107,14 @@ defmodule CakeWeb.ParsedBookLive.Index do
     {:noreply, load_documents(socket)}
   end
 
-  # Reads the list again and replaces what the page holds with it.
+  # Reads the list again and replaces what the page holds with it, and notes
+  # when: a refresh that finds nothing new changes nothing else on the page.
   defp load_documents(socket) do
     parsed_books = Books.list_parsed_books_newest_first()
 
     socket
     |> assign(:empty?, parsed_books == [])
+    |> assign(:read_at, DateTime.utc_now(:second))
     |> stream(:documents, parsed_books, reset: true)
   end
 end
