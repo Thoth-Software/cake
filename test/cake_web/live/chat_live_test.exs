@@ -112,8 +112,15 @@ defmodule CakeWeb.ChatLiveTest do
 
       broadcast_to_view(view, {:response_ready, %{response: "A RAG framework.", citations: []}})
 
-      assert has_element?(view, "#msg-0.chat.chat-end .chat-bubble", "What is Cake?")
-      assert has_element?(view, "#msg-1.chat.chat-start .chat-bubble", "A RAG framework.")
+      # Selected by side, not by position: the submitted question starts a
+      # real turn, which may add a reply of its own in between.
+      assert has_element?(view, "#chat-messages .chat.chat-end .chat-bubble", "What is Cake?")
+
+      assert has_element?(
+               view,
+               "#chat-messages .chat.chat-start .chat-bubble",
+               "A RAG framework."
+             )
     end
 
     test "the send button is disabled until there is a question to send", %{conn: conn} do
@@ -282,6 +289,24 @@ defmodule CakeWeb.ChatLiveTest do
   end
 
   describe "selection panel interactions" do
+    test "each candidate document is a card with its title, chunk count, page label and preview, and a checkbox",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(view, {:candidates_ready, build_candidates()})
+
+      assert has_element?(view, "#selection-panel", "1 found")
+      assert has_element?(view, "#candidate-0.card .card-title", "Test Book Title")
+      assert has_element?(view, "#candidate-0", "1 chunk")
+      assert has_element?(view, "#candidate-0", "PDF page 1")
+      assert has_element?(view, "#candidate-0", "This is a preview of the chunk content")
+
+      assert has_element?(
+               view,
+               ~s(#candidate-0 input[type=checkbox][name="selection_form[selected_doc_ids][]"][value="ref-1"])
+             )
+    end
+
     test "validate_selection updates form state", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
@@ -290,10 +315,48 @@ defmodule CakeWeb.ChatLiveTest do
 
       html =
         view
-        |> form("form", selection_form: %{selected_doc_ids: ["ref-1"]})
+        |> form("#selection-form", selection_form: %{selected_doc_ids: ["ref-1"]})
         |> render_change()
 
       assert html =~ "Select documents to use"
+      # The server renders what is selected, so a re-render keeps the box
+      # checked.
+      assert has_element?(view, "#candidate-0 input[type=checkbox][checked]")
+    end
+
+    # "Use selected" used to be enabled until the first box had been ticked
+    # and unticked again; it now follows the selection itself.
+    test "Use selected is disabled exactly while no document is selected, and Use all never is",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(view, {:candidates_ready, build_candidates()})
+
+      assert has_element?(view, "#use-selected[disabled]")
+      refute has_element?(view, "#use-all[disabled]")
+
+      view
+      |> form("#selection-form", selection_form: %{selected_doc_ids: ["ref-1"]})
+      |> render_change()
+
+      refute has_element?(view, "#use-selected[disabled]")
+
+      # What a browser sends when the last box is unticked: the hidden
+      # field's blank id alone.
+      render_change(view, "validate_selection", %{
+        "selection_form" => %{"selected_doc_ids" => [""]}
+      })
+
+      assert has_element?(view, "#use-selected[disabled]")
+    end
+
+    test "Use selected submits the selection form from the bar under the cards",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(view, {:candidates_ready, build_candidates()})
+
+      assert has_element?(view, ~s(button#use-selected[type=submit][form="selection-form"]))
     end
   end
 

@@ -219,6 +219,7 @@ defmodule CakeWeb.ChatLive do
             <% :generating -> %>
               <.working id="chat-generating">Writing an answer...</.working>
             <% :awaiting_selection -> %>
+              <.selection_actions selection_form={@selection_form} />
             <% state -> %>
               <div :if={state == :ended} class="mb-4">
                 <.button type="button" phx-click="new_conversation">
@@ -359,68 +360,89 @@ defmodule CakeWeb.ChatLive do
   attr :selection_form, :any, required: true
 
   defp selection_panel(assigns) do
+    assigns = assign(assigns, :selected, selected_doc_ids(assigns.selection_form))
+
     ~H"""
     <%!-- TODO: "Switch to auto" button blocked on backend state machine extension.
          Requires :autoask to be valid from :awaiting_selection. See #136. --%>
-    <div class="mb-4">
-      <div class="flex items-baseline justify-between mb-3">
-        <h2 class="text-lg font-semibold">Select documents to use</h2>
-        <span class="text-xs text-gray-400">{length(@candidates)} found</span>
+    <section id="selection-panel" class="space-y-3 pt-2">
+      <div class="flex items-baseline justify-between gap-4">
+        <h2 class="font-semibold">Select documents to use</h2>
+        <span class="text-sm text-base-content/70">{length(@candidates)} found</span>
       </div>
+      <%!-- The buttons that submit this form are in the bar at the bottom of
+      the screen (`selection_actions/1`), so they stay reachable under a long
+      list. --%>
       <.form
         for={@selection_form}
         id="selection-form"
         phx-submit="submit_selection"
         phx-change="validate_selection"
+        class="space-y-3"
       >
         <input type="hidden" name="selection_form[selected_doc_ids][]" value="" />
-        <div class="space-y-2 mb-4 max-h-80 overflow-y-auto">
-          <%= for {doc_id, chunks} <- @candidates do %>
-            <% meta = Candidates.document_metadata(chunks) %>
-            <label class="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                name="selection_form[selected_doc_ids][]"
-                value={doc_id}
-                class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <div class="flex-1 min-w-0">
-                <div class="font-medium text-sm text-gray-900">
-                  {sanitize_title(meta.title)}
-                </div>
-                <div class="text-xs text-gray-500 mt-0.5">
-                  {length(chunks)} chunk{if length(chunks) != 1, do: "s"}{if meta.page_label,
-                    do: " · #{meta.page_label}"}
-                </div>
-                <div class="text-xs text-gray-400 truncate mt-1">{meta.preview}</div>
-              </div>
-            </label>
-          <% end %>
-        </div>
-        <div class="flex gap-2 pt-2 border-t border-gray-100">
-          <button
-            type="submit"
-            disabled={none_selected?(@selection_form)}
-            class="px-4 py-2 bg-white text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50  disabled:cursor-not-allowed disabled:opacity-20"
-          >
-            Use selected
-          </button>
-          <button
-            type="button"
-            phx-click="use_all"
-            class="px-4 py-2 bg-white text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Use all
-          </button>
-        </div>
+        <%!-- A card per document, as the search screen does its results. The
+        whole card is the checkbox's label. --%>
+        <label
+          :for={{{doc_id, chunks}, i} <- Enum.with_index(@candidates)}
+          id={"candidate-#{i}"}
+          class="card card-border cursor-pointer bg-base-100 has-checked:border-primary"
+        >
+          <% meta = Candidates.document_metadata(chunks) %>
+          <div class="card-body flex-row items-start gap-4">
+            <input
+              type="checkbox"
+              name="selection_form[selected_doc_ids][]"
+              value={doc_id}
+              checked={doc_id in @selected}
+              class="checkbox checkbox-primary mt-1"
+            />
+            <div class="min-w-0 flex-1 space-y-1">
+              <h3 class="card-title wrap-anywhere">{sanitize_title(meta.title)}</h3>
+              <p class="text-sm text-base-content/70">
+                {length(chunks)} chunk{if length(chunks) != 1, do: "s"}{if meta.page_label,
+                  do: " · #{meta.page_label}"}
+              </p>
+              <p class="text-sm wrap-anywhere">{meta.preview}</p>
+            </div>
+          </div>
+        </label>
       </.form>
+    </section>
+    """
+  end
+
+  # What the bar holds while documents are being chosen: the two ways out of
+  # the selection. "Use selected" submits the selection form, which is above
+  # it in the page, and is the view's primary action.
+  attr :selection_form, :any, required: true
+
+  defp selection_actions(assigns) do
+    ~H"""
+    <div class="flex flex-wrap gap-2">
+      <button
+        type="submit"
+        id="use-selected"
+        form="selection-form"
+        class="btn btn-primary"
+        disabled={selected_doc_ids(@selection_form) == []}
+      >
+        Use selected
+      </button>
+      <button type="button" id="use-all" phx-click="use_all" class="btn btn-outline">
+        Use all
+      </button>
     </div>
     """
   end
 
-  defp none_selected?(nil), do: true
-  defp none_selected?(%{params: %{"selected_doc_ids" => []}}), do: true
-  defp none_selected?(_), do: false
+  # The document ids the selection form holds, as the changeset cast them:
+  # none before the first change.
+  @spec selected_doc_ids(Phoenix.HTML.Form.t() | nil) :: [String.t()]
+  defp selected_doc_ids(nil), do: []
+
+  defp selected_doc_ids(%Phoenix.HTML.Form{source: changeset}),
+    do: Ecto.Changeset.get_field(changeset, :selected_doc_ids) || []
 
   @spec start_conversation(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   defp start_conversation(socket) do
