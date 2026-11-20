@@ -9,7 +9,9 @@ defmodule CakeWeb.UserResetPasswordLive do
     <Layouts.app flash={@flash} current_user={@current_user}>
       <.header>Reset Password</.header>
 
-      <.notice :if={@form.errors != []} id="reset-password-errors" kind={:error}>
+      <%!-- Shown after a refused submit, not while a password is still being
+      typed: the notice is an alert, which a screen reader speaks at once. --%>
+      <.notice :if={@check_errors} id="reset-password-errors" kind={:error}>
         Oops, something went wrong! Please check the errors below.
       </.notice>
 
@@ -53,7 +55,10 @@ defmodule CakeWeb.UserResetPasswordLive do
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t(), keyword()}
   def mount(params, _session, socket) do
-    socket = socket |> assign(:page_title, "Reset password") |> assign_user_and_token(params)
+    socket =
+      socket
+      |> assign(page_title: "Reset password", check_errors: false)
+      |> assign_user_and_token(params)
 
     form_source =
       case socket.assigns do
@@ -80,12 +85,19 @@ defmodule CakeWeb.UserResetPasswordLive do
          |> redirect(to: ~p"/users/log_in")}
 
       {:error, changeset} ->
-        {:noreply, assign_form(socket, Map.put(changeset, :action, :insert))}
+        {:noreply,
+         socket
+         |> assign(check_errors: true)
+         |> assign_form(Map.put(changeset, :action, :insert))}
     end
   end
 
   def handle_event("validate", %{"user" => user_params}, socket) do
     changeset = Accounts.change_user_password(socket.assigns.user, user_params)
+
+    # Once the passwords are valid there is nothing left to point at.
+    socket = if changeset.valid?, do: assign(socket, check_errors: false), else: socket
+
     {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
   end
 

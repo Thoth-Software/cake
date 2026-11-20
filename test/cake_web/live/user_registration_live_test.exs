@@ -166,6 +166,30 @@ defmodule CakeWeb.UserRegistrationLiveTest do
     end
   end
 
+  describe "the form-level error notice" do
+    test "is absent while typing, present after a refused submit, and gone once the form is valid",
+         %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+      refute has_element?(lv, "#registration-errors")
+
+      invalid = %{"username" => "ab", "password" => "short"}
+
+      lv |> element("#registration_form") |> render_change(user: invalid)
+      refute has_element?(lv, "#registration-errors")
+
+      lv |> form("#registration_form", user: invalid) |> render_submit()
+      assert has_element?(lv, "#registration-errors.alert-error")
+
+      lv
+      |> element("#registration_form")
+      |> render_change(
+        user: %{"username" => unique_user_username(), "password" => valid_user_password()}
+      )
+
+      refute has_element?(lv, "#registration-errors")
+    end
+  end
+
   describe "registration navigation" do
     test "redirects to login page when the Log in button is clicked", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/register")

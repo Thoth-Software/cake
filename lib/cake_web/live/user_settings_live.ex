@@ -9,22 +9,25 @@ defmodule CakeWeb.UserSettingsLive do
     <Layouts.app flash={@flash} current_user={@current_user}>
       <.header>
         Account Settings
-        <:subtitle :if={@current_user.email}>
-          Manage your account email address and password settings
+        <:subtitle>
+          <span id="settings-subtitle">
+            {if @current_user.email,
+              do: "Manage your account email address and password settings",
+              else: "Manage your password"}
+          </span>
         </:subtitle>
-        <:subtitle :if={!@current_user.email}>Manage your password</:subtitle>
       </.header>
 
-      <%!-- The username is shown and not editable: changing one is an admin's
-      action. --%>
+      <%!-- The username is shown and has no field: this page does not change
+      one (an admin's action, #376). --%>
       <.list>
         <:item title="Username">
           <span id="settings-username" class="wrap-anywhere">{@current_user.username}</span>
         </:item>
       </.list>
 
-      <%!-- Changing an email is confirmed by mail, so it is offered only to a
-      user who has an address. --%>
+      <%!-- An account gains an email at registration or from an admin, not
+      here (#377): the form is for a user who already has one. --%>
       <section :if={@current_user.email} class="card card-border bg-base-100">
         <div class="card-body">
           <h2 class="card-title">Email</h2>
@@ -34,7 +37,13 @@ defmodule CakeWeb.UserSettingsLive do
             phx-submit="update_email"
             phx-change="validate_email"
           >
-            <.input field={@email_form[:email]} type="email" label="Email" required />
+            <.input
+              field={@email_form[:email]}
+              type="email"
+              label="Email"
+              autocomplete="email"
+              required
+            />
             <.input
               field={@email_form[:current_password]}
               name="current_password"
@@ -42,6 +51,7 @@ defmodule CakeWeb.UserSettingsLive do
               type="password"
               label="Current password"
               value={@email_form_current_password}
+              autocomplete="current-password"
               required
             />
             <.button phx-disable-with="Changing..." class="btn btn-outline mt-2">
@@ -137,9 +147,10 @@ defmodule CakeWeb.UserSettingsLive do
 
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
-  # Changing an email is confirmed by mail to the address the user has. A
-  # user with none is not offered the form, and a hand-made event from one
-  # is ignored: it would otherwise send mail to an address nobody confirmed.
+  # A user with no email is not offered the email form (#377: an account
+  # gains an email at registration or from an admin), so a hand-made event
+  # from one is ignored. The generated flow would otherwise let it set one.
+  # The rule is this page's: `Cake.Accounts` does not enforce it.
   def handle_event(event, _params, %{assigns: %{current_user: %{email: nil}}} = socket)
       when event in ["validate_email", "update_email"] do
     {:noreply, socket}

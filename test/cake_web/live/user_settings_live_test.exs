@@ -36,6 +36,7 @@ defmodule CakeWeb.UserSettingsLiveTest do
 
       assert has_element?(lv, "#email_form")
       assert has_element?(lv, "#password_form")
+      assert has_element?(lv, "#settings-subtitle", "email address and password")
     end
 
     test "redirects if user is not logged in", %{conn: conn} do
@@ -47,9 +48,9 @@ defmodule CakeWeb.UserSettingsLiveTest do
     end
   end
 
-  # Changing an email is confirmed by mail to the old and the new address.
-  # A user with no email has no address to confirm from, so the page does
-  # not offer it; the password form does not depend on mail.
+  # An account gains an email at registration or from an admin, never from
+  # this page (#377): a user with no email is not offered the email form.
+  # The password form does not depend on mail.
   describe "a user with no email" do
     setup %{conn: conn} do
       password = valid_user_password()
@@ -63,6 +64,8 @@ defmodule CakeWeb.UserSettingsLiveTest do
       assert has_element?(lv, "#settings-username", user.username)
       assert has_element?(lv, "#password_form")
       refute has_element?(lv, "#email_form")
+      assert has_element?(lv, "#settings-subtitle", "Manage your password")
+      refute has_element?(lv, "#settings-subtitle", "email")
     end
 
     test "changes the password", %{conn: conn, user: user, password: password} do
