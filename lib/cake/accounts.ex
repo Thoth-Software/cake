@@ -607,7 +607,7 @@ defmodule Cake.Accounts do
       %User{}
 
   """
-  def get_user!(id), do: raise "TODO"
+  def get_user!(id), do: raise("TODO")
 
   @doc """
   Creates a user.

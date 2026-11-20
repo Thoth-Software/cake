@@ -35,6 +35,18 @@ defmodule CakeWeb.AdminLiveTest do
       assert text_of(lv, "h1") == "Admin"
     end
 
+    # The landing page points at the panel (#376).
+    test "links to the logins", %{conn: conn} do
+      conn = log_in_user(conn, admin_fixture())
+      {:ok, lv, _html} = live(conn, ~p"/admin")
+
+      assert {:ok, _logins, _html} =
+               lv
+               |> element("#admin-logins")
+               |> render_click()
+               |> follow_redirect(conn, ~p"/admin/users")
+    end
+
     test "sends a member to the home page with a not-authorized flash", %{conn: conn} do
       assert {:error, redirect} = conn |> log_in_user(user_fixture()) |> live(~p"/admin")
 
