@@ -144,8 +144,8 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
     test "has an email column only when a login has an email", %{conn: conn, admin: admin} do
       Repo.delete_all(from_other_than(admin))
-      {:ok, lv, _html} = live(conn, ~p"/admin/users")
-      refute "Email" in column_labels(lv)
+      {:ok, without, _html} = live(conn, ~p"/admin/users")
+      refute "Email" in column_labels(without)
 
       with_email = user_fixture()
       {:ok, lv, _html} = live(conn, ~p"/admin/users")
@@ -239,7 +239,7 @@ defmodule CakeWeb.Admin.UserLiveTest do
     test "holds the password to the length rule, and never renders what was typed back",
          %{conn: conn} do
       username = unique_user_username()
-      short = "2short-#{System.unique_integer([:positive])}"
+      short = "2-sh0rt!"
       {:ok, lv, _html} = live(conn, ~p"/admin/users/new")
 
       changed =
@@ -468,7 +468,7 @@ defmodule CakeWeb.Admin.UserLiveTest do
          %{conn: conn} do
       member = login_fixture(:member)
       %{token: token, lv: members_page} = open_page_as(member)
-      short = "2short-#{System.unique_integer([:positive])}"
+      short = "2-sh0rt!"
 
       {:ok, lv, _html} = live(conn, ~p"/admin/users/#{member}/password")
 

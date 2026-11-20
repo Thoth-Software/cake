@@ -1039,13 +1039,13 @@ defmodule Cake.AccountsTest do
       assert get_change(changeset, :password) == valid_user_password()
       assert is_nil(get_change(changeset, :hashed_password))
 
-      changeset = Accounts.change_user_creation(%User{}, %{username: "x", password: "short"})
+      invalid = Accounts.change_user_creation(%User{}, %{username: "x", password: "short"})
 
       assert %{
                username: ["should be at least 3 character(s)"],
                password: ["should be at least 12 character(s)"],
                role: ["can't be blank"]
-             } = errors_on(changeset)
+             } = errors_on(invalid)
     end
   end
 end

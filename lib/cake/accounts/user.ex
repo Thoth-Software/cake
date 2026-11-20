@@ -143,6 +143,31 @@ defmodule Cake.Accounts.User do
     |> validate_required([:role])
   end
 
+  @doc """
+  A changeset for what an admin may change about a user: the username and
+  the role, as `Cake.Accounts.update_user/2` does. Nothing else is cast, a
+  password least of all.
+
+  The username is held to the rules `registration_changeset/3` holds it to.
+  As in `role_changeset/2`, the role only has to be one a user can have:
+  whether this user may lose the one they hold is `Cake.Accounts`'s to
+  decide.
+
+  ## Options
+
+    * `:validate_username` - as in `registration_changeset/3`. Defaults to
+      `true`.
+  """
+  @spec update_changeset(t(), map(), keyword()) :: Ecto.Changeset.t()
+  def update_changeset(user, attrs, opts \\ []) do
+    user
+    |> cast(attrs, [:role])
+    |> validate_required([:role])
+    |> cast_username(attrs)
+    |> validate_username(opts)
+    |> sanitize_text_fields()
+  end
+
   # `cast/4` trims a value before it decides whether the value is empty, so a
   # username of nothing but whitespace (spaces, a lone newline) would be cast
   # to nil and reported as "can't be blank". Whitespace is outside the

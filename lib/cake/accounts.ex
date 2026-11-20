@@ -102,6 +102,23 @@ defmodule Cake.Accounts do
   @spec get_user!(binary()) :: User.t()
   def get_user!(id), do: Repo.get!(User, id)
 
+  @doc """
+  Returns every user, ordered by username whatever its letter case.
+
+  It is the admin panel's list, and it is not paged: a Cake has as many
+  users as an admin has made logins for.
+
+  ## Examples
+
+      iex> list_users()
+      [%User{}, ...]
+
+  """
+  @spec list_users() :: [User.t()]
+  def list_users do
+    Repo.all(from u in User, order_by: [asc: u.username, asc: u.id])
+  end
+
   ## User registration
 
   @doc """
@@ -159,7 +176,92 @@ defmodule Cake.Accounts do
     |> Repo.insert()
   end
 
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking the creation of a user with a
+  role, for the admin panel's form.
+
+  It validates as `create_user/1` does, except that it does not hash the
+  password and does not ask the database whether the username or the email
+  is taken: it runs on every keystroke.
+
+  ## Examples
+
+      iex> change_user_creation(%User{})
+      %Ecto.Changeset{data: %User{}}
+
+  """
+  @spec change_user_creation(User.t(), map()) :: Ecto.Changeset.t()
+  def change_user_creation(%User{} = user, attrs \\ %{}) do
+    User.creation_changeset(user, attrs,
+      hash_password: false,
+      validate_email: false,
+      validate_username: false
+    )
+  end
+
   ## Roles and the last admin
+
+  @doc """
+  Changes a user's username and role, as an admin does from the panel.
+
+  Nothing else is changed: a password or an email among the attributes is
+  ignored. (An admin sets a password with `reset_user_password/2`, which
+  also ends the user's sessions.)
+
+  The role is changed under the rule `update_user_role/2` keeps, in the same
+  way: demoting the last admin is refused with `{:error, :last_admin}`, and
+  then nothing changes, the username included. The decision goes by the role
+  in the database, and is safe when requests race (see `delete_user/1`).
+
+  A username that breaks a rule or is already taken, or a role that is
+  neither `:member` nor `:admin`, is `{:error, changeset}`.
+
+  Raises `Ecto.NoResultsError` if the user no longer exists.
+
+  ## Examples
+
+      iex> update_user(user, %{username: "caleb", role: :admin})
+      {:ok, %User{}}
+
+      iex> update_user(the_only_admin, %{role: :member})
+      {:error, :last_admin}
+
+      iex> update_user(user, %{username: "taken"})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  @spec update_user(User.t(), map()) ::
+          {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
+  def update_user(%User{} = user, attrs) do
+    under_last_admin_rule(user, fn current, last_admin? ->
+      changeset = User.update_changeset(current, attrs)
+
+      if last_admin? and steps_down?(changeset) do
+        {:error, :last_admin}
+      else
+        Repo.update(changeset)
+      end
+    end)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking the changes `update_user/2`
+  makes, for the admin panel's form.
+
+  It validates as `update_user/2` does, except that it does not ask the
+  database whether the username is taken, and knows nothing of the
+  last-admin rule: both are decided when the change is made.
+
+  ## Examples
+
+      iex> change_user(user)
+      %Ecto.Changeset{data: %User{}}
+
+  """
+  @spec change_user(User.t(), map()) :: Ecto.Changeset.t()
+  def change_user(%User{} = user, attrs \\ %{}) do
+    User.update_changeset(user, attrs, validate_username: false)
+  end
 
   @doc """
   Changes a user's role.
@@ -579,94 +681,5 @@ defmodule Cake.Accounts do
       {:ok, %{user: user}} -> {:ok, user}
       {:error, :user, changeset, _} -> {:error, changeset}
     end
-  end
-
-  alias Cake.Accounts.User
-
-  @doc """
-  Returns the list of users.
-
-  ## Examples
-
-      iex> list_users()
-      [%User{}, ...]
-
-  """
-  def list_users do
-    raise "TODO"
-  end
-
-  @doc """
-  Gets a single user.
-
-  Raises if the User does not exist.
-
-  ## Examples
-
-      iex> get_user!(123)
-      %User{}
-
-  """
-  def get_user!(id), do: raise("TODO")
-
-  @doc """
-  Creates a user.
-
-  ## Examples
-
-      iex> create_user(%{field: value})
-      {:ok, %User{}}
-
-      iex> create_user(%{field: bad_value})
-      {:error, ...}
-
-  """
-  def create_user(attrs) do
-    raise "TODO"
-  end
-
-  @doc """
-  Updates a user.
-
-  ## Examples
-
-      iex> update_user(user, %{field: new_value})
-      {:ok, %User{}}
-
-      iex> update_user(user, %{field: bad_value})
-      {:error, ...}
-
-  """
-  def update_user(%User{} = user, attrs) do
-    raise "TODO"
-  end
-
-  @doc """
-  Deletes a User.
-
-  ## Examples
-
-      iex> delete_user(user)
-      {:ok, %User{}}
-
-      iex> delete_user(user)
-      {:error, ...}
-
-  """
-  def delete_user(%User{} = user) do
-    raise "TODO"
-  end
-
-  @doc """
-  Returns a data structure for tracking user changes.
-
-  ## Examples
-
-      iex> change_user(user)
-      %Todo{...}
-
-  """
-  def change_user(%User{} = user, _attrs \\ %{}) do
-    raise "TODO"
   end
 end
