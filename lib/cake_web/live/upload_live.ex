@@ -375,10 +375,10 @@ defmodule CakeWeb.UploadLive do
           <.icon name="hero-folder-open" class="size-5" /> Choose a folder
           <.live_file_input upload={@uploads.folder} webkitdirectory class="sr-only" />
         </label>
+        <%!-- The browser hands over every file in the folder, and the upload
+        refuses what is not a PDF: each has to be removed from the queue. --%>
         <span class="text-sm text-base-content/70">
-          The PDFs in one folder, up to {@uploads.folder.max_entries} files, {max_size(
-            @uploads.folder
-          )} each
+          A folder of PDFs, up to {@uploads.folder.max_entries} files, {max_size(@uploads.folder)} each. Any other file in it has to be removed from the queue.
         </span>
       </div>
 
@@ -416,9 +416,7 @@ defmodule CakeWeb.UploadLive do
         class="flex items-center gap-2 text-sm text-error"
       >
         <.icon name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <span :for={error <- upload_errors(upload)}>
-          {upload_error_to_string(error)}: this takes {upload.max_entries} at a time.
-        </span>
+        <span :for={error <- upload_errors(upload)}>{queue_error(error, upload)}</span>
       </p>
     </div>
     """
@@ -454,6 +452,7 @@ defmodule CakeWeb.UploadLive do
         phx-click="cancel-upload"
         phx-value-ref={@entry.ref}
         phx-value-upload={@upload_name}
+        data-part="remove"
         aria-label={"Remove #{@entry.client_name}"}
         class="btn btn-ghost btn-sm btn-square"
       >
@@ -487,10 +486,15 @@ defmodule CakeWeb.UploadLive do
     """
   end
 
+  # The pipeline's banner says the run succeeded whatever it counted, so it
+  # is shown only when something was indexed; so is the way on to the chat.
   defp results_panel(assigns) do
+    assigns = assign(assigns, :kind, results_kind(assigns.results, assigns.error))
+
     ~H"""
-    <.notice id="upload-results" kind={results_kind(@results, @error)} title="Ingestion complete">
-      <p class="wrap-anywhere">{@results.message}</p>
+    <.notice id="upload-results" kind={@kind} title="Ingestion complete">
+      <p :if={@results.indexed > 0} class="wrap-anywhere">{@results.message}</p>
+      <p :if={@kind == :info}>Nothing new was indexed.</p>
       <p class="flex flex-wrap gap-x-4">
         <span data-part="indexed">{@results.indexed} indexed</span>
         <span :if={@results.failed > 0} data-part="failed">{@results.failed} failed</span>
@@ -506,7 +510,7 @@ defmodule CakeWeb.UploadLive do
       <button id="upload-more" type="button" phx-click="reset" class="btn btn-outline">
         Upload more
       </button>
-      <.link navigate={~p"/chat"} class="btn btn-ghost">
+      <.link :if={@results.indexed > 0} navigate={~p"/chat"} class="btn btn-ghost">
         Ask about them in Chat <.icon name="hero-arrow-right" class="size-5" />
       </.link>
     </div>
@@ -551,12 +555,23 @@ defmodule CakeWeb.UploadLive do
   @spec max_size(Phoenix.LiveView.UploadConfig.t()) :: String.t()
   defp max_size(upload), do: "#{div(upload.max_file_size, 1_000_000)} MB"
 
-  # Nothing ingested is an error; some documents failing is a warning.
+  # Nothing ingested is an error; some documents failing is a warning. A run
+  # that indexed nothing and failed nothing, as when every file was already
+  # in the library, is neither a success nor a failure.
   @spec results_kind(Cake.Pipelines.ingest_summary(), String.t() | nil) ::
-          :success | :warning | :error
+          :info | :success | :warning | :error
   defp results_kind(_results, error) when is_binary(error), do: :error
   defp results_kind(%{failed: failed}, nil) when failed > 0, do: :warning
+  defp results_kind(%{indexed: 0}, nil), do: :info
   defp results_kind(_results, nil), do: :success
+
+  # An error of the whole upload. Only "too many" has a number to add.
+  @spec queue_error(atom(), Phoenix.LiveView.UploadConfig.t()) :: String.t()
+  defp queue_error(:too_many_files = error, upload) do
+    "#{upload_error_to_string(error)}: this takes #{upload.max_entries} at a time."
+  end
+
+  defp queue_error(error, _upload), do: upload_error_to_string(error)
 
   @spec format_size(non_neg_integer()) :: String.t()
   defp format_size(bytes) when bytes < 1024, do: "#{bytes} B"
