@@ -174,21 +174,27 @@ A user is a `:member` or an `:admin` (`Cake.Accounts.User`'s `role`). Registrati
 
 No screen can create the first admin, because every admin screen needs an admin. It is created by calling `Cake.Accounts.create_user/1` with a username, a password and a role. The role is required. The password must never be an argument on the command line, where it is left in the shell history and shown in the process list.
 
-In dev the call runs in the process you start, so the password can come from the environment. `read -rs` takes it without echoing it or recording it:
+In dev the call runs in the process you start, so the password can come from the environment. `IFS= read -rs` takes it without echoing it, recording it, or trimming spaces from its ends:
 
 ```bash
-read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
+IFS= read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
 mix run -e 'case Cake.Accounts.create_user(%{username: "caleb", password: System.fetch_env!("ADMIN_PASSWORD"), role: :admin}) do {:ok, user} -> IO.puts("created #{user.username} (#{user.role})"); {:error, changeset} -> IO.inspect(changeset.errors); System.halt(1) end'
 ```
 
 In a release (#361) the call goes through `bin/cake rpc`, which evaluates the expression on the running node. That node does not have the environment of the shell that ran `rpc`, so the password comes from standard input, which `rpc` does pass through:
 
 ```bash
-read -rs ADMIN_PASSWORD
-printf '%s\n' "$ADMIN_PASSWORD" | bin/cake rpc 'case Cake.Accounts.create_user(%{username: "caleb", password: String.trim(IO.read(:stdio, :line)), role: :admin}) do {:ok, user} -> IO.puts("created #{user.username} (#{user.role})"); {:error, changeset} -> IO.inspect(changeset.errors) end'
+IFS= read -rs ADMIN_PASSWORD
+printf '%s\n' "$ADMIN_PASSWORD" | bin/cake rpc 'case Cake.Accounts.create_user(%{username: "caleb", password: String.trim_trailing(IO.read(:stdio, :line), "\n"), role: :admin}) do {:ok, user} -> IO.puts("created #{user.username} (#{user.role})"); {:error, changeset} -> raise "not created: #{inspect(changeset.errors)}" end'
 ```
 
-`printf` is a shell builtin, so the password is not in the process list either. The dev seed (`priv/repo/seeds.exs`) creates a dev login, `admin`, as an admin; it is never run in a release.
+Three details of that command matter to a script that runs it:
+
+- `printf` is a shell builtin, so the password is not in the process list either.
+- Only the line's newline is removed (`String.trim_trailing/2`), so a password that begins or ends with a space is the one stored.
+- On failure it raises. The `rpc` command then exits non-zero, so a script stops there, and the running node is unaffected. It must not call `System.halt/1`, which would stop the node it runs on.
+
+The dev seed (`priv/repo/seeds.exs`) creates a dev login, `admin`, as an admin, and makes it one on a database that was seeded before roles existed; it is never run in a release.
 
 ### Supervision Tree Boot Order
 
