@@ -13,6 +13,12 @@ defmodule CakeWeb.UploadLive do
   limit it broke: as the page's error when nothing else in the batch can be
   ingested, otherwise in a warning listing each rejected archive beside the
   ingestion of the rest.
+
+  Ingestion runs in a task this LiveView owns and reports nothing until it
+  is done, so the page says both while it runs: that there is no progress
+  to show, and to keep the tab open on this page. The screen is built from
+  the shared pieces (`Layouts.app`, `header/1`, `working/1`, `notice/1`);
+  `.claude/rules/front-end.md`, "Look and feel".
   """
 
   use CakeWeb, :live_view
