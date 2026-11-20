@@ -136,7 +136,10 @@ defmodule CakeWeb.SearchLive do
       </div>
 
       <div :if={@results != []} id="search-results" class="space-y-4">
-        <article :for={result <- @results} class="card card-border bg-base-100">
+        <article
+          :for={{result, book_index} <- Enum.with_index(@results)}
+          class="card card-border bg-base-100"
+        >
           <div class="card-body">
             <h2 class="card-title">
               <a
@@ -150,9 +153,22 @@ defmodule CakeWeb.SearchLive do
               {result.hit_count} relevant sections found
             </p>
             <div class="flex flex-wrap gap-2">
+              <%!-- The chip is focusable so the preview opens from the keyboard
+              too: daisyUI shows a tooltip on hover and when something inside
+              it has focus. --%>
               <div :for={page <- result.pages} class="tooltip max-w-full">
-                <div class="tooltip-content max-w-xs text-left">{page.chunk_preview}</div>
-                <span class="badge badge-soft badge-primary h-auto min-h-6 cursor-help whitespace-normal py-0.5 text-left">
+                <div
+                  id={"preview-#{book_index}-#{page.page_number}"}
+                  role="tooltip"
+                  class="tooltip-content max-w-xs text-left"
+                >
+                  {page.chunk_preview}
+                </div>
+                <span
+                  tabindex="0"
+                  aria-describedby={"preview-#{book_index}-#{page.page_number}"}
+                  class="badge badge-soft badge-primary h-auto min-h-6 cursor-help whitespace-normal py-0.5 text-left"
+                >
                   <span class="whitespace-nowrap">p. {page.page_number}</span>
                   <span :if={page.section_title} class="text-base-content/70">
                     — {page.section_title}
