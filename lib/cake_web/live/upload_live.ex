@@ -344,6 +344,8 @@ defmodule CakeWeb.UploadLive do
   # Both file inputs are hidden (`sr-only`) inside the label that stands for
   # them, so each still takes the keyboard focus and opens its picker, and the
   # browser's own file control, which is wider than a phone, is never drawn.
+  # The label shows the focus ring for its input, and only for focus that
+  # came from the keyboard.
   defp upload_form(assigns) do
     ~H"""
     <form id="upload-form" phx-submit="upload" phx-change="validate" class="space-y-4">
@@ -353,7 +355,7 @@ defmodule CakeWeb.UploadLive do
         id="upload-dropzone"
         for={@uploads.documents.ref}
         phx-drop-target={@uploads.documents.ref}
-        class="flex cursor-pointer flex-col items-center gap-2 rounded-box border-base-content/30 text-center focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary sm:border-2 sm:border-dashed sm:px-4 sm:py-10 sm:hover:border-primary"
+        class="flex cursor-pointer flex-col items-center gap-2 rounded-box border-base-content/30 text-center has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-primary sm:border-2 sm:border-dashed sm:px-4 sm:py-10 sm:hover:border-primary"
       >
         <.icon name="hero-arrow-up-tray" class="hidden size-10 opacity-60 sm:block" />
         <span class="hidden sm:block">
@@ -371,7 +373,7 @@ defmodule CakeWeb.UploadLive do
       <div class="divider text-sm text-base-content/70">or</div>
 
       <div id="upload-folder" class="flex flex-col items-center gap-2 text-center">
-        <label class="btn btn-outline w-full focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary sm:w-auto">
+        <label class="btn btn-outline w-full has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-primary sm:w-auto">
           <.icon name="hero-folder-open" class="size-5" /> Choose a folder
           <.live_file_input upload={@uploads.folder} webkitdirectory class="sr-only" />
         </label>
@@ -385,11 +387,19 @@ defmodule CakeWeb.UploadLive do
       <.queue :if={queued?(@uploads)} uploads={@uploads} />
 
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <.button id="upload-submit" type="submit" variant="primary" disabled={not ready?(@uploads)}>
+        <%!-- The label holds from the click until the files are uploaded and
+        stored, which for large files is a while with nothing else to see. --%>
+        <.button
+          id="upload-submit"
+          type="submit"
+          variant="primary"
+          disabled={not ready?(@uploads)}
+          phx-disable-with="Uploading..."
+        >
           Upload and ingest
         </.button>
         <p :if={blocked?(@uploads)} id="upload-blocked" class="text-sm text-base-content/70">
-          Remove the files that cannot be uploaded to continue.
+          {blocked_hint(@uploads)}
         </p>
       </div>
     </form>
@@ -546,6 +556,20 @@ defmodule CakeWeb.UploadLive do
   # button is disabled rather than left to do nothing.
   @spec blocked?(map()) :: boolean()
   defp blocked?(uploads), do: uploads.documents.errors != [] or uploads.folder.errors != []
+
+  # What to do about the block. With too many files and none refused, no
+  # file "cannot be uploaded": some have to go, whichever.
+  @spec blocked_hint(map()) :: String.t()
+  defp blocked_hint(uploads) do
+    refused? =
+      Enum.any?(queued_entries(uploads), fn {upload, entry} ->
+        upload_errors(upload, entry) != []
+      end)
+
+    if refused?,
+      do: "Remove the files that cannot be uploaded to continue.",
+      else: "Remove some files to continue."
+  end
 
   @spec ready?(map()) :: boolean()
   defp ready?(uploads), do: queued?(uploads) and not blocked?(uploads)
