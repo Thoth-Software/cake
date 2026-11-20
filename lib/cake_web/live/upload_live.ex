@@ -312,22 +312,24 @@ defmodule CakeWeb.UploadLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="max-w-2xl mx-auto p-4">
-      <h1 class="text-2xl font-bold mb-4">Upload Documents</h1>
+    <Layouts.app flash={@flash}>
+      <div class="max-w-2xl mx-auto p-4">
+        <h1 class="text-2xl font-bold mb-4">Upload Documents</h1>
 
-      <.rejected_archives :if={@rejected_archives != []} archives={@rejected_archives} />
+        <.rejected_archives :if={@rejected_archives != []} archives={@rejected_archives} />
 
-      <%= case @status do %>
-        <% :idle -> %>
-          <.upload_form uploads={@uploads} />
-        <% :processing -> %>
-          <.processing_indicator />
-        <% :done -> %>
-          <.results_panel results={@results} error={@error} skipped_count={@skipped_count} />
-        <% :error -> %>
-          <.error_panel error={@error} />
-      <% end %>
-    </div>
+        <%= case @status do %>
+          <% :idle -> %>
+            <.upload_form uploads={@uploads} />
+          <% :processing -> %>
+            <.processing_indicator />
+          <% :done -> %>
+            <.results_panel results={@results} error={@error} skipped_count={@skipped_count} />
+          <% :error -> %>
+            <.error_panel error={@error} />
+        <% end %>
+      </div>
+    </Layouts.app>
     """
   end
 
