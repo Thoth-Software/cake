@@ -54,9 +54,7 @@ defmodule CakeWeb do
   @spec controller() :: Macro.t()
   def controller do
     quote do
-      use Phoenix.Controller,
-        formats: [:html, :json],
-        layouts: [html: CakeWeb.Layouts]
+      use Phoenix.Controller, formats: [:html, :json]
 
       use Gettext, backend: CakeWeb.Gettext
 
@@ -70,7 +68,7 @@ defmodule CakeWeb do
   def live_view do
     quote do
       use Phoenix.LiveView,
-        layout: {CakeWeb.Layouts, :app}
+        layout: {CakeWeb.Layouts, :live_app}
 
       unquote(html_helpers())
     end
@@ -109,7 +107,11 @@ defmodule CakeWeb do
       # Core UI components
       import CakeWeb.CoreComponents
 
-      # Shortcut for generating JS commands
+      # Components Phoenix 1.8 dropped that pages not yet restyled still call
+      import CakeWeb.TransitionalComponents
+
+      # Common modules used in templates
+      alias CakeWeb.Layouts
       alias Phoenix.LiveView.JS
 
       # Routes generation with the ~p sigil
