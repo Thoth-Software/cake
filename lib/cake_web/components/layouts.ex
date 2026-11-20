@@ -36,6 +36,11 @@ defmodule CakeWeb.Layouts do
   to the page being shown would remount it and discard what it holds: on the
   chat, the conversation. For the same reason the product name, which links
   a signed-in user to the chat, is not a link on the chat.
+
+  The page is rendered into one column, `#page`, narrow unless the page asks
+  for the wide one. No page sets a width of its own:
+
+      <Layouts.app flash={@flash} current_user={@current_user} width={:wide}>
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
 
@@ -47,6 +52,12 @@ defmodule CakeWeb.Layouts do
     default: nil,
     values: [nil, :chat, :upload, :search, :admin],
     doc: "which of the top bar's pages this is, or `nil` for any other page"
+
+  attr :width, :atom,
+    default: :narrow,
+    values: [:narrow, :wide],
+    doc:
+      "the width of the page column: `:narrow` for a form or prose, `:wide` for a table or the chat"
 
   slot :inner_block, required: true
 
@@ -115,7 +126,7 @@ defmodule CakeWeb.Layouts do
     </header>
 
     <main class="px-4 py-10 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
+      <div id="page" data-width={@width} class={["mx-auto space-y-4", page_width(@width)]}>
         {render_slot(@inner_block)}
       </div>
     </main>
@@ -140,6 +151,11 @@ defmodule CakeWeb.Layouts do
   # The pages the top bar links to, as `{page, label, path}`, for the user
   # given: none for a visitor, and the admin area for an admin only.
   @spec nav_links(User.t() | nil) :: [{atom(), String.t(), String.t()}]
+  # Spelled out in full: Tailwind keeps only the classes it finds written in
+  # the source.
+  defp page_width(:narrow), do: "max-w-2xl"
+  defp page_width(:wide), do: "max-w-5xl"
+
   defp nav_links(nil), do: []
 
   defp nav_links(%User{role: :admin}), do: member_links() ++ admin_links()
