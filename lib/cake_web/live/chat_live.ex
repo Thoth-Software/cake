@@ -188,7 +188,9 @@ defmodule CakeWeb.ChatLive do
         class="flex min-h-[calc(100dvh-15.5rem)] flex-col sm:min-h-[calc(100dvh-14.5rem)]"
       >
         <div id="chat-messages" class="flex-1 space-y-2 pb-4">
-          <.empty_state :if={@messages == []} id="chat-empty">
+          <%!-- Before the first question: what the screen is for, and where
+          to go if there is nothing to ask about yet. --%>
+          <.empty_state :if={@messages == []} id="chat-empty" icon="hero-chat-bubble-left-right">
             Ask a question about the uploaded documents.
             <:action>
               <.link navigate={~p"/upload"} class="link link-primary">Upload a document</.link>
@@ -221,8 +223,21 @@ defmodule CakeWeb.ChatLive do
             <% :awaiting_selection -> %>
               <.selection_actions selection_form={@selection_form} />
             <% state -> %>
-              <div :if={state == :ended} class="mb-4">
-                <.button type="button" phx-click="new_conversation">
+              <%!-- The history above stays, with the reply that reported the
+              end; this says what to do about it, where the form is. --%>
+              <div :if={state == :ended} class="mb-4 space-y-3">
+                <.notice id="chat-ended" kind={:warning} title="This conversation has ended">
+                  The messages above stay on the page. A new conversation starts without them:
+                  it will not remember what was asked.
+                </.notice>
+                <%!-- The view's main action while the form under it is
+                disarmed: Send is disabled, and a disabled button is grey. --%>
+                <.button
+                  type="button"
+                  id="new-conversation"
+                  variant="primary"
+                  phx-click="new_conversation"
+                >
                   Start a new conversation
                 </.button>
               </div>

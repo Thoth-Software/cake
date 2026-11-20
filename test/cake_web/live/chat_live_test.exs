@@ -31,6 +31,7 @@ defmodule CakeWeb.ChatLiveTest do
 
       assert has_element?(view, "#chat-empty")
       assert has_element?(view, ~s(#chat-empty a[href="/upload"]))
+      assert has_element?(view, "#chat-empty .hero-chat-bubble-left-right")
       refute has_element?(view, "#msg-0")
     end
 
@@ -464,6 +465,30 @@ defmodule CakeWeb.ChatLiveTest do
       view |> element("button", "Use all") |> render_click()
 
       assert Process.alive?(view.pid)
+    end
+
+    # The explanation and the way out are one prominent notice, beside the
+    # disarmed form rather than a bare button above it.
+    test "an ended conversation says so in a notice that offers a new one, and keeps the history",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(view, {:response_ready, %{response: "An earlier answer.", citations: []}})
+      refute has_element?(view, "#chat-ended")
+
+      kill_conversation(view)
+
+      assert has_element?(view, "#chat-ended.alert-warning[role=alert]")
+      assert has_element?(view, "button#new-conversation.btn-primary", "Start a new conversation")
+      assert has_element?(view, "#msg-0", "An earlier answer.")
+      assert has_element?(view, "#msg-1.alert-error", "ended unexpectedly")
+
+      view |> element("#new-conversation") |> render_click()
+
+      refute has_element?(view, "#chat-ended")
+      refute has_element?(view, "#new-conversation")
+      assert has_element?(view, "#msg-0", "An earlier answer.")
+      assert has_element?(view, "#msg-1.alert-error", "ended unexpectedly")
     end
 
     test "starting a new conversation re-arms the form with a live process", %{conn: conn} do
