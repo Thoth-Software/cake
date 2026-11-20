@@ -136,9 +136,12 @@ defmodule Cake.Accounts do
   to, and the email is optional. The user can log in at once.
 
   In a release, call it through `bin/cake rpc`; in dev, through `mix run -e`.
-  Take the password from the environment or standard input, never from the
-  command line, where it would be left in the shell history and the process
-  list.
+  Never pass the password on the command line, where it is left in the shell
+  history and shown in the process list. With `mix run -e` it can come from
+  the environment. Through `rpc` it has to come from standard input: the
+  expression is evaluated on the running node, which does not have the
+  environment of the shell that ran `rpc`. The README has both commands
+  ("Roles and the First Admin").
 
   ## Examples
 
