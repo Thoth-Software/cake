@@ -21,6 +21,9 @@ defmodule CakeWeb.UserForgotPasswordLive do
             </.button>
           </:actions>
         </.simple_form>
+        <.notice id="reset-password-no-email">
+          An account without an email cannot be reset here: ask an administrator to set a new password.
+        </.notice>
         <p class="text-center text-sm mt-4">
           <.link href={~p"/users/register"}>Register</.link>
           | <.link href={~p"/users/log_in"}>Log in</.link>

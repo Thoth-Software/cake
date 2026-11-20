@@ -12,8 +12,12 @@ defmodule CakeWeb.UserSettingsLive do
         <:subtitle>Manage your account email address and password settings</:subtitle>
       </.header>
 
+      <.list>
+        <:item title="Username"><span id="settings-username">{@current_user.username}</span></:item>
+      </.list>
+
       <div class="space-y-12 divide-y">
-        <div>
+        <div :if={@current_user.email}>
           <.simple_form
             for={@email_form}
             id="email_form"
@@ -111,6 +115,14 @@ defmodule CakeWeb.UserSettingsLive do
 
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
+  # Changing an email is confirmed by mail to the address the user has. A
+  # user with none is not offered the form, and a hand-made event from one
+  # is ignored: it would otherwise send mail to an address nobody confirmed.
+  def handle_event(event, _params, %{assigns: %{current_user: %{email: nil}}} = socket)
+      when event in ["validate_email", "update_email"] do
+    {:noreply, socket}
+  end
+
   def handle_event("validate_email", params, socket) do
     %{"current_password" => password, "user" => user_params} = params
 
