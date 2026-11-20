@@ -32,6 +32,7 @@ config :cake, CakeWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: CakeWeb.ErrorHTML, json: CakeWeb.ErrorJSON],
+    root_layout: [html: {CakeWeb.Layouts, :root}],
     layout: false
   ],
   pubsub_server: Cake.PubSub,
