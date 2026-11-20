@@ -11,10 +11,10 @@ defmodule CakeWeb.TransitionalComponents do
 
     * `simple_form/1` - the auth pages, `CakeWeb.ChatLive` and
       `CakeWeb.SearchLive`.
-    * `error/1` - `CakeWeb.UserRegistrationLive`,
-      `CakeWeb.UserResetPasswordLive` and `CakeWeb.UploadLive`.
-      (`CakeWeb.CoreComponents.input/1` renders its own field errors; this
-      one is for a message that belongs to no field.)
+    * `error/1` - `CakeWeb.UserRegistrationLive` and
+      `CakeWeb.UserResetPasswordLive`. (`CakeWeb.CoreComponents.input/1`
+      renders its own field errors; this one is for a message that belongs
+      to no field.)
 
   1.8 also dropped `modal/1`, `back/1`, `label/1`, `show_modal/2` and
   `hide_modal/2`. Nothing called them, so they are not kept.
