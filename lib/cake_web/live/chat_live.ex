@@ -432,8 +432,10 @@ defmodule CakeWeb.ChatLive do
         else: {:error, :conversation_down}
   end
 
-  # How a title is displayed is shared with the documents list (#380).
-  defp sanitize_title(title), do: CakeWeb.Titles.display(title)
+  # How a title is displayed is shared with the documents list (#380). The
+  # chat shows citation labels, whose page is spelled out; a candidate's
+  # title goes the same way, as it did before the function was shared.
+  defp sanitize_title(title), do: CakeWeb.Titles.display_citation_label(title)
 
   defp current_mode(socket) do
     case Ecto.Changeset.get_field(socket.assigns.question_form.source, :mode) do

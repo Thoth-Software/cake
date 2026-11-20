@@ -166,7 +166,7 @@ On follow-up turns, retrieval is skipped — cached chunks are reused with the n
 
 **`CakeWeb.ParsedBookLive.Show`** is one document at `/documents/:id`: the same fields, plus its authors, its word count and the number of chunks it was split into (`Cake.Books.count_chunks/1`), as a `list/1`, with the download as the page's primary button. An id that matches no document is a 404. There is no create, edit or delete on either page.
 
-**`CakeWeb.Titles`** is how a document's title is displayed on every screen that shows one (the chat's citations and candidates, the documents list, a document's page): `display/1` removes control and replacement characters and Word's "Microsoft Word - " prefix, and trims; a missing title, or one with nothing left to show, is "Untitled". It corrects nothing else (#86).
+**`CakeWeb.Titles`** is how a document's title is displayed on every screen that shows one (the chat's citations and candidates, the documents list, a document's page): `display/1` removes control and replacement characters and Word's "Microsoft Word - " prefix, and trims; a missing title, or one with nothing left to show, is "Untitled". It corrects nothing else (#86). `display_citation_label/1` is the chat's variant for a citation's label ("title, p. N"): the same cleanup, with the page spelled out as ", PDF page N". The documents pages do not use it, so a stored title that mentions a page keeps its wording.
 
 **`CakeWeb.BooksController`** serves authenticated book downloads at `/books/download/*file_path`: only keys recorded as a `ParsedBook`'s `source_file_path` that also pass `Cake.Books.Adapters.valid_key?/1` are read back through the configured adapter — the same store `UploadLive` writes to; anything else is reported as not found.
 

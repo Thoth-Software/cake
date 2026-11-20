@@ -109,6 +109,23 @@ defmodule CakeWeb.ParsedBookLiveTest do
                "Quarterly Plan.docx"
     end
 
+    # The chat spells out the page of a citation label. A stored title that
+    # happens to mention a page is not one.
+    test "leaves a title that mentions a page as it is", %{conn: conn} do
+      book = parsed_book_fixture(%{title: "Style Guide, p. 2 errata"})
+      {:ok, _lv, html} = live(conn, ~p"/documents")
+
+      assert html |> parse() |> text(~s|#{row(book)} [data-part="title"]|) ==
+               "Style Guide, p. 2 errata"
+
+      assert conn
+             |> get(~p"/documents/#{book}")
+             |> html_response(200)
+             |> parse()
+             |> text("#page h1") ==
+               "Style Guide, p. 2 errata"
+    end
+
     test "calls a document Untitled when nothing of its title can be shown, and still links to it",
          %{conn: conn} do
       book = parsed_book_fixture(%{title: "\uFFFD\u0001"})
