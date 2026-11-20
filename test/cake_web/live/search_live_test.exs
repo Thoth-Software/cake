@@ -1,10 +1,14 @@
 defmodule CakeWeb.SearchLiveTest do
   @moduledoc """
-  Mount + render characterization tests for `CakeWeb.SearchLive`.
+  Tests for `CakeWeb.SearchLive`: mounting, the states the screen can be
+  in, and how results are shown.
 
-  Search-flow tests require a mock of `Cake.Embeddings.embed/3` and
-  `Cake.Search.Backend` (via `Cake.Search.search_chunks_with_context/5`).
-  Those are deferred — see #112's description.
+  Most render the template with assigns in hand. A search through the
+  LiveView itself needs the embedding service and the search backend stood
+  in for (`Req.Test` for `Cake.Embeddings`, `Cake.Search.Backend.Mock` for
+  the backend); "a search that finds nothing" does that, and its setup is
+  the one to reuse. A search that returns hits also needs the hits' records
+  in the database, which no test here sets up yet (#112).
   """
 
   use CakeWeb.ConnCase
@@ -97,7 +101,7 @@ defmodule CakeWeb.SearchLiveTest do
     end
   end
 
-  # The search flow needs an embedding service and a search backend (see the
+  # A search that returns hits needs their records in the database (see the
   # moduledoc), so these render the template with results in hand.
   describe "results" do
     defp results_html(results) do
@@ -292,7 +296,12 @@ defmodule CakeWeb.SearchLiveTest do
     end
 
     test "shows the empty state, naming the query, and no results", %{conn: conn} do
+      test_pid = self()
+
       Req.Test.stub(Cake.Embeddings, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(test_pid, {:embedded, Jason.decode!(body)["input"]})
+
         Req.Test.json(conn, %{
           "object" => "list",
           "data" => [%{"embedding" => List.duplicate(0.1, 1536)}],
@@ -310,12 +319,14 @@ defmodule CakeWeb.SearchLiveTest do
       refute has_element?(lv, "#search-empty")
 
       lv
-      |> form("#search-form", %{"query" => "reverse osmosis"})
+      |> form("#search-form", %{"query" => "  reverse osmosis  "})
       |> render_submit()
 
       render_async(lv)
 
-      assert lv |> element("#search-empty") |> render() =~ "reverse osmosis"
+      # The query is trimmed once: what is searched for is what is named.
+      assert_received {:embedded, "reverse osmosis"}
+      assert lv |> element("#search-empty") |> render() =~ "“reverse osmosis”"
       refute has_element?(lv, "#search-results")
       refute has_element?(lv, "#search-loading")
     end

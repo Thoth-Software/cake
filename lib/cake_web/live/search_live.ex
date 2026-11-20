@@ -30,13 +30,15 @@ defmodule CakeWeb.SearchLive do
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("search", %{"query" => query}, socket) do
-    if String.trim(query) == "" do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> assign(loading: true, error: nil)
-       |> start_async(:search, fn -> {String.trim(query), run_search(query)} end)}
+    case String.trim(query) do
+      "" ->
+        {:noreply, socket}
+
+      query ->
+        {:noreply,
+         socket
+         |> assign(loading: true, error: nil)
+         |> start_async(:search, fn -> {query, run_search(query)} end)}
     end
   end
 

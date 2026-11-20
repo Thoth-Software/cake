@@ -8,7 +8,9 @@ defmodule CakeWeb.CoreComponentsTest do
   The styling itself is not checked here: the suite cannot see a style
   (`.claude/rules/front-end.md`). What is checked is the structure a screen
   and its tests rely on: the `id`, the role, the text, and which daisyUI
-  variant the kind selects.
+  variant the kind selects. An icon and a daisyUI variant are each named by
+  a class, so those two are pinned by class; everything else is selected by
+  `id` or `data-part`.
   """
 
   use ExUnit.Case, async: true
@@ -100,7 +102,7 @@ defmodule CakeWeb.CoreComponentsTest do
       assert Floki.attribute(root, "role") == ["status"]
       assert text(root) == "Ingesting documents..."
 
-      assert [indicator] = Floki.find(root, ".loading")
+      assert [indicator] = Floki.find(root, ~s|[data-part="indicator"]|)
       assert Floki.attribute(indicator, "aria-hidden") == ["true"]
     end
   end

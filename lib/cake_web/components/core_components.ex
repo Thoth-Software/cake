@@ -462,7 +462,9 @@ defmodule CakeWeb.CoreComponents do
     ~H"""
     <div id={@id} class="flex flex-col items-center gap-3 px-4 py-10 text-center text-base-content/70">
       <.icon name={@icon} class="size-10 opacity-60" />
-      <p>{render_slot(@inner_block)}</p>
+      <%!-- The sentence may quote what the user typed: a long unbroken
+      word wraps instead of pushing the page sideways. --%>
+      <p class="max-w-full wrap-anywhere">{render_slot(@inner_block)}</p>
       <div :if={@action != []} data-part="action">{render_slot(@action)}</div>
     </div>
     """
@@ -472,8 +474,11 @@ defmodule CakeWeb.CoreComponents do
   Renders a line saying that something is under way, beside an indicator
   that shows no progress: searching, retrieving, ingesting.
 
-  The line is announced to a screen reader as a status. The indicator is
-  decoration and is hidden from it.
+  The line is marked as a status (`role="status"`) and the indicator, which
+  is decoration, is hidden from a screen reader. Whether the line is spoken
+  when it appears depends on the screen reader: a status that is put on the
+  page with its text already in it is not announced by all of them. That has
+  not been checked with one.
 
   ## Examples
 
@@ -487,7 +492,8 @@ defmodule CakeWeb.CoreComponents do
   def working(assigns) do
     ~H"""
     <div id={@id} role="status" class="flex items-center gap-2 text-base-content/70">
-      <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+      <span data-part="indicator" class="loading loading-spinner loading-sm" aria-hidden="true">
+      </span>
       <span>{render_slot(@inner_block)}</span>
     </div>
     """
@@ -499,8 +505,9 @@ defmodule CakeWeb.CoreComponents do
 
   `flash/1` is for the passing message after an action, which the user
   dismisses. A notice stays where the page puts it. An error or a warning is
-  announced to a screen reader at once; information and success wait their
-  turn.
+  marked as an alert (`role="alert"`), which a screen reader speaks at once;
+  information and success are marked as a status, with the caveat `working/1`
+  describes.
 
   ## Examples
 

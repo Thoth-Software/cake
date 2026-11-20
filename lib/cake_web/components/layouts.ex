@@ -38,7 +38,9 @@ defmodule CakeWeb.Layouts do
   a signed-in user to the chat, is not a link on the chat.
 
   The page is rendered into one column, `#page`, narrow unless the page asks
-  for the wide one. No page sets a width of its own:
+  for the wide one. A page takes its width from here and does not set one of
+  its own (the chat, upload and account pages still do, until #376 to #380
+  move them over):
 
       <Layouts.app flash={@flash} current_user={@current_user} width={:wide}>
   """
@@ -148,14 +150,14 @@ defmodule CakeWeb.Layouts do
     """
   end
 
-  # The pages the top bar links to, as `{page, label, path}`, for the user
-  # given: none for a visitor, and the admin area for an admin only.
-  @spec nav_links(User.t() | nil) :: [{atom(), String.t(), String.t()}]
-  # Spelled out in full: Tailwind keeps only the classes it finds written in
-  # the source.
+  # The width of the page column. Spelled out in full: Tailwind keeps only
+  # the classes it finds written in the source.
   defp page_width(:narrow), do: "max-w-2xl"
   defp page_width(:wide), do: "max-w-5xl"
 
+  # The pages the top bar links to, as `{page, label, path}`, for the user
+  # given: none for a visitor, and the admin area for an admin only.
+  @spec nav_links(User.t() | nil) :: [{atom(), String.t(), String.t()}]
   defp nav_links(nil), do: []
 
   defp nav_links(%User{role: :admin}), do: member_links() ++ admin_links()

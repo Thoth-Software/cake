@@ -4,7 +4,7 @@ What the app looks like, for putting a new screen beside. The conventions these 
 
 Each state is captured four times, as `<state>-<width>-<theme>.png`:
 
-- **width**: `desktop` (1280 × 800) or `phone` (390 × 844), at twice the pixel density;
+- **width**: `desktop` (1280 × 800) or `phone` (390 × 844), at twice the pixel density. The rule a screen has to meet is stricter than the phone shots: nothing scrolls sideways at 360px. Check that width in a browser too;
 - **theme**: `light` (daisyUI's Fantasy) or `dark` (its Dracula).
 
 | State | What it shows |
