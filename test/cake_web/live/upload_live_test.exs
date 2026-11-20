@@ -170,7 +170,57 @@ defmodule CakeWeb.UploadLiveTest do
         )
 
       assert {:error, [[_upload_ref, :too_many_files]]} = preflight_upload(upload)
-      assert has_element?(view, ~s(#upload-queue [data-part="queue-error"]), "Too many files")
+
+      assert has_element?(
+               view,
+               ~s(#upload-queue [data-part="queue-error"]),
+               "Too many files: this takes 20 at a time."
+             )
+
+      # No file is refused, so the page does not ask for refused files to go.
+      assert has_element?(view, "#upload-submit[disabled]")
+      assert has_element?(view, "#upload-blocked", "Remove some files to continue.")
+
+      view |> element(~s(#upload-queue li:first-child [data-part="remove"])) |> render_click()
+
+      refute has_element?(view, ~s(#upload-queue [data-part="queue-error"]))
+      refute has_element?(view, "#upload-submit[disabled]")
+      refute has_element?(view, "#upload-blocked")
+    end
+
+    test "a file's bar shows how much of it has been uploaded", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "doc.pdf", content: "fake-pdf-content", type: "application/pdf"}
+        ])
+
+      render_upload(upload, "doc.pdf", 50)
+
+      assert has_element?(view, ~s(#upload-queue progress[value="50"]))
+    end
+
+    test "the remove button says which file it removes", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "doc.pdf", content: "fake-pdf-content", type: "application/pdf"}
+        ])
+
+      assert {:ok, _} = preflight_upload(upload)
+
+      assert has_element?(
+               view,
+               ~s(#upload-queue [data-part="remove"][aria-label="Remove doc.pdf"])
+             )
+    end
+
+    test "while files upload, the button says so", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      assert has_element?(view, ~s(#upload-submit[phx-disable-with="Uploading..."]))
     end
   end
 
@@ -199,6 +249,40 @@ defmodule CakeWeb.UploadLiveTest do
         ])
 
       assert {:error, [[_ref, :not_accepted]]} = preflight_upload(upload)
+    end
+
+    # The queue lists both uploads; a folder file is refused and removed
+    # through the folder upload, not the files one.
+    test "a refused folder file blocks the submit until it is removed", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      good =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "doc.pdf", content: "fake-pdf-content", type: "application/pdf"}
+        ])
+
+      assert {:ok, _} = preflight_upload(good)
+
+      bad =
+        file_input(view, "#upload-form", :folder, [
+          %{name: ".DS_Store", content: "finder", type: "application/octet-stream"}
+        ])
+
+      assert {:error, [[ref, :not_accepted]]} = preflight_upload(bad)
+
+      assert has_element?(view, "#upload-submit[disabled]")
+
+      assert has_element?(
+               view,
+               "#upload-blocked",
+               "Remove the files that cannot be uploaded to continue."
+             )
+
+      view |> element(~s(#upload-entry-#{ref} [data-part="remove"])) |> render_click()
+
+      refute has_element?(view, "#upload-entry-#{ref}")
+      assert has_element?(view, ~s(#upload-queue [data-part="name"]), "doc.pdf")
+      refute has_element?(view, "#upload-submit[disabled]")
     end
 
     test "accepts PDFs and rejects non-PDFs in a mixed folder upload", %{conn: conn} do
