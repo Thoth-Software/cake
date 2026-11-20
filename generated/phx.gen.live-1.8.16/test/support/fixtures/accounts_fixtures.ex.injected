@@ -1,0 +1,15 @@
+
+  @doc """
+  Generate a user.
+  """
+  def user_fixture(attrs \\ %{}) do
+    {:ok, user} =
+      attrs
+      |> Enum.into(%{
+        role: :member,
+        username: "some username"
+      })
+      |> Cake.Accounts.create_user()
+
+    user
+  end
