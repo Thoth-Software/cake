@@ -11,6 +11,11 @@ defmodule Cake.Accounts.User do
   so `Caleb` and `caleb` are one username. The email is optional, and the
   flows that send mail (confirmation, password reset, email change) apply
   only to a user who has one.
+
+  A user has a role, `:member` or `:admin`. Registration never sets it: a
+  registered user is a member. Only `creation_changeset/3` and
+  `role_changeset/2` cast it, and `Cake.Accounts` is where they are used, so
+  that the rule about the last admin is applied in one place.
   """
 
   use Cake.Schema
@@ -18,6 +23,7 @@ defmodule Cake.Accounts.User do
 
   schema "users" do
     field :username, :string
+    field :role, Ecto.Enum, values: [:member, :admin]
     field :email, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
@@ -28,15 +34,23 @@ defmodule Cake.Accounts.User do
   end
 
   @typedoc """
+  What a user may do: a `:member` uses the application, an `:admin` may also
+  open the admin area.
+  """
+  @type role :: :member | :admin
+
+  @typedoc """
   A registered user. `username` is what the user logs in with; `email` is
-  `nil` for a user registered without one. `password` and `current_password`
-  are virtual fields that only changesets read; the stored secret is
-  `hashed_password`.
+  `nil` for a user registered without one. `role` is `nil` only on a struct
+  that has not been through `Cake.Accounts` yet: every stored user has one.
+  `password` and `current_password` are virtual fields that only changesets
+  read; the stored secret is `hashed_password`.
   """
   @type t :: %__MODULE__{
           __meta__: Ecto.Schema.Metadata.t(),
           id: Ecto.UUID.t() | nil,
           username: String.t() | nil,
+          role: role() | nil,
           email: String.t() | nil,
           password: String.t() | nil,
           hashed_password: String.t() | nil,
@@ -96,6 +110,37 @@ defmodule Cake.Accounts.User do
     |> validate_email(opts)
     |> validate_password(opts)
     |> sanitize_text_fields()
+  end
+
+  @doc """
+  A changeset for creating a user with a role, as `Cake.Accounts.create_user/1`
+  does for the first admin and for the logins an admin hands out.
+
+  It is `registration_changeset/3` plus the role, and takes the same options.
+  The role is required and has no default here: none given, `nil` and blank
+  are all "can't be blank". The schema field has no default either, which is
+  what makes a blank role blank: `cast/4` replaces an empty value with the
+  field's default.
+  """
+  @spec creation_changeset(t(), map(), keyword()) :: Ecto.Changeset.t()
+  def creation_changeset(user, attrs, opts \\ []) do
+    user
+    |> registration_changeset(attrs, opts)
+    |> cast(attrs, [:role])
+    |> validate_required([:role])
+  end
+
+  @doc """
+  A changeset for changing a user's role.
+
+  It only says whether the role is one a user can have. Whether this user may
+  lose the role they hold is `Cake.Accounts.update_user_role/2`'s to decide.
+  """
+  @spec role_changeset(t(), map()) :: Ecto.Changeset.t()
+  def role_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:role])
+    |> validate_required([:role])
   end
 
   # `cast/4` trims a value before it decides whether the value is empty, so a

@@ -164,7 +164,37 @@ On follow-up turns, retrieval is skipped — cached chunks are reused with the n
 
 **`CakeWeb.BooksController`** serves authenticated book downloads at `/books/download/*file_path`: only keys recorded as a `ParsedBook`'s `source_file_path` that also pass `Cake.Books.Adapters.valid_key?/1` are read back through the configured adapter — the same store `UploadLive` writes to; anything else is reported as not found.
 
-**`CakeWeb.UserAuth`** provides the authentication plugs and the three `on_mount/4` LiveView hooks (`:mount_current_user`, `:ensure_authenticated`, `:redirect_if_user_is_authenticated`) that the router's `live_session`s use.
+**`CakeWeb.AdminLive`** is the landing page of the admin area at `/admin`: a heading and nothing else yet, so the admin guard has a real page to protect. The admin panel fills it.
+
+**`CakeWeb.UserAuth`** provides the authentication plugs and the four `on_mount/4` LiveView hooks (`:mount_current_user`, `:ensure_authenticated`, `:redirect_if_user_is_authenticated`, `:ensure_admin`) that the router's `live_session`s use. The `/admin` scope is behind the plug `require_admin/2` and the hook `:ensure_admin`: an admin goes through, a logged-in user who is not one is sent to the home page with a "not authorized" flash, and a visitor who is not logged in is sent to the log-in page. Neither needs the authentication plug or hook before it. Both read the user, and so the role, from the database on each request and each mount, so a demotion takes effect on the user's next navigation.
+
+#### Roles and the First Admin
+
+A user is a `:member` or an `:admin` (`Cake.Accounts.User`'s `role`). Registration always makes a member, whatever the request carries. There is always at least one admin: `Cake.Accounts.update_user_role/2` and `Cake.Accounts.delete_user/1` refuse to demote or delete the last one with `{:error, :last_admin}`. They go by the role in the database, and they are decided one at a time: each takes the same transaction-level advisory lock before it reads anything, so two requests cannot each remove one of the last two admins, and a demotion cannot slip past a promotion that is still uncommitted.
+
+No screen can create the first admin, because every admin screen needs an admin. It is created by calling `Cake.Accounts.create_user/1` with a username, a password and a role. The role is required. The password must never be an argument on the command line, where it is left in the shell history and shown in the process list.
+
+In dev the call runs in the process you start, so the password can come from the environment. `IFS= read -rs` takes it without echoing it, recording it, or trimming spaces from its ends:
+
+```bash
+IFS= read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
+mix run -e 'case Cake.Accounts.create_user(%{username: "caleb", password: System.fetch_env!("ADMIN_PASSWORD"), role: :admin}) do {:ok, user} -> IO.puts("created #{user.username} (#{user.role})"); {:error, changeset} -> IO.inspect(changeset.errors); System.halt(1) end'
+```
+
+In a release (#361) the call goes through `bin/cake rpc`, which evaluates the expression on the running node. That node does not have the environment of the shell that ran `rpc`, so the password comes from standard input, which `rpc` does pass through:
+
+```bash
+IFS= read -rs ADMIN_PASSWORD
+printf '%s\n' "$ADMIN_PASSWORD" | bin/cake rpc 'case Cake.Accounts.create_user(%{username: "caleb", password: String.trim_trailing(IO.read(:stdio, :line), "\n"), role: :admin}) do {:ok, user} -> IO.puts("created #{user.username} (#{user.role})"); {:error, changeset} -> raise "not created: #{inspect(changeset.errors)}" end'
+```
+
+Three details of that command matter to a script that runs it:
+
+- `printf` is a shell builtin, so the password is not in the process list either.
+- Only the line's newline is removed (`String.trim_trailing/2`), so a password that begins or ends with a space is the one stored.
+- On failure it raises. The `rpc` command then exits non-zero, so a script stops there, and the running node is unaffected. It must not call `System.halt/1`, which would stop the node it runs on.
+
+The dev seed (`priv/repo/seeds.exs`) creates a dev login, `admin`, as an admin, and makes it one on a database that was seeded before roles existed. Its password is in the repository, and the dev image's `entrypoint.sh` runs the seed on every boot, so that image must never serve anyone but a developer: a release must not run the seed (#361, #367).
 
 ### Supervision Tree Boot Order
 
@@ -224,7 +254,7 @@ Every custom struct in Cake, its module, and its purpose. Every one of them defi
 | `ParsedDocument` | `Cake.Documents.ParsedDocument` | Programming documentation entry, with its `embedding` and the `embedding_model` that produced it. Both GDS identity and retrieval unit for the Documents GDS. |
 | `Hexdoc` | `Cake.Documents.Hexdocs.Hexdoc` | Raw Elixir source cloned from the elixir-lang/elixir repository. Intermediate storage (raw data struct). |
 | `FailedIngest` | `Cake.FailedIngests.FailedIngest` | Persists item-level pipeline failures for retry via `Cake.Pipelines.sweep/3`, tagged with the recording run's `run_id`. |
-| `User` | `Cake.Accounts.User` | Phoenix authentication user record: a `username` (what a user logs in with; 3 to 32 characters, compared case-insensitively and stored as typed), an optional `email`, and a hashed password. |
+| `User` | `Cake.Accounts.User` | Phoenix authentication user record: a `username` (what a user logs in with; 3 to 32 characters, compared case-insensitively and stored as typed), a `role` (`:member` or `:admin`), an optional `email`, and a hashed password. |
 | `UserToken` | `Cake.Accounts.UserToken` | Session and email confirmation tokens. |
 
 ### Non-Ecto Domain Structs

@@ -35,6 +35,19 @@ defmodule Cake.AccountsFixtures do
     user
   end
 
+  # An admin, made the way the first admin is made: `Cake.Accounts.create_user/1`
+  # with a role. `user_fixture/1` goes through registration, which never sets one.
+  @spec admin_fixture(map()) :: Cake.Accounts.User.t()
+  def admin_fixture(attrs \\ %{}) do
+    {:ok, user} =
+      attrs
+      |> valid_user_attributes()
+      |> Map.put(:role, :admin)
+      |> Cake.Accounts.create_user()
+
+    user
+  end
+
   @spec extract_user_token((String.t() -> {:ok, Swoosh.Email.t()})) :: String.t()
   def extract_user_token(fun) do
     {:ok, captured_email} = fun.(&"[TOKEN]#{&1}[TOKEN]")

@@ -28,6 +28,24 @@ defmodule Cake.AccountsTest do
         Repo.insert_all("users", [row])
       end
     end
+
+    # The default is the column's own, not only the schema's: a row that
+    # names no role (one written before the column existed, or by hand) is
+    # a member.
+    test "gives a row with no role the member role" do
+      now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      row = %{
+        id: Ecto.UUID.bingenerate(),
+        username: unique_user_username(),
+        hashed_password: "x",
+        inserted_at: now,
+        updated_at: now
+      }
+
+      assert {1, nil} = Repo.insert_all("users", [row])
+      assert Repo.all(from(u in "users", select: u.role)) == ["member"]
+    end
   end
 
   describe "get_user_by_email/1" do
@@ -180,6 +198,23 @@ defmodule Cake.AccountsTest do
       assert is_nil(second.email)
     end
 
+    test "registers a member" do
+      {:ok, user} = Accounts.register_user(valid_user_attributes())
+      assert user.role == :member
+      assert Repo.get!(User, user.id).role == :member
+    end
+
+    # Registration is the public page: whatever a visitor posts, they do not
+    # choose their role.
+    test "ignores a role in the attributes, as an atom key or a string key" do
+      {:ok, by_atom} = Accounts.register_user(valid_user_attributes(role: :admin))
+      assert Repo.get!(User, by_atom.id).role == :member
+
+      attrs = Map.new(valid_user_attributes(), fn {key, value} -> {to_string(key), value} end)
+      {:ok, by_string} = Accounts.register_user(Map.put(attrs, "role", "admin"))
+      assert Repo.get!(User, by_string.id).role == :member
+    end
+
     test "validates email and password when given" do
       {:error, changeset} = Accounts.register_user(%{email: "not valid", password: "not valid"})
 
@@ -218,6 +253,190 @@ defmodule Cake.AccountsTest do
       assert user.hashed_password =~ ~r/^\$2[aby]\$/
       assert is_nil(user.confirmed_at)
       assert is_nil(user.password)
+    end
+  end
+
+  describe "create_user/1" do
+    test "creates an admin who can log in, without confirming anything" do
+      username = unique_user_username()
+
+      {:ok, user} =
+        Accounts.create_user(%{username: username, password: valid_user_password(), role: :admin})
+
+      assert user.role == :admin
+      assert user.username == username
+      assert is_nil(user.email)
+      assert is_nil(user.confirmed_at)
+      assert is_nil(user.password)
+      assert user.hashed_password =~ ~r/^\$2[aby]\$/
+
+      found = Accounts.get_user_by_username_and_password(username, valid_user_password())
+      assert found.id == user.id
+      assert found.role == :admin
+    end
+
+    test "creates a member when the role says so" do
+      {:ok, user} = Accounts.create_user(valid_user_attributes(role: :member))
+      assert Repo.get!(User, user.id).role == :member
+    end
+
+    # Unlike registration, which always makes a member, the caller here has
+    # to say which role it means: none given, nil and blank are all refused.
+    test "requires a role, and inserts nothing without one" do
+      attrs = %{username: unique_user_username(), password: valid_user_password()}
+
+      for without_role <- [attrs, Map.put(attrs, :role, nil), Map.put(attrs, :role, "")] do
+        {:error, changeset} = Accounts.create_user(without_role)
+        assert errors_on(changeset).role == ["can't be blank"]
+      end
+
+      assert Repo.all(User) == []
+    end
+
+    test "takes the role as a string, as a form or a shell sends it" do
+      {:ok, user} =
+        Accounts.create_user(%{
+          "username" => unique_user_username(),
+          "password" => valid_user_password(),
+          "role" => "admin"
+        })
+
+      assert Repo.get!(User, user.id).role == :admin
+    end
+
+    test "requires a username and a password" do
+      {:error, changeset} = Accounts.create_user(%{role: :admin})
+      errors = errors_on(changeset)
+
+      assert %{username: ["can't be blank"], password: ["can't be blank"]} = errors
+      refute Map.has_key?(errors, :role)
+    end
+
+    test "holds the username and the password to the rules registration holds them to" do
+      {:error, changeset} =
+        Accounts.create_user(%{username: "not valid", password: "too short", role: :admin})
+
+      assert %{
+               username: [@username_character_error],
+               password: ["should be at least 12 character(s)"]
+             } = errors_on(changeset)
+    end
+
+    test "refuses a taken username, whatever its letter case" do
+      username = "Taken.Admin-#{System.unique_integer([:positive])}"
+      admin_fixture(username: username)
+
+      {:error, changeset} =
+        Accounts.create_user(
+          valid_user_attributes(username: String.upcase(username), role: :admin)
+        )
+
+      assert "has already been taken" in errors_on(changeset).username
+    end
+
+    test "refuses a role that is neither member nor admin, and inserts nothing" do
+      {:error, changeset} = Accounts.create_user(valid_user_attributes(role: :owner))
+
+      assert errors_on(changeset).role == ["is invalid"]
+      assert Repo.all(User) == []
+    end
+  end
+
+  describe "update_user_role/2" do
+    test "promotes a member" do
+      member = user_fixture()
+
+      assert {:ok, promoted} = Accounts.update_user_role(member, :admin)
+      assert promoted.id == member.id
+      assert promoted.role == :admin
+      assert Repo.get!(User, member.id).role == :admin
+    end
+
+    test "demotes an admin while another admin remains" do
+      admin = admin_fixture()
+      other = admin_fixture()
+
+      assert {:ok, demoted} = Accounts.update_user_role(admin, :member)
+      assert demoted.role == :member
+      assert Repo.get!(User, admin.id).role == :member
+      assert Repo.get!(User, other.id).role == :admin
+    end
+
+    test "refuses to demote the last admin, and changes nothing" do
+      admin = admin_fixture()
+      user_fixture()
+
+      assert Accounts.update_user_role(admin, :member) == {:error, :last_admin}
+      assert Repo.get!(User, admin.id).role == :admin
+    end
+
+    test "leaves the last admin an admin when asked to make them one again" do
+      admin = admin_fixture()
+
+      assert {:ok, same} = Accounts.update_user_role(admin, :admin)
+      assert same.role == :admin
+    end
+
+    # The struct says member; the database says this is the last admin.
+    test "goes by the role in the database, not the role on the struct it is given" do
+      admin = admin_fixture()
+      stale = %{admin | role: :member}
+
+      assert Accounts.update_user_role(stale, :member) == {:error, :last_admin}
+      assert Repo.get!(User, admin.id).role == :admin
+    end
+
+    test "refuses a role that is neither member nor admin, and changes nothing" do
+      member = user_fixture()
+
+      assert {:error, %Ecto.Changeset{} = changeset} = Accounts.update_user_role(member, :owner)
+      assert errors_on(changeset).role == ["is invalid"]
+      assert Repo.get!(User, member.id).role == :member
+    end
+  end
+
+  describe "delete_user/1" do
+    test "deletes a member" do
+      member = user_fixture()
+
+      assert {:ok, deleted} = Accounts.delete_user(member)
+      assert deleted.id == member.id
+      refute Repo.get(User, member.id)
+    end
+
+    test "deletes an admin while another admin remains" do
+      admin = admin_fixture()
+      other = admin_fixture()
+
+      assert {:ok, _deleted} = Accounts.delete_user(admin)
+      refute Repo.get(User, admin.id)
+      assert Repo.get!(User, other.id).role == :admin
+    end
+
+    test "refuses to delete the last admin, and deletes nothing" do
+      admin = admin_fixture()
+      user_fixture()
+
+      assert Accounts.delete_user(admin) == {:error, :last_admin}
+      assert Repo.get!(User, admin.id).role == :admin
+    end
+
+    test "goes by the role in the database, not the role on the struct it is given" do
+      admin = admin_fixture()
+      stale = %{admin | role: :member}
+
+      assert Accounts.delete_user(stale) == {:error, :last_admin}
+      assert Repo.get(User, admin.id)
+    end
+
+    test "ends the deleted user's sessions" do
+      member = user_fixture()
+      token = Accounts.generate_user_session_token(member)
+      assert Accounts.get_user_by_session_token(token)
+
+      assert {:ok, _deleted} = Accounts.delete_user(member)
+      refute Accounts.get_user_by_session_token(token)
+      refute Repo.get_by(UserToken, user_id: member.id)
     end
   end
 

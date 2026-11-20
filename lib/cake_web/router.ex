@@ -36,6 +36,18 @@ defmodule CakeWeb.Router do
     end
   end
 
+  # The admin area. The plug guards the request and the hook guards the
+  # LiveView mount; each reads the user's role from the database, so a
+  # demotion takes effect on the user's next navigation.
+  scope "/admin", CakeWeb do
+    pipe_through [:browser, :require_admin]
+
+    live_session :admin,
+      on_mount: [{CakeWeb.UserAuth, :ensure_admin}] do
+      live "/", AdminLive, :index
+    end
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", CakeWeb do
   #   pipe_through :api

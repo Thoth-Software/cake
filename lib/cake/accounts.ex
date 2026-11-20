@@ -118,9 +118,168 @@ defmodule Cake.Accounts do
   """
   @spec register_user(map()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
   def register_user(attrs) do
-    %User{}
+    %User{role: :member}
     |> User.registration_changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Creates a user with a role.
+
+  This is how the first admin is made, since every admin screen needs an
+  admin, and how an admin makes logins for others. Unlike `register_user/1`,
+  which is the public page and always makes a member, the caller says which
+  role it means: `:role` is required, as `:member` or `:admin` (or the same
+  as strings).
+
+  The username and password are held to the rules registration holds them
+  to, and the email is optional. The user can log in at once.
+
+  In a release, call it through `bin/cake rpc`; in dev, through `mix run -e`.
+  Never pass the password on the command line, where it is left in the shell
+  history and shown in the process list. With `mix run -e` it can come from
+  the environment. Through `rpc` it has to come from standard input: the
+  expression is evaluated on the running node, which does not have the
+  environment of the shell that ran `rpc`. The README has both commands
+  ("Roles and the First Admin").
+
+  ## Examples
+
+      iex> create_user(%{username: "caleb", password: "a long password", role: :admin})
+      {:ok, %User{}}
+
+      iex> create_user(%{username: "caleb", password: "a long password"})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  @spec create_user(map()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  def create_user(attrs) do
+    %User{}
+    |> User.creation_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  ## Roles and the last admin
+
+  @doc """
+  Changes a user's role.
+
+  There is always at least one admin: demoting the last one is refused with
+  `{:error, :last_admin}`, and nothing changes. Every other change is
+  allowed, a promotion included. A role that is neither `:member` nor
+  `:admin` is `{:error, changeset}`.
+
+  The decision goes by the user's role in the database, read inside the same
+  transaction as the change, not by the role on the struct passed in. It is
+  safe when requests race: see `delete_user/1` for how.
+
+  A change that would not be allowed if it came second may be allowed if it
+  comes first: asked to promote one user and demote the only admin at the
+  same instant, either both happen or the demotion is refused, depending on
+  which is decided first.
+
+  Raises `Ecto.NoResultsError` if the user no longer exists.
+
+  ## Examples
+
+      iex> update_user_role(member, :admin)
+      {:ok, %User{}}
+
+      iex> update_user_role(the_only_admin, :member)
+      {:error, :last_admin}
+
+  """
+  @spec update_user_role(User.t(), atom() | String.t()) ::
+          {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
+  def update_user_role(%User{} = user, role) do
+    under_last_admin_rule(user, fn current, last_admin? ->
+      changeset = User.role_changeset(current, %{role: role})
+
+      if last_admin? and steps_down?(changeset) do
+        {:error, :last_admin}
+      else
+        Repo.update(changeset)
+      end
+    end)
+  end
+
+  # A valid change to a role other than admin. An invalid one steps nowhere:
+  # it is refused as invalid, by `Repo.update/1`.
+  defp steps_down?(%Ecto.Changeset{valid?: valid?} = changeset) do
+    valid? and Ecto.Changeset.get_field(changeset, :role) != :admin
+  end
+
+  @doc """
+  Deletes a user, and with them their sessions and other tokens.
+
+  There is always at least one admin: deleting the last one is refused with
+  `{:error, :last_admin}`, and nothing is deleted. As in
+  `update_user_role/2`, the decision goes by the role in the database.
+
+  ## Concurrency
+
+  Two requests can each see two admins and each remove one; or one can
+  demote a user whose promotion, still uncommitted when it looked, made
+  them the only admin. Both come from deciding on what was true a moment
+  ago. So this function and `update_user_role/2` are decided one at a time:
+  each takes the same transaction-level advisory lock before it reads
+  anything, and holds it until it commits or rolls back. Whatever it then
+  reads (the user's role, whether another admin exists) cannot be changed
+  under it by another call to either function.
+
+  It is one lock for all users, not a lock on rows, so two calls cannot wait
+  on each other in a circle, and a call does not hold up anything else that
+  touches a user: logging in, registering, changing a password.
+
+  `create_user/1` does not take the lock. It can only add an admin, never
+  remove one, so the worst a race with it does is refuse a demotion that
+  would have been allowed a moment later.
+
+  Raises `Ecto.NoResultsError` if the user no longer exists.
+
+  ## Examples
+
+      iex> delete_user(member)
+      {:ok, %User{}}
+
+      iex> delete_user(the_only_admin)
+      {:error, :last_admin}
+
+  """
+  @spec delete_user(User.t()) :: {:ok, User.t()} | {:error, :last_admin}
+  def delete_user(%User{} = user) do
+    under_last_admin_rule(user, fn current, last_admin? ->
+      if last_admin?, do: {:error, :last_admin}, else: Repo.delete(current)
+    end)
+  end
+
+  # The advisory lock every change of role and every deletion takes. Any
+  # number will do, as long as nothing else in the database uses it; this one
+  # is derived from a name so that it says what it is for.
+  @role_changes_lock :erlang.phash2("cake:accounts:role_changes")
+
+  # Runs `change` in a transaction that holds the role-changes lock, so that
+  # it is the only such change in flight. `change` gets the user as the
+  # database has them now and whether they are the only admin, and answers
+  # `{:ok, user}` to keep what it did or `{:error, reason}` to roll it back.
+  #
+  # The lock comes first, before anything is read: a statement run after it
+  # is granted sees every role change that committed while this call waited.
+  defp under_last_admin_rule(%User{id: id}, change) do
+    Repo.transaction(fn ->
+      _ = Repo.query!("SELECT pg_advisory_xact_lock($1)", [@role_changes_lock])
+
+      current = Repo.get!(User, id)
+
+      case change.(current, current.role == :admin and not other_admin?(id)) do
+        {:ok, user} -> user
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp other_admin?(id) do
+    Repo.exists?(from u in User, where: u.role == :admin and u.id != ^id)
   end
 
   @doc """
