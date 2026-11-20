@@ -62,6 +62,16 @@ defmodule CakeWeb.ChatLiveTest do
 
     # The chat is the one screen the conventions give the wide column, and
     # it takes it from the shell rather than setting a width of its own.
+    # The hook itself runs in the browser (assets/js/follow_newest.js); what
+    # the suite can pin is that the chat asks for it, around both the
+    # messages and the form whose submit it listens for.
+    test "asks for the hook that keeps the newest message in view", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      assert has_element?(view, ~s(#chat[phx-hook="FollowNewest"] #chat-messages))
+      assert has_element?(view, ~s(#chat[phx-hook="FollowNewest"] #question-form))
+    end
+
     test "asks the shell for the wide column", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 

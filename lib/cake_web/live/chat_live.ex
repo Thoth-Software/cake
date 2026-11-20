@@ -182,9 +182,11 @@ defmodule CakeWeb.ChatLive do
       the messages sits there even when the conversation is short. What is
       subtracted is what the shell and the heading take above and below it:
       the top bar, the page's padding and the heading, whose subtitle runs
-      to two lines on a phone. --%>
+      to two lines on a phone. The hook keeps the newest message in view
+      (assets/js/follow_newest.js). --%>
       <div
         id="chat"
+        phx-hook="FollowNewest"
         class="flex min-h-[calc(100dvh-15.5rem)] flex-col sm:min-h-[calc(100dvh-14.5rem)]"
       >
         <div id="chat-messages" class="flex-1 space-y-2 pb-4">
