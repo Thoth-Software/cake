@@ -170,7 +170,7 @@ On follow-up turns, retrieval is skipped — cached chunks are reused with the n
 
 #### Roles and the First Admin
 
-A user is a `:member` or an `:admin` (`Cake.Accounts.User`'s `role`). Registration always makes a member, whatever the request carries. There is always at least one admin: `Cake.Accounts.update_user_role/2` and `Cake.Accounts.delete_user/1` refuse to demote or delete the last one with `{:error, :last_admin}`, going by the role in the database and holding the admin rows locked while they decide, so two requests cannot each remove one of the last two.
+A user is a `:member` or an `:admin` (`Cake.Accounts.User`'s `role`). Registration always makes a member, whatever the request carries. There is always at least one admin: `Cake.Accounts.update_user_role/2` and `Cake.Accounts.delete_user/1` refuse to demote or delete the last one with `{:error, :last_admin}`. They go by the role in the database, and they are decided one at a time: each takes the same transaction-level advisory lock before it reads anything, so two requests cannot each remove one of the last two admins, and a demotion cannot slip past a promotion that is still uncommitted.
 
 No screen can create the first admin, because every admin screen needs an admin. It is created by calling `Cake.Accounts.create_user/1` with a username, a password and a role. The role is required. The password must never be an argument on the command line, where it is left in the shell history and shown in the process list.
 
@@ -194,7 +194,7 @@ Three details of that command matter to a script that runs it:
 - Only the line's newline is removed (`String.trim_trailing/2`), so a password that begins or ends with a space is the one stored.
 - On failure it raises. The `rpc` command then exits non-zero, so a script stops there, and the running node is unaffected. It must not call `System.halt/1`, which would stop the node it runs on.
 
-The dev seed (`priv/repo/seeds.exs`) creates a dev login, `admin`, as an admin, and makes it one on a database that was seeded before roles existed; it is never run in a release.
+The dev seed (`priv/repo/seeds.exs`) creates a dev login, `admin`, as an admin, and makes it one on a database that was seeded before roles existed. Its password is in the repository, and the dev image's `entrypoint.sh` runs the seed on every boot, so that image must never serve anyone but a developer: a release must not run the seed (#361, #367).
 
 ### Supervision Tree Boot Order
 

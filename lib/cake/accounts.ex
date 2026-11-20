@@ -173,6 +173,11 @@ defmodule Cake.Accounts do
   transaction as the change, not by the role on the struct passed in. It is
   safe when requests race: see `delete_user/1` for how.
 
+  A change that would not be allowed if it came second may be allowed if it
+  comes first: asked to promote one user and demote the only admin at the
+  same instant, either both happen or the demotion is refused, depending on
+  which is decided first.
+
   Raises `Ecto.NoResultsError` if the user no longer exists.
 
   ## Examples
@@ -213,12 +218,22 @@ defmodule Cake.Accounts do
 
   ## Concurrency
 
-  Two requests can each see two admins and each remove one. To stop that,
-  this function and `update_user_role/2` first lock every admin row
-  (`SELECT ... FOR UPDATE`, in id order, so two requests never wait on each
-  other in a circle), then lock and read the user, then decide. A second
-  request waits at the first lock, and when it gets through it sees the
-  admins as the first request left them.
+  Two requests can each see two admins and each remove one; or one can
+  demote a user whose promotion, still uncommitted when it looked, made
+  them the only admin. Both come from deciding on what was true a moment
+  ago. So this function and `update_user_role/2` are decided one at a time:
+  each takes the same transaction-level advisory lock before it reads
+  anything, and holds it until it commits or rolls back. Whatever it then
+  reads (the user's role, whether another admin exists) cannot be changed
+  under it by another call to either function.
+
+  It is one lock for all users, not a lock on rows, so two calls cannot wait
+  on each other in a circle, and a call does not hold up anything else that
+  touches a user: logging in, registering, changing a password.
+
+  `create_user/1` does not take the lock. It can only add an admin, never
+  remove one, so the worst a race with it does is refuse a demotion that
+  would have been allowed a moment later.
 
   Raises `Ecto.NoResultsError` if the user no longer exists.
 
@@ -238,28 +253,33 @@ defmodule Cake.Accounts do
     end)
   end
 
-  # Runs `change` in a transaction that holds the admin rows, and the user's
-  # own row, locked. `change` gets the user as the database has them now and
-  # whether they are the only admin, and answers `{:ok, user}` to keep what
-  # it did or `{:error, reason}` to roll it back.
+  # The advisory lock every change of role and every deletion takes. Any
+  # number will do, as long as nothing else in the database uses it; this one
+  # is derived from a name so that it says what it is for.
+  @role_changes_lock :erlang.phash2("cake:accounts:role_changes")
+
+  # Runs `change` in a transaction that holds the role-changes lock, so that
+  # it is the only such change in flight. `change` gets the user as the
+  # database has them now and whether they are the only admin, and answers
+  # `{:ok, user}` to keep what it did or `{:error, reason}` to roll it back.
+  #
+  # The lock comes first, before anything is read: a statement run after it
+  # is granted sees every role change that committed while this call waited.
   defp under_last_admin_rule(%User{id: id}, change) do
     Repo.transaction(fn ->
-      admin_ids =
-        Repo.all(
-          from u in User,
-            where: u.role == :admin,
-            order_by: u.id,
-            select: u.id,
-            lock: "FOR UPDATE"
-        )
+      _ = Repo.query!("SELECT pg_advisory_xact_lock($1)", [@role_changes_lock])
 
-      current = Repo.one!(from u in User, where: u.id == ^id, lock: "FOR UPDATE")
+      current = Repo.get!(User, id)
 
-      case change.(current, admin_ids == [current.id]) do
+      case change.(current, current.role == :admin and not other_admin?(id)) do
         {:ok, user} -> user
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  defp other_admin?(id) do
+    Repo.exists?(from u in User, where: u.role == :admin and u.id != ^id)
   end
 
   @doc """
