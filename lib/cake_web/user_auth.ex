@@ -2,7 +2,8 @@ defmodule CakeWeb.UserAuth do
   @moduledoc """
   Authentication helpers for the web layer: logging users in and out, the
   remember-me cookie, fetching the current user, and the plug/LiveView
-  `on_mount` hooks that guard routes by authentication state.
+  `on_mount` hooks that guard routes by authentication state and, for the
+  admin area, by role.
   """
 
   use CakeWeb, :verified_routes
@@ -11,6 +12,10 @@ defmodule CakeWeb.UserAuth do
   import Phoenix.Controller
 
   alias Cake.Accounts
+  alias Cake.Accounts.User
+
+  @must_log_in "You must log in to access this page."
+  @not_authorized "You are not authorized to access this page."
 
   # Make the remember me cookie valid for 60 days.
   # If you want bump or reduce this value, also change
@@ -135,6 +140,13 @@ defmodule CakeWeb.UserAuth do
     * `:redirect_if_user_is_authenticated` - Authenticates the user from the session.
       Redirects to signed_in_path if there's a logged user.
 
+    * `:ensure_admin` - Authenticates the user from the session and lets
+      only an admin through. Redirects to the login page if there's no
+      logged user, and to the home page, with a "not authorized" flash, if
+      the user is not an admin. It does not need `:ensure_authenticated`
+      before it. The user, and so the role, is read when the LiveView
+      mounts, so a demotion takes effect on the user's next navigation.
+
   ## Examples
 
   Use the `on_mount` lifecycle macro in LiveViews to mount or authenticate
@@ -166,12 +178,28 @@ defmodule CakeWeb.UserAuth do
     if socket.assigns.current_user do
       {:cont, socket}
     else
-      socket =
-        socket
-        |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-        |> Phoenix.LiveView.redirect(to: ~p"/users/log_in")
+      {:halt, halt_to_log_in(socket)}
+    end
+  end
 
-      {:halt, socket}
+  @spec on_mount(atom(), map(), map(), map()) :: {:halt, map()} | {:cont, map()}
+  def on_mount(:ensure_admin, _params, session, socket) do
+    socket = mount_current_user(socket, session)
+
+    case socket.assigns.current_user do
+      %User{role: :admin} ->
+        {:cont, socket}
+
+      %User{} ->
+        socket =
+          socket
+          |> Phoenix.LiveView.put_flash(:error, @not_authorized)
+          |> Phoenix.LiveView.redirect(to: ~p"/")
+
+        {:halt, socket}
+
+      nil ->
+        {:halt, halt_to_log_in(socket)}
     end
   end
 
@@ -184,6 +212,12 @@ defmodule CakeWeb.UserAuth do
     else
       {:cont, socket}
     end
+  end
+
+  defp halt_to_log_in(socket) do
+    socket
+    |> Phoenix.LiveView.put_flash(:error, @must_log_in)
+    |> Phoenix.LiveView.redirect(to: ~p"/users/log_in")
   end
 
   defp mount_current_user(socket, session) do
@@ -220,10 +254,39 @@ defmodule CakeWeb.UserAuth do
       conn
     else
       conn
-      |> put_flash(:error, "You must log in to access this page.")
+      |> put_flash(:error, @must_log_in)
       |> maybe_store_return_to()
       |> redirect(to: ~p"/users/log_in")
       |> halt()
+    end
+  end
+
+  @doc """
+  Used for routes that only an admin may open.
+
+  A user who is not logged in is handled as `require_authenticated_user/2`
+  handles them: sent to the login page, with the path remembered. So this
+  plug does not need that one before it. A logged-in user who is not an
+  admin is sent to the home page with a "not authorized" flash, and their
+  path is not remembered: logging in again would not let them in.
+
+  The role is the one on `conn.assigns.current_user`, which
+  `fetch_current_user/2` reads from the database on every request.
+  """
+  @spec require_admin(Plug.Conn.t(), keyword()) :: Plug.Conn.t()
+  def require_admin(conn, opts) do
+    case conn.assigns[:current_user] do
+      %User{role: :admin} ->
+        conn
+
+      %User{} ->
+        conn
+        |> put_flash(:error, @not_authorized)
+        |> redirect(to: ~p"/")
+        |> halt()
+
+      nil ->
+        require_authenticated_user(conn, opts)
     end
   end
 
