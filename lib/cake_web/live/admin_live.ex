@@ -12,7 +12,7 @@ defmodule CakeWeb.AdminLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <.header>Admin</.header>
     </Layouts.app>
     """

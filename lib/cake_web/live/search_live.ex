@@ -17,6 +17,7 @@ defmodule CakeWeb.SearchLive do
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
+       page_title: "Search",
        results: [],
        loading: false,
        form: to_form(%{"query" => ""}),
@@ -107,7 +108,7 @@ defmodule CakeWeb.SearchLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <div class="max-w-2xl mx-auto p-4">
         <h1 class="text-2xl font-bold mb-4">Cake Search</h1>
 
