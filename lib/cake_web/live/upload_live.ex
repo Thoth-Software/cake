@@ -314,99 +314,146 @@ defmodule CakeWeb.UploadLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user} current_page={:upload}>
-      <div class="max-w-2xl mx-auto p-4">
-        <h1 class="text-2xl font-bold mb-4">Upload Documents</h1>
+      <.header>
+        Upload documents
+        <:subtitle>Add PDFs to the library that Chat and Search answer from.</:subtitle>
+      </.header>
 
-        <.rejected_archives :if={@rejected_archives != []} archives={@rejected_archives} />
+      <.rejected_archives :if={@rejected_archives != []} archives={@rejected_archives} />
 
-        <%= case @status do %>
-          <% :idle -> %>
-            <.upload_form uploads={@uploads} />
-          <% :processing -> %>
-            <.processing_indicator />
-          <% :done -> %>
-            <.results_panel results={@results} error={@error} skipped_count={@skipped_count} />
-          <% :error -> %>
-            <.error_panel error={@error} />
-        <% end %>
-      </div>
+      <%= case @status do %>
+        <% :idle -> %>
+          <.upload_form uploads={@uploads} />
+        <% :processing -> %>
+          <.processing_indicator />
+        <% :done -> %>
+          <.results_panel results={@results} error={@error} skipped_count={@skipped_count} />
+        <% :error -> %>
+          <.error_panel error={@error} />
+      <% end %>
     </Layouts.app>
     """
   end
 
+  # Both file inputs are hidden (`sr-only`) inside the label that stands for
+  # them, so each still takes the keyboard focus and opens its picker, and the
+  # browser's own file control, which is wider than a phone, is never drawn.
   defp upload_form(assigns) do
     ~H"""
-    <form id="upload-form" phx-submit="upload" phx-change="validate">
-      <div class="space-y-6">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Upload Files (PDFs or ZIP archives)
-          </label>
-          <.live_file_input upload={@uploads.documents} />
-        </div>
+    <form id="upload-form" phx-submit="upload" phx-change="validate" class="space-y-4">
+      <%!-- From `sm` up, a drop zone; below it, where there is nothing to
+      drag, the same label is a button. --%>
+      <label
+        id="upload-dropzone"
+        for={@uploads.documents.ref}
+        phx-drop-target={@uploads.documents.ref}
+        class="flex cursor-pointer flex-col items-center gap-2 rounded-box border-base-content/30 text-center focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary sm:border-2 sm:border-dashed sm:px-4 sm:py-10 sm:hover:border-primary"
+      >
+        <.icon name="hero-arrow-up-tray" class="hidden size-10 opacity-60 sm:block" />
+        <span class="hidden sm:block">
+          Drop files here, or <span class="link link-primary">choose them</span>
+        </span>
+        <span class="btn btn-outline w-full sm:hidden">
+          <.icon name="hero-arrow-up-tray" class="size-5" /> Choose files
+        </span>
+        <span id="upload-limits" class="text-sm text-base-content/70">
+          PDF or ZIP, up to {@uploads.documents.max_entries} files, {max_size(@uploads.documents)} each
+        </span>
+        <.live_file_input upload={@uploads.documents} class="sr-only" />
+      </label>
 
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Upload Folder
-          </label>
-          <.live_file_input upload={@uploads.folder} webkitdirectory />
-        </div>
+      <div class="divider text-sm text-base-content/70">or</div>
 
-        <.entry_list entries={@uploads.documents.entries} upload_name="documents" />
-        <.entry_list entries={@uploads.folder.entries} upload_name="folder" />
+      <div id="upload-folder" class="flex flex-col items-center gap-2 text-center">
+        <label class="btn btn-outline w-full focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary sm:w-auto">
+          <.icon name="hero-folder-open" class="size-5" /> Choose a folder
+          <.live_file_input upload={@uploads.folder} webkitdirectory class="sr-only" />
+        </label>
+        <span class="text-sm text-base-content/70">
+          The PDFs in one folder, up to {@uploads.folder.max_entries} files, {max_size(
+            @uploads.folder
+          )} each
+        </span>
+      </div>
 
-        <.entry_errors upload={@uploads.documents} />
-        <.entry_errors upload={@uploads.folder} />
+      <.queue :if={queued?(@uploads)} uploads={@uploads} />
 
-        <button
-          type="submit"
-          disabled={no_valid_entries?(@uploads)}
-          class="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Upload and Ingest
-        </button>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <.button id="upload-submit" type="submit" variant="primary" disabled={not ready?(@uploads)}>
+          Upload and ingest
+        </.button>
+        <p :if={blocked?(@uploads)} id="upload-blocked" class="text-sm text-base-content/70">
+          Remove the files that cannot be uploaded to continue.
+        </p>
       </div>
     </form>
     """
   end
 
-  defp entry_list(assigns) do
+  defp queue(assigns) do
     ~H"""
-    <ul :if={@entries != []} class="space-y-2">
-      <li :for={entry <- @entries} class="flex items-center justify-between bg-gray-50 rounded p-2">
-        <div class="flex-1 min-w-0">
-          <span class="text-sm truncate block">{entry.client_name}</span>
-          <span class="text-xs text-gray-500">{format_size(entry.client_size)}</span>
-          <div :if={entry.progress > 0 and entry.progress < 100} class="mt-1">
-            <div class="w-full bg-gray-200 rounded-full h-1.5">
-              <div class="bg-blue-600 h-1.5 rounded-full" style={"width: #{entry.progress}%"}></div>
-            </div>
-          </div>
-        </div>
-        <button
-          type="button"
-          phx-click="cancel-upload"
-          phx-value-ref={entry.ref}
-          phx-value-upload={@upload_name}
-          class="ml-2 text-red-500 hover:text-red-700 text-sm"
-        >
-          &times;
-        </button>
-      </li>
-    </ul>
+    <div id="upload-queue" class="space-y-2">
+      <ul class="list rounded-box border border-base-300 bg-base-100">
+        <.queue_entry
+          :for={{upload, entry} <- queued_entries(@uploads)}
+          entry={entry}
+          upload_name={upload.name}
+          errors={upload_errors(upload, entry)}
+        />
+      </ul>
+      <%!-- More files than one upload takes is an error of the whole queue,
+      not of any one file in it. --%>
+      <p
+        :for={upload <- [@uploads.documents, @uploads.folder]}
+        :if={upload_errors(upload) != []}
+        data-part="queue-error"
+        class="flex items-center gap-2 text-sm text-error"
+      >
+        <.icon name="hero-exclamation-circle" class="size-5 shrink-0" />
+        <span :for={error <- upload_errors(upload)}>
+          {upload_error_to_string(error)}: this takes {upload.max_entries} at a time.
+        </span>
+      </p>
+    </div>
     """
   end
 
-  defp entry_errors(assigns) do
+  defp queue_entry(assigns) do
     ~H"""
-    <div
-      :for={entry <- @upload.entries}
-      :if={upload_errors(@upload, entry) != []}
-      class="text-red-600 text-sm"
-    >
-      <span>{entry.client_name}:</span>
-      <span :for={msg <- upload_errors(@upload, entry)}>{upload_error_to_string(msg)}</span>
-    </div>
+    <li id={"upload-entry-#{@entry.ref}"} class="list-row items-center">
+      <.icon
+        name={if @errors == [], do: "hero-document", else: "hero-exclamation-circle"}
+        class={["size-5", if(@errors == [], do: "opacity-60", else: "text-error")]}
+      />
+      <div class="min-w-0">
+        <p data-part="name" class="wrap-anywhere">{@entry.client_name}</p>
+        <p data-part="size" class="text-sm text-base-content/70">
+          {format_size(@entry.client_size)}
+        </p>
+        <progress
+          :if={@errors == []}
+          class="progress progress-primary mt-1 block w-full"
+          value={@entry.progress}
+          max="100"
+          aria-label={"Upload progress of #{@entry.client_name}"}
+        >
+          {@entry.progress}%
+        </progress>
+        <p :for={error <- @errors} data-part="error" class="text-sm text-error">
+          {upload_error_to_string(error)}
+        </p>
+      </div>
+      <button
+        type="button"
+        phx-click="cancel-upload"
+        phx-value-ref={@entry.ref}
+        phx-value-upload={@upload_name}
+        aria-label={"Remove #{@entry.client_name}"}
+        class="btn btn-ghost btn-sm btn-square"
+      >
+        <.icon name="hero-x-mark" class="size-5" />
+      </button>
+    </li>
     """
   end
 
@@ -481,10 +528,32 @@ defmodule CakeWeb.UploadLive do
     """
   end
 
-  @spec no_valid_entries?(map()) :: boolean()
-  defp no_valid_entries?(uploads) do
-    uploads.documents.entries == [] and uploads.folder.entries == []
+  # The two uploads the form holds, in the order the queue lists them.
+  @spec queued_entries(map()) :: [
+          {Phoenix.LiveView.UploadConfig.t(), Phoenix.LiveView.UploadEntry.t()}
+        ]
+  defp queued_entries(uploads) do
+    for upload <- [uploads.documents, uploads.folder],
+        entry <- upload.entries,
+        do: {upload, entry}
   end
+
+  @spec queued?(map()) :: boolean()
+  defp queued?(uploads), do: queued_entries(uploads) != []
+
+  # A refused file, or more files than an upload takes, is an error on the
+  # upload. While there is one the browser sends nothing on submit, so the
+  # button is disabled rather than left to do nothing.
+  @spec blocked?(map()) :: boolean()
+  defp blocked?(uploads), do: uploads.documents.errors != [] or uploads.folder.errors != []
+
+  @spec ready?(map()) :: boolean()
+  defp ready?(uploads), do: queued?(uploads) and not blocked?(uploads)
+
+  # The size limit as the page states it: the decimal megabytes it is
+  # configured in, not the binary ones format_size/1 shows a file's size in.
+  @spec max_size(Phoenix.LiveView.UploadConfig.t()) :: String.t()
+  defp max_size(upload), do: "#{div(upload.max_file_size, 1_000_000)} MB"
 
   @spec format_size(non_neg_integer()) :: String.t()
   defp format_size(bytes) when bytes < 1024, do: "#{bytes} B"
