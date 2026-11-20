@@ -120,6 +120,19 @@ defmodule Cake.AccountsTest do
     end
   end
 
+  describe "get_user/1" do
+    test "returns the user with the given id" do
+      user = user_fixture()
+      assert Accounts.get_user(user.id) == Accounts.get_user!(user.id)
+    end
+
+    test "returns nil for an id no user has, and for what is not an id at all" do
+      assert Accounts.get_user(Ecto.UUID.generate()) == nil
+      assert Accounts.get_user("not-an-id") == nil
+      assert Accounts.get_user(nil) == nil
+    end
+  end
+
   describe "register_user/1" do
     test "requires username and password to be set, and no email" do
       {:error, changeset} = Accounts.register_user(%{})
