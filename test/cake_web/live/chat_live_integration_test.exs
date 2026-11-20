@@ -56,7 +56,7 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
 
   defp submit_question(view, question, mode) do
     view
-    |> form("form", question_form: %{question: question, mode: mode})
+    |> form("#question-form", question_form: %{question: question, mode: mode})
     |> render_submit()
   end
 
@@ -78,7 +78,7 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
         "It is the P-100 booster pump [1], warranted five years [2]."
       end)
 
-      # The user message renders on submit; the thinking indicator arrives
+      # The user message renders on submit; the working line arrives
       # with the conversation's own :generating broadcast, asynchronously,
       # so it is not asserted here.
       assert submit_question(view, @question, "auto") =~ @question
@@ -95,7 +95,8 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
       assert html =~ "[2] " <> rendered_label(warranty)
       assert html =~ "/books/download/" <> corpus.book.source_file_path
       assert html =~ Citable.metadata(pump).preview
-      refute html =~ "Thinking..."
+      refute has_element?(view, "#chat-retrieving")
+      refute has_element?(view, "#chat-generating")
       assert html =~ "Ask a question..."
     end
   end

@@ -22,7 +22,27 @@ defmodule CakeWeb.ChatLiveTest do
 
       assert html =~ "Cake Chat"
       assert html =~ "Ask a question..."
-      assert has_element?(view, "button", "Send")
+      assert has_element?(view, "#question-form button", "Send")
+    end
+
+    test "an empty conversation shows a prompt with a link to Upload, not a blank page",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      assert has_element?(view, "#chat-empty")
+      assert has_element?(view, ~s(#chat-empty a[href="/upload"]))
+      refute has_element?(view, "#msg-0")
+    end
+
+    test "the prompt gives way to the first message", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      view
+      |> form("#question-form", question_form: %{question: "What is Cake?", mode: "auto"})
+      |> render_submit()
+
+      assert has_element?(view, "#msg-0")
+      refute has_element?(view, "#chat-empty")
     end
 
     test "shows manual selection toggle", %{conn: conn} do
@@ -59,45 +79,58 @@ defmodule CakeWeb.ChatLiveTest do
     test "appends user message to the chat", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
-      html =
-        view
-        |> form("form", question_form: %{question: "What is Cake?", mode: "auto"})
-        |> render_submit()
+      view
+      |> form("#question-form", question_form: %{question: "What is Cake?", mode: "auto"})
+      |> render_submit()
 
-      assert html =~ "What is Cake?"
-      assert html =~ "You"
+      assert has_element?(view, "#msg-0", "What is Cake?")
+      assert has_element?(view, "#msg-0", "You")
     end
 
+    # The page now has wording of its own (the empty conversation's prompt),
+    # so "no message was added" is the absence of the first message, not of
+    # a word.
     test "rejects empty question", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
-      html =
-        view
-        |> form("form", question_form: %{question: "", mode: "auto"})
-        |> render_submit()
+      view
+      |> form("#question-form", question_form: %{question: "", mode: "auto"})
+      |> render_submit()
 
-      refute html =~ "You"
+      refute has_element?(view, "#msg-0")
     end
   end
 
   describe "PubSub-driven state transitions" do
-    test ":state_change to :generating shows thinking indicator", %{conn: conn} do
+    # The conversation reports its two slow stages separately, and so does
+    # the page: each has a line of its own, and never both.
+    test ":state_change to :generating says an answer is being written and hides the form",
+         %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
       broadcast_to_view(view, {:state_change, :generating})
 
-      assert render(view) =~ "Thinking..."
+      assert has_element?(view, "#chat-generating[role=status]")
+      refute has_element?(view, "#chat-retrieving")
+      refute has_element?(view, "#question-form")
     end
 
-    test ":state_change to :retrieving shows the thinking indicator and hides the form",
+    test ":state_change to :retrieving says the documents are being searched and hides the form",
          %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
       broadcast_to_view(view, {:state_change, :retrieving})
 
-      html = render(view)
-      assert html =~ "Thinking..."
-      refute html =~ "Ask a question..."
+      assert has_element?(view, "#chat-retrieving[role=status]")
+      refute has_element?(view, "#chat-generating")
+      refute has_element?(view, "#question-form")
+    end
+
+    test "neither working line is on the page while the conversation is idle", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      refute has_element?(view, "#chat-retrieving")
+      refute has_element?(view, "#chat-generating")
     end
 
     test ":candidates_ready shows selection panel", %{conn: conn} do
@@ -116,15 +149,15 @@ defmodule CakeWeb.ChatLiveTest do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
       broadcast_to_view(view, {:state_change, :generating})
-      assert render(view) =~ "Thinking..."
+      assert has_element?(view, "#chat-generating")
 
       payload = %{response: "Here is the answer.", citations: []}
       broadcast_to_view(view, {:response_ready, payload})
 
-      html = render(view)
-      assert html =~ "Here is the answer."
-      assert html =~ "Cake"
-      refute html =~ "Thinking..."
+      assert has_element?(view, "#msg-0", "Here is the answer.")
+      assert has_element?(view, "#msg-0", "Cake")
+      refute has_element?(view, "#chat-generating")
+      assert has_element?(view, "#question-form")
     end
 
     test ":response_ready with citations renders sources", %{conn: conn} do
@@ -152,7 +185,9 @@ defmodule CakeWeb.ChatLiveTest do
       html = render(view)
       assert html =~ "something went wrong"
       refute html =~ "some_failure"
-      refute html =~ "Thinking..."
+      refute has_element?(view, "#chat-retrieving")
+      refute has_element?(view, "#chat-generating")
+      assert has_element?(view, "#question-form")
     end
   end
 
@@ -291,7 +326,7 @@ defmodule CakeWeb.ChatLiveTest do
       refute has_element?(view, ~s(input[name="question_form[question]"][disabled]))
 
       broadcast_to_view(view, {:state_change, :generating})
-      assert render(view) =~ "Thinking..."
+      assert has_element?(view, "#chat-generating")
     end
 
     test "a repeated new_conversation event does not start a second conversation",
