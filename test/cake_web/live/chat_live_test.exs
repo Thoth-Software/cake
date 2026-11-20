@@ -201,20 +201,66 @@ defmodule CakeWeb.ChatLiveTest do
       assert has_element?(view, "#question-form")
     end
 
-    test ":response_ready with citations renders sources", %{conn: conn} do
+    test ":response_ready with citations renders a numbered chip per source", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      citations = [
+        %{new_index: 1, label: "Test Book", source_ref: "abc123", preview: "A preview snippet"},
+        %{new_index: 2, label: "Other Book", source_ref: "def456", preview: "Another snippet"}
+      ]
+
+      payload = %{response: "See [1] and [2].", citations: citations}
+      broadcast_to_view(view, {:response_ready, payload})
+
+      # The chip carries the number its [N] marker has in the answer.
+      assert has_element?(view, "#msg-0", "See [1] and [2].")
+      assert has_element?(view, "#msg-0-sources #msg-0-source-1.badge", "[1] Test Book")
+      assert has_element?(view, "#msg-0-sources #msg-0-source-2.badge", "[2] Other Book")
+    end
+
+    # A preview that opened only on hover could not be reached from a
+    # keyboard or by tap: the chip's label is focusable and the preview
+    # describes it, as the search screen's page chips do.
+    test "a source's preview opens from the keyboard and by tap, not only on hover",
+         %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
       citations = [
         %{new_index: 1, label: "Test Book", source_ref: "abc123", preview: "A preview snippet"}
       ]
 
-      payload = %{response: "See [1].", citations: citations}
-      broadcast_to_view(view, {:response_ready, payload})
+      broadcast_to_view(view, {:response_ready, %{response: "See [1].", citations: citations}})
 
-      html = render(view)
-      assert html =~ "Sources:"
-      assert html =~ "Test Book"
-      assert html =~ "A preview snippet"
+      assert has_element?(view, "#msg-0-preview-1[role=tooltip]", "A preview snippet")
+
+      assert has_element?(
+               view,
+               ~s(#msg-0-source-1 [tabindex="0"][aria-describedby="msg-0-preview-1"])
+             )
+    end
+
+    test "a source's chip still links to the download, by name", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      citations = [
+        %{new_index: 1, label: "Test Book", source_ref: "abc123", preview: "A preview snippet"}
+      ]
+
+      broadcast_to_view(view, {:response_ready, %{response: "See [1].", citations: citations}})
+
+      assert has_element?(
+               view,
+               ~s(#msg-0-source-1 a[href="/books/download/abc123"][aria-label="Download Test Book"])
+             )
+    end
+
+    test "an answer that cites nothing has no sources", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(view, {:response_ready, %{response: "No idea.", citations: []}})
+
+      assert has_element?(view, "#msg-0", "No idea.")
+      refute has_element?(view, "#msg-0-sources")
     end
 
     test ":error shows a safe message without leaking the reason and returns to idle",

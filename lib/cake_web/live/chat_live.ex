@@ -256,22 +256,53 @@ defmodule CakeWeb.ChatLive do
         so the template's own whitespace must stay out of it. A question can
         be one long unbroken word: it wraps anywhere. --%>
         <p class="whitespace-pre-wrap wrap-anywhere" phx-no-format>{@message.text}</p>
+      </div>
+      <.sources :if={@message[:citations] not in [nil, []]} id={@id} citations={@message.citations} />
+    </div>
+    """
+  end
+
+  # The sources an answer cites, as chips under it: each carries the number
+  # its `[N]` marker has in the text. A chip has two parts. Its label is
+  # focusable and is what the preview describes, so the preview opens on
+  # hover, from the keyboard and by tap, as the search screen's page chips
+  # do. Its arrow is the link to the source: a label that was itself the
+  # link would start the download on the tap meant to open the preview.
+  attr :id, :string, required: true
+  attr :citations, :list, required: true
+
+  defp sources(assigns) do
+    ~H"""
+    <div id={"#{@id}-sources"} class="chat-footer mt-1 flex-wrap items-center gap-2 text-sm">
+      <span class="text-base-content/70">Sources:</span>
+      <div :for={cite <- @citations} class="tooltip max-w-full">
         <div
-          :if={@message[:citations] != nil and @message[:citations] != []}
-          class="mt-2 text-sm text-gray-600 border-t pt-2"
+          id={"#{@id}-preview-#{cite.new_index}"}
+          role="tooltip"
+          class="tooltip-content max-w-xs text-left"
         >
-          <div class="font-semibold mb-1">Sources:</div>
-          <div class="space-y-1">
-            <div :for={cite <- @message.citations} class="relative group inline-block">
-              <a href={"/books/download/#{cite.source_ref}"} class="text-blue-600 hover:underline">
-                [{cite.new_index}] {sanitize_title(cite.label)}
-              </a>
-              <div class="hidden group-hover:block absolute z-10 bottom-full left-0 mb-1 w-80 p-3 bg-gray-800 text-white text-xs rounded shadow-lg">
-                {cite.preview}
-              </div>
-            </div>
-          </div>
+          {cite.preview}
         </div>
+        <span
+          id={"#{@id}-source-#{cite.new_index}"}
+          class="badge badge-soft badge-primary h-auto min-h-6 gap-2 whitespace-normal py-0.5 text-left"
+        >
+          <span
+            tabindex="0"
+            aria-describedby={"#{@id}-preview-#{cite.new_index}"}
+            class="cursor-help wrap-anywhere"
+          >
+            [{cite.new_index}] {sanitize_title(cite.label)}
+          </span>
+          <a
+            :if={cite.source_ref}
+            href={"/books/download/#{cite.source_ref}"}
+            aria-label={"Download #{sanitize_title(cite.label)}"}
+            class="flex"
+          >
+            <.icon name="hero-arrow-down-tray" class="size-4" />
+          </a>
+        </span>
       </div>
     </div>
     """
