@@ -289,18 +289,24 @@ defmodule CakeWeb.Admin.UserLiveTest do
     end
 
     test "logs neither the password typed nor the one submitted", %{conn: conn} do
-      level = Logger.level()
-      Logger.configure(level: :debug)
-      on_exit(fn -> Logger.configure(level: level) end)
-
       username = unique_user_username()
       {:ok, lv, _html} = live(conn, ~p"/admin/users/new")
       attrs = %{username: username, password: @typed_password, role: "member"}
 
+      # The level is global, and lowered only while the log is captured, so
+      # nothing logged at it reaches the console.
+      level = Logger.level()
+
       log =
         capture_log(fn ->
-          lv |> form("#user-form", user: attrs) |> render_change()
-          lv |> form("#user-form", user: attrs) |> render_submit()
+          Logger.configure(level: :debug)
+
+          try do
+            lv |> form("#user-form", user: attrs) |> render_change()
+            lv |> form("#user-form", user: attrs) |> render_submit()
+          after
+            Logger.configure(level: level)
+          end
         end)
 
       # The submission was logged, with the username in it and the password
