@@ -17,6 +17,10 @@ defmodule CakeWeb.UserRegistrationLive do
         </:subtitle>
       </.header>
 
+      <.notice :if={@check_errors} id="registration-errors" kind={:error}>
+        Oops, something went wrong! Please check the errors below.
+      </.notice>
+
       <div class="card card-border bg-base-100">
         <div class="card-body">
           <.form
@@ -28,10 +32,6 @@ defmodule CakeWeb.UserRegistrationLive do
             action={~p"/users/log_in?_action=registered"}
             method="post"
           >
-            <.notice :if={@check_errors} id="registration-errors" kind={:error}>
-              Oops, something went wrong! Please check the errors below.
-            </.notice>
-
             <.input
               field={@form[:username]}
               type="text"

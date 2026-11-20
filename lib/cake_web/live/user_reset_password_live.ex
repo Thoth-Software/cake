@@ -9,6 +9,10 @@ defmodule CakeWeb.UserResetPasswordLive do
     <Layouts.app flash={@flash} current_user={@current_user}>
       <.header>Reset Password</.header>
 
+      <.notice :if={@form.errors != []} id="reset-password-errors" kind={:error}>
+        Oops, something went wrong! Please check the errors below.
+      </.notice>
+
       <div class="card card-border bg-base-100">
         <div class="card-body">
           <.form
@@ -17,10 +21,6 @@ defmodule CakeWeb.UserResetPasswordLive do
             phx-submit="reset_password"
             phx-change="validate"
           >
-            <.notice :if={@form.errors != []} id="reset-password-errors" kind={:error}>
-              Oops, something went wrong! Please check the errors below.
-            </.notice>
-
             <.input
               field={@form[:password]}
               type="password"
