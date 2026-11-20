@@ -145,7 +145,13 @@ defmodule CakeWeb.UserAuth do
       logged user, and to the home page, with a "not authorized" flash, if
       the user is not an admin. It does not need `:ensure_authenticated`
       before it. The user, and so the role, is read when the LiveView
-      mounts, so a demotion takes effect on the user's next navigation.
+      mounts, and again on every event of a connected page, so a demotion
+      takes effect on the user's next navigation or next action in the
+      admin area, whichever comes first.
+
+  Every hook also subscribes a connected page of a logged-in user to that
+  user's topic, so that `end_live_sessions/1` can send the page to the
+  log-in page.
 
   ## Examples
 
@@ -223,7 +229,7 @@ defmodule CakeWeb.UserAuth do
   defp mount_current_user(socket, session) do
     socket
     |> Phoenix.Component.assign_new(:current_user, fn -> user_of_session(session) end)
-    |> leave_when_sessions_end()
+    |> leave_when_sessions_end(session)
   end
 
   defp user_of_session(session) do
@@ -279,9 +285,16 @@ defmodule CakeWeb.UserAuth do
   which would otherwise go on working until they were next navigated.
 
   It goes by the user, not by their session tokens, so the caller needs
-  nothing back from the function that deleted them, and there is no moment
-  in between to miss: a page mounted before the rows went is subscribed and
-  hears this, and one mounted after finds no session.
+  nothing back from the function that deleted them. A page that mounted
+  before the rows went is subscribed and hears this, and one that mounts
+  after finds no session. A page mounting at that very moment could find
+  its session and subscribe too late to hear; so a mount looks the session
+  up once more after it has subscribed.
+
+  What this does not cover is a log-in in flight: a request that checked
+  the old password before it was changed and stores its session after the
+  others were deleted. That is `Cake.Accounts`'s to close, not this
+  function's.
   """
   @spec end_live_sessions(User.t()) :: :ok
   def end_live_sessions(%User{id: id}) do
@@ -292,20 +305,32 @@ defmodule CakeWeb.UserAuth do
 
   # Every `on_mount` hook mounts the user through `mount_current_user/2`, so
   # every live page of a logged-in user listens here.
-  defp leave_when_sessions_end(%{assigns: %{current_user: %User{id: id}}} = socket) do
+  defp leave_when_sessions_end(%{assigns: %{current_user: %User{id: id}}} = socket, session) do
     if Phoenix.LiveView.connected?(socket) do
       :ok = Phoenix.PubSub.subscribe(Cake.PubSub, sessions_topic(id))
-
-      Phoenix.LiveView.attach_hook(socket, :sessions_ended, :handle_info, fn
-        {__MODULE__, :sessions_ended}, socket -> {:halt, halt_to_log_in(socket)}
-        _message, socket -> {:cont, socket}
-      end)
+      still_logged_in(socket, session)
     else
       socket
     end
   end
 
-  defp leave_when_sessions_end(socket), do: socket
+  defp leave_when_sessions_end(socket, _session), do: socket
+
+  # The session was found before the page subscribed. If it ended in
+  # between, the broadcast went unheard, so it is looked up once more: gone,
+  # and the page mounts for nobody, which each guard then turns away.
+  defp still_logged_in(socket, session) do
+    case user_of_session(session) do
+      %User{} ->
+        Phoenix.LiveView.attach_hook(socket, :sessions_ended, :handle_info, fn
+          {__MODULE__, :sessions_ended}, socket -> {:halt, halt_to_log_in(socket)}
+          _message, socket -> {:cont, socket}
+        end)
+
+      nil ->
+        Phoenix.Component.assign(socket, :current_user, nil)
+    end
+  end
 
   @doc """
   Used for routes that require the user to not be authenticated.

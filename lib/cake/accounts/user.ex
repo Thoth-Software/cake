@@ -13,9 +13,10 @@ defmodule Cake.Accounts.User do
   only to a user who has one.
 
   A user has a role, `:member` or `:admin`. Registration never sets it: a
-  registered user is a member. Only `creation_changeset/3` and
-  `role_changeset/2` cast it, and `Cake.Accounts` is where they are used, so
-  that the rule about the last admin is applied in one place.
+  registered user is a member. Only `creation_changeset/3`,
+  `role_changeset/2` and `update_changeset/3` cast it, and `Cake.Accounts`
+  is where they are used, so that the rule about the last admin is applied
+  in one place.
   """
 
   use Cake.Schema

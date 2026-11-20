@@ -103,6 +103,31 @@ defmodule Cake.Accounts do
   def get_user!(id), do: Repo.get!(User, id)
 
   @doc """
+  Gets a single user, or `nil`.
+
+  `nil` is the answer for an id no user has and for a value that is not an
+  id at all, so it can be handed what a request carried. It is for a caller
+  that has something to say when the user is gone: the admin panel, when a
+  login is deleted while a page still shows it.
+
+  ## Examples
+
+      iex> get_user("3f5242a5-dd9a-44ca-8316-7ecb66b4d10f")
+      %User{}
+
+      iex> get_user("not-an-id")
+      nil
+
+  """
+  @spec get_user(term()) :: User.t() | nil
+  def get_user(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} -> Repo.get(User, uuid)
+      :error -> nil
+    end
+  end
+
+  @doc """
   Returns every user, ordered by username whatever its letter case.
 
   It is the admin panel's list, and it is not paged: a Cake has as many
@@ -323,11 +348,11 @@ defmodule Cake.Accounts do
   Two requests can each see two admins and each remove one; or one can
   demote a user whose promotion, still uncommitted when it looked, made
   them the only admin. Both come from deciding on what was true a moment
-  ago. So this function and `update_user_role/2` are decided one at a time:
-  each takes the same transaction-level advisory lock before it reads
-  anything, and holds it until it commits or rolls back. Whatever it then
-  reads (the user's role, whether another admin exists) cannot be changed
-  under it by another call to either function.
+  ago. So this function, `update_user_role/2` and `update_user/2` are
+  decided one at a time: each takes the same transaction-level advisory lock
+  before it reads anything, and holds it until it commits or rolls back.
+  Whatever it then reads (the user's role, whether another admin exists)
+  cannot be changed under it by another call to any of the three.
 
   It is one lock for all users, not a lock on rows, so two calls cannot wait
   on each other in a circle, and a call does not hold up anything else that

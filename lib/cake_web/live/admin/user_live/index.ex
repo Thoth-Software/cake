@@ -12,7 +12,8 @@ defmodule CakeWeb.Admin.UserLive.Index do
   Deleting goes through `Cake.Accounts.delete_user/1`, so the last admin
   cannot be deleted, and an admin cannot delete their own login: their row
   has no button, and a request for it is refused. A refusal is shown as a
-  notice above the list. A deleted user's sessions go with them, and their
+  notice above the list, and so is a login that someone else deleted while
+  this page still showed it. A deleted user's sessions go with them, and their
   open pages are sent to the log-in page
   (`CakeWeb.UserAuth.end_live_sessions/1`).
   """
@@ -84,23 +85,29 @@ defmodule CakeWeb.Admin.UserLive.Index do
   @impl Phoenix.LiveView
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
-    users = Accounts.list_users()
-
     {:ok,
      socket
      |> assign(:page_title, "Logins")
      |> assign(:refusal, nil)
-     |> assign(:show_email?, Enum.any?(users, & &1.email))
-     |> stream(:users, users)}
+     |> list_users()}
+  end
+
+  # The whole list, afresh. The Email column depends on every row, and a row
+  # of a stream is rendered once, so when the list changes it is read and
+  # rendered again rather than patched.
+  defp list_users(socket) do
+    users = Accounts.list_users()
+
+    socket
+    |> assign(:show_email?, Enum.any?(users, & &1.email))
+    |> stream(:users, users, reset: true)
   end
 
   @impl Phoenix.LiveView
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("delete", %{"id" => id}, socket) do
-    user = Accounts.get_user!(id)
-
-    case delete(user, socket.assigns.current_user) do
+    case delete(Accounts.get_user(id), socket.assigns.current_user) do
       {:ok, %User{} = deleted} ->
         :ok = UserAuth.end_live_sessions(deleted)
 
@@ -108,7 +115,13 @@ defmodule CakeWeb.Admin.UserLive.Index do
          socket
          |> assign(:refusal, nil)
          |> put_flash(:info, "Login deleted")
-         |> stream_delete(:users, deleted)}
+         |> list_users()}
+
+      {:error, :gone} ->
+        {:noreply,
+         socket
+         |> assign(:refusal, "That login no longer exists.")
+         |> list_users()}
 
       {:error, :own_login} ->
         {:noreply, assign(socket, :refusal, "You cannot delete your own login.")}
@@ -118,9 +131,19 @@ defmodule CakeWeb.Admin.UserLive.Index do
     end
   end
 
+  def handle_event(_event, _params, socket), do: {:noreply, socket}
+
   # The context knows the last-admin rule; who is asking is known only here.
+  # A login can be deleted by someone else while this page still shows it:
+  # before the request (no such user) or during it (the context raises).
+  defp delete(nil, %User{}), do: {:error, :gone}
   defp delete(%User{id: id}, %User{id: id}), do: {:error, :own_login}
-  defp delete(%User{} = user, %User{}), do: Accounts.delete_user(user)
+
+  defp delete(%User{} = user, %User{}) do
+    Accounts.delete_user(user)
+  rescue
+    Ecto.NoResultsError -> {:error, :gone}
+  end
 
   defp role_badge(:admin), do: "badge-primary"
   defp role_badge(:member), do: "badge-ghost"
