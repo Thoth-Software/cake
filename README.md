@@ -170,7 +170,7 @@ On follow-up turns, retrieval is skipped — cached chunks are reused with the n
 
 #### The App Shell
 
-Every page is rendered inside one shell, `CakeWeb.Layouts.app/1`: a top bar, the page, and the flash messages. The top bar shows the product name (a link home), the pages the user may open, the theme toggle, and an account area. What it links to depends on who is looking:
+Every page is rendered inside one shell, `CakeWeb.Layouts.app/1`: a top bar, the page, and the flash messages. The top bar shows the product name (a link home for a visitor, to the chat for a signed-in user), the pages the user may open, the theme toggle, and an account area. What it links to depends on who is looking:
 
 | Viewer | Page links | Account area |
 |---|---|---|

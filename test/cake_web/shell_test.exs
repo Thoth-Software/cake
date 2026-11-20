@@ -122,14 +122,36 @@ defmodule CakeWeb.ShellTest do
   end
 
   describe "every page" do
-    test "names the product in the top bar, linking home", %{conn: conn} do
-      for {kind, pages} <- [visitor: @visitor_pages, member: @member_pages, admin: @admin_pages],
+    test "names the product in the top bar, linking home for a visitor and to the chat for a user",
+         %{conn: conn} do
+      for {kind, pages, href} <- [
+            {:visitor, @visitor_pages, "/"},
+            {:member, @member_pages, "/chat"},
+            {:admin, @admin_pages, "/chat"}
+          ],
           path <- pages do
         [brand] = conn |> conn_for(kind) |> page(path) |> Floki.find("#brand")
 
         assert brand |> Floki.text() |> String.trim() == "Cake", path
-        assert Floki.attribute(brand, "href") == ["/"], path
+        assert Floki.attribute(brand, "href") == [href], path
       end
+    end
+
+    # 4: the two pages reached with a token from an email.
+    test "titles the pages reached with a token too", %{conn: conn} do
+      user = user_fixture()
+
+      reset_token =
+        extract_user_token(&Cake.Accounts.deliver_user_reset_password_instructions(user, &1))
+
+      confirm_token =
+        extract_user_token(&Cake.Accounts.deliver_user_confirmation_instructions(user, &1))
+
+      assert conn |> page("/users/reset_password/#{reset_token}") |> text("title") ==
+               "Reset password · Cake"
+
+      assert conn |> page("/users/confirm/#{confirm_token}") |> text("title") ==
+               "Confirm account · Cake"
     end
 
     test "is titled with its own name and then the product's, and the home page with the product's alone",

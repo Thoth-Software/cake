@@ -143,7 +143,7 @@ defmodule CakeWeb.SearchLive do
           <div class="card-body">
             <h2 class="card-title">
               <a
-                href={"/books/download/#{result.source_file_path}"}
+                href={~p"/books/download/#{String.split(result.source_file_path, "/")}"}
                 class="link link-hover link-primary"
               >
                 {result.book_title}

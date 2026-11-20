@@ -44,8 +44,14 @@ defmodule CakeWeb.Layouts do
     ~H"""
     <header class="navbar border-b border-base-300 bg-base-100 px-2 sm:px-6 lg:px-8">
       <div class="flex flex-none items-center">
-        <div :if={@nav_links != []} class="dropdown lg:hidden">
-          <div tabindex="0" role="button" class="btn btn-ghost btn-square" aria-label="Menu">
+        <nav :if={@nav_links != []} aria-label="Main" class="dropdown lg:hidden">
+          <div
+            tabindex="0"
+            role="button"
+            aria-haspopup="menu"
+            aria-label="Menu"
+            class="btn btn-ghost btn-square"
+          >
             <.icon name="hero-bars-3" class="size-5" />
           </div>
           <ul
@@ -57,11 +63,17 @@ defmodule CakeWeb.Layouts do
               <.link navigate={path}>{label}</.link>
             </li>
           </ul>
-        </div>
-        <a id="brand" href={~p"/"} class="btn btn-ghost px-2 text-xl">Cake</a>
+        </nav>
+        <a
+          id="brand"
+          href={if @current_user, do: ~p"/chat", else: ~p"/"}
+          class="btn btn-ghost px-2 text-xl"
+        >
+          Cake
+        </a>
       </div>
 
-      <nav id="main-nav" class="hidden flex-1 justify-center lg:flex">
+      <nav id="main-nav" aria-label="Main" class="hidden flex-1 justify-center lg:flex">
         <ul class="menu menu-horizontal gap-1 px-1">
           <li :for={{label, path} <- @nav_links}>
             <.link navigate={path}>{label}</.link>
@@ -72,7 +84,7 @@ defmodule CakeWeb.Layouts do
       <div class="ml-auto flex flex-none items-center gap-2">
         <.theme_toggle />
         <div :if={@current_user} id="user-menu" class="dropdown dropdown-end">
-          <div tabindex="0" role="button" class="btn btn-ghost px-2">
+          <div tabindex="0" role="button" aria-haspopup="menu" class="btn btn-ghost px-2">
             <.icon name="hero-user-circle" class="size-6 sm:hidden" />
             <span id="user-menu-username" class="sr-only sm:not-sr-only sm:max-w-[12rem] sm:truncate">
               {@current_user.username}

@@ -142,6 +142,13 @@ defmodule CakeWeb.SearchLiveTest do
       assert Floki.text(card) =~ "p. 97"
     end
 
+    test "encodes the storage key in the download link, segment by segment" do
+      result = %{book_result() | source_file_path: "reports/Q3 #2 100%.pdf"}
+      [title] = [result] |> results_html() |> Floki.find("#search-results h2 a")
+
+      assert Floki.attribute(title, "href") == ["/books/download/reports/Q3%20%232%20100%25.pdf"]
+    end
+
     test "every page chip can be reached with the keyboard and is described by its preview" do
       html = results_html([book_result()])
       chips = Floki.find(html, ~s|#search-results [tabindex="0"]|)

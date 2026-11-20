@@ -91,13 +91,28 @@ defmodule CakeWeb.LayoutsTest do
   end
 
   describe "app/1, for anyone" do
-    test "names the product, and the name links home" do
-      for current_user <- [nil, member(), admin()] do
+    test "names the product; the name links home for a visitor and to the chat for a user" do
+      for {current_user, href} <- [{nil, "/"}, {member(), "/chat"}, {admin(), "/chat"}] do
         [brand] = Floki.find(app_layout(current_user), "#brand")
 
         assert brand |> Floki.text() |> String.trim() == "Cake"
-        assert attribute(brand, "href") == "/"
+        assert attribute(brand, "href") == href
       end
+    end
+
+    test "puts the collapsed menu in a navigation landmark, as the top bar's links are" do
+      html = app_layout(member())
+
+      assert [_nav] = Floki.find(html, "nav:has(#mobile-nav)")
+      assert [_nav] = Floki.find(html, "nav#main-nav")
+      assert html |> Floki.find("header nav") |> Floki.attribute("aria-label") == ["Main", "Main"]
+    end
+
+    test "both menu buttons say they open a menu" do
+      triggers = Floki.find(app_layout(member()), ~s|header [role="button"]|)
+
+      assert length(triggers) == 2
+      assert Enum.all?(triggers, &(attribute(&1, "aria-haspopup") == "menu"))
     end
 
     test "each theme button names the theme it selects" do
