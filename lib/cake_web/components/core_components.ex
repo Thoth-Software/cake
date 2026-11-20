@@ -318,8 +318,8 @@ defmodule CakeWeb.CoreComponents do
   @doc """
   Renders a header with title.
   """
-  # Not in the generator's file: the 1.7 header took a class, and the auth
-  # pages still pass one to centre theirs (#374).
+  # Not in the generator's file: the 1.7 header took a class (#374). The
+  # auth pages passed one to centre theirs until #377; no page does now.
   attr :class, :any, default: nil
 
   slot :inner_block, required: true
