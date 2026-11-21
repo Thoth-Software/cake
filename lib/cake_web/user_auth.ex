@@ -14,6 +14,8 @@ defmodule CakeWeb.UserAuth do
   alias Cake.Accounts
   alias Cake.Accounts.User
 
+  require Logger
+
   @must_log_in "You must log in to access this page."
   @not_authorized "You are not authorized to access this page."
 
@@ -271,6 +273,19 @@ defmodule CakeWeb.UserAuth do
       nil ->
         {:halt, halt_to_log_in(socket)}
     end
+  rescue
+    # The session could not be read: the database is down, restarting, or
+    # out of connections. An admin who cannot be vouched for is turned away,
+    # and the page does not crash, because a crash report prints the event
+    # being handled, which on a form can hold a password. The log gets what
+    # failed, not the event.
+    error ->
+      Logger.error(
+        "#{inspect(__MODULE__)}: could not read the session before an admin event: " <>
+          inspect(error.__struct__)
+      )
+
+      {:halt, halt_to_log_in(socket)}
   end
 
   ## Ending a user's live pages

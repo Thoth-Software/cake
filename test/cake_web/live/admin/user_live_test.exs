@@ -479,15 +479,15 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert log =~ "CakeWeb.Admin.UserLive.Form"
       refute_logged(log, @typed_password)
 
-      {html, log} =
+      {password_html, password_log} =
         with_log(fn ->
           password
           |> form("#password-form", user: %{password: @typed_password})
           |> render_submit()
         end)
 
-      assert html =~ "could not be saved"
-      refute_logged(log, @typed_password)
+      assert password_html =~ "could not be saved"
+      refute_logged(password_log, @typed_password)
     end
 
     # The admin check runs before the form sees an event, and it reads the

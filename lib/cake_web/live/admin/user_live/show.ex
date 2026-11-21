@@ -2,7 +2,8 @@ defmodule CakeWeb.Admin.UserLive.Show do
   @moduledoc """
   One login's page in the admin panel, at `/admin/users/:id`: its username,
   role, created date and, when it has one, email, with the way to its form
-  and to setting its password.
+  and to setting its password. A login that no longer exists sends the admin
+  back to the list, saying so.
   """
 
   use CakeWeb, :live_view
@@ -54,12 +55,20 @@ defmodule CakeWeb.Admin.UserLive.Show do
   @impl Phoenix.LiveView
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
   def mount(%{"id" => id}, _session, socket) do
-    user = Accounts.get_user!(id)
+    case Accounts.get_user(id) do
+      %User{} = user ->
+        {:ok,
+         socket
+         |> assign(:page_title, user.username)
+         |> assign(:user, user)}
 
-    {:ok,
-     socket
-     |> assign(:page_title, user.username)
-     |> assign(:user, user)}
+      # Deleted since the link here was rendered.
+      nil ->
+        {:ok,
+         socket
+         |> put_flash(:error, "That login no longer exists.")
+         |> push_navigate(to: ~p"/admin/users")}
+    end
   end
 
   defp created_on(%User{inserted_at: inserted_at}), do: Calendar.strftime(inserted_at, "%Y-%m-%d")

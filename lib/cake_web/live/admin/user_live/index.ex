@@ -118,20 +118,22 @@ defmodule CakeWeb.Admin.UserLive.Index do
          |> list_users()}
 
       {:error, :gone} ->
-        {:noreply,
-         socket
-         |> assign(:refusal, "That login no longer exists.")
-         |> list_users()}
+        {:noreply, socket |> refuse("That login no longer exists.") |> list_users()}
 
       {:error, :own_login} ->
-        {:noreply, assign(socket, :refusal, "You cannot delete your own login.")}
+        {:noreply, refuse(socket, "You cannot delete your own login.")}
 
       {:error, :last_admin} ->
-        {:noreply, assign(socket, :refusal, "The last admin cannot be deleted.")}
+        {:noreply, refuse(socket, "The last admin cannot be deleted.")}
     end
   end
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  # A refusal replaces the message of whatever was done before it.
+  defp refuse(socket, message) do
+    socket |> clear_flash() |> assign(:refusal, message)
+  end
 
   # The context knows the last-admin rule; who is asking is known only here.
   # A login can be deleted by someone else while this page still shows it:

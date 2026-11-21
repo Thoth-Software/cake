@@ -26,10 +26,16 @@ defmodule CakeWeb.Admin.UserLive.Form do
   named `password`, which Phoenix filters out of the log.
 
   That filter does not reach a crash report, which prints the message a
-  page was handling and everything it held. So the form held in the socket
-  never carries the password (`assign_form/3` blanks it), and a save does
-  not crash: one that raises is reported on the page and logged by its
-  exception's name alone, without the message that caused it.
+  page was handling and everything it held. What this module can do about
+  that, it does: the form held in the socket never carries the password
+  (`assign_form/3` removes it), a field that is not text never reaches the
+  template, and a save that raises is reported on the page and logged by
+  its exception's name alone, without the message that caused it.
+
+  It cannot do all of it. The message is the process's, not this module's:
+  a crash anywhere else while a password-bearing event is being handled
+  (in a hook, in the template, in LiveView itself) still prints the event.
+  Closing that for every page is #399.
   """
 
   use CakeWeb, :live_view
@@ -41,6 +47,7 @@ defmodule CakeWeb.Admin.UserLive.Form do
   require Logger
 
   @roles [{"Member", "member"}, {"Admin", "admin"}]
+  @gone "That login no longer exists."
 
   @impl Phoenix.LiveView
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
@@ -103,32 +110,35 @@ defmodule CakeWeb.Admin.UserLive.Form do
   @impl Phoenix.LiveView
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
   def mount(params, _session, socket) do
-    {:ok,
-     socket
-     |> assign(:return_to, return_to(socket.assigns.live_action, params["return_to"]))
-     |> apply_action(socket.assigns.live_action, params)}
+    action = socket.assigns.live_action
+
+    case login(action, params) do
+      %User{} = user ->
+        {:ok,
+         socket
+         |> assign(:return_to, return_to(action, params["return_to"]))
+         |> assign(:page_title, title(action))
+         |> assign(:user, user)
+         |> assign_form(change(action, user, %{}))}
+
+      nil ->
+        {:ok,
+         socket
+         |> put_flash(:error, @gone)
+         |> push_navigate(to: ~p"/admin/users")}
+    end
   end
+
+  # The login a form is for: a new one, or the one the address names, which
+  # may have been deleted since the link to this form was rendered.
+  defp login(:new, _params), do: %User{}
+  defp login(_action, %{"id" => id}), do: Accounts.get_user(id)
 
   # Only the edit form is opened from a login's own page.
   defp return_to(:edit, "show"), do: "show"
   defp return_to(_action, _), do: "index"
 
-  defp apply_action(socket, :new, _params) do
-    socket
-    |> assign(:page_title, "New login")
-    |> assign(:user, %User{})
-    |> assign_form(change(:new, %User{}, %{}))
-  end
-
-  defp apply_action(socket, action, %{"id" => id}) when action in [:edit, :password] do
-    user = Accounts.get_user!(id)
-
-    socket
-    |> assign(:page_title, title(action))
-    |> assign(:user, user)
-    |> assign_form(change(action, user, %{}))
-  end
-
+  defp title(:new), do: "New login"
   defp title(:edit), do: "Edit login"
   defp title(:password), do: "Set password"
 
@@ -143,10 +153,16 @@ defmodule CakeWeb.Admin.UserLive.Form do
   defp change(:edit, user, params), do: Accounts.change_user(user, params)
   defp change(:password, user, params), do: Accounts.change_user_password(user, params)
 
-  # The form the page holds never carries the password. The parameter stays,
-  # blank, so that the field still counts as filled in and shows its errors.
+  # The form the page holds never carries the password: not among the
+  # changeset's changes, where only `inspect/1` would hide it, and not among
+  # its params. The parameter stays, blank, so that the field still counts
+  # as filled in and shows its errors, which the changeset keeps.
   defp assign_form(socket, %Ecto.Changeset{} = changeset, opts \\ []) do
-    changeset = %{changeset | params: blank_password(changeset.params)}
+    changeset =
+      changeset
+      |> Ecto.Changeset.delete_change(:password)
+      |> Map.update!(:params, &blank_password/1)
+
     assign(socket, :form, to_form(changeset, [as: :user] ++ opts))
   end
 
@@ -156,19 +172,21 @@ defmodule CakeWeb.Admin.UserLive.Form do
   @impl Phoenix.LiveView
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
-  def handle_event("validate", %{"user" => %{} = user_params}, socket) do
-    changeset = change(socket.assigns.live_action, socket.assigns.user, user_params)
+  def handle_event("validate", %{"user" => user_params}, socket) do
+    action = socket.assigns.live_action
+    changeset = change(action, socket.assigns.user, text_fields(action, user_params))
     {:noreply, assign_form(socket, changeset, action: :validate)}
   end
 
   def handle_event("save", %{"user" => user_params}, socket) do
-    save_user(socket, socket.assigns.live_action, user_params)
+    action = socket.assigns.live_action
+    save_user(socket, action, text_fields(action, user_params))
   rescue
     # The login was deleted while its form was open.
     _gone in [Ecto.NoResultsError, Ecto.StaleEntryError] ->
       {:noreply,
        socket
-       |> put_flash(:error, "That login no longer exists.")
+       |> put_flash(:error, @gone)
        |> push_navigate(to: ~p"/admin/users")}
 
     # Anything else. The message being handled may hold a password, and a
@@ -180,10 +198,24 @@ defmodule CakeWeb.Admin.UserLive.Form do
           Exception.format_stacktrace(__STACKTRACE__)
       )
 
-      {:noreply, put_flash(socket, :error, "That could not be saved. Nothing was changed.")}
+      {:noreply, put_flash(socket, :error, "That could not be saved.")}
   end
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  # What a form is allowed to send: its own fields, each as text. A browser
+  # sends nothing else. A hand-written request can send a map or a list in
+  # a field's place, which a changeset refuses but a template cannot
+  # render; such a field counts as not sent.
+  @fields %{new: ~w(username password role), edit: ~w(username role), password: ~w(password)}
+
+  defp text_fields(action, %{} = user_params) do
+    user_params
+    |> Map.take(Map.fetch!(@fields, action))
+    |> Map.filter(fn {_field, value} -> is_binary(value) end)
+  end
+
+  defp text_fields(_action, _not_a_form), do: %{}
 
   defp save_user(socket, :new, user_params) do
     case Accounts.create_user(user_params) do
@@ -206,16 +238,20 @@ defmodule CakeWeb.Admin.UserLive.Form do
          |> put_flash(:info, "Login updated")
          |> push_navigate(to: return_path(socket.assigns.return_to, user))}
 
+      # A refused save shows the login as it is now, so that is what the next
+      # save's changes are measured against.
       {:error, :last_admin} ->
+        user = Accounts.get_user(socket.assigns.user.id) || socket.assigns.user
+
         changeset =
           :edit
-          |> change(socket.assigns.user, user_params)
+          |> change(user, user_params)
           |> Ecto.Changeset.add_error(:role, "cannot be changed: this is the last admin")
 
-        {:noreply, assign_form(socket, changeset, action: :validate)}
+        {:noreply, socket |> assign(:user, user) |> assign_form(changeset, action: :validate)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign_form(socket, changeset)}
+        {:noreply, socket |> assign(:user, changeset.data) |> assign_form(changeset)}
     end
   end
 
@@ -234,8 +270,8 @@ defmodule CakeWeb.Admin.UserLive.Form do
     end
   end
 
-  # What the form changed: the fields that differ from the login as it was
-  # when the form was opened.
+  # What the form changed: the fields that differ from the login as the
+  # form last showed it (when it was opened, or after a refused save).
   defp changed(%User{} = user, user_params) do
     user_params
     |> Map.take(["username", "role"])
