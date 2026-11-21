@@ -32,6 +32,67 @@ defmodule Cake.BooksTest do
       assert Books.list_parsed_books() == [parsed_book]
     end
 
+    # The documents list (#380). `inserted_at` is set by the database layer,
+    # not cast from attrs, so a test dates a book after inserting it.
+    defp book_uploaded_at(uploaded_at) do
+      parsed_book_fixture()
+      |> Ecto.Changeset.change(inserted_at: uploaded_at)
+      |> Cake.Repo.update!()
+    end
+
+    defp ids(books), do: Enum.map(books, & &1.id)
+
+    test "list_parsed_books_newest_first/0 returns the books by upload time, newest first" do
+      oldest = book_uploaded_at(~U[2026-01-01 09:00:00Z])
+      newest = book_uploaded_at(~U[2026-03-01 09:00:00Z])
+      middle = book_uploaded_at(~U[2026-02-01 09:00:00Z])
+
+      assert ids(Books.list_parsed_books_newest_first()) == ids([newest, middle, oldest])
+    end
+
+    # The documents list shows six fields of a book. The rest, the `metadata`
+    # and `table_of_contents` maps among them, can be large and are not read:
+    # what comes back is a listing, a map of those six fields, not a
+    # `ParsedBook` with the others left empty.
+    test "list_parsed_books_newest_first/0 returns a listing of each book: the fields the documents list shows, and no others" do
+      book =
+        parsed_book_fixture(%{metadata: %{"big" => "map"}, table_of_contents: %{"1" => "Intro"}})
+
+      assert Books.list_parsed_books_newest_first() == [
+               %{
+                 id: book.id,
+                 title: book.title,
+                 total_pages: book.total_pages,
+                 embedding_status: book.embedding_status,
+                 inserted_at: book.inserted_at,
+                 source_file_path: book.source_file_path
+               }
+             ]
+    end
+
+    # `inserted_at` is stored to the second and a batch upload lands within
+    # one, so the order has to be decided for books that share a time.
+    test "list_parsed_books_newest_first/0 orders books uploaded in the same second by id" do
+      books = for _ <- 1..4, do: book_uploaded_at(~U[2026-01-01 09:00:00Z])
+
+      assert ids(Books.list_parsed_books_newest_first()) == Enum.sort(ids(books))
+    end
+
+    test "list_parsed_books_newest_first/0 returns an empty list when there are no books" do
+      assert Books.list_parsed_books_newest_first() == []
+    end
+
+    test "count_chunks/1 counts the chunks of the given book only" do
+      {book, _chunks} = book_with_chunks_fixture([%{}, %{}, %{}])
+      {_other, _chunks} = book_with_chunks_fixture([%{}])
+
+      assert Books.count_chunks(book) == 3
+    end
+
+    test "count_chunks/1 is zero for a book with no chunks" do
+      assert Books.count_chunks(parsed_book_fixture()) == 0
+    end
+
     test "get_parsed_book!/1 returns the parsed_book with given id" do
       parsed_book = parsed_book_fixture()
       assert Books.get_parsed_book!(parsed_book.id) == parsed_book

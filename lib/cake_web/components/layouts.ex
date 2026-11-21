@@ -52,7 +52,7 @@ defmodule CakeWeb.Layouts do
 
   attr :current_page, :atom,
     default: nil,
-    values: [nil, :chat, :upload, :search, :admin],
+    values: [nil, :chat, :documents, :upload, :search, :admin],
     doc: "which of the top bar's pages this is, or `nil` for any other page"
 
   attr :width, :atom,
@@ -166,6 +166,7 @@ defmodule CakeWeb.Layouts do
   defp member_links do
     [
       {:chat, "Chat", ~p"/chat"},
+      {:documents, "Documents", ~p"/documents"},
       {:upload, "Upload", ~p"/upload"},
       {:search, "Search", ~p"/search"}
     ]

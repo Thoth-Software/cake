@@ -23,8 +23,8 @@ defmodule CakeWeb.LayoutsTest do
   alias Cake.Accounts.User
   alias CakeWeb.Layouts
 
-  @member_links ["/chat", "/upload", "/search"]
-  @admin_links ["/chat", "/upload", "/search", "/admin"]
+  @member_links ["/chat", "/documents", "/upload", "/search"]
+  @admin_links ["/chat", "/documents", "/upload", "/search", "/admin"]
 
   # The shell around an empty page, for a user or for `nil`, a visitor, and
   # for the page the shell is told it is on, if any.
@@ -59,7 +59,7 @@ defmodule CakeWeb.LayoutsTest do
   end
 
   describe "app/1, for a member" do
-    test "links to chat, upload and search, in that order, and not to the admin area" do
+    test "links to chat, documents, upload and search, in that order, and not to the admin area" do
       html = app_layout(member())
 
       assert links(html, "#main-nav") == @member_links
@@ -102,6 +102,7 @@ defmodule CakeWeb.LayoutsTest do
     test "shows that page's entry as the current page, not as a link, in both menus" do
       for {page, label, path} <- [
             {:chat, "Chat", "/chat"},
+            {:documents, "Documents", "/documents"},
             {:upload, "Upload", "/upload"},
             {:search, "Search", "/search"},
             {:admin, "Admin", "/admin"}
@@ -120,7 +121,7 @@ defmodule CakeWeb.LayoutsTest do
       html = app_layout(admin(), :upload)
 
       assert html |> Floki.find("#main-nav li") |> Enum.map(&String.trim(Floki.text(&1))) ==
-               ["Chat", "Upload", "Search", "Admin"]
+               ["Chat", "Documents", "Upload", "Search", "Admin"]
     end
 
     test "marks no entry when the page is not one of the shell's" do
