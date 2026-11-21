@@ -3,10 +3,10 @@ defmodule CakeWeb.TitlesTest do
   `CakeWeb.Titles.display/1`: how a document's title is shown on every
   screen (#380). The function was `CakeWeb.ChatLive`'s own until the
   documents list needed the same one; these pin what it did there.
+  Properties are in `test/cake_web/titles_property_test.exs`.
   """
 
   use ExUnit.Case, async: true
-  use ExUnitProperties
 
   alias CakeWeb.Titles
 
@@ -46,14 +46,28 @@ defmodule CakeWeb.TitlesTest do
       assert Titles.display("Microsoft Word - ") == "Untitled"
     end
 
-    property "never shows a control or replacement character, nor space at either end, and is never empty" do
-      check all(title <- string(:printable), junk <- string([0..0x1F, 0xFFFD])) do
-        shown = Titles.display(junk <> title <> junk)
+    # Characters that take no room and show nothing: a title made of them
+    # looks as empty as an empty one.
+    test "calls a title of invisible characters Untitled" do
+      assert Titles.display("\u200B") == "Untitled"
+      assert Titles.display("\u007F") == "Untitled"
+      assert Titles.display("\u0085\u009F") == "Untitled"
+      assert Titles.display("\u200E\u2060") == "Untitled"
+      assert Titles.display(" \u00A0\u200B ") == "Untitled"
+    end
 
-        refute shown =~ ~r/[\x{fffd}\x{0}-\x{1f}]/u
-        assert shown == String.trim(shown)
-        assert shown != ""
-      end
+    test "removes DEL and the C1 control characters, as the other control characters" do
+      assert Titles.display("Annual\u007F Report\u0085") == "Annual Report"
+    end
+
+    # A zero-width joiner holds an emoji sequence together, and a zero-width
+    # non-joiner is spelling in Persian: inside a title they are left alone.
+    test "leaves invisible characters inside a title that has something to show" do
+      assert Titles.display("Family \u{1F468}\u200D\u{1F469} album") ==
+               "Family \u{1F468}\u200D\u{1F469} album"
+
+      assert Titles.display("\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645") ==
+               "\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645"
     end
   end
 
@@ -73,13 +87,6 @@ defmodule CakeWeb.TitlesTest do
       assert Titles.display_citation_label("Annual Report") == "Annual Report"
       assert Titles.display_citation_label(nil) == "Untitled"
       assert Titles.display_citation_label("\uFFFD") == "Untitled"
-    end
-
-    property "differs from display/1 only in how a page is written" do
-      check all(title <- string(:printable)) do
-        assert Titles.display_citation_label(title) ==
-                 String.replace(Titles.display(title), ~r/, p\. (\d+)/, ", PDF page \\1")
-      end
     end
   end
 end

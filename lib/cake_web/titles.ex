@@ -22,12 +22,15 @@ defmodule CakeWeb.Titles do
   @doc """
   Returns `title` as a screen shows it.
 
-  Control characters and the Unicode replacement character are removed,
-  Word's "Microsoft Word - " prefix is dropped, and the ends are trimmed.
+  Control characters (C0, DEL and C1) and the Unicode replacement character
+  are removed, Word's "Microsoft Word - " prefix is dropped, and the ends
+  are trimmed.
   Nothing else is touched: a title that mentions a page ("Style Guide,
   p. 2 errata") keeps its wording. A missing title
-  is "Untitled", and so is one with nothing left in it: a title is a link
-  and a heading, and an empty one could be neither clicked nor read.
+  is "Untitled", and so is one with nothing left in it that can be seen
+  (nothing at all, or only spaces and zero-width or bidi marks): a title
+  is a link and a heading, and an empty one could be neither clicked nor
+  read.
 
   ## Examples
 
@@ -43,7 +46,7 @@ defmodule CakeWeb.Titles do
   @spec display(String.t() | nil) :: String.t()
   def display(title) when is_binary(title) do
     title
-    |> String.replace(~r/[\x{fffd}\x{0}-\x{1f}]+/u, "")
+    |> String.replace(~r/[\p{Cc}\x{fffd}]+/u, "")
     |> String.replace(~r/^Microsoft Word - /, "")
     |> String.trim()
     |> untitled_if_empty()
@@ -75,6 +78,11 @@ defmodule CakeWeb.Titles do
     |> String.replace(~r/, p\. (\d+)/, ", PDF page \\1")
   end
 
-  defp untitled_if_empty(""), do: @untitled
-  defp untitled_if_empty(shown), do: shown
+  # A title that is empty, or holds only characters that show nothing
+  # (spaces, zero-width and bidi marks), looks empty: it is untitled. Those
+  # marks are left alone inside a title that has something to show, where a
+  # zero-width joiner or non-joiner is part of the spelling.
+  defp untitled_if_empty(shown) do
+    if shown =~ ~r/[^\p{Cf}\p{Z}\s]/u, do: shown, else: @untitled
+  end
 end
