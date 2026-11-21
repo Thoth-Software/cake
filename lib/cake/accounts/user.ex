@@ -1,16 +1,17 @@
 defmodule Cake.Accounts.User do
   @moduledoc """
-  Ecto schema for a user account: a username, an optional email, a
-  bcrypt-hashed password and the confirmation timestamp. Provides the
+  Ecto schema for a user account: a username, an email, a bcrypt-hashed
+  password and the confirmation timestamp. Provides the
   registration, email-change, and password-change changesets along with
   `valid_password?/2` for authentication.
 
   A user logs in with the username. It is 3 to 32 characters from `a-z`,
   `0-9`, `_`, `.` and `-`, with letters accepted in either case. The column
   is `citext`: the name is stored as typed and compared case-insensitively,
-  so `Caleb` and `caleb` are one username. The email is optional, and the
-  flows that send mail (confirmation, password reset, email change) apply
-  only to a user who has one.
+  so `Caleb` and `caleb` are one username. Every user has an email: it is
+  where confirmation and password-reset mail goes, and a user cannot log in
+  until it is confirmed (`confirmed_at`), by the mailed link or by an admin
+  (`Cake.Accounts.set_user_confirmed/3`).
 
   A user has a role, `:member` or `:admin`. Registration never sets it: a
   registered user is a member. Only `creation_changeset/3` and
@@ -40,9 +41,10 @@ defmodule Cake.Accounts.User do
   @type role :: :member | :admin
 
   @typedoc """
-  A registered user. `username` is what the user logs in with; `email` is
-  `nil` for a user registered without one. `role` is `nil` only on a struct
-  that has not been through `Cake.Accounts` yet: every stored user has one.
+  A registered user. `username` is what the user logs in with. `email` and
+  `role` are `nil` only on a struct that has not been through
+  `Cake.Accounts` yet: every stored user has both. `confirmed_at` is `nil`
+  until the email is confirmed, and a user cannot log in before then.
   `password` and `current_password` are virtual fields that only changesets
   read; the stored secret is `hashed_password`.
   """
@@ -68,8 +70,7 @@ defmodule Cake.Accounts.User do
   @doc """
   A user changeset for registration.
 
-  A username and a password are required; an email is optional, and is
-  validated when given.
+  A username, an email and a password are required.
 
   The username must be 3 to 32 characters from `a-z`, `0-9`, `_`, `.` and
   `-`, in either letter case. Anything else is a validation error, a NUL
@@ -105,6 +106,7 @@ defmodule Cake.Accounts.User do
   def registration_changeset(user, attrs, opts \\ []) do
     user
     |> cast(attrs, [:email, :password])
+    |> validate_required([:email])
     |> cast_username(attrs)
     |> validate_username(opts)
     |> validate_email(opts)
@@ -117,6 +119,8 @@ defmodule Cake.Accounts.User do
   does for the first admin and for the logins an admin hands out.
 
   It is `registration_changeset/3` plus the role, and takes the same options.
+  The user is confirmed from the start: whoever creates a login vouches for
+  it, and the first admin is made where there may be no mail to confirm by.
   The role is required and has no default here: none given, `nil` and blank
   are all "can't be blank". The schema field has no default either, which is
   what makes a blank role blank: `cast/4` replaces an empty value with the
@@ -128,6 +132,7 @@ defmodule Cake.Accounts.User do
     |> registration_changeset(attrs, opts)
     |> cast(attrs, [:role])
     |> validate_required([:role])
+    |> confirm_changeset()
   end
 
   @doc """
@@ -181,8 +186,8 @@ defmodule Cake.Accounts.User do
     end
   end
 
-  # Does not require the email: registration leaves it optional, and
-  # `email_changeset/3` requires it itself.
+  # Does not require the email itself: `registration_changeset/3` and
+  # `email_changeset/3` each do.
   defp validate_email(changeset, opts) do
     changeset
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")

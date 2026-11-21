@@ -1,28 +1,25 @@
 defmodule CakeWeb.TransitionalComponents do
   @moduledoc """
-  Components the Phoenix 1.8 `CakeWeb.CoreComponents` no longer has, kept
-  because pages not yet restyled still call them (#374).
+  The one component the Phoenix 1.8 `CakeWeb.CoreComponents` no longer has
+  that a page not yet restyled still calls (#374).
 
-  They are the Phoenix 1.7 implementations, unchanged, with their 1.7
-  classes. Nothing new should call them: a page that is restyled moves to
-  `<.form>` and the daisyUI classes of `CakeWeb.CoreComponents`, and when a
-  component here loses its last caller it is deleted. When the module is
-  empty it goes, with its import in the HTML helpers of `CakeWeb`.
+  It is the Phoenix 1.7 implementation, unchanged, with its 1.7 classes.
+  Nothing new should call it: a page that is restyled moves to `<.form>`
+  and the daisyUI classes of `CakeWeb.CoreComponents`. When it loses its
+  last caller it is deleted, and the module goes with it, with its import
+  in the HTML helpers of `CakeWeb`.
 
-    * `simple_form/1` - the auth pages, `CakeWeb.ChatLive` and
-      `CakeWeb.SearchLive`.
-    * `error/1` - `CakeWeb.UserRegistrationLive` and
-      `CakeWeb.UserResetPasswordLive`. (`CakeWeb.CoreComponents.input/1`
-      renders its own field errors; this one is for a message that belongs
-      to no field.)
+    * `simple_form/1` - `CakeWeb.ChatLive`, until #378 rebuilds the chat.
+
+  `error/1` was here for the auth pages; they now use
+  `CakeWeb.CoreComponents.notice/1` for a message that belongs to no field
+  (#377).
 
   1.8 also dropped `modal/1`, `back/1`, `label/1`, `show_modal/2` and
   `hide_modal/2`. Nothing called them, so they are not kept.
   """
 
   use Phoenix.Component
-
-  import CakeWeb.CoreComponents, only: [icon: 1]
 
   @doc """
   Renders a simple form.
@@ -58,21 +55,6 @@ defmodule CakeWeb.TransitionalComponents do
         </div>
       </div>
     </.form>
-    """
-  end
-
-  @doc """
-  Generates a generic error message.
-  """
-  slot :inner_block, required: true
-
-  @spec error(map()) :: Phoenix.LiveView.Rendered.t()
-  def error(assigns) do
-    ~H"""
-    <p class="mt-3 flex gap-3 text-sm leading-6 text-rose-600">
-      <.icon name="hero-exclamation-circle-mini" class="mt-0.5 h-5 w-5 flex-none" />
-      {render_slot(@inner_block)}
-    </p>
     """
   end
 end

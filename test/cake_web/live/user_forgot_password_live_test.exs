@@ -60,4 +60,30 @@ defmodule CakeWeb.UserForgotPasswordLiveTest do
       assert Repo.all(Accounts.UserToken) == []
     end
   end
+
+  # What the visitor is told and where they are sent must not say whether
+  # the email belongs to anyone.
+  describe "Reset link, the answer" do
+    test "is the same for a matching email and an unknown one", %{conn: conn} do
+      user = user_fixture()
+
+      answers =
+        for typed <- [user.email, "unknown@example.com"] do
+          {:ok, lv, _html} = live(conn, ~p"/users/reset_password")
+
+          # The redirect carries the flash signed with a timestamp, so the
+          # comparison is of what the visitor reads after following it.
+          {:ok, conn} =
+            lv
+            |> element("#reset_password_form")
+            |> render_submit(user: %{"email" => typed})
+            |> follow_redirect(conn, ~p"/")
+
+          conn.assigns.flash
+        end
+
+      assert [answer, answer] = answers
+      assert %{"info" => "If your email is in our system" <> _} = answer
+    end
+  end
 end

@@ -29,6 +29,22 @@ defmodule Cake.AccountsTest do
       end
     end
 
+    test "requires an email" do
+      now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      row = %{
+        id: Ecto.UUID.bingenerate(),
+        username: unique_user_username(),
+        hashed_password: "x",
+        inserted_at: now,
+        updated_at: now
+      }
+
+      assert_raise Postgrex.Error, ~r/null value in column "email"/, fn ->
+        Repo.insert_all("users", [row])
+      end
+    end
+
     # The default is the column's own, not only the schema's: a row that
     # names no role (one written before the column existed, or by hand) is
     # a member.
@@ -38,6 +54,7 @@ defmodule Cake.AccountsTest do
       row = %{
         id: Ecto.UUID.bingenerate(),
         username: unique_user_username(),
+        email: unique_user_email(),
         hashed_password: "x",
         inserted_at: now,
         updated_at: now
@@ -94,13 +111,6 @@ defmodule Cake.AccountsTest do
                Accounts.get_user_by_username_and_password(user.username, valid_user_password())
     end
 
-    test "returns a user who has no email" do
-      %{id: id} = user = user_fixture(email: nil)
-
-      assert %User{id: ^id, email: nil} =
-               Accounts.get_user_by_username_and_password(user.username, valid_user_password())
-    end
-
     test "does not take the user's email in place of the username" do
       user = user_fixture()
       refute Accounts.get_user_by_username_and_password(user.email, valid_user_password())
@@ -121,12 +131,14 @@ defmodule Cake.AccountsTest do
   end
 
   describe "register_user/1" do
-    test "requires username and password to be set, and no email" do
+    test "requires a username, an email and a password" do
       {:error, changeset} = Accounts.register_user(%{})
-      errors = errors_on(changeset)
 
-      assert %{password: ["can't be blank"], username: ["can't be blank"]} = errors
-      refute Map.has_key?(errors, :email)
+      assert %{
+               username: ["can't be blank"],
+               email: ["can't be blank"],
+               password: ["can't be blank"]
+             } = errors_on(changeset)
     end
 
     test "validates the username when given" do
@@ -176,26 +188,16 @@ defmodule Cake.AccountsTest do
       assert Repo.all(User) == []
     end
 
-    test "registers a user with a username and no email" do
-      username = unique_user_username()
+    # Every user has an email: none given, nil and blank are all refused.
+    test "refuses a user with no email, and inserts nothing" do
+      attrs = %{username: unique_user_username(), password: valid_user_password()}
 
-      {:ok, user} =
-        Accounts.register_user(%{username: username, password: valid_user_password()})
+      for without_email <- [attrs, Map.put(attrs, :email, nil), Map.put(attrs, :email, "")] do
+        {:error, changeset} = Accounts.register_user(without_email)
+        assert errors_on(changeset).email == ["can't be blank"]
+      end
 
-      assert user.username == username
-      assert is_nil(user.email)
-
-      stored = Repo.get!(User, user.id)
-      assert stored.username == username
-      assert is_nil(stored.email)
-    end
-
-    test "registers more than one user with no email" do
-      {:ok, first} = Accounts.register_user(valid_user_attributes(email: nil))
-      {:ok, second} = Accounts.register_user(valid_user_attributes(email: nil))
-
-      assert is_nil(first.email)
-      assert is_nil(second.email)
+      assert Repo.all(User) == []
     end
 
     test "registers a member" do
@@ -257,22 +259,46 @@ defmodule Cake.AccountsTest do
   end
 
   describe "create_user/1" do
-    test "creates an admin who can log in, without confirming anything" do
+    # The first admin is made on a machine that may send no mail, and an
+    # admin who makes a login vouches for it: a created user is confirmed
+    # from the start, and is sent nothing.
+    test "creates an admin who is confirmed, and so can log in at once" do
       username = unique_user_username()
+      email = unique_user_email()
 
       {:ok, user} =
-        Accounts.create_user(%{username: username, password: valid_user_password(), role: :admin})
+        Accounts.create_user(%{
+          username: username,
+          email: email,
+          password: valid_user_password(),
+          role: :admin
+        })
 
       assert user.role == :admin
       assert user.username == username
-      assert is_nil(user.email)
-      assert is_nil(user.confirmed_at)
+      assert user.email == email
+      assert %DateTime{} = user.confirmed_at
       assert is_nil(user.password)
       assert user.hashed_password =~ ~r/^\$2[aby]\$/
+
+      stored = Repo.get!(User, user.id)
+      assert stored.confirmed_at == user.confirmed_at
+      assert Repo.all(UserToken) == []
 
       found = Accounts.get_user_by_username_and_password(username, valid_user_password())
       assert found.id == user.id
       assert found.role == :admin
+    end
+
+    test "requires an email, as registration does, and inserts nothing without one" do
+      attrs = %{username: unique_user_username(), password: valid_user_password(), role: :admin}
+
+      for without_email <- [attrs, Map.put(attrs, :email, nil), Map.put(attrs, :email, "")] do
+        {:error, changeset} = Accounts.create_user(without_email)
+        assert errors_on(changeset).email == ["can't be blank"]
+      end
+
+      assert Repo.all(User) == []
     end
 
     test "creates a member when the role says so" do
@@ -297,6 +323,7 @@ defmodule Cake.AccountsTest do
       {:ok, user} =
         Accounts.create_user(%{
           "username" => unique_user_username(),
+          "email" => unique_user_email(),
           "password" => valid_user_password(),
           "role" => "admin"
         })
@@ -304,11 +331,16 @@ defmodule Cake.AccountsTest do
       assert Repo.get!(User, user.id).role == :admin
     end
 
-    test "requires a username and a password" do
+    test "requires a username, an email and a password" do
       {:error, changeset} = Accounts.create_user(%{role: :admin})
       errors = errors_on(changeset)
 
-      assert %{username: ["can't be blank"], password: ["can't be blank"]} = errors
+      assert %{
+               username: ["can't be blank"],
+               email: ["can't be blank"],
+               password: ["can't be blank"]
+             } = errors
+
       refute Map.has_key?(errors, :role)
     end
 
@@ -339,6 +371,87 @@ defmodule Cake.AccountsTest do
 
       assert errors_on(changeset).role == ["is invalid"]
       assert Repo.all(User) == []
+    end
+  end
+
+  # Log-in waits on confirmation, and mail may have nowhere to go, so an
+  # admin can confirm a user by hand, and take the confirmation back. The
+  # first argument is who is doing it: an admin, or `:operator` for the
+  # command line and the seed, where nobody is logged in.
+  describe "set_user_confirmed/3" do
+    setup do
+      %{admin: admin_fixture()}
+    end
+
+    test "confirms a user who has not followed the mailed link, and drops the link", %{
+      admin: admin
+    } do
+      user = unconfirmed_user_fixture()
+      extract_user_token(&Accounts.deliver_user_confirmation_instructions(user, &1))
+
+      assert {:ok, %User{confirmed_at: %DateTime{}} = confirmed} =
+               Accounts.set_user_confirmed(admin, user, true)
+
+      assert Repo.get!(User, user.id).confirmed_at == confirmed.confirmed_at
+      assert Repo.all(UserToken.by_user_and_contexts_query(user, ["confirm"])) == []
+    end
+
+    test "takes the confirmation back", %{admin: admin} do
+      user = user_fixture()
+
+      assert {:ok, %User{confirmed_at: nil}} = Accounts.set_user_confirmed(admin, user, false)
+      assert is_nil(Repo.get!(User, user.id).confirmed_at)
+    end
+
+    test "leaves a user who is already as asked as they are", %{admin: admin} do
+      confirmed = user_fixture()
+      assert {:ok, same} = Accounts.set_user_confirmed(admin, confirmed, true)
+      assert same.confirmed_at == confirmed.confirmed_at
+
+      unconfirmed = unconfirmed_user_fixture()
+
+      assert {:ok, %User{confirmed_at: nil}} =
+               Accounts.set_user_confirmed(admin, unconfirmed, false)
+    end
+
+    # An unconfirmed user cannot log in: nobody takes their own confirmation
+    # back, whoever else is an admin. It goes by who the two users are, not
+    # by the structs passed in.
+    test "refuses to take the confirmation back from oneself", %{admin: admin} do
+      _another_admin = admin_fixture()
+
+      assert Accounts.set_user_confirmed(admin, admin, false) == {:error, :own_account}
+
+      assert Accounts.set_user_confirmed(admin, Repo.get!(User, admin.id), false) ==
+               {:error, :own_account}
+
+      assert Repo.get!(User, admin.id).confirmed_at
+    end
+
+    test "lets a user confirm themselves again, which changes nothing", %{admin: admin} do
+      assert {:ok, same} = Accounts.set_user_confirmed(admin, admin, true)
+      assert same.confirmed_at == admin.confirmed_at
+    end
+
+    # There is no last-admin rule here: one admin may take it back from
+    # another, the only other one included.
+    test "lets an admin take the confirmation back from the only other admin", %{admin: admin} do
+      other = admin_fixture()
+
+      assert {:ok, %User{confirmed_at: nil}} = Accounts.set_user_confirmed(admin, other, false)
+    end
+
+    # Nobody is logged in at the command line or in the seed, so there is
+    # no "oneself" to protect.
+    test "lets the operator confirm anyone and take it back from anyone, the only admin included",
+         %{admin: admin} do
+      user = unconfirmed_user_fixture()
+
+      assert {:ok, %User{confirmed_at: %DateTime{}}} =
+               Accounts.set_user_confirmed(:operator, user, true)
+
+      assert {:ok, %User{confirmed_at: nil}} =
+               Accounts.set_user_confirmed(:operator, admin, false)
     end
   end
 
@@ -443,7 +556,7 @@ defmodule Cake.AccountsTest do
   describe "change_user_registration/2" do
     test "returns a changeset" do
       assert %Ecto.Changeset{} = changeset = Accounts.change_user_registration(%User{})
-      assert Enum.sort(changeset.required) == [:password, :username]
+      assert Enum.sort(changeset.required) == [:email, :password, :username]
     end
 
     test "allows fields to be set" do
@@ -543,7 +656,8 @@ defmodule Cake.AccountsTest do
 
   describe "update_user_email/2" do
     setup do
-      user = user_fixture()
+      # Not yet confirmed, so the first test can see the change confirm them.
+      user = unconfirmed_user_fixture()
       email = unique_user_email()
 
       token =
@@ -712,7 +826,7 @@ defmodule Cake.AccountsTest do
 
   describe "deliver_user_confirmation_instructions/2" do
     setup do
-      %{user: user_fixture()}
+      %{user: unconfirmed_user_fixture()}
     end
 
     test "sends token through notification", %{user: user} do
@@ -731,7 +845,7 @@ defmodule Cake.AccountsTest do
 
   describe "confirm_user/1" do
     setup do
-      user = user_fixture()
+      user = unconfirmed_user_fixture()
 
       token =
         extract_user_token(fn url ->

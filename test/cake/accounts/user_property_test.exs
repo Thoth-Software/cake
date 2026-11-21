@@ -114,10 +114,11 @@ defmodule Cake.Accounts.UserPropertyTest do
   # Helpers
   # ---------------------------------------------------------------------------
 
-  # A registration with a username and a password and no email at all.
+  # A registration that is valid but for its username.
   defp registration(username) do
     Accounts.change_user_registration(%User{}, %{
       username: username,
+      email: "someone@registration.example",
       password: valid_user_password()
     })
   end
@@ -132,12 +133,18 @@ defmodule Cake.Accounts.UserPropertyTest do
   defp empty_users_table, do: Repo.delete_all(User)
 
   # A row for `Repo.insert_all("users", _)`: the columns the table has always
-  # required, plus the ones given.
+  # required and an email of its own, plus the ones given.
   defp users_row(columns) do
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
     Map.merge(
-      %{id: Ecto.UUID.bingenerate(), hashed_password: "x", inserted_at: now, updated_at: now},
+      %{
+        id: Ecto.UUID.bingenerate(),
+        email: "row#{System.unique_integer([:positive])}@row.example",
+        hashed_password: "x",
+        inserted_at: now,
+        updated_at: now
+      },
       columns
     )
   end
@@ -165,7 +172,7 @@ defmodule Cake.Accounts.UserPropertyTest do
     end
   end
 
-  property "a well-formed username and a password make a valid registration, with no email, and the username is kept as typed" do
+  property "a well-formed username makes a valid registration, and the username is kept as typed" do
     check all(username <- valid_username()) do
       changeset = registration(username)
 
@@ -275,20 +282,13 @@ defmodule Cake.Accounts.UserPropertyTest do
     end
   end
 
-  property "the table takes any number of rows with no email" do
-    check all(
-            usernames <-
-              uniq_list_of(valid_username(),
-                uniq_fun: &String.downcase/1,
-                min_length: 1,
-                max_length: 6
-              ),
-            max_runs: @max_db_runs
-          ) do
+  property "the table refuses a row with no email, whatever its username" do
+    check all(username <- valid_username(), max_runs: @max_db_runs) do
       empty_users_table()
-      rows = Enum.map(usernames, &users_row(%{username: &1}))
 
-      assert Repo.insert_all("users", rows) == {length(rows), nil}
+      assert_raise Postgrex.Error, ~r/not_null_violation/, fn ->
+        insert_row(%{username: username, email: nil})
+      end
     end
   end
 

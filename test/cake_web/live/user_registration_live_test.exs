@@ -15,13 +15,12 @@ defmodule CakeWeb.UserRegistrationLiveTest do
       assert html =~ "Log in"
     end
 
-    test "requires a username and a password, and offers an optional email", %{conn: conn} do
+    test "requires a username, an email and a password", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/register")
 
       assert has_element?(lv, ~s|#registration_form input[name="user[username]"][required]|)
       assert has_element?(lv, ~s|#registration_form input[name="user[password]"][required]|)
-      assert has_element?(lv, ~s|#registration_form input[name="user[email]"]|)
-      refute has_element?(lv, ~s|#registration_form input[name="user[email]"][required]|)
+      assert has_element?(lv, ~s|#registration_form input[name="user[email]"][required]|)
     end
 
     test "redirects if already logged in", %{conn: conn} do
@@ -63,56 +62,47 @@ defmodule CakeWeb.UserRegistrationLiveTest do
   end
 
   describe "register user" do
-    test "creates account and logs the user in", %{conn: conn} do
+    # Log-in waits on the email being confirmed, so registering no longer
+    # logs the user in: it sends the instructions and says to follow them.
+    test "creates the account, sends confirmation instructions, and does not log the user in",
+         %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/register")
 
       username = unique_user_username()
       email = unique_user_email()
+      password = valid_user_password()
 
-      form =
-        form(lv, "#registration_form",
-          user: valid_user_attributes(username: username, email: email)
+      {:ok, conn} =
+        lv
+        |> form("#registration_form",
+          user: %{username: username, email: email, password: password}
         )
+        |> render_submit()
+        |> follow_redirect(conn, ~p"/users/log_in")
 
-      render_submit(form)
-      conn = follow_trigger_action(form, conn)
-
-      assert redirected_to(conn) == ~p"/"
-
-      # Now do logged in requests. The home page sends a signed-in user on
-      # to the chat (#375), whose menu names the user by username; the
-      # email is no longer shown.
-      assert conn |> get("/") |> redirected_to() == ~p"/chat"
-
-      response = conn |> get(~p"/chat") |> html_response(200)
-      assert response =~ username
-      refute response =~ email
-      assert response =~ "Change password"
-      assert response =~ "Log out"
-
-      # A user who gave an email is still sent the confirmation instructions.
+      refute get_session(conn, :user_token)
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "confirm your email"
       assert_email_sent(to: email)
+
+      user = Accounts.get_user_by_username_and_password(username, password)
+      assert user.email == email
+      assert is_nil(user.confirmed_at)
+      assert Cake.Repo.get_by(Accounts.UserToken, user_id: user.id, context: "confirm")
     end
 
-    test "creates an account with no email and logs the user in", %{conn: conn} do
+    test "refuses a registration with no email, and sends nothing", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/register")
 
       username = unique_user_username()
       password = valid_user_password()
 
-      form =
-        form(lv, "#registration_form", user: %{username: username, email: "", password: password})
+      result =
+        lv
+        |> form("#registration_form", user: %{username: username, email: "", password: password})
+        |> render_submit()
 
-      render_submit(form)
-      conn = follow_trigger_action(form, conn)
-
-      assert redirected_to(conn) == ~p"/"
-      assert conn |> get(~p"/chat") |> html_response(200) =~ username
-
-      user = Accounts.get_user_by_username_and_password(username, password)
-      assert is_nil(user.email)
-
-      # No address, so no confirmation instructions.
+      assert result =~ "can&#39;t be blank"
+      refute Accounts.get_user_by_username_and_password(username, password)
       assert_no_email_sent()
     end
 
@@ -126,7 +116,12 @@ defmodule CakeWeb.UserRegistrationLiveTest do
       lv
       |> element("#registration_form")
       |> render_submit(%{
-        "user" => %{"username" => username, "password" => password, "role" => "admin"}
+        "user" => %{
+          "username" => username,
+          "email" => unique_user_email(),
+          "password" => password,
+          "role" => "admin"
+        }
       })
 
       user = Accounts.get_user_by_username_and_password(username, password)
@@ -162,6 +157,34 @@ defmodule CakeWeb.UserRegistrationLiveTest do
         |> render_submit()
 
       assert result =~ "has already been taken"
+    end
+  end
+
+  describe "the form-level error notice" do
+    test "is absent while typing, present after a refused submit, and gone once the form is valid",
+         %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+      refute has_element?(lv, "#registration-errors")
+
+      invalid = %{"username" => "ab", "password" => "short"}
+
+      lv |> element("#registration_form") |> render_change(user: invalid)
+      refute has_element?(lv, "#registration-errors")
+
+      lv |> form("#registration_form", user: invalid) |> render_submit()
+      assert has_element?(lv, "#registration-errors.alert-error")
+
+      lv
+      |> element("#registration_form")
+      |> render_change(
+        user: %{
+          "username" => unique_user_username(),
+          "email" => unique_user_email(),
+          "password" => valid_user_password()
+        }
+      )
+
+      refute has_element?(lv, "#registration-errors")
     end
   end
 

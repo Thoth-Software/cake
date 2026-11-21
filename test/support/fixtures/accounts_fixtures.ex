@@ -25,8 +25,20 @@ defmodule Cake.AccountsFixtures do
     })
   end
 
+  # A user who can log in: registered, then confirmed, as following the
+  # mailed link does. Log-in waits on confirmation, so this is the user most
+  # tests want; `unconfirmed_user_fixture/1` is the one registration leaves.
   @spec user_fixture(map()) :: Cake.Accounts.User.t()
   def user_fixture(attrs \\ %{}) do
+    attrs
+    |> unconfirmed_user_fixture()
+    |> Cake.Accounts.User.confirm_changeset()
+    |> Cake.Repo.update!()
+  end
+
+  # A user as `Cake.Accounts.register_user/1` leaves them: not yet confirmed.
+  @spec unconfirmed_user_fixture(map()) :: Cake.Accounts.User.t()
+  def unconfirmed_user_fixture(attrs \\ %{}) do
     {:ok, user} =
       attrs
       |> valid_user_attributes()
@@ -36,7 +48,8 @@ defmodule Cake.AccountsFixtures do
   end
 
   # An admin, made the way the first admin is made: `Cake.Accounts.create_user/1`
-  # with a role. `user_fixture/1` goes through registration, which never sets one.
+  # with a role. `user_fixture/1` goes through registration, which never sets
+  # one. A created user is confirmed from the start.
   @spec admin_fixture(map()) :: Cake.Accounts.User.t()
   def admin_fixture(attrs \\ %{}) do
     {:ok, user} =
