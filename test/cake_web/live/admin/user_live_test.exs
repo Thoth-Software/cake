@@ -96,6 +96,29 @@ defmodule CakeWeb.Admin.UserLiveTest do
   # Every login but `user`, for a test that needs to know the whole list.
   defp from_other_than(%User{id: id}), do: from(u in User, where: u.id != ^id)
 
+  # A crash report prints a form event as the browser sent it: URL-encoded,
+  # so "correct horse" is "correct+horse" there. A log is clean of a
+  # password only if it holds it in neither spelling.
+  defp refute_logged(log, password) do
+    for spelling <- [password, URI.encode_www_form(password), URI.encode(password)] do
+      refute log =~ spelling
+    end
+  end
+
+  # Makes every query that reads a session fail, as a database that is down
+  # or restarting does. The sandbox puts the table back after the test.
+  defp break_sessions_table do
+    Repo.query!("ALTER TABLE users_tokens RENAME TO users_tokens_unreachable")
+  end
+
+  # Makes saving a login raise in the context, past its validations, with
+  # the session lookup still working.
+  defp break_saving_logins do
+    Repo.query!(
+      "ALTER TABLE users ADD CONSTRAINT nobody_saves CHECK (updated_at < '2000-01-01') NOT VALID"
+    )
+  end
+
   defp created_on(%User{inserted_at: inserted_at}), do: Calendar.strftime(inserted_at, "%Y-%m-%d")
 
   defp can_log_in?(username, password) do
@@ -213,6 +236,30 @@ defmodule CakeWeb.Admin.UserLiveTest do
              )
 
       assert has_element?(lv, ~s|a#set-password[href="/admin/users/#{member.id}/password"]|)
+    end
+  end
+
+  describe "a login that no longer exists" do
+    setup :log_in_admin
+
+    test "sends the admin back to the list, saying so, from its page and from both its forms",
+         %{conn: conn} do
+      member = login_fixture(:member)
+      {:ok, _deleted} = Accounts.delete_user(member)
+
+      for path <- [
+            ~p"/admin/users/#{member}",
+            ~p"/admin/users/#{member}/edit",
+            ~p"/admin/users/#{member}/password",
+            ~p"/admin/users/not-an-id",
+            ~p"/admin/users/not-an-id/edit"
+          ] do
+        assert {:error, {:live_redirect, %{to: "/admin/users", flash: flash}}} = live(conn, path),
+               path
+
+        assert %{"error" => @gone} = flash, path
+        assert conn |> get(path) |> redirected_to() == ~p"/admin/users", path
+      end
     end
   end
 
@@ -344,7 +391,7 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert Repo.get_by(User, username: username)
       assert log =~ username
       assert log =~ "[FILTERED]"
-      refute log =~ @typed_password
+      refute_logged(log, @typed_password)
     end
   end
 
@@ -355,8 +402,15 @@ defmodule CakeWeb.Admin.UserLiveTest do
   describe "a password and the crash report" do
     setup :log_in_admin
 
-    defp held_by(lv),
-      do: inspect(:sys.get_state(lv.pid), limit: :infinity, printable_limit: :infinity)
+    # Everything the page holds, printed as a crash report may print it:
+    # without the `Inspect` implementations that redact a field.
+    defp held_by(lv) do
+      inspect(:sys.get_state(lv.pid),
+        limit: :infinity,
+        printable_limit: :infinity,
+        structs: false
+      )
+    end
 
     test "the new-login form holds no password, after typing and after a refused save", %{
       conn: conn
@@ -398,7 +452,7 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
       assert {:ok, index, _html} = follow_redirect(result, conn, ~p"/admin/users")
       assert has_element?(index, "#flash-error", @gone)
-      refute log =~ @typed_password
+      refute_logged(log, @typed_password)
     end
 
     # Whatever goes wrong while a password is being saved, the page says it
@@ -406,16 +460,92 @@ defmodule CakeWeb.Admin.UserLiveTest do
     # caused it.
     test "a save that raises is reported on the page and in the log, without the password",
          %{conn: conn} do
-      {:ok, lv, _html} = live(conn, ~p"/admin/users/new")
+      member = login_fixture(:member)
+      {:ok, new, _html} = live(conn, ~p"/admin/users/new")
+      {:ok, password, _html} = live(conn, ~p"/admin/users/#{member}/password")
+      break_saving_logins()
 
-      # Not a form: `user` is not a map, which the context cannot cast.
       {html, log} =
-        with_log(fn -> render_submit(lv, "save", %{"user" => "password=#{@typed_password}"}) end)
+        with_log(fn ->
+          new
+          |> form("#user-form",
+            user: %{username: unique_user_username(), password: @typed_password, role: "member"}
+          )
+          |> render_submit()
+        end)
 
       assert html =~ "could not be saved"
-      assert has_element?(lv, "#user-form")
+      assert has_element?(new, "#user-form")
       assert log =~ "CakeWeb.Admin.UserLive.Form"
-      refute log =~ @typed_password
+      refute_logged(log, @typed_password)
+
+      {html, log} =
+        with_log(fn ->
+          password
+          |> form("#password-form", user: %{password: @typed_password})
+          |> render_submit()
+        end)
+
+      assert html =~ "could not be saved"
+      refute_logged(log, @typed_password)
+    end
+
+    # The admin check runs before the form sees an event, and it reads the
+    # database. When that read fails the page must not crash with the event
+    # in its report: it turns the admin away, as for a session it cannot
+    # vouch for, and logs what failed without the event.
+    test "a database that cannot be read while a password is typed or saved turns the admin away and logs no password",
+         %{conn: conn} do
+      member = login_fixture(:member)
+      {:ok, typing, _html} = live(conn, ~p"/admin/users/new")
+      {:ok, saving, _html} = live(conn, ~p"/admin/users/#{member}/password")
+      break_sessions_table()
+
+      log =
+        capture_log(fn ->
+          typing
+          |> form("#user-form",
+            user: %{username: "validname", password: @typed_password, role: "member"}
+          )
+          |> render_change()
+
+          saving |> form("#password-form", user: %{password: @typed_password}) |> render_submit()
+        end)
+
+      assert_redirect(typing, ~p"/users/log_in")
+      assert_redirect(saving, ~p"/users/log_in")
+      assert log =~ "CakeWeb.UserAuth"
+      refute_logged(log, @typed_password)
+    end
+
+    # A field is text. A request that sends something else in its place (a
+    # browser cannot, a hand-written one can) is treated as not having sent
+    # the field; it used to reach the template and crash the page there.
+    test "a field sent as something other than text is ignored, on a change and on a save",
+         %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/new")
+
+      malformed = %{
+        "username" => %{"a" => "b"},
+        "password" => @typed_password,
+        "role" => %{"a" => "b"}
+      }
+
+      {_html, log} =
+        with_log(fn ->
+          assert render_change(lv, "validate", %{"user" => malformed}) =~ "New login"
+          assert render_submit(lv, "save", %{"user" => malformed}) =~ "New login"
+
+          assert render_change(lv, "validate", %{"user" => "password=#{@typed_password}"}) =~
+                   "New login"
+
+          assert render_submit(lv, "save", %{"user" => ["password", @typed_password]}) =~
+                   "New login"
+        end)
+
+      assert has_element?(lv, "#user-form")
+      refute_logged(log, @typed_password)
+      refute held_by(lv) =~ @typed_password
     end
 
     test "an event the form does not know is ignored", %{conn: conn} do
@@ -488,6 +618,30 @@ defmodule CakeWeb.Admin.UserLiveTest do
       other_name = unique_user_username()
       name_form |> form("#user-form", user: %{username: other_name}) |> render_submit()
       assert %User{username: ^other_name, role: :admin} = Accounts.get_user!(promoted.id)
+    end
+
+    # After a refused save the form shows the login as it is now. What the
+    # admin then changes is measured against what the form shows, not
+    # against the login as it was when the form was first opened.
+    test "after a refused save, a field set back to what it was when the form was opened is still a change",
+         %{conn: conn, admin: admin} do
+      member = login_fixture(:member)
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{member}/edit")
+      {:ok, _promoted} = Accounts.update_user(member, %{role: :admin})
+
+      refused = lv |> form("#user-form", user: %{username: admin.username}) |> render_submit()
+
+      assert refused =~ @taken
+
+      assert refused
+             |> Floki.parse_document!()
+             |> Floki.attribute("#user_role option[selected]", "value") == ["admin"]
+
+      lv
+      |> form("#user-form", user: %{username: member.username, role: "member"})
+      |> render_submit()
+
+      assert Accounts.get_user!(member.id).role == :member
     end
 
     test "says so, and goes back to the list, when the login was deleted meanwhile", %{conn: conn} do
@@ -670,6 +824,23 @@ defmodule CakeWeb.Admin.UserLiveTest do
       refute Accounts.get_user_by_session_token(token)
       assert_redirect(members_page, ~p"/users/log_in")
       refute has_element?(lv, "#users-refusal")
+      assert has_element?(lv, "#flash-info", "Login deleted")
+    end
+
+    test "does not leave the last deletion's message beside a refusal", %{
+      conn: conn,
+      admin: admin
+    } do
+      member = login_fixture(:member)
+      {:ok, lv, _html} = live(conn, ~p"/admin/users")
+
+      lv |> element("#delete-#{member.id}") |> render_click()
+      assert has_element?(lv, "#flash-info", "Login deleted")
+
+      render_click(lv, "delete", %{"id" => admin.id})
+
+      assert has_element?(lv, "#users-refusal")
+      refute has_element?(lv, "#flash-info")
     end
 
     test "deletes another admin while one remains", %{conn: conn} do
@@ -692,12 +863,16 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert text_of(lv, "#users-refusal [data-part=body]") == @gone
     end
 
-    test "ignores a request to delete something that is not a login", %{conn: conn} do
+    test "answers a request to delete what is not a login as one for a login that is gone, and ignores one that names nothing",
+         %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/admin/users")
       count = Repo.aggregate(User, :count)
 
-      render_click(lv, "delete", %{"id" => "not-an-id"})
       render_click(lv, "delete", %{})
+      refute has_element?(lv, "#users-refusal")
+
+      render_click(lv, "delete", %{"id" => "not-an-id"})
+      assert text_of(lv, "#users-refusal [data-part=body]") == @gone
 
       assert has_element?(lv, "#users")
       assert Repo.aggregate(User, :count) == count
