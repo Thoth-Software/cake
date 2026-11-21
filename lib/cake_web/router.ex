@@ -31,6 +31,8 @@ defmodule CakeWeb.Router do
     live_session :authenticated_app,
       on_mount: [{CakeWeb.UserAuth, :ensure_authenticated}] do
       live "/chat", ChatLive
+      live "/documents", ParsedBookLive.Index, :index
+      live "/documents/:id", ParsedBookLive.Show, :show
       live "/search", SearchLive
       live "/upload", UploadLive
     end

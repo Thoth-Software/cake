@@ -432,15 +432,10 @@ defmodule CakeWeb.ChatLive do
         else: {:error, :conversation_down}
   end
 
-  defp sanitize_title(title) when is_binary(title) do
-    title
-    |> String.replace(~r/[\x{fffd}\x{0}-\x{1f}]+/u, "")
-    |> String.replace(~r/^Microsoft Word - /, "")
-    |> String.replace(~r/, p\. (\d+)/, ", PDF page \\1")
-    |> String.trim()
-  end
-
-  defp sanitize_title(nil), do: "Untitled"
+  # How a title is displayed is shared with the documents list (#380). The
+  # chat shows citation labels, whose page is spelled out; a candidate's
+  # title goes the same way, as it did before the function was shared.
+  defp sanitize_title(title), do: CakeWeb.Titles.display_citation_label(title)
 
   defp current_mode(socket) do
     case Ecto.Changeset.get_field(socket.assigns.question_form.source, :mode) do

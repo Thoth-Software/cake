@@ -8,6 +8,8 @@ defmodule Cake.Books do
     deps: [Cake, Cake.Search, Cake.Embeddings, Cake.Pipelines],
     exports: [Adapters, ParsedBook, Chunk, Pipeline, Pdf.Pipeline, ZipExtractor]
 
+  import Ecto.Query, only: [from: 2]
+
   alias Cake.Books.Chunk
   alias Cake.Books.ParsedBook
   alias Cake.Repo
@@ -24,6 +26,65 @@ defmodule Cake.Books do
   @spec list_parsed_books() :: [ParsedBook.t()]
   def list_parsed_books do
     Repo.all(ParsedBook)
+  end
+
+  # The fields the documents list shows.
+  @listed_fields [:id, :title, :total_pages, :embedding_status, :inserted_at, :source_file_path]
+
+  @typedoc """
+  One book as the documents list shows it: the six fields that list needs
+  and no others. A plain map, not a `t:Cake.Books.ParsedBook.t/0`, so that
+  nothing takes it for a whole book.
+  """
+  @type parsed_book_listing :: %{
+          id: Ecto.UUID.t(),
+          title: String.t(),
+          total_pages: integer() | nil,
+          embedding_status: :pending | :processing | :completed | :failed,
+          inserted_at: DateTime.t(),
+          source_file_path: String.t()
+        }
+
+  @doc """
+  Returns a listing of every parsed_book, newest upload first: by
+  `inserted_at` descending.
+
+  This is the read behind the documents list. It is read whole, so it loads
+  only the fields that list shows, as a `t:parsed_book_listing/0`: the
+  `metadata` and `table_of_contents` maps of a book can be large and are
+  left unread. Use `get_parsed_book!/1` for a complete book.
+
+  `inserted_at` is stored to the second, and the books of one batch upload
+  land within one, so books that share a time are ordered by `id`: the
+  order is the same on every read.
+
+  ## Examples
+
+      iex> list_parsed_books_newest_first()
+      [%{id: "...", title: "Annual Report", ...}, ...]
+
+  """
+  @spec list_parsed_books_newest_first() :: [parsed_book_listing()]
+  def list_parsed_books_newest_first do
+    Repo.all(
+      from b in ParsedBook,
+        select: map(b, ^@listed_fields),
+        order_by: [desc: b.inserted_at, asc: b.id]
+    )
+  end
+
+  @doc """
+  Returns how many chunks the given parsed_book has.
+
+  ## Examples
+
+      iex> count_chunks(parsed_book)
+      42
+
+  """
+  @spec count_chunks(ParsedBook.t()) :: non_neg_integer()
+  def count_chunks(%ParsedBook{id: id}) do
+    Repo.aggregate(from(c in Chunk, where: c.parsed_book_id == ^id), :count)
   end
 
   @doc """

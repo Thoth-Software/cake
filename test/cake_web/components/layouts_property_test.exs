@@ -15,8 +15,8 @@ defmodule CakeWeb.LayoutsPropertyTest do
   alias Cake.Accounts.User
   alias CakeWeb.Layouts
 
-  @member_links ["/chat", "/upload", "/search"]
-  @admin_links ["/chat", "/upload", "/search", "/admin"]
+  @member_links ["/chat", "/documents", "/upload", "/search"]
+  @admin_links ["/chat", "/documents", "/upload", "/search", "/admin"]
 
   # A username as `Cake.Accounts.User` accepts it.
   defp username do
@@ -65,13 +65,20 @@ defmodule CakeWeb.LayoutsPropertyTest do
   end
 
   property "on any of its pages the shell links to every other page and not to that one" do
-    pages = %{chat: "/chat", upload: "/upload", search: "/search", admin: "/admin"}
+    pages = %{
+      chat: "/chat",
+      documents: "/documents",
+      upload: "/upload",
+      search: "/search",
+      admin: "/admin"
+    }
+
+    member_pages = [:chat, :documents, :upload, :search]
 
     check all(
             username <- username(),
             role <- member_of([:member, :admin]),
-            page <-
-              member_of(if(role == :admin, do: Map.keys(pages), else: [:chat, :upload, :search]))
+            page <- member_of(if(role == :admin, do: Map.keys(pages), else: member_pages))
           ) do
       html = app_layout(%User{username: username, role: role}, page)
       all_links = if role == :admin, do: @admin_links, else: @member_links
