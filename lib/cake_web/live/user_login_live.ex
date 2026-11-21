@@ -45,6 +45,13 @@ defmodule CakeWeb.UserLoginLive do
           </.form>
         </div>
       </div>
+
+      <%!-- Log-in waits on a confirmed email: where to get the link again. --%>
+      <p class="text-center text-sm">
+        <.link id="resend-confirmation-link" href={~p"/users/confirm"} class="link link-hover">
+          Didn't get confirmation instructions?
+        </.link>
+      </p>
     </Layouts.app>
     """
   end

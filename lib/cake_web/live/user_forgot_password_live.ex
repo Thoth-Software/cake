@@ -29,11 +29,6 @@ defmodule CakeWeb.UserForgotPasswordLive do
         </div>
       </div>
 
-      <%!-- Shown to everyone: the page cannot know whose account is meant. --%>
-      <.notice id="reset-password-no-email">
-        An account without an email cannot be reset here: ask an administrator to set a new password.
-      </.notice>
-
       <p class="text-center text-sm">
         <.link href={~p"/users/register"} class="link link-hover">Register</.link>
         | <.link href={~p"/users/log_in"} class="link link-hover">Log in</.link>

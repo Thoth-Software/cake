@@ -11,9 +11,7 @@ defmodule CakeWeb.UserSettingsLive do
         Account Settings
         <:subtitle>
           <span id="settings-subtitle">
-            {if @current_user.email,
-              do: "Manage your account email address and password settings",
-              else: "Manage your password"}
+            Manage your account email address and password settings
           </span>
         </:subtitle>
       </.header>
@@ -26,9 +24,7 @@ defmodule CakeWeb.UserSettingsLive do
         </:item>
       </.list>
 
-      <%!-- An account gains an email at registration or from an admin, not
-      here (#377): the form is for a user who already has one. --%>
-      <section :if={@current_user.email} class="card card-border bg-base-100">
+      <section class="card card-border bg-base-100">
         <div class="card-body">
           <h2 class="card-title">Email</h2>
           <.form
@@ -147,15 +143,6 @@ defmodule CakeWeb.UserSettingsLive do
 
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
-  # A user with no email is not offered the email form (#377: an account
-  # gains an email at registration or from an admin), so a hand-made event
-  # from one is ignored. The generated flow would otherwise let it set one.
-  # The rule is this page's: `Cake.Accounts` does not enforce it.
-  def handle_event(event, _params, %{assigns: %{current_user: %{email: nil}}} = socket)
-      when event in ["validate_email", "update_email"] do
-    {:noreply, socket}
-  end
-
   def handle_event("validate_email", params, socket) do
     %{"current_password" => password, "user" => user_params} = params
 
