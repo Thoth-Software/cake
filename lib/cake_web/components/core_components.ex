@@ -536,7 +536,11 @@ defmodule CakeWeb.CoreComponents do
   def working(assigns) do
     ~H"""
     <div id={@id} role="status" class="flex items-center gap-2 text-base-content/70">
-      <span data-part="indicator" class="loading loading-spinner loading-sm" aria-hidden="true">
+      <span
+        data-part="indicator"
+        class="loading loading-spinner loading-sm shrink-0"
+        aria-hidden="true"
+      >
       </span>
       <span>{render_slot(@inner_block)}</span>
     </div>
