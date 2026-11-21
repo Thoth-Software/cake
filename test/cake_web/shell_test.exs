@@ -167,7 +167,8 @@ defmodule CakeWeb.ShellTest do
 
     # 4: the two pages reached with a token from an email.
     test "titles the pages reached with a token too", %{conn: conn} do
-      user = user_fixture()
+      # Confirmation instructions go only to a user not yet confirmed.
+      user = unconfirmed_user_fixture()
 
       reset_token =
         extract_user_token(&Cake.Accounts.deliver_user_reset_password_instructions(user, &1))

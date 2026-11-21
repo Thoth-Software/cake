@@ -47,17 +47,50 @@ defmodule CakeWeb.UserSessionControllerTest do
       end
     end
 
-    test "logs in a user who has no email", %{conn: conn} do
-      user = user_fixture(email: nil)
+    # Log-in waits on the email being confirmed. The refusal says why only
+    # to someone who has the password; with the wrong one it is the usual
+    # answer, so it does not say whether the username exists.
+    test "refuses a user who has not confirmed their email, until they are confirmed",
+         %{conn: conn} do
+      user = unconfirmed_user_fixture()
+      params = %{"user" => %{"username" => user.username, "password" => valid_user_password()}}
+
+      refused = post(conn, ~p"/users/log_in", params)
+
+      refute get_session(refused, :user_token)
+      assert redirected_to(refused) == ~p"/users/log_in"
+      assert Phoenix.Flash.get(refused.assigns.flash, :error) =~ "confirm your email"
+
+      wrong_password =
+        post(conn, ~p"/users/log_in", %{
+          "user" => %{"username" => user.username, "password" => "not the password"}
+        })
+
+      refute get_session(wrong_password, :user_token)
+
+      assert Phoenix.Flash.get(wrong_password.assigns.flash, :error) ==
+               "Invalid username or password"
+
+      {:ok, _user} = Cake.Accounts.set_user_confirmed(user, true)
+
+      allowed = post(conn, ~p"/users/log_in", params)
+      assert get_session(allowed, :user_token)
+      assert redirected_to(allowed) == ~p"/"
+    end
+
+    # The password form on the settings page logs the user back in. A user
+    # whose confirmation was taken back meanwhile is refused there too.
+    test "refuses an unconfirmed user after a password update as well", %{conn: conn} do
+      user = unconfirmed_user_fixture()
 
       conn =
         post(conn, ~p"/users/log_in", %{
+          "_action" => "password_updated",
           "user" => %{"username" => user.username, "password" => valid_user_password()}
         })
 
-      assert get_session(conn, :user_token)
-      assert redirected_to(conn) == ~p"/"
-      assert conn |> get(~p"/chat") |> html_response(200) =~ user.username
+      refute get_session(conn, :user_token)
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "confirm your email"
     end
 
     test "logs the user in with remember me", %{conn: conn, user: user} do
@@ -87,20 +120,6 @@ defmodule CakeWeb.UserSessionControllerTest do
 
       assert redirected_to(conn) == "/foo/bar"
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome back!"
-    end
-
-    test "login following registration", %{conn: conn, user: user} do
-      conn =
-        post(conn, ~p"/users/log_in", %{
-          "_action" => "registered",
-          "user" => %{
-            "username" => user.username,
-            "password" => valid_user_password()
-          }
-        })
-
-      assert redirected_to(conn) == ~p"/"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Account created successfully"
     end
 
     test "login following password update", %{conn: conn, user: user} do
