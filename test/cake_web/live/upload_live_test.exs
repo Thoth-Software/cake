@@ -148,7 +148,12 @@ defmodule CakeWeb.UploadLiveTest do
       assert {:error, [[ref, :not_accepted]]} = preflight_upload(bad)
 
       assert has_element?(view, "#upload-submit[disabled]")
-      assert has_element?(view, "#upload-blocked")
+
+      assert has_element?(
+               view,
+               "#upload-blocked",
+               "Remove the files that cannot be uploaded to continue."
+             )
 
       view
       |> element(~s(#upload-entry-#{ref} [data-part="remove"]))
@@ -249,6 +254,38 @@ defmodule CakeWeb.UploadLiveTest do
         ])
 
       assert {:error, [[_ref, :not_accepted]]} = preflight_upload(upload)
+    end
+
+    test "the folder option states its own limits", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      limits = view |> element("#upload-folder #upload-folder-limits") |> render()
+
+      assert limits =~ "200 files"
+      assert limits =~ "100 MB"
+      refute limits =~ "20 files"
+    end
+
+    test "says when a folder holds more files than the folder upload takes", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(
+          view,
+          "#upload-form",
+          :folder,
+          for(n <- 1..201, do: %{name: "doc#{n}.pdf", content: "fake", type: "application/pdf"})
+        )
+
+      assert {:error, [[_upload_ref, :too_many_files]]} = preflight_upload(upload)
+
+      assert has_element?(
+               view,
+               ~s(#upload-queue [data-part="queue-error"]),
+               "Too many files: this takes 200 at a time."
+             )
+
+      assert has_element?(view, "#upload-blocked", "Remove some files to continue.")
     end
 
     # The queue lists both uploads; a folder file is refused and removed
@@ -448,6 +485,8 @@ defmodule CakeWeb.UploadLiveTest do
       assert [_status] = Floki.find(working, ~s(#upload-working[role="status"]))
       assert [keep_open] = Floki.find(working, "#upload-working #upload-keep-open")
       assert Floki.text(keep_open) =~ "Keep this tab open"
+      assert Floki.text(keep_open) =~ "leaving it stops the ingestion"
+      assert working |> Floki.find("#upload-working") |> Floki.text() =~ "no progress to show"
       assert Floki.find(working, "#upload-form") == []
 
       {_html, _log} = with_log(fn -> render_async(view) end)
@@ -476,11 +515,12 @@ defmodule CakeWeb.UploadLiveTest do
              )
 
       # Nothing was ingested: the pipeline's banner would contradict the
-      # error beside it, and there is nothing to go and ask about. The
-      # documents list is still worth a look: it shows what failed.
+      # error beside it, and there is nothing to go and ask about or look at.
+      # A file that fails before it is stored, as this one does, never
+      # reaches the documents list, so the page does not send the user there.
       refute render(view) =~ "Successfully ingested"
-      refute has_element?(view, ~s(#upload-onward a[href="/chat"]))
-      assert has_element?(view, ~s(#upload-onward a[href="/documents"]))
+      refute render(view) =~ "Nothing new was indexed."
+      refute has_element?(view, "#upload-onward a")
       assert has_element?(view, "#upload-onward #upload-more")
     end
 
@@ -513,6 +553,7 @@ defmodule CakeWeb.UploadLiveTest do
       assert Floki.text(html) =~ "Successfully ingested PDF books"
       assert part_text(html, "indexed") == "3 indexed"
       assert Floki.find(html, ~s(#upload-results [data-part="failed"])) == []
+      refute Floki.text(html) =~ "Nothing new was indexed."
       assert [_] = Floki.find(html, ~s(#upload-onward a[href="/documents"]))
       assert [_] = Floki.find(html, ~s(#upload-onward a[href="/chat"]))
       assert [_] = Floki.find(html, "#upload-onward #upload-more")
@@ -524,6 +565,9 @@ defmodule CakeWeb.UploadLiveTest do
       assert [_] = Floki.find(html, ~s(#upload-results.alert-warning[role="alert"]))
       assert part_text(html, "indexed") == "3 indexed"
       assert part_text(html, "failed") == "2 failed"
+      assert Floki.text(html) =~ "Successfully ingested PDF books"
+      refute Floki.text(html) =~ "Nothing new was indexed."
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/documents"]))
       assert [_] = Floki.find(html, ~s(#upload-onward a[href="/chat"]))
     end
 
@@ -544,6 +588,8 @@ defmodule CakeWeb.UploadLiveTest do
       html = done_html(user, %{indexed: 1, failed: 0}, skipped_count: 2)
 
       assert part_text(html, "skipped") == "2 non-PDF files skipped"
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/documents"]))
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/chat"]))
     end
   end
 
