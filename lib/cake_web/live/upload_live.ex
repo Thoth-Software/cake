@@ -515,11 +515,13 @@ defmodule CakeWeb.UploadLive do
       <p :if={@error}>{@error}</p>
     </.notice>
 
-    <%!-- The documents list joins these when its route exists (#380). --%>
+    <%!-- The documents list shows each document's status, so it is worth
+    opening whatever the outcome; the chat only when there is something new. --%>
     <div id="upload-onward" class="flex flex-wrap items-center gap-2">
       <button id="upload-more" type="button" phx-click="reset" class="btn btn-outline">
         Upload more
       </button>
+      <.link navigate={~p"/documents"} class="btn btn-ghost">See your documents</.link>
       <.link :if={@results.indexed > 0} navigate={~p"/chat"} class="btn btn-ghost">
         Ask about them in Chat <.icon name="hero-arrow-right" class="size-5" />
       </.link>
