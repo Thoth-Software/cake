@@ -612,7 +612,7 @@ defmodule CakeWeb.UploadLiveTest do
   end
 
   # The PDF is stored, then read back by the ingest task; failing the read
-  # ends ingestion quickly, without a real PDF, as one document that failed.
+  # ends ingestion quickly, without a real PDF, as one item that failed.
   defp ingest_that_fails_to_read(_context) do
     stub(Cake.Books.Adapters.Mock, :write, fn _key, _binary -> :ok end)
     stub(Cake.Books.Adapters.Mock, :read, fn _key -> {:error, :enoent} end)

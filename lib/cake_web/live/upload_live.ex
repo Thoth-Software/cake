@@ -379,7 +379,7 @@ defmodule CakeWeb.UploadLive do
         </label>
         <%!-- The browser hands over every file in the folder, and the upload
         refuses what is not a PDF: each has to be removed from the queue. --%>
-        <span class="text-sm text-base-content/70">
+        <span id="upload-folder-limits" class="text-sm text-base-content/70">
           A folder of PDFs, up to {@uploads.folder.max_entries} files, {max_size(@uploads.folder)} each. Any other file in it has to be removed from the queue.
         </span>
       </div>
@@ -409,16 +409,9 @@ defmodule CakeWeb.UploadLive do
   defp queue(assigns) do
     ~H"""
     <div id="upload-queue" class="space-y-2">
-      <ul class="list rounded-box border border-base-300 bg-base-100">
-        <.queue_entry
-          :for={{upload, entry} <- queued_entries(@uploads)}
-          entry={entry}
-          upload_name={upload.name}
-          errors={upload_errors(upload, entry)}
-        />
-      </ul>
       <%!-- More files than one upload takes is an error of the whole queue,
-      not of any one file in it. --%>
+      not of any one file in it. It goes above the list: under a long one it
+      would be a long way from the pickers. --%>
       <p
         :for={upload <- [@uploads.documents, @uploads.folder]}
         :if={upload_errors(upload) != []}
@@ -428,6 +421,14 @@ defmodule CakeWeb.UploadLive do
         <.icon name="hero-exclamation-circle" class="size-5 shrink-0" />
         <span :for={error <- upload_errors(upload)}>{queue_error(error, upload)}</span>
       </p>
+      <ul class="list rounded-box border border-base-300 bg-base-100">
+        <.queue_entry
+          :for={{upload, entry} <- queued_entries(@uploads)}
+          entry={entry}
+          upload_name={upload.name}
+          errors={upload_errors(upload, entry)}
+        />
+      </ul>
     </div>
     """
   end
@@ -515,13 +516,16 @@ defmodule CakeWeb.UploadLive do
       <p :if={@error}>{@error}</p>
     </.notice>
 
-    <%!-- The documents list shows each document's status, so it is worth
-    opening whatever the outcome; the chat only when there is something new. --%>
+    <%!-- The documents list, unless nothing was ingested: a file that fails
+    before it is stored has no row there, so the list would not show what
+    failed. The chat only when something new was indexed. --%>
     <div id="upload-onward" class="flex flex-wrap items-center gap-2">
       <button id="upload-more" type="button" phx-click="reset" class="btn btn-outline">
         Upload more
       </button>
-      <.link navigate={~p"/documents"} class="btn btn-ghost">See your documents</.link>
+      <.link :if={@kind != :error} navigate={~p"/documents"} class="btn btn-ghost">
+        See the documents
+      </.link>
       <.link :if={@results.indexed > 0} navigate={~p"/chat"} class="btn btn-ghost">
         Ask about them in Chat <.icon name="hero-arrow-right" class="size-5" />
       </.link>
@@ -581,9 +585,11 @@ defmodule CakeWeb.UploadLive do
   @spec max_size(Phoenix.LiveView.UploadConfig.t()) :: String.t()
   defp max_size(upload), do: "#{div(upload.max_file_size, 1_000_000)} MB"
 
-  # Nothing ingested is an error; some documents failing is a warning. A run
-  # that indexed nothing and failed nothing, as when every file was already
-  # in the library, is neither a success nor a failure.
+  # Nothing ingested is an error; some failures beside something indexed is
+  # a warning. A run that indexed nothing and failed nothing, as when every
+  # file was already in the library, is neither a success nor a failure. The
+  # counts are the pipeline's: sections indexed, and failed items, which are
+  # whole files or single sections depending on the stage that failed.
   @spec results_kind(Cake.Pipelines.ingest_summary(), String.t() | nil) ::
           :info | :success | :warning | :error
   defp results_kind(_results, error) when is_binary(error), do: :error
@@ -591,8 +597,9 @@ defmodule CakeWeb.UploadLive do
   defp results_kind(%{indexed: 0}, nil), do: :info
   defp results_kind(_results, nil), do: :success
 
-  # An error of the whole upload. Only "too many" has a number to add.
-  @spec queue_error(atom(), Phoenix.LiveView.UploadConfig.t()) :: String.t()
+  # An error of the whole upload. LiveView 1.0 files only "too many" there;
+  # the second clause is for one it might add, which has no number to give.
+  @spec queue_error(atom() | {atom(), term()}, Phoenix.LiveView.UploadConfig.t()) :: String.t()
   defp queue_error(:too_many_files = error, upload) do
     "#{upload_error_to_string(error)}: this takes #{upload.max_entries} at a time."
   end
@@ -604,7 +611,8 @@ defmodule CakeWeb.UploadLive do
   defp format_size(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"
   defp format_size(bytes), do: "#{Float.round(bytes / 1_048_576, 1)} MB"
 
-  @spec upload_error_to_string(atom()) :: String.t()
+  # LiveView's errors are atoms, bar `{:writer_failure, reason}` on an entry.
+  @spec upload_error_to_string(atom() | {atom(), term()}) :: String.t()
   defp upload_error_to_string(:too_large), do: "File is too large (max 100 MB)"
   defp upload_error_to_string(:not_accepted), do: "File type not accepted"
   defp upload_error_to_string(:too_many_files), do: "Too many files"
