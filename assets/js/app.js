@@ -23,11 +23,15 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
+// Hooks live beside this file and are passed to the LiveSocket by hand:
+// LiveView is 1.0, which has no colocated hooks (.claude/rules/front-end.md).
+import FollowNewest from "./follow_newest"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
+  hooks: {FollowNewest},
 })
 
 // Show progress bar on live navigation and form submits

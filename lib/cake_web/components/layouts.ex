@@ -39,7 +39,7 @@ defmodule CakeWeb.Layouts do
 
   The page is rendered into one column, `#page`, narrow unless the page asks
   for the wide one. A page takes its width from here and does not set one of
-  its own (the chat page still does, from before this rule):
+  its own:
 
       <Layouts.app flash={@flash} current_user={@current_user} width={:wide}>
   """
