@@ -476,9 +476,11 @@ defmodule CakeWeb.UploadLiveTest do
              )
 
       # Nothing was ingested: the pipeline's banner would contradict the
-      # error beside it, and there is nothing to go and ask about.
+      # error beside it, and there is nothing to go and ask about. The
+      # documents list is still worth a look: it shows what failed.
       refute render(view) =~ "Successfully ingested"
-      refute has_element?(view, "#upload-onward a")
+      refute has_element?(view, ~s(#upload-onward a[href="/chat"]))
+      assert has_element?(view, ~s(#upload-onward a[href="/documents"]))
       assert has_element?(view, "#upload-onward #upload-more")
     end
 
@@ -503,13 +505,15 @@ defmodule CakeWeb.UploadLiveTest do
   # A run that ingests something needs a real PDF and the NIF, which the unit
   # suite has neither of, so the finished page is rendered from its assigns.
   describe "the completion summary" do
-    test "is a success with the pipeline's banner and a link to the chat", %{user: user} do
+    test "is a success with the pipeline's banner and links to the documents and the chat",
+         %{user: user} do
       html = done_html(user, %{indexed: 3, failed: 0})
 
       assert [_] = Floki.find(html, ~s(#upload-results.alert-success[role="status"]))
       assert Floki.text(html) =~ "Successfully ingested PDF books"
       assert part_text(html, "indexed") == "3 indexed"
       assert Floki.find(html, ~s(#upload-results [data-part="failed"])) == []
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/documents"]))
       assert [_] = Floki.find(html, ~s(#upload-onward a[href="/chat"]))
       assert [_] = Floki.find(html, "#upload-onward #upload-more")
     end
@@ -532,7 +536,8 @@ defmodule CakeWeb.UploadLiveTest do
       assert [_] = Floki.find(html, ~s(#upload-results.alert-info[role="status"]))
       assert Floki.text(html) =~ "Nothing new was indexed."
       refute Floki.text(html) =~ "Successfully ingested"
-      assert Floki.find(html, "#upload-onward a") == []
+      assert Floki.find(html, ~s(#upload-onward a[href="/chat"])) == []
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/documents"]))
     end
 
     test "counts the non-PDF files that were skipped", %{user: user} do
