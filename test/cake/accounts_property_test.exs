@@ -8,7 +8,9 @@ defmodule Cake.AccountsPropertyTest do
 
   The rule is checked against a model. A run creates a few users with
   generated roles, then applies a generated sequence of promotions,
-  demotions and deletions; after each step the answer and the roles in the
+  demotions and deletions, each role change made by either function that
+  can make one (`update_user_role/2`, or the admin panel's `update_user/2`,
+  #376), with renames among them; after each step the answer and the roles in the
   database must be what the model says. Every call is made with the struct
   from when the user was created, so its `role` is often out of date: the
   rule has to go by the database, not by the struct it is handed.
@@ -37,7 +39,10 @@ defmodule Cake.AccountsPropertyTest do
 
   # `{operation, n}`: `n` picks a user, modulo how many the run created.
   defp operation do
-    tuple({member_of([:promote, :demote, :delete]), non_negative_integer()})
+    tuple({
+      member_of([:promote, :demote, :delete, :update_to_admin, :update_to_member, :rename]),
+      non_negative_integer()
+    })
   end
 
   # A role as a form or a caller might send it: the two real ones, as atoms
@@ -69,6 +74,13 @@ defmodule Cake.AccountsPropertyTest do
       else: {:ok, Map.put(model, index, :member)}
   end
 
+  # `update_user/2` (#376) is a second way to change a role, so it is held to
+  # the same rule: as a promotion, as a demotion, and when it leaves the role
+  # alone.
+  defp expect(model, :update_to_admin, index), do: expect(model, :promote, index)
+  defp expect(model, :update_to_member, index), do: expect(model, :demote, index)
+  defp expect(model, :rename, _index), do: {:ok, model}
+
   defp expect(model, :delete, index) do
     if last_admin?(model, index), do: {:refused, model}, else: {:ok, Map.delete(model, index)}
   end
@@ -76,6 +88,11 @@ defmodule Cake.AccountsPropertyTest do
   defp apply_operation(:promote, user), do: Accounts.update_user_role(user, :admin)
   defp apply_operation(:demote, user), do: Accounts.update_user_role(user, :member)
   defp apply_operation(:delete, user), do: Accounts.delete_user(user)
+  defp apply_operation(:update_to_admin, user), do: Accounts.update_user(user, %{role: :admin})
+  defp apply_operation(:update_to_member, user), do: Accounts.update_user(user, %{role: :member})
+
+  defp apply_operation(:rename, user),
+    do: Accounts.update_user(user, %{username: unique_user_username()})
 
   # The roles in the database, keyed like the model.
   defp stored_roles(users) do

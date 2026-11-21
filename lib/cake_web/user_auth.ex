@@ -14,6 +14,8 @@ defmodule CakeWeb.UserAuth do
   alias Cake.Accounts
   alias Cake.Accounts.User
 
+  require Logger
+
   @must_log_in "You must log in to access this page."
   @not_authorized "You are not authorized to access this page."
 
@@ -145,7 +147,13 @@ defmodule CakeWeb.UserAuth do
       logged user, and to the home page, with a "not authorized" flash, if
       the user is not an admin. It does not need `:ensure_authenticated`
       before it. The user, and so the role, is read when the LiveView
-      mounts, so a demotion takes effect on the user's next navigation.
+      mounts, and again on every event of a connected page, so a demotion
+      takes effect on the user's next navigation or next action in the
+      admin area, whichever comes first.
+
+  Every hook also subscribes a connected page of a logged-in user to that
+  user's topic, so that `end_live_sessions/1` can send the page to the
+  log-in page.
 
   ## Examples
 
@@ -188,7 +196,7 @@ defmodule CakeWeb.UserAuth do
 
     case socket.assigns.current_user do
       %User{role: :admin} ->
-        {:cont, socket}
+        {:cont, ensure_admin_on_events(socket, session)}
 
       %User{} ->
         socket =
@@ -221,11 +229,122 @@ defmodule CakeWeb.UserAuth do
   end
 
   defp mount_current_user(socket, session) do
-    Phoenix.Component.assign_new(socket, :current_user, fn ->
-      if user_token = session["user_token"] do
-        Accounts.get_user_by_session_token(user_token)
-      end
-    end)
+    socket
+    |> Phoenix.Component.assign_new(:current_user, fn -> user_of_session(session) end)
+    |> leave_when_sessions_end(session)
+  end
+
+  defp user_of_session(session) do
+    if user_token = session["user_token"] do
+      Accounts.get_user_by_session_token(user_token)
+    end
+  end
+
+  # The guard above runs when a page is opened. An admin page that is
+  # already open checks again each time it is asked to do something: the
+  # session is looked up afresh, so an admin who has since been demoted,
+  # deleted or logged out is turned away as on a mount, and the event is
+  # dropped.
+  defp ensure_admin_on_events(socket, session) do
+    if Phoenix.LiveView.connected?(socket) do
+      Phoenix.LiveView.attach_hook(socket, :ensure_admin, :handle_event, fn _event,
+                                                                            _params,
+                                                                            socket ->
+        ensure_admin_still(socket, session)
+      end)
+    else
+      socket
+    end
+  end
+
+  defp ensure_admin_still(socket, session) do
+    case user_of_session(session) do
+      %User{role: :admin} ->
+        {:cont, socket}
+
+      %User{} ->
+        socket =
+          socket
+          |> Phoenix.LiveView.put_flash(:error, @not_authorized)
+          |> Phoenix.LiveView.redirect(to: ~p"/")
+
+        {:halt, socket}
+
+      nil ->
+        {:halt, halt_to_log_in(socket)}
+    end
+  rescue
+    # The session could not be read: the database is down, restarting, or
+    # out of connections. An admin who cannot be vouched for is turned away,
+    # and the page does not crash, because a crash report prints the event
+    # being handled, which on a form can hold a password. The log gets what
+    # failed, not the event.
+    error ->
+      Logger.error(
+        "#{inspect(__MODULE__)}: could not read the session before an admin event: " <>
+          inspect(error.__struct__)
+      )
+
+      {:halt, halt_to_log_in(socket)}
+  end
+
+  ## Ending a user's live pages
+
+  @doc """
+  Sends every live page `user` has open to the log-in page.
+
+  Call it after the user's sessions have been deleted: when an admin sets
+  their password (`Cake.Accounts.reset_user_password/2`) or deletes them
+  (`Cake.Accounts.delete_user/1`). Deleting the session rows stops the next
+  request and the next mount; this stops the pages that are already open,
+  which would otherwise go on working until they were next navigated.
+
+  It goes by the user, not by their session tokens, so the caller needs
+  nothing back from the function that deleted them. A page that mounted
+  before the rows went is subscribed and hears this, and one that mounts
+  after finds no session. A page mounting at that very moment could find
+  its session and subscribe too late to hear; so a mount looks the session
+  up once more after it has subscribed.
+
+  What this does not cover is a log-in in flight: a request that checked
+  the old password before it was changed and stores its session after the
+  others were deleted. That is `Cake.Accounts`'s to close, not this
+  function's.
+  """
+  @spec end_live_sessions(User.t()) :: :ok
+  def end_live_sessions(%User{id: id}) do
+    Phoenix.PubSub.broadcast(Cake.PubSub, sessions_topic(id), {__MODULE__, :sessions_ended})
+  end
+
+  defp sessions_topic(user_id), do: "user_live_sessions:#{user_id}"
+
+  # Every `on_mount` hook mounts the user through `mount_current_user/2`, so
+  # every live page of a logged-in user listens here.
+  defp leave_when_sessions_end(%{assigns: %{current_user: %User{id: id}}} = socket, session) do
+    if Phoenix.LiveView.connected?(socket) do
+      :ok = Phoenix.PubSub.subscribe(Cake.PubSub, sessions_topic(id))
+      still_logged_in(socket, session)
+    else
+      socket
+    end
+  end
+
+  defp leave_when_sessions_end(socket, _session), do: socket
+
+  # The session was found before the page subscribed. If it ended in
+  # between, the broadcast went unheard, so it is looked up once more: gone,
+  # and the page mounts for nobody, which each guard then turns away.
+  defp still_logged_in(socket, session) do
+    case user_of_session(session) do
+      %User{} ->
+        Phoenix.LiveView.attach_hook(socket, :sessions_ended, :handle_info, fn
+          {__MODULE__, :sessions_ended}, socket -> {:halt, halt_to_log_in(socket)}
+          _message, socket -> {:cont, socket}
+        end)
+
+      nil ->
+        Phoenix.Component.assign(socket, :current_user, nil)
+    end
   end
 
   @doc """

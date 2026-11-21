@@ -45,6 +45,12 @@ defmodule CakeWeb.Router do
     live_session :admin,
       on_mount: [{CakeWeb.UserAuth, :ensure_admin}] do
       live "/", AdminLive, :index
+
+      live "/users", Admin.UserLive.Index, :index
+      live "/users/new", Admin.UserLive.Form, :new
+      live "/users/:id", Admin.UserLive.Show, :show
+      live "/users/:id/edit", Admin.UserLive.Form, :edit
+      live "/users/:id/password", Admin.UserLive.Form, :password
     end
   end
 
