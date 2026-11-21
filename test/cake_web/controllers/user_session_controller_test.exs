@@ -71,7 +71,7 @@ defmodule CakeWeb.UserSessionControllerTest do
       assert Phoenix.Flash.get(wrong_password.assigns.flash, :error) ==
                "Invalid username or password"
 
-      {:ok, _user} = Cake.Accounts.set_user_confirmed(user, true)
+      {:ok, _user} = Cake.Accounts.set_user_confirmed(:operator, user, true)
 
       allowed = post(conn, ~p"/users/log_in", params)
       assert get_session(allowed, :user_token)

@@ -375,44 +375,83 @@ defmodule Cake.AccountsTest do
   end
 
   # Log-in waits on confirmation, and mail may have nowhere to go, so an
-  # admin can confirm a user by hand, and take the confirmation back.
-  describe "set_user_confirmed/2" do
-    test "confirms a user who has not followed the mailed link, and drops the link" do
+  # admin can confirm a user by hand, and take the confirmation back. The
+  # first argument is who is doing it: an admin, or `:operator` for the
+  # command line and the seed, where nobody is logged in.
+  describe "set_user_confirmed/3" do
+    setup do
+      %{admin: admin_fixture()}
+    end
+
+    test "confirms a user who has not followed the mailed link, and drops the link", %{
+      admin: admin
+    } do
       user = unconfirmed_user_fixture()
       extract_user_token(&Accounts.deliver_user_confirmation_instructions(user, &1))
 
       assert {:ok, %User{confirmed_at: %DateTime{}} = confirmed} =
-               Accounts.set_user_confirmed(user, true)
+               Accounts.set_user_confirmed(admin, user, true)
 
       assert Repo.get!(User, user.id).confirmed_at == confirmed.confirmed_at
       assert Repo.all(UserToken.by_user_and_contexts_query(user, ["confirm"])) == []
     end
 
-    test "takes the confirmation back" do
+    test "takes the confirmation back", %{admin: admin} do
       user = user_fixture()
 
-      assert {:ok, %User{confirmed_at: nil}} = Accounts.set_user_confirmed(user, false)
+      assert {:ok, %User{confirmed_at: nil}} = Accounts.set_user_confirmed(admin, user, false)
       assert is_nil(Repo.get!(User, user.id).confirmed_at)
     end
 
-    test "leaves a user who is already as asked as they are" do
+    test "leaves a user who is already as asked as they are", %{admin: admin} do
       confirmed = user_fixture()
-      assert {:ok, same} = Accounts.set_user_confirmed(confirmed, true)
+      assert {:ok, same} = Accounts.set_user_confirmed(admin, confirmed, true)
       assert same.confirmed_at == confirmed.confirmed_at
 
       unconfirmed = unconfirmed_user_fixture()
-      assert {:ok, %User{confirmed_at: nil}} = Accounts.set_user_confirmed(unconfirmed, false)
+
+      assert {:ok, %User{confirmed_at: nil}} =
+               Accounts.set_user_confirmed(admin, unconfirmed, false)
     end
 
-    # An unconfirmed user cannot log in, so this would lock every admin out.
-    test "refuses to take the confirmation back from the last admin" do
-      admin = admin_fixture()
+    # An unconfirmed user cannot log in: nobody takes their own confirmation
+    # back, whoever else is an admin. It goes by who the two users are, not
+    # by the structs passed in.
+    test "refuses to take the confirmation back from oneself", %{admin: admin} do
+      _another_admin = admin_fixture()
 
-      assert Accounts.set_user_confirmed(admin, false) == {:error, :last_admin}
+      assert Accounts.set_user_confirmed(admin, admin, false) == {:error, :own_account}
+
+      assert Accounts.set_user_confirmed(admin, Repo.get!(User, admin.id), false) ==
+               {:error, :own_account}
+
       assert Repo.get!(User, admin.id).confirmed_at
+    end
 
-      _other = admin_fixture()
-      assert {:ok, %User{confirmed_at: nil}} = Accounts.set_user_confirmed(admin, false)
+    test "lets a user confirm themselves again, which changes nothing", %{admin: admin} do
+      assert {:ok, same} = Accounts.set_user_confirmed(admin, admin, true)
+      assert same.confirmed_at == admin.confirmed_at
+    end
+
+    # There is no last-admin rule here: one admin may take it back from
+    # another, the only other one included.
+    test "lets an admin take the confirmation back from the only other admin", %{admin: admin} do
+      other = admin_fixture()
+
+      assert {:ok, %User{confirmed_at: nil}} = Accounts.set_user_confirmed(admin, other, false)
+    end
+
+    # Nobody is logged in at the command line or in the seed, so there is
+    # no "oneself" to protect.
+    test "lets the operator confirm anyone and take it back from anyone, the only admin included",
+         %{admin: admin} do
+      user = unconfirmed_user_fixture()
+
+      assert {:ok, %User{confirmed_at: %DateTime{}}} =
+               Accounts.set_user_confirmed(:operator, user, true)
+
+      assert {:ok, %User{confirmed_at: nil}} =
+               Accounts.set_user_confirmed(:operator, admin, false)
     end
   end
 
