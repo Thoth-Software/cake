@@ -106,9 +106,6 @@ defmodule CakeWeb do
       # Core UI components
       import CakeWeb.CoreComponents
 
-      # Components Phoenix 1.8 dropped that pages not yet restyled still call
-      import CakeWeb.TransitionalComponents
-
       # Common modules used in templates
       alias CakeWeb.Layouts
       alias Phoenix.LiveView.JS
