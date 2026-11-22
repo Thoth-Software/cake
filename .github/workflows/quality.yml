@@ -457,6 +457,28 @@ jobs:
       - name: Build, boot, and probe the compose stack
         run: ci/compose_smoke.sh
 
+  release-image:
+    name: Release Image (merge gate)
+    runs-on: ubuntu-latest
+    # Gates the image that is deployed (#361), where `compose-smoke` gates the
+    # dev image: builds Dockerfile.release (a `mix release` in a builder
+    # stage, copied into a runner stage with no Mix and no Rust) and probes it
+    # with one-shot commands -- `bin/cake eval` extracts a fixture PDF through
+    # the parsebooks NIF, and `bin/migrate` applies every migration to a
+    # Postgres container. It does not boot the app: the release cannot boot in
+    # prod until the production runtime config lands (#362). PR-only, like
+    # `compose-smoke`, and for the same reason: the image build compiles the
+    # app and the NIF from scratch. Register `Release Image (merge gate)` as
+    # its own required check.
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and probe the release image
+        run: ci/release_smoke.sh
+
   dialyzer:
     name: Dialyzer
     runs-on: ubuntu-latest
