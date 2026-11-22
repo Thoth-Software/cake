@@ -127,6 +127,18 @@ defmodule CakeWeb.Admin.UserLiveTest do
     )
   end
 
+  # The error messages shown under one field of a form, by the field's id:
+  # those in the smallest element that holds both the input and its errors.
+  defp field_errors(html, input_id) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find("div")
+    |> Enum.filter(&(Floki.find(&1, "##{input_id}") != []))
+    |> Enum.min_by(&byte_size(Floki.raw_html(&1)))
+    |> Floki.find("p")
+    |> Enum.map(&String.trim(Floki.text(&1)))
+  end
+
   defp created_on(%User{inserted_at: inserted_at}), do: Calendar.strftime(inserted_at, "%Y-%m-%d")
 
   # Whether the log-in form, in a browser of its own, logs this username in:
@@ -257,6 +269,28 @@ defmodule CakeWeb.Admin.UserLiveTest do
              )
 
       assert has_element?(lv, ~s|a#set-password[href="/admin/users/#{member.id}/password"]|)
+    end
+  end
+
+  # Without its JavaScript (not loaded yet, or blocked) a form is submitted
+  # by the browser itself, as its `method` says. A form for a stored record
+  # would say `put`, which a browser does not know and sends as GET, with
+  # the fields, the password among them, in the address.
+  describe "a form submitted without LiveView" do
+    setup :log_in_admin
+
+    test "is a POST, so nothing typed goes into the address", %{conn: conn} do
+      member = login_fixture(:member)
+
+      for {path, form_id} <- [
+            {~p"/admin/users/new", "user-form"},
+            {~p"/admin/users/#{member}/edit", "user-form"},
+            {~p"/admin/users/#{member}/password", "password-form"}
+          ] do
+        html = conn |> get(path) |> html_response(200) |> Floki.parse_document!()
+
+        assert Floki.attribute(html, "form##{form_id}", "method") == ["post"], path
+      end
     end
   end
 
@@ -514,8 +548,35 @@ defmodule CakeWeb.Admin.UserLiveTest do
         )
         |> render_submit()
 
-      assert html =~ @taken
+      assert field_errors(html, "user_email") == [@taken]
+      assert field_errors(html, "user_username") == []
       refute Repo.get_by(User, username: username)
+    end
+
+    # A browser marks a field nobody has touched yet with an `_unused_` key
+    # beside it, and the form shows a field's errors only once it is used.
+    # `form/3` never sends those keys, so this test sends what a browser
+    # does after one keystroke in the username.
+    test "shows no error under a field nobody has touched yet", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/new")
+
+      html =
+        render_change(lv, "validate", %{
+          "_target" => ["user", "username"],
+          "user" => %{
+            "username" => "a",
+            "email" => "",
+            "_unused_email" => "",
+            "password" => "",
+            "_unused_password" => "",
+            "role" => "member",
+            "_unused_role" => ""
+          }
+        })
+
+      assert field_errors(html, "user_username") == ["should be at least 3 character(s)"]
+      assert field_errors(html, "user_email") == []
+      assert field_errors(html, "user_password") == []
     end
 
     # `return_to` belongs to the edit form. A new login has no page of its
@@ -554,7 +615,8 @@ defmodule CakeWeb.Admin.UserLiveTest do
         )
         |> render_submit()
 
-      assert html =~ @taken
+      assert field_errors(html, "user_username") == [@taken]
+      assert field_errors(html, "user_email") == []
       assert Repo.aggregate(User, :count) == 1
     end
 
@@ -823,7 +885,8 @@ defmodule CakeWeb.Admin.UserLiveTest do
       member = login_fixture(:member)
       {:ok, lv, _html} = live(conn, ~p"/admin/users/#{member}/edit")
 
-      assert lv |> form("#user-form", user: %{email: admin.email}) |> render_submit() =~ @taken
+      taken = lv |> form("#user-form", user: %{email: admin.email}) |> render_submit()
+      assert field_errors(taken, "user_email") == [@taken]
 
       assert lv |> form("#user-form", user: %{email: ""}) |> render_submit() =~
                "can&#39;t be blank"
@@ -1035,6 +1098,9 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
       assert can_log_in?(member.username, valid_user_password())
       assert Accounts.get_user_by_session_token(token)
+      # A broadcast is a message to the member's page: once it has handled
+      # everything sent before this render, nothing is still on the way.
+      _ = render(members_page)
       refute_redirected(members_page, ~p"/users/log_in")
     end
 
