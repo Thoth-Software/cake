@@ -15,6 +15,8 @@ defmodule Cake.SeedsTest do
 
   use Cake.DataCase
 
+  import Cake.AccountsFixtures, only: [unique_user_email: 0]
+
   alias Cake.Accounts
   alias Cake.Accounts.User
 
@@ -30,6 +32,8 @@ defmodule Cake.SeedsTest do
     assert [%User{} = user] = Repo.all(User)
     assert String.length(user.username) in 3..32
     assert user.role == :admin
+    # Log-in waits on confirmation, and dev sends no mail anyone reads.
+    assert user.confirmed_at
   end
 
   test "running the seed again raises nothing and leaves the same one admin" do
@@ -50,27 +54,39 @@ defmodule Cake.SeedsTest do
   # `/admin` (found in review on #387).
   test "the seed makes a dev login from before roles an admin" do
     {:ok, member} =
-      Accounts.register_user(%{username: @seeded_username, password: @seeded_password})
+      Accounts.register_user(%{
+        username: @seeded_username,
+        email: unique_user_email(),
+        password: @seeded_password
+      })
 
     assert member.role == :member
+    assert is_nil(member.confirmed_at)
 
     run_seed()
 
     assert [%User{} = user] = Repo.all(User)
     assert user.id == member.id
     assert user.role == :admin
+    # Brought up to date in full: an admin who could not log in is no admin.
+    assert user.confirmed_at
   end
 
   # It promotes the login it seeded, recognised by the seeded password, and
   # not whoever else took the name.
   test "the seed leaves alone a user who has the seed's username and another password" do
     {:ok, other} =
-      Accounts.register_user(%{username: @seeded_username, password: "a password of their own"})
+      Accounts.register_user(%{
+        username: @seeded_username,
+        email: unique_user_email(),
+        password: "a password of their own"
+      })
 
     run_seed()
 
     assert [%User{} = user] = Repo.all(User)
     assert user.id == other.id
     assert user.role == :member
+    assert is_nil(user.confirmed_at)
   end
 end

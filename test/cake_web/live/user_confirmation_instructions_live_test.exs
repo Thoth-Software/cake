@@ -8,7 +8,7 @@ defmodule CakeWeb.UserConfirmationInstructionsLiveTest do
   alias Cake.Repo
 
   setup do
-    %{user: user_fixture()}
+    %{user: unconfirmed_user_fixture()}
   end
 
   describe "Resend confirmation" do

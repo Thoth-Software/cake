@@ -13,6 +13,12 @@ defmodule CakeWeb.UploadLive do
   limit it broke: as the page's error when nothing else in the batch can be
   ingested, otherwise in a warning listing each rejected archive beside the
   ingestion of the rest.
+
+  Ingestion runs in a task this LiveView owns and reports nothing until it
+  is done, so the page says both while it runs: that there is no progress
+  to show, and to keep the tab open on this page. The screen is built from
+  the shared pieces (`Layouts.app`, `header/1`, `working/1`, `notice/1`);
+  `.claude/rules/front-end.md`, "Look and feel".
   """
 
   use CakeWeb, :live_view
@@ -314,184 +320,299 @@ defmodule CakeWeb.UploadLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user} current_page={:upload}>
-      <div class="max-w-2xl mx-auto p-4">
-        <h1 class="text-2xl font-bold mb-4">Upload Documents</h1>
+      <.header>
+        Upload documents
+        <:subtitle>Add PDFs to the library that Chat and Search answer from.</:subtitle>
+      </.header>
 
-        <.rejected_archives :if={@rejected_archives != []} archives={@rejected_archives} />
+      <.rejected_archives :if={@rejected_archives != []} archives={@rejected_archives} />
 
-        <%= case @status do %>
-          <% :idle -> %>
-            <.upload_form uploads={@uploads} />
-          <% :processing -> %>
-            <.processing_indicator />
-          <% :done -> %>
-            <.results_panel results={@results} error={@error} skipped_count={@skipped_count} />
-          <% :error -> %>
-            <.error_panel error={@error} />
-        <% end %>
-      </div>
+      <%= case @status do %>
+        <% :idle -> %>
+          <.upload_form uploads={@uploads} />
+        <% :processing -> %>
+          <.processing_indicator />
+        <% :done -> %>
+          <.results_panel results={@results} error={@error} skipped_count={@skipped_count} />
+        <% :error -> %>
+          <.error_panel error={@error} />
+      <% end %>
     </Layouts.app>
     """
   end
 
+  # Both file inputs are hidden (`sr-only`) inside the label that stands for
+  # them, so each still takes the keyboard focus and opens its picker, and the
+  # browser's own file control, which is wider than a phone, is never drawn.
+  # The label shows the focus ring for its input, and only for focus that
+  # came from the keyboard.
   defp upload_form(assigns) do
     ~H"""
-    <form id="upload-form" phx-submit="upload" phx-change="validate">
-      <div class="space-y-6">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Upload Files (PDFs or ZIP archives)
-          </label>
-          <.live_file_input upload={@uploads.documents} />
-        </div>
+    <form id="upload-form" phx-submit="upload" phx-change="validate" class="space-y-4">
+      <%!-- From `sm` up, a drop zone; below it, where there is nothing to
+      drag, the same label is a button. --%>
+      <label
+        id="upload-dropzone"
+        for={@uploads.documents.ref}
+        phx-drop-target={@uploads.documents.ref}
+        class="flex cursor-pointer flex-col items-center gap-2 rounded-box border-base-content/30 text-center has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-primary sm:border-2 sm:border-dashed sm:px-4 sm:py-10 sm:hover:border-primary"
+      >
+        <.icon name="hero-arrow-up-tray" class="hidden size-10 opacity-60 sm:block" />
+        <span class="hidden sm:block">
+          Drop files here, or <span class="link link-primary">choose them</span>
+        </span>
+        <span class="btn btn-outline w-full sm:hidden">
+          <.icon name="hero-arrow-up-tray" class="size-5" /> Choose files
+        </span>
+        <span id="upload-limits" class="text-sm text-base-content/70">
+          PDF or ZIP, up to {@uploads.documents.max_entries} files, {max_size(@uploads.documents)} each
+        </span>
+        <.live_file_input upload={@uploads.documents} class="sr-only" />
+      </label>
 
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Upload Folder
-          </label>
-          <.live_file_input upload={@uploads.folder} webkitdirectory />
-        </div>
+      <div class="divider text-sm text-base-content/70">or</div>
 
-        <.entry_list entries={@uploads.documents.entries} upload_name="documents" />
-        <.entry_list entries={@uploads.folder.entries} upload_name="folder" />
+      <div id="upload-folder" class="flex flex-col items-center gap-2 text-center">
+        <label class="btn btn-outline w-full has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-primary sm:w-auto">
+          <.icon name="hero-folder-open" class="size-5" /> Choose a folder
+          <.live_file_input upload={@uploads.folder} webkitdirectory class="sr-only" />
+        </label>
+        <%!-- The browser hands over every file in the folder, and the upload
+        refuses what is not a PDF: each has to be removed from the queue. --%>
+        <span id="upload-folder-limits" class="text-sm text-base-content/70">
+          A folder of PDFs, up to {@uploads.folder.max_entries} files, {max_size(@uploads.folder)} each. Any other file in it has to be removed from the queue.
+        </span>
+      </div>
 
-        <.entry_errors upload={@uploads.documents} />
-        <.entry_errors upload={@uploads.folder} />
+      <.queue :if={queued?(@uploads)} uploads={@uploads} />
 
-        <button
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <%!-- The label holds from the click until the files are uploaded and
+        stored, which for large files is a while with nothing else to see. --%>
+        <.button
+          id="upload-submit"
           type="submit"
-          disabled={no_valid_entries?(@uploads)}
-          class="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          variant="primary"
+          disabled={not ready?(@uploads)}
+          phx-disable-with="Uploading..."
         >
-          Upload and Ingest
-        </button>
+          Upload and ingest
+        </.button>
+        <p :if={blocked?(@uploads)} id="upload-blocked" class="text-sm text-base-content/70">
+          {blocked_hint(@uploads)}
+        </p>
       </div>
     </form>
     """
   end
 
-  defp entry_list(assigns) do
+  defp queue(assigns) do
     ~H"""
-    <ul :if={@entries != []} class="space-y-2">
-      <li :for={entry <- @entries} class="flex items-center justify-between bg-gray-50 rounded p-2">
-        <div class="flex-1 min-w-0">
-          <span class="text-sm truncate block">{entry.client_name}</span>
-          <span class="text-xs text-gray-500">{format_size(entry.client_size)}</span>
-          <div :if={entry.progress > 0 and entry.progress < 100} class="mt-1">
-            <div class="w-full bg-gray-200 rounded-full h-1.5">
-              <div class="bg-blue-600 h-1.5 rounded-full" style={"width: #{entry.progress}%"}></div>
-            </div>
-          </div>
-        </div>
-        <button
-          type="button"
-          phx-click="cancel-upload"
-          phx-value-ref={entry.ref}
-          phx-value-upload={@upload_name}
-          class="ml-2 text-red-500 hover:text-red-700 text-sm"
-        >
-          &times;
-        </button>
-      </li>
-    </ul>
-    """
-  end
-
-  defp entry_errors(assigns) do
-    ~H"""
-    <div
-      :for={entry <- @upload.entries}
-      :if={upload_errors(@upload, entry) != []}
-      class="text-red-600 text-sm"
-    >
-      <span>{entry.client_name}:</span>
-      <span :for={msg <- upload_errors(@upload, entry)}>{upload_error_to_string(msg)}</span>
-    </div>
-    """
-  end
-
-  defp rejected_archives(assigns) do
-    ~H"""
-    <div
-      id="rejected-archives"
-      role="status"
-      class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded text-sm"
-    >
-      <p class="font-medium">These archives were not ingested:</p>
-      <ul class="list-disc ml-5">
-        <li :for={archive <- @archives}>{archive}</li>
+    <div id="upload-queue" class="space-y-2">
+      <%!-- More files than one upload takes is an error of the whole queue,
+      not of any one file in it. It goes above the list: under a long one it
+      would be a long way from the pickers. --%>
+      <p
+        :for={upload <- [@uploads.documents, @uploads.folder]}
+        :if={upload_errors(upload) != []}
+        data-part="queue-error"
+        class="flex items-center gap-2 text-sm text-error"
+      >
+        <.icon name="hero-exclamation-circle" class="size-5 shrink-0" />
+        <span :for={error <- upload_errors(upload)}>{queue_error(error, upload)}</span>
+      </p>
+      <ul class="list rounded-box border border-base-300 bg-base-100">
+        <.queue_entry
+          :for={{upload, entry} <- queued_entries(@uploads)}
+          entry={entry}
+          upload_name={upload.name}
+          errors={upload_errors(upload, entry)}
+        />
       </ul>
     </div>
     """
   end
 
-  defp processing_indicator(assigns) do
+  defp queue_entry(assigns) do
     ~H"""
-    <div class="flex items-center justify-center p-8">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 mr-3"></div>
-      <span class="text-gray-600">Processing documents...</span>
-    </div>
+    <li id={"upload-entry-#{@entry.ref}"} class="list-row items-center">
+      <.icon
+        name={if @errors == [], do: "hero-document", else: "hero-exclamation-circle"}
+        class={["size-5", if(@errors == [], do: "opacity-60", else: "text-error")]}
+      />
+      <div class="min-w-0">
+        <p data-part="name" class="wrap-anywhere">{@entry.client_name}</p>
+        <p data-part="size" class="text-sm text-base-content/70">
+          {format_size(@entry.client_size)}
+        </p>
+        <progress
+          :if={@errors == []}
+          class="progress progress-primary mt-1 block w-full"
+          value={@entry.progress}
+          max="100"
+          aria-label={"Upload progress of #{@entry.client_name}"}
+        >
+          {@entry.progress}%
+        </progress>
+        <p :for={error <- @errors} data-part="error" class="text-sm text-error">
+          {upload_error_to_string(error)}
+        </p>
+      </div>
+      <button
+        type="button"
+        phx-click="cancel-upload"
+        phx-value-ref={@entry.ref}
+        phx-value-upload={@upload_name}
+        data-part="remove"
+        aria-label={"Remove #{@entry.client_name}"}
+        class="btn btn-ghost btn-sm btn-square"
+      >
+        <.icon name="hero-x-mark" class="size-5" />
+      </button>
+    </li>
     """
   end
 
-  defp results_panel(assigns) do
+  defp rejected_archives(assigns) do
     ~H"""
-    <div class="space-y-4">
-      <div class="rounded-lg border p-4">
-        <h2 class="text-lg font-semibold mb-2">Ingestion Complete</h2>
-        <p class="text-sm text-gray-600">{@results.message}</p>
-        <div class="mt-2 flex gap-4 text-sm">
-          <span class="text-green-600">{@results.indexed} indexed</span>
-          <span :if={@results.failed > 0} class="text-red-600">{@results.failed} failed</span>
-          <span :if={@skipped_count > 0} class="text-gray-500">
-            {@skipped_count} non-PDF files skipped
-          </span>
-        </div>
-      </div>
+    <.notice id="rejected-archives" kind={:warning} title="These archives were not ingested:">
+      <ul class="ml-5 list-disc">
+        <li :for={archive <- @archives} class="wrap-anywhere">{archive}</li>
+      </ul>
+    </.notice>
+    """
+  end
 
-      <div :if={@error} class="p-3 bg-yellow-100 text-yellow-800 rounded text-sm">
-        {@error}
-      </div>
+  # Ingestion reports nothing until it is done, and it runs in a task this
+  # LiveView owns: leaving the page, by closing the tab or by following a
+  # link, stops it. The page has to say both for as long as that is so.
+  defp processing_indicator(assigns) do
+    ~H"""
+    <.working id="upload-working">
+      Ingesting your documents. A large PDF takes minutes, and there is no progress to show until it is done.
+      <strong id="upload-keep-open" class="block font-semibold text-base-content">
+        Keep this tab open, on this page: leaving it stops the ingestion.
+      </strong>
+    </.working>
+    """
+  end
 
-      <button
-        type="button"
-        phx-click="reset"
-        class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
-      >
-        Upload More
+  # The pipeline's banner says the run succeeded whatever it counted, so it
+  # is shown only when something was indexed; so is the way on to the chat.
+  defp results_panel(assigns) do
+    assigns = assign(assigns, :kind, results_kind(assigns.results, assigns.error))
+
+    ~H"""
+    <.notice id="upload-results" kind={@kind} title="Ingestion complete">
+      <p :if={@results.indexed > 0} class="wrap-anywhere">{@results.message}</p>
+      <p :if={@kind == :info}>Nothing new was indexed.</p>
+      <p class="flex flex-wrap gap-x-4">
+        <span data-part="indexed">{@results.indexed} indexed</span>
+        <span :if={@results.failed > 0} data-part="failed">{@results.failed} failed</span>
+        <span :if={@skipped_count > 0} data-part="skipped">
+          {@skipped_count} non-PDF files skipped
+        </span>
+      </p>
+      <p :if={@error}>{@error}</p>
+    </.notice>
+
+    <%!-- The documents list, unless nothing was ingested: a file that fails
+    before it is stored has no row there, so the list would not show what
+    failed. The chat only when something new was indexed. --%>
+    <div id="upload-onward" class="flex flex-wrap items-center gap-2">
+      <button id="upload-more" type="button" phx-click="reset" class="btn btn-outline">
+        Upload more
       </button>
+      <.link :if={@kind != :error} navigate={~p"/documents"} class="btn btn-ghost">
+        See the documents
+      </.link>
+      <.link :if={@results.indexed > 0} navigate={~p"/chat"} class="btn btn-ghost">
+        Ask about them in Chat <.icon name="hero-arrow-right" class="size-5" />
+      </.link>
     </div>
     """
   end
 
   defp error_panel(assigns) do
     ~H"""
-    <div class="space-y-4">
-      <div class="p-4 bg-red-100 text-red-700 rounded">
-        {@error}
-      </div>
-      <button
-        type="button"
-        phx-click="reset"
-        class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
-      >
-        Try Again
-      </button>
-    </div>
+    <.notice id="upload-error" kind={:error}>
+      <span class="wrap-anywhere">{@error}</span>
+    </.notice>
+    <button id="upload-retry" type="button" phx-click="reset" class="btn btn-outline">
+      Try again
+    </button>
     """
   end
 
-  @spec no_valid_entries?(map()) :: boolean()
-  defp no_valid_entries?(uploads) do
-    uploads.documents.entries == [] and uploads.folder.entries == []
+  # The two uploads the form holds, in the order the queue lists them.
+  @spec queued_entries(map()) :: [
+          {Phoenix.LiveView.UploadConfig.t(), Phoenix.LiveView.UploadEntry.t()}
+        ]
+  defp queued_entries(uploads) do
+    for upload <- [uploads.documents, uploads.folder],
+        entry <- upload.entries,
+        do: {upload, entry}
   end
+
+  @spec queued?(map()) :: boolean()
+  defp queued?(uploads), do: queued_entries(uploads) != []
+
+  # A refused file, or more files than an upload takes, is an error on the
+  # upload. While there is one the browser sends nothing on submit, so the
+  # button is disabled rather than left to do nothing.
+  @spec blocked?(map()) :: boolean()
+  defp blocked?(uploads), do: uploads.documents.errors != [] or uploads.folder.errors != []
+
+  # What to do about the block. With too many files and none refused, no
+  # file "cannot be uploaded": some have to go, whichever.
+  @spec blocked_hint(map()) :: String.t()
+  defp blocked_hint(uploads) do
+    refused? =
+      Enum.any?(queued_entries(uploads), fn {upload, entry} ->
+        upload_errors(upload, entry) != []
+      end)
+
+    if refused?,
+      do: "Remove the files that cannot be uploaded to continue.",
+      else: "Remove some files to continue."
+  end
+
+  @spec ready?(map()) :: boolean()
+  defp ready?(uploads), do: queued?(uploads) and not blocked?(uploads)
+
+  # The size limit as the page states it: the decimal megabytes it is
+  # configured in, not the binary ones format_size/1 shows a file's size in.
+  @spec max_size(Phoenix.LiveView.UploadConfig.t()) :: String.t()
+  defp max_size(upload), do: "#{div(upload.max_file_size, 1_000_000)} MB"
+
+  # Nothing ingested is an error; some failures beside something indexed is
+  # a warning. A run that indexed nothing and failed nothing, as when every
+  # file was already in the library, is neither a success nor a failure. The
+  # counts are the pipeline's: sections indexed, and failed items, which are
+  # whole files or single sections depending on the stage that failed.
+  @spec results_kind(Cake.Pipelines.ingest_summary(), String.t() | nil) ::
+          :info | :success | :warning | :error
+  defp results_kind(_results, error) when is_binary(error), do: :error
+  defp results_kind(%{failed: failed}, nil) when failed > 0, do: :warning
+  defp results_kind(%{indexed: 0}, nil), do: :info
+  defp results_kind(_results, nil), do: :success
+
+  # An error of the whole upload. LiveView 1.0 files only "too many" there;
+  # the second clause is for one it might add, which has no number to give.
+  @spec queue_error(atom() | {atom(), term()}, Phoenix.LiveView.UploadConfig.t()) :: String.t()
+  defp queue_error(:too_many_files = error, upload) do
+    "#{upload_error_to_string(error)}: this takes #{upload.max_entries} at a time."
+  end
+
+  defp queue_error(error, _upload), do: upload_error_to_string(error)
 
   @spec format_size(non_neg_integer()) :: String.t()
   defp format_size(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_size(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"
   defp format_size(bytes), do: "#{Float.round(bytes / 1_048_576, 1)} MB"
 
-  @spec upload_error_to_string(atom()) :: String.t()
+  # LiveView's errors are atoms, bar `{:writer_failure, reason}` on an entry.
+  @spec upload_error_to_string(atom() | {atom(), term()}) :: String.t()
   defp upload_error_to_string(:too_large), do: "File is too large (max 100 MB)"
   defp upload_error_to_string(:not_accepted), do: "File type not accepted"
   defp upload_error_to_string(:too_many_files), do: "Too many files"

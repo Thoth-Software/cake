@@ -318,8 +318,8 @@ defmodule CakeWeb.CoreComponents do
   @doc """
   Renders a header with title.
   """
-  # Not in the generator's file: the 1.7 header took a class, and the auth
-  # pages still pass one to centre theirs (#374).
+  # Not in the generator's file: the 1.7 header took a class (#374). The
+  # auth pages passed one to centre theirs until #377; no page does now.
   attr :class, :any, default: nil
 
   slot :inner_block, required: true
@@ -353,10 +353,9 @@ defmodule CakeWeb.CoreComponents do
         <:col :let={user} label="username">{user.username}</:col>
       </.table>
 
-  A column's `class` goes on its heading and on each of its cells. It is how
-  a table of records fits a phone: a column that can be done without there
-  is hidden below a breakpoint (`class="hidden sm:table-cell"`), so the
-  table does not scroll sideways.
+  A column may carry a `class`, which goes on its heading and on each of its
+  cells. It is there for a column a phone has no room for (not in the
+  generator's file, #380):
 
       <:col :let={user} label="Created" class="hidden sm:table-cell">{user.inserted_at}</:col>
   """
@@ -371,7 +370,7 @@ defmodule CakeWeb.CoreComponents do
 
   slot :col, required: true do
     attr :label, :string
-    attr :class, :string, doc: "classes for the column's heading and cells"
+    attr :class, :string, doc: "classes for the column's heading and each of its cells"
   end
 
   slot :action, doc: "the slot for showing user actions in the last table column"
@@ -444,6 +443,43 @@ defmodule CakeWeb.CoreComponents do
   end
 
   @doc """
+  Renders an ingestion status as a badge: pending, processing, completed or
+  failed, as `Cake.Books.ParsedBook`'s `embedding_status` has them.
+
+  Every screen that shows a document's status uses this, so that a status
+  reads and is coloured the same everywhere: done is `badge-success`, under
+  way `badge-warning`, failed `badge-error` and not started `badge-ghost`.
+  The badge shows the status it is given and nothing else.
+
+  ## Examples
+
+      <.status_badge status={@parsed_book.embedding_status} />
+  """
+  attr :id, :string, default: nil
+  attr :status, :atom, required: true, values: [:pending, :processing, :completed, :failed]
+
+  @spec status_badge(map()) :: Phoenix.LiveView.Rendered.t()
+  def status_badge(assigns) do
+    ~H"""
+    <span id={@id} data-part="status" class={["badge badge-soft", status_class(@status)]}>
+      {status_label(@status)}
+    </span>
+    """
+  end
+
+  # The class names are spelled out in full: Tailwind keeps only the classes
+  # it finds written in the source.
+  defp status_class(:pending), do: "badge-ghost"
+  defp status_class(:processing), do: "badge-warning"
+  defp status_class(:completed), do: "badge-success"
+  defp status_class(:failed), do: "badge-error"
+
+  defp status_label(:pending), do: "Pending"
+  defp status_label(:processing), do: "Processing"
+  defp status_label(:completed), do: "Completed"
+  defp status_label(:failed), do: "Failed"
+
+  @doc """
   Renders the empty state of a screen or a list: an icon, one sentence and,
   optionally, what to do about it.
 
@@ -500,7 +536,11 @@ defmodule CakeWeb.CoreComponents do
   def working(assigns) do
     ~H"""
     <div id={@id} role="status" class="flex items-center gap-2 text-base-content/70">
-      <span data-part="indicator" class="loading loading-spinner loading-sm" aria-hidden="true">
+      <span
+        data-part="indicator"
+        class="loading loading-spinner loading-sm shrink-0"
+        aria-hidden="true"
+      >
       </span>
       <span>{render_slot(@inner_block)}</span>
     </div>

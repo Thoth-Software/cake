@@ -19,18 +19,49 @@ defmodule CakeWeb.UploadLiveTest do
 
   describe "mount" do
     test "renders the upload page in idle state", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/upload")
+      {:ok, view, _html} = live(conn, ~p"/upload")
 
-      assert html =~ "Upload Documents"
-      assert html =~ "Upload Files"
-      assert html =~ "Upload Folder"
-      assert html =~ "Upload and Ingest"
+      assert has_element?(view, "#page h1", "Upload documents")
+      assert has_element?(view, "#upload-form #upload-dropzone")
+      assert has_element?(view, "#upload-form #upload-folder")
+      assert has_element?(view, "#upload-submit", "Upload and ingest")
+
+      for id <- ~w(upload-queue upload-working upload-results upload-error rejected-archives) do
+        refute has_element?(view, "#" <> id)
+      end
     end
 
     test "submit button is disabled with no files queued", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/upload")
 
-      assert has_element?(view, "button[disabled]", "Upload and Ingest")
+      assert has_element?(view, "#upload-submit[disabled]")
+    end
+
+    test "the drop zone states what is accepted and the limits the page enforces", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      limits = view |> element("#upload-dropzone #upload-limits") |> render()
+
+      assert limits =~ "PDF"
+      assert limits =~ "ZIP"
+      assert limits =~ "20 files"
+      assert limits =~ "100 MB"
+    end
+
+    test "the drop zone hands dropped files to the files input, and the folder option has its own",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+      html = view |> render() |> Floki.parse_document!()
+
+      assert [files_ref] = Floki.attribute(html, "#upload-dropzone", "phx-drop-target")
+
+      assert [^files_ref] =
+               Floki.attribute(html, ~s(#upload-dropzone input[name="documents"]), "id")
+
+      assert [_folder_input] =
+               Floki.find(html, ~s(#upload-folder input[name="folder"][webkitdirectory]))
+
+      assert Floki.find(html, ~s(#upload-dropzone input[name="folder"])) == []
     end
   end
 
@@ -52,7 +83,31 @@ defmodule CakeWeb.UploadLiveTest do
       refute html =~ "File type not accepted"
     end
 
-    test "rejects non-accepted file types at preflight", %{conn: conn} do
+    test "a queued file shows its name, its size, a progress bar and a remove button", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "doc.pdf", content: "fake-pdf-content", type: "application/pdf"}
+        ])
+
+      assert {:ok, _} = preflight_upload(upload)
+
+      assert has_element?(view, ~s(#upload-queue [data-part="name"]), "doc.pdf")
+      assert has_element?(view, ~s(#upload-queue [data-part="size"]), "16 B")
+      assert has_element?(view, ~s(#upload-queue progress[max="100"]))
+      refute has_element?(view, ~s(#upload-queue [data-part="error"]))
+      refute has_element?(view, "#upload-submit[disabled]")
+
+      view |> element(~s(#upload-queue [data-part="remove"])) |> render_click()
+
+      refute has_element?(view, "#upload-queue")
+      assert has_element?(view, "#upload-submit[disabled]")
+    end
+
+    test "rejects non-accepted file types at preflight, and says so on the file", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/upload")
 
       upload =
@@ -60,7 +115,117 @@ defmodule CakeWeb.UploadLiveTest do
           %{name: "readme.txt", content: "not a pdf", type: "text/plain"}
         ])
 
-      assert {:error, [[_ref, :not_accepted]]} = preflight_upload(upload)
+      assert {:error, [[ref, :not_accepted]]} = preflight_upload(upload)
+
+      assert has_element?(
+               view,
+               ~s(#upload-entry-#{ref} [data-part="error"]),
+               "File type not accepted"
+             )
+
+      # A file that was refused is not uploaded, so it has no progress to show.
+      refute has_element?(view, "#upload-entry-#{ref} progress")
+    end
+
+    # The browser sends nothing while a queued file is refused, so the button
+    # would do nothing: it is disabled, and the page says what to do.
+    test "cannot submit while a queued file is refused, until it is removed", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      good =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "doc.pdf", content: "fake-pdf-content", type: "application/pdf"}
+        ])
+
+      assert {:ok, _} = preflight_upload(good)
+      refute has_element?(view, "#upload-blocked")
+
+      bad =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "readme.txt", content: "not a pdf", type: "text/plain"}
+        ])
+
+      assert {:error, [[ref, :not_accepted]]} = preflight_upload(bad)
+
+      assert has_element?(view, "#upload-submit[disabled]")
+
+      assert has_element?(
+               view,
+               "#upload-blocked",
+               "Remove the files that cannot be uploaded to continue."
+             )
+
+      view
+      |> element(~s(#upload-entry-#{ref} [data-part="remove"]))
+      |> render_click()
+
+      refute has_element?(view, "#upload-submit[disabled]")
+      refute has_element?(view, "#upload-blocked")
+    end
+
+    test "says when more files are queued than one upload takes", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(
+          view,
+          "#upload-form",
+          :documents,
+          for(n <- 1..21, do: %{name: "doc#{n}.pdf", content: "fake", type: "application/pdf"})
+        )
+
+      assert {:error, [[_upload_ref, :too_many_files]]} = preflight_upload(upload)
+
+      assert has_element?(
+               view,
+               ~s(#upload-queue [data-part="queue-error"]),
+               "Too many files: this takes 20 at a time."
+             )
+
+      # No file is refused, so the page does not ask for refused files to go.
+      assert has_element?(view, "#upload-submit[disabled]")
+      assert has_element?(view, "#upload-blocked", "Remove some files to continue.")
+
+      view |> element(~s(#upload-queue li:first-child [data-part="remove"])) |> render_click()
+
+      refute has_element?(view, ~s(#upload-queue [data-part="queue-error"]))
+      refute has_element?(view, "#upload-submit[disabled]")
+      refute has_element?(view, "#upload-blocked")
+    end
+
+    test "a file's bar shows how much of it has been uploaded", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "doc.pdf", content: "fake-pdf-content", type: "application/pdf"}
+        ])
+
+      render_upload(upload, "doc.pdf", 50)
+
+      assert has_element?(view, ~s(#upload-queue progress[value="50"]))
+    end
+
+    test "the remove button says which file it removes", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "doc.pdf", content: "fake-pdf-content", type: "application/pdf"}
+        ])
+
+      assert {:ok, _} = preflight_upload(upload)
+
+      assert has_element?(
+               view,
+               ~s(#upload-queue [data-part="remove"][aria-label="Remove doc.pdf"])
+             )
+    end
+
+    test "while files upload, the button says so", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      assert has_element?(view, ~s(#upload-submit[phx-disable-with="Uploading..."]))
     end
   end
 
@@ -89,6 +254,72 @@ defmodule CakeWeb.UploadLiveTest do
         ])
 
       assert {:error, [[_ref, :not_accepted]]} = preflight_upload(upload)
+    end
+
+    test "the folder option states its own limits", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      limits = view |> element("#upload-folder #upload-folder-limits") |> render()
+
+      assert limits =~ "200 files"
+      assert limits =~ "100 MB"
+      refute limits =~ "20 files"
+    end
+
+    test "says when a folder holds more files than the folder upload takes", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(
+          view,
+          "#upload-form",
+          :folder,
+          for(n <- 1..201, do: %{name: "doc#{n}.pdf", content: "fake", type: "application/pdf"})
+        )
+
+      assert {:error, [[_upload_ref, :too_many_files]]} = preflight_upload(upload)
+
+      assert has_element?(
+               view,
+               ~s(#upload-queue [data-part="queue-error"]),
+               "Too many files: this takes 200 at a time."
+             )
+
+      assert has_element?(view, "#upload-blocked", "Remove some files to continue.")
+    end
+
+    # The queue lists both uploads; a folder file is refused and removed
+    # through the folder upload, not the files one.
+    test "a refused folder file blocks the submit until it is removed", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      good =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "doc.pdf", content: "fake-pdf-content", type: "application/pdf"}
+        ])
+
+      assert {:ok, _} = preflight_upload(good)
+
+      bad =
+        file_input(view, "#upload-form", :folder, [
+          %{name: ".DS_Store", content: "finder", type: "application/octet-stream"}
+        ])
+
+      assert {:error, [[ref, :not_accepted]]} = preflight_upload(bad)
+
+      assert has_element?(view, "#upload-submit[disabled]")
+
+      assert has_element?(
+               view,
+               "#upload-blocked",
+               "Remove the files that cannot be uploaded to continue."
+             )
+
+      view |> element(~s(#upload-entry-#{ref} [data-part="remove"])) |> render_click()
+
+      refute has_element?(view, "#upload-entry-#{ref}")
+      assert has_element?(view, ~s(#upload-queue [data-part="name"]), "doc.pdf")
+      refute has_element?(view, "#upload-submit[disabled]")
     end
 
     test "accepts PDFs and rejects non-PDFs in a mixed folder upload", %{conn: conn} do
@@ -198,16 +429,167 @@ defmodule CakeWeb.UploadLiveTest do
 
       processing_html = view |> element("#upload-form") |> render_submit()
 
-      assert processing_html =~ "Processing documents"
-      assert has_element?(view, ~s(#rejected-archives[role="status"]), "bomb.zip")
+      # The submit's own render, as above: the task may already be done.
+      assert [_working] =
+               processing_html |> Floki.parse_document!() |> Floki.find("#upload-working")
+
+      assert has_element?(view, ~s(#rejected-archives.alert-warning[role="alert"]), "bomb.zip")
+      assert processing_html =~ "These archives were not ingested:"
       assert processing_html =~ "bomb.zip"
       assert processing_html =~ limit_text
 
       {done_html, _log} = with_log(fn -> render_async(view) end)
 
-      refute done_html =~ "Processing documents"
+      refute has_element?(view, "#upload-working")
       assert done_html =~ "bomb.zip"
       assert done_html =~ limit_text
+    end
+  end
+
+  describe "the page's error" do
+    test "is an error alert, with a way back to the form", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+
+      upload =
+        file_input(view, "#upload-form", :documents, [
+          %{name: "upload.zip", content: "not a zip at all", type: "application/zip"}
+        ])
+
+      render_upload(upload, "upload.zip")
+      view |> element("#upload-form") |> render_submit()
+
+      assert has_element?(
+               view,
+               ~s(#upload-error.alert-error[role="alert"]),
+               "Failed to process upload.zip: it is not a ZIP archive, or it is damaged"
+             )
+
+      refute has_element?(view, "#upload-form")
+
+      view |> element("#upload-retry") |> render_click()
+
+      assert has_element?(view, "#upload-form")
+      refute has_element?(view, "#upload-error")
+    end
+  end
+
+  describe "while ingesting" do
+    setup :ingest_that_fails_to_read
+
+    test "says that it shows no progress, and to keep the tab open", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+      # What the submit itself rendered: the ingest task ends at once here,
+      # so a later render may already show the result.
+      working = view |> submit_one_pdf() |> Floki.parse_document!()
+
+      assert [_status] = Floki.find(working, ~s(#upload-working[role="status"]))
+      assert [keep_open] = Floki.find(working, "#upload-working #upload-keep-open")
+      assert Floki.text(keep_open) =~ "Keep this tab open"
+      assert Floki.text(keep_open) =~ "leaving it stops the ingestion"
+      assert working |> Floki.find("#upload-working") |> Floki.text() =~ "no progress to show"
+      assert Floki.find(working, "#upload-form") == []
+
+      {_html, _log} = with_log(fn -> render_async(view) end)
+
+      refute has_element?(view, "#upload-working")
+      refute has_element?(view, "#upload-keep-open")
+    end
+  end
+
+  describe "when ingestion finishes" do
+    setup :ingest_that_fails_to_read
+
+    test "reports the figures, and that nothing was ingested when nothing was", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+      submit_one_pdf(view)
+      {_html, _log} = with_log(fn -> render_async(view) end)
+
+      assert has_element?(view, ~s(#upload-results [data-part="indexed"]), "0 indexed")
+      assert has_element?(view, ~s(#upload-results [data-part="failed"]), "1 failed")
+      refute has_element?(view, ~s(#upload-results [data-part="skipped"]))
+
+      assert has_element?(
+               view,
+               ~s(#upload-results.alert-error[role="alert"]),
+               "No items were successfully ingested."
+             )
+
+      # Nothing was ingested: the pipeline's banner would contradict the
+      # error beside it, and there is nothing to go and ask about or look at.
+      # A file that fails before it is stored, as this one does, never
+      # reaches the documents list, so the page does not send the user there.
+      refute render(view) =~ "Successfully ingested"
+      refute render(view) =~ "Nothing new was indexed."
+      refute has_element?(view, "#upload-onward a")
+      assert has_element?(view, "#upload-onward #upload-more")
+    end
+
+    test "\"Upload more\" goes back to an empty form, and is not the primary button", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/upload")
+      submit_one_pdf(view)
+      {_html, _log} = with_log(fn -> render_async(view) end)
+
+      assert has_element?(view, "#upload-onward #upload-more", "Upload more")
+      refute has_element?(view, "#upload-more.btn-primary")
+
+      view |> element("#upload-more") |> render_click()
+
+      assert has_element?(view, "#upload-form")
+      refute has_element?(view, "#upload-queue")
+      refute has_element?(view, "#upload-results")
+    end
+  end
+
+  # A run that ingests something needs a real PDF and the NIF, which the unit
+  # suite has neither of, so the finished page is rendered from its assigns.
+  describe "the completion summary" do
+    test "is a success with the pipeline's banner and links to the documents and the chat",
+         %{user: user} do
+      html = done_html(user, %{indexed: 3, failed: 0})
+
+      assert [_] = Floki.find(html, ~s(#upload-results.alert-success[role="status"]))
+      assert Floki.text(html) =~ "Successfully ingested PDF books"
+      assert part_text(html, "indexed") == "3 indexed"
+      assert Floki.find(html, ~s(#upload-results [data-part="failed"])) == []
+      refute Floki.text(html) =~ "Nothing new was indexed."
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/documents"]))
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/chat"]))
+      assert [_] = Floki.find(html, "#upload-onward #upload-more")
+    end
+
+    test "is a warning when some failed, and still links to the chat", %{user: user} do
+      html = done_html(user, %{indexed: 3, failed: 2})
+
+      assert [_] = Floki.find(html, ~s(#upload-results.alert-warning[role="alert"]))
+      assert part_text(html, "indexed") == "3 indexed"
+      assert part_text(html, "failed") == "2 failed"
+      assert Floki.text(html) =~ "Successfully ingested PDF books"
+      refute Floki.text(html) =~ "Nothing new was indexed."
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/documents"]))
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/chat"]))
+    end
+
+    # A file that is already in the library is skipped, not counted: the run
+    # succeeds with nothing indexed and nothing failed.
+    test "says that nothing new was indexed when nothing was, without calling it a success",
+         %{user: user} do
+      html = done_html(user, %{indexed: 0, failed: 0})
+
+      assert [_] = Floki.find(html, ~s(#upload-results.alert-info[role="status"]))
+      assert Floki.text(html) =~ "Nothing new was indexed."
+      refute Floki.text(html) =~ "Successfully ingested"
+      assert Floki.find(html, ~s(#upload-onward a[href="/chat"])) == []
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/documents"]))
+    end
+
+    test "counts the non-PDF files that were skipped", %{user: user} do
+      html = done_html(user, %{indexed: 1, failed: 0}, skipped_count: 2)
+
+      assert part_text(html, "skipped") == "2 non-PDF files skipped"
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/documents"]))
+      assert [_] = Floki.find(html, ~s(#upload-onward a[href="/chat"]))
     end
   end
 
@@ -227,5 +609,44 @@ defmodule CakeWeb.UploadLiveTest do
       assert socket.assigns.error == "Ingestion failed: #{inspect(reason)}"
       assert log =~ inspect(reason)
     end
+  end
+
+  # The PDF is stored, then read back by the ingest task; failing the read
+  # ends ingestion quickly, without a real PDF, as one item that failed.
+  defp ingest_that_fails_to_read(_context) do
+    stub(Cake.Books.Adapters.Mock, :write, fn _key, _binary -> :ok end)
+    stub(Cake.Books.Adapters.Mock, :read, fn _key -> {:error, :enoent} end)
+    :ok
+  end
+
+  defp done_html(user, counts, opts \\ []) do
+    assigns = [
+      flash: %{},
+      current_user: user,
+      status: :done,
+      results: Map.put(counts, :message, "Successfully ingested PDF books"),
+      error: nil,
+      skipped_count: Keyword.get(opts, :skipped_count, 0),
+      rejected_archives: []
+    ]
+
+    (&UploadLive.render/1) |> render_component(assigns) |> Floki.parse_document!()
+  end
+
+  defp part_text(html, part) do
+    html
+    |> Floki.find(~s(#upload-results [data-part="#{part}"]))
+    |> Floki.text()
+    |> String.trim()
+  end
+
+  defp submit_one_pdf(view) do
+    upload =
+      file_input(view, "#upload-form", :documents, [
+        %{name: "good.pdf", content: "%PDF-1.7 fake", type: "application/pdf"}
+      ])
+
+    render_upload(upload, "good.pdf")
+    view |> element("#upload-form") |> render_submit()
   end
 end

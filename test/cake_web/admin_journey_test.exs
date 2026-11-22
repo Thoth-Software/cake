@@ -57,7 +57,15 @@ defmodule CakeWeb.AdminJourneyTest do
        %{conn: conn} do
     username = unique_user_username()
     password = valid_user_password()
-    {:ok, admin} = Accounts.create_user(%{username: username, password: password, role: :admin})
+
+    {:ok, admin} =
+      Accounts.create_user(%{
+        username: username,
+        email: unique_user_email(),
+        password: password,
+        role: :admin
+      })
+
     admin_fixture()
 
     conn = log_in_through_form(conn, username, password)
@@ -78,7 +86,14 @@ defmodule CakeWeb.AdminJourneyTest do
        %{conn: conn} do
     username = unique_user_username()
     password = valid_user_password()
-    {:ok, _admin} = Accounts.create_user(%{username: username, password: password, role: :admin})
+
+    {:ok, _admin} =
+      Accounts.create_user(%{
+        username: username,
+        email: unique_user_email(),
+        password: password,
+        role: :admin
+      })
 
     turned_away = get(conn, ~p"/admin")
     assert redirected_to(turned_away) == ~p"/users/log_in"
@@ -90,18 +105,33 @@ defmodule CakeWeb.AdminJourneyTest do
     assert text_of(lv, "h1") == "Admin"
   end
 
-  test "someone who registers on the registration page and logs in is a member, and /admin turns them away",
+  test "someone who registers on the registration page, confirms their email and logs in is a member, and /admin turns them away",
        %{conn: conn} do
     username = unique_user_username()
+    email = unique_user_email()
     password = valid_user_password()
 
     {:ok, lv, _html} = live(conn, ~p"/users/register")
-    form = form(lv, "#registration_form", user: %{username: username, password: password})
-    render_submit(form)
-    registered_conn = follow_trigger_action(form, conn)
-    assert redirected_to(registered_conn) == ~p"/"
 
-    # A fresh browser: log in again by typing the same credentials.
+    {:ok, _conn} =
+      lv
+      |> form("#registration_form", user: %{username: username, email: email, password: password})
+      |> render_submit()
+      |> follow_redirect(conn, ~p"/users/log_in")
+
+    # Registering logs nobody in, and neither does the right password until
+    # the email is confirmed.
+    refused = log_in_through_form(conn, username, password)
+    assert redirected_to(refused) == ~p"/users/log_in"
+    refute get_session(refused, :user_token)
+
+    # The link in the mail registration sent.
+    assert_received {:email, %Swoosh.Email{to: [{_name, ^email}], text_body: body}}
+    [_, token] = Regex.run(~r{/users/confirm/(\S+)}, body)
+
+    {:ok, confirm_lv, _html} = live(conn, ~p"/users/confirm/#{token}")
+    confirm_lv |> form("#confirmation_form") |> render_submit()
+
     conn = log_in_through_form(conn, username, password)
     assert redirected_to(conn) == ~p"/"
 
@@ -128,7 +158,12 @@ defmodule CakeWeb.AdminJourneyTest do
     username = unique_user_username()
 
     {:ok, _admin} =
-      Accounts.create_user(%{username: username, password: valid_user_password(), role: :admin})
+      Accounts.create_user(%{
+        username: username,
+        email: unique_user_email(),
+        password: valid_user_password(),
+        role: :admin
+      })
 
     conn = log_in_through_form(conn, username, "not the password")
     assert redirected_to(conn) == ~p"/users/log_in"

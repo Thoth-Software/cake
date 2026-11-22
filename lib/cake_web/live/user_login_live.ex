@@ -5,35 +5,53 @@ defmodule CakeWeb.UserLoginLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <div class="mx-auto max-w-sm">
-        <.header class="text-center">
-          Log in to account
-          <:subtitle>
-            Don't have an account?
-            <.link navigate={~p"/users/register"} class="link link-hover link-primary font-semibold">
-              Sign up
-            </.link>
-            for an account now.
-          </:subtitle>
-        </.header>
+      <.header>
+        Log in to account
+        <:subtitle>
+          Don't have an account?
+          <.link navigate={~p"/users/register"} class="link link-primary">Sign up</.link>
+          for an account now.
+        </:subtitle>
+      </.header>
 
-        <.simple_form for={@form} id="login_form" action={~p"/users/log_in"} phx-update="ignore">
-          <.input field={@form[:username]} type="text" label="Username" required />
-          <.input field={@form[:password]} type="password" label="Password" required />
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <.form for={@form} id="login_form" action={~p"/users/log_in"} phx-update="ignore">
+            <.input
+              field={@form[:username]}
+              type="text"
+              label="Username"
+              autocomplete="username"
+              required
+            />
+            <.input
+              field={@form[:password]}
+              type="password"
+              label="Password"
+              autocomplete="current-password"
+              required
+            />
 
-          <:actions>
-            <.input field={@form[:remember_me]} type="checkbox" label="Keep me logged in" />
-            <.link href={~p"/users/reset_password"} class="text-sm font-semibold">
-              Forgot your password?
-            </.link>
-          </:actions>
-          <:actions>
-            <.button phx-disable-with="Logging in..." class="btn btn-primary w-full">
+            <div class="flex flex-wrap items-center justify-between gap-x-6">
+              <.input field={@form[:remember_me]} type="checkbox" label="Keep me logged in" />
+              <.link href={~p"/users/reset_password"} class="link link-hover mb-2 text-sm">
+                Forgot your password?
+              </.link>
+            </div>
+
+            <.button phx-disable-with="Logging in..." class="btn btn-primary mt-2 w-full">
               Log in <span aria-hidden="true">→</span>
             </.button>
-          </:actions>
-        </.simple_form>
+          </.form>
+        </div>
       </div>
+
+      <%!-- Log-in waits on a confirmed email: where to get the link again. --%>
+      <p class="text-center text-sm">
+        <.link id="resend-confirmation-link" href={~p"/users/confirm"} class="link link-hover">
+          Didn't get confirmation instructions?
+        </.link>
+      </p>
     </Layouts.app>
     """
   end

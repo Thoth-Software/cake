@@ -22,9 +22,10 @@ defmodule CakeWeb.ShellTest do
     "/users/reset_password",
     "/users/confirm"
   ]
-  @member_pages ["/chat", "/search", "/upload", "/users/settings"]
+  @member_pages ["/chat", "/documents", "/search", "/upload", "/users/settings"]
   @admin_pages [
     "/chat",
+    "/documents",
     "/search",
     "/upload",
     "/users/settings",
@@ -33,8 +34,8 @@ defmodule CakeWeb.ShellTest do
     "/admin/users/new"
   ]
 
-  @member_links ["/chat", "/upload", "/search"]
-  @admin_links ["/chat", "/upload", "/search", "/admin"]
+  @member_links ["/chat", "/documents", "/upload", "/search"]
+  @admin_links ["/chat", "/documents", "/upload", "/search", "/admin"]
 
   @titles %{
     visitor: [
@@ -46,6 +47,7 @@ defmodule CakeWeb.ShellTest do
     ],
     member: [
       {"/chat", "Chat · Cake"},
+      {"/documents", "Documents · Cake"},
       {"/search", "Search · Cake"},
       {"/upload", "Upload · Cake"},
       {"/users/settings", "Account settings · Cake"}
@@ -92,12 +94,12 @@ defmodule CakeWeb.ShellTest do
       %{conn: log_in_user(conn, user), user: user}
     end
 
-    test "sees chat, upload and search on every page, in the top bar and the collapsed menu, as links to every page but the one being shown",
+    test "sees chat, documents, upload and search on every page, in the top bar and the collapsed menu, as links to every page but the one being shown",
          %{conn: conn} do
       for path <- @member_pages, nav <- ["#main-nav", "#mobile-nav"] do
         html = page(conn, path)
 
-        assert entries(html, nav) == ["Chat", "Upload", "Search"], path
+        assert entries(html, nav) == ["Chat", "Documents", "Upload", "Search"], path
         assert links(html, nav) == @member_links -- [path], path
       end
     end
@@ -105,7 +107,12 @@ defmodule CakeWeb.ShellTest do
     # A link to the page being shown would remount it: on the chat, that
     # throws the conversation away.
     test "sees the page being shown marked as current and not linked", %{conn: conn} do
-      for {path, label} <- [{"/chat", "Chat"}, {"/upload", "Upload"}, {"/search", "Search"}],
+      for {path, label} <- [
+            {"/chat", "Chat"},
+            {"/documents", "Documents"},
+            {"/upload", "Upload"},
+            {"/search", "Search"}
+          ],
           nav <- ["#main-nav", "#mobile-nav"] do
         html = page(conn, path)
 
@@ -143,7 +150,7 @@ defmodule CakeWeb.ShellTest do
       for path <- @admin_pages, nav <- ["#main-nav", "#mobile-nav"] do
         html = page(conn, path)
 
-        assert entries(html, nav) == ["Chat", "Upload", "Search", "Admin"], path
+        assert entries(html, nav) == ["Chat", "Documents", "Upload", "Search", "Admin"], path
         assert links(html, nav) == @admin_links -- [path], path
       end
     end
@@ -177,7 +184,8 @@ defmodule CakeWeb.ShellTest do
 
     # 4: the two pages reached with a token from an email.
     test "titles the pages reached with a token too", %{conn: conn} do
-      user = user_fixture()
+      # Confirmation instructions go only to a user not yet confirmed.
+      user = unconfirmed_user_fixture()
 
       reset_token =
         extract_user_token(&Cake.Accounts.deliver_user_reset_password_instructions(user, &1))

@@ -87,6 +87,23 @@ defmodule CakeWeb.UserResetPasswordLiveTest do
     end
   end
 
+  # The notice is an alert, which a screen reader speaks at once: it belongs
+  # to a refused submit, not to a password that is still being typed.
+  describe "the form-level error notice" do
+    test "is absent while typing and present after a refused submit", %{conn: conn, token: token} do
+      {:ok, lv, _html} = live(conn, ~p"/users/reset_password/#{token}")
+      refute has_element?(lv, "#reset-password-errors")
+
+      invalid = %{"password" => "short", "password_confirmation" => "other"}
+
+      lv |> element("#reset_password_form") |> render_change(user: invalid)
+      refute has_element?(lv, "#reset-password-errors")
+
+      lv |> form("#reset_password_form", user: invalid) |> render_submit()
+      assert has_element?(lv, "#reset-password-errors.alert-error")
+    end
+  end
+
   describe "Reset password navigation" do
     test "redirects to login page when the Log in button is clicked", %{conn: conn, token: token} do
       {:ok, lv, _html} = live(conn, ~p"/users/reset_password/#{token}")

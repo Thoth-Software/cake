@@ -17,6 +17,25 @@ defmodule CakeWeb.UserSettingsLiveTest do
       assert html =~ "Change Password"
     end
 
+    # Changing a username is an admin's action (#376), so the page shows it
+    # and has no field for it. The hidden input is the password form's, for
+    # the log-in that follows a password change.
+    test "shows the username, with no field to change it", %{conn: conn} do
+      user = user_fixture()
+      {:ok, lv, _html} = conn |> log_in_user(user) |> live(~p"/users/settings")
+
+      assert has_element?(lv, "#settings-username", user.username)
+      refute has_element?(lv, ~s|input[name="user[username]"]:not([type="hidden"])|)
+    end
+
+    test "offers a user who has an email both forms", %{conn: conn} do
+      {:ok, lv, _html} = conn |> log_in_user(user_fixture()) |> live(~p"/users/settings")
+
+      assert has_element?(lv, "#email_form")
+      assert has_element?(lv, "#password_form")
+      assert has_element?(lv, "#settings-subtitle", "email address and password")
+    end
+
     test "redirects if user is not logged in", %{conn: conn} do
       assert {:error, redirect} = live(conn, ~p"/users/settings")
 

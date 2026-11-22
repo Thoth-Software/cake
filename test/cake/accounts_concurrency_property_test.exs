@@ -105,6 +105,7 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
         {:ok, user} =
           Accounts.create_user(%{
             username: "#{@username_prefix}#{n}",
+            email: "#{@username_prefix}#{n}@race.example",
             password: @password,
             role: role
           })
@@ -228,6 +229,7 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
       {:ok, member} =
         Accounts.create_user(%{
           username: "#{@username_prefix}solo",
+          email: "#{@username_prefix}solo@race.example",
           password: @password,
           role: :member
         })

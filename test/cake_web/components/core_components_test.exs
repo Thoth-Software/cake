@@ -1,8 +1,9 @@
 defmodule CakeWeb.CoreComponentsTest do
   @moduledoc """
-  The three state components every screen shares (#392): `empty_state/1`,
-  `working/1` and `notice/1`; and what Cake adds to the kit's `table/1`
-  (#376).
+  The components Cake adds to the generated library, and the one it extends:
+  the three state components every screen shares (#392), `empty_state/1`,
+  `working/1` and `notice/1`; the status badge (#380), `status_badge/1`; and
+  a column's `class` on the generated `table/1` (#380).
 
   Each is rendered on its own, with no request and no database. Every value
   of an attribute is enumerated, so nothing is left for a property to sample.
@@ -29,36 +30,6 @@ defmodule CakeWeb.CoreComponentsTest do
 
   defp classes(node) do
     node |> Floki.attribute("class") |> Enum.flat_map(&String.split/1)
-  end
-
-  # The kit's table, with the one thing Cake adds to it (#376): a column can
-  # carry a class, so a table of records can drop a column on a narrow
-  # screen instead of scrolling sideways.
-  describe "table/1" do
-    test "puts a column's class on its heading and on each of its cells, and leaves the other columns bare" do
-      assigns = %{
-        rows: [%{id: "a", name: "Abe", joined: "2026"}, %{id: "b", name: "Bea", joined: "2025"}]
-      }
-
-      html =
-        parse(~H"""
-        <CoreComponents.table id="people" rows={@rows} row_id={&"person-#{&1.id}"}>
-          <:col :let={row} label="Name">{row.name}</:col>
-          <:col :let={row} label="Joined" class="hidden sm:table-cell">{row.joined}</:col>
-        </CoreComponents.table>
-        """)
-
-      assert [name_heading, joined_heading] = Floki.find(html, "thead th")
-      assert classes([name_heading]) == []
-      assert classes([joined_heading]) == ["hidden", "sm:table-cell"]
-
-      for id <- ["person-a", "person-b"] do
-        assert [name, joined] = Floki.find(html, "##{id} td")
-        refute "hidden" in classes([name])
-        assert "hidden" in classes([joined])
-        assert "sm:table-cell" in classes([joined])
-      end
-    end
   end
 
   describe "empty_state/1" do
@@ -198,6 +169,80 @@ defmodule CakeWeb.CoreComponentsTest do
         """)
 
       assert Floki.find(html, ~s|#notice [data-part="title"]|) == []
+    end
+  end
+
+  # An ingestion status, shown the same way wherever one is shown: the
+  # documents list and a document's page today (#380).
+  describe "status_badge/1" do
+    # The colours are the ones `.claude/rules/front-end.md` gives a status:
+    # done, under way, failed, not started.
+    test "names each status and gives it the status's own colour" do
+      expected = [
+        pending: {"Pending", "badge-ghost"},
+        processing: {"Processing", "badge-warning"},
+        completed: {"Completed", "badge-success"},
+        failed: {"Failed", "badge-error"}
+      ]
+
+      for {status, {label, variant}} <- expected do
+        assigns = %{status: status}
+
+        html = parse(~H"<CoreComponents.status_badge status={@status} />")
+
+        assert [badge] = Floki.find(html, ~s|[data-part="status"]|)
+        assert text(badge) == label
+        assert "badge" in classes(badge)
+        assert "badge-soft" in classes(badge)
+        assert variant in classes(badge)
+
+        other_variants =
+          for {_, {_, other}} <- expected, other != variant, do: other
+
+        assert Enum.all?(other_variants, &(&1 not in classes(badge)))
+      end
+    end
+
+    test "carries the id it is given, and none when given none" do
+      assigns = %{}
+
+      html =
+        parse(~H"""
+        <CoreComponents.status_badge id="book-status" status={:completed} />
+        <CoreComponents.status_badge status={:failed} />
+        """)
+
+      assert [with_id, without_id] = Floki.find(html, ~s|[data-part="status"]|)
+      assert Floki.attribute(with_id, "id") == ["book-status"]
+      assert Floki.attribute(without_id, "id") == []
+    end
+  end
+
+  # The generated `table/1` gives a column a label and nothing else. A table
+  # of five columns does not fit a phone, so a column can carry a class that
+  # hides it there: the class has to be on the column's heading and on each
+  # of its cells, or the heading stays behind.
+  describe "table/1, a column's class" do
+    test "is on the column's heading and on each of its cells, and on no other column's" do
+      assigns = %{rows: [%{id: "a", name: "Ada", pages: 3}, %{id: "b", name: "Bob", pages: 5}]}
+
+      html =
+        parse(~H"""
+        <CoreComponents.table id="people" rows={@rows} row_id={&"people-#{&1.id}"}>
+          <:col :let={row} label="Name">{row.name}</:col>
+          <:col :let={row} label="Pages" class="hidden sm:table-cell">{row.pages}</:col>
+        </CoreComponents.table>
+        """)
+
+      assert [name_heading, pages_heading] = Floki.find(html, "thead th")
+      assert "hidden" not in classes(name_heading)
+      assert ["hidden", "sm:table-cell"] -- classes(pages_heading) == []
+
+      for row <- ["#people-a", "#people-b"] do
+        assert [name_cell, pages_cell] = Floki.find(html, "#{row} td")
+        assert "hidden" not in classes(name_cell)
+        assert ["hidden", "sm:table-cell"] -- classes(pages_cell) == []
+      end
     end
   end
 end

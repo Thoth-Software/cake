@@ -174,8 +174,10 @@ defmodule Cake.Accounts do
   role it means: `:role` is required, as `:member` or `:admin` (or the same
   as strings).
 
-  The username and password are held to the rules registration holds them
-  to, and the email is optional. The user can log in at once.
+  The username, email and password are held to the rules registration holds
+  them to. The user is confirmed from the start and is sent nothing, so they
+  can log in at once: log-in waits on confirmation, and where the first
+  admin is made there may be no mail to confirm by.
 
   In a release, call it through `bin/cake rpc`; in dev, through `mix run -e`.
   Never pass the password on the command line, where it is left in the shell
@@ -187,10 +189,10 @@ defmodule Cake.Accounts do
 
   ## Examples
 
-      iex> create_user(%{username: "caleb", password: "a long password", role: :admin})
+      iex> create_user(%{username: "caleb", email: "caleb@example.com", password: "a long password", role: :admin})
       {:ok, %User{}}
 
-      iex> create_user(%{username: "caleb", password: "a long password"})
+      iex> create_user(%{username: "caleb", email: "caleb@example.com", password: "a long password"})
       {:error, %Ecto.Changeset{}}
 
   """
@@ -222,6 +224,62 @@ defmodule Cake.Accounts do
       validate_email: false,
       validate_username: false
     )
+  end
+
+  ## Confirming by hand
+
+  @doc """
+  Confirms a user's email by hand, or takes the confirmation back.
+
+  A user cannot log in until their email is confirmed. They confirm it by
+  following the mailed link (`confirm_user/1`); this is for when that is
+  not possible or not wanted: mail may have nowhere to go, or an admin
+  wants a user to prove the address again.
+
+  `actor` is who is doing it: the admin, or `:operator` at the command line
+  and in the seed, where nobody is logged in. Nobody takes their own
+  confirmation back, since they could not log in again: that is
+  `{:error, :own_account}`, and nothing changes. It goes by the two users'
+  ids. Whether `actor` may do this at all is not decided here: the admin
+  routes are what keep a member out.
+
+  Confirming also drops the user's pending confirmation links. A user who
+  is already as asked is returned as they are. Taking a confirmation back
+  does not end the sessions the user already has (#401).
+
+  Raises `Ecto.NoResultsError` if the user no longer exists.
+
+  ## Examples
+
+      iex> set_user_confirmed(admin, unconfirmed_user, true)
+      {:ok, %User{}}
+
+      iex> set_user_confirmed(admin, admin, false)
+      {:error, :own_account}
+
+      iex> set_user_confirmed(:operator, user, false)
+      {:ok, %User{confirmed_at: nil}}
+
+  """
+  @spec set_user_confirmed(User.t() | :operator, User.t(), boolean()) ::
+          {:ok, User.t()} | {:error, :own_account}
+  def set_user_confirmed(%User{id: id}, %User{id: id}, false), do: {:error, :own_account}
+
+  def set_user_confirmed(actor, %User{id: id}, confirmed?)
+      when (is_struct(actor, User) or actor == :operator) and is_boolean(confirmed?) do
+    current = Repo.get!(User, id)
+
+    case {confirmed?, current.confirmed_at} do
+      {true, nil} ->
+        {:ok, %{user: user}} = Repo.transaction(confirm_user_multi(current))
+        {:ok, user}
+
+      {false, %DateTime{}} ->
+        Repo.update(Ecto.Changeset.change(current, confirmed_at: nil))
+
+      {_as_asked, _confirmed_at} ->
+        {:ok, current}
+    end
   end
 
   ## Roles and the last admin

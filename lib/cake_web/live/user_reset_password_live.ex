@@ -7,38 +7,47 @@ defmodule CakeWeb.UserResetPasswordLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <div class="mx-auto max-w-sm">
-        <.header class="text-center">Reset Password</.header>
+      <.header>Reset Password</.header>
 
-        <.simple_form
-          for={@form}
-          id="reset_password_form"
-          phx-submit="reset_password"
-          phx-change="validate"
-        >
-          <.error :if={@form.errors != []}>
-            Oops, something went wrong! Please check the errors below.
-          </.error>
+      <%!-- Shown after a refused submit, not while a password is still being
+      typed: the notice is an alert, which a screen reader speaks at once. --%>
+      <.notice :if={@check_errors} id="reset-password-errors" kind={:error}>
+        Oops, something went wrong! Please check the errors below.
+      </.notice>
 
-          <.input field={@form[:password]} type="password" label="New password" required />
-          <.input
-            field={@form[:password_confirmation]}
-            type="password"
-            label="Confirm new password"
-            required
-          />
-          <:actions>
-            <.button phx-disable-with="Resetting..." class="btn btn-primary w-full">
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <.form
+            for={@form}
+            id="reset_password_form"
+            phx-submit="reset_password"
+            phx-change="validate"
+          >
+            <.input
+              field={@form[:password]}
+              type="password"
+              label="New password"
+              autocomplete="new-password"
+              required
+            />
+            <.input
+              field={@form[:password_confirmation]}
+              type="password"
+              label="Confirm new password"
+              autocomplete="new-password"
+              required
+            />
+            <.button phx-disable-with="Resetting..." class="btn btn-primary mt-2 w-full">
               Reset Password
             </.button>
-          </:actions>
-        </.simple_form>
-
-        <p class="text-center text-sm mt-4">
-          <.link href={~p"/users/register"}>Register</.link>
-          | <.link href={~p"/users/log_in"}>Log in</.link>
-        </p>
+          </.form>
+        </div>
       </div>
+
+      <p class="text-center text-sm">
+        <.link href={~p"/users/register"} class="link link-hover">Register</.link>
+        | <.link href={~p"/users/log_in"} class="link link-hover">Log in</.link>
+      </p>
     </Layouts.app>
     """
   end
@@ -46,7 +55,10 @@ defmodule CakeWeb.UserResetPasswordLive do
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t(), keyword()}
   def mount(params, _session, socket) do
-    socket = socket |> assign(:page_title, "Reset password") |> assign_user_and_token(params)
+    socket =
+      socket
+      |> assign(page_title: "Reset password", check_errors: false)
+      |> assign_user_and_token(params)
 
     form_source =
       case socket.assigns do
@@ -73,12 +85,19 @@ defmodule CakeWeb.UserResetPasswordLive do
          |> redirect(to: ~p"/users/log_in")}
 
       {:error, changeset} ->
-        {:noreply, assign_form(socket, Map.put(changeset, :action, :insert))}
+        {:noreply,
+         socket
+         |> assign(check_errors: true)
+         |> assign_form(Map.put(changeset, :action, :insert))}
     end
   end
 
   def handle_event("validate", %{"user" => user_params}, socket) do
     changeset = Accounts.change_user_password(socket.assigns.user, user_params)
+
+    # Once the passwords are valid there is nothing left to point at.
+    socket = if changeset.valid?, do: assign(socket, check_errors: false), else: socket
+
     {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
   end
 

@@ -39,8 +39,7 @@ defmodule CakeWeb.Layouts do
 
   The page is rendered into one column, `#page`, narrow unless the page asks
   for the wide one. A page takes its width from here and does not set one of
-  its own (the chat, upload and account pages still do, until #376 to #380
-  move them over):
+  its own:
 
       <Layouts.app flash={@flash} current_user={@current_user} width={:wide}>
   """
@@ -52,7 +51,7 @@ defmodule CakeWeb.Layouts do
 
   attr :current_page, :atom,
     default: nil,
-    values: [nil, :chat, :upload, :search, :admin],
+    values: [nil, :chat, :documents, :upload, :search, :admin],
     doc: "which of the top bar's pages this is, or `nil` for any other page"
 
   attr :width, :atom,
@@ -166,6 +165,7 @@ defmodule CakeWeb.Layouts do
   defp member_links do
     [
       {:chat, "Chat", ~p"/chat"},
+      {:documents, "Documents", ~p"/documents"},
       {:upload, "Upload", ~p"/upload"},
       {:search, "Search", ~p"/search"}
     ]

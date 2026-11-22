@@ -21,6 +21,13 @@ defmodule CakeWeb.UserLoginLiveTest do
       refute has_element?(lv, ~s|#login_form input[name="user[email]"]|)
     end
 
+    # Where a user refused for want of a confirmation goes to get the mail again.
+    test "links to the page that resends confirmation instructions", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+
+      assert has_element?(lv, ~s|#resend-confirmation-link[href="#{~p"/users/confirm"}"]|)
+    end
+
     test "redirects if already logged in", %{conn: conn} do
       result =
         conn
@@ -47,6 +54,20 @@ defmodule CakeWeb.UserLoginLiveTest do
       conn = submit_form(form, conn)
 
       assert redirected_to(conn) == ~p"/"
+    end
+
+    test "refuses a user who has not confirmed their email, and says why", %{conn: conn} do
+      password = valid_user_password()
+      user = unconfirmed_user_fixture(%{password: password})
+
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+
+      form = form(lv, "#login_form", user: %{username: user.username, password: password})
+      conn = submit_form(form, conn)
+
+      refute get_session(conn, :user_token)
+      assert redirected_to(conn) == ~p"/users/log_in"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "confirm your email"
     end
 
     test "redirects to login page with a flash error if there are no valid credentials", %{

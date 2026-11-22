@@ -7,20 +7,39 @@ defmodule CakeWeb.UserSettingsLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <.header class="text-center">
+      <.header>
         Account Settings
-        <:subtitle>Manage your account email address and password settings</:subtitle>
+        <:subtitle>
+          <span id="settings-subtitle">
+            Manage your account email address and password settings
+          </span>
+        </:subtitle>
       </.header>
 
-      <div class="space-y-12 divide-y">
-        <div>
-          <.simple_form
+      <%!-- The username is shown and has no field: this page does not change
+      one (an admin's action, #376). --%>
+      <.list>
+        <:item title="Username">
+          <span id="settings-username" class="wrap-anywhere">{@current_user.username}</span>
+        </:item>
+      </.list>
+
+      <section class="card card-border bg-base-100">
+        <div class="card-body">
+          <h2 class="card-title">Email</h2>
+          <.form
             for={@email_form}
             id="email_form"
             phx-submit="update_email"
             phx-change="validate_email"
           >
-            <.input field={@email_form[:email]} type="email" label="Email" required />
+            <.input
+              field={@email_form[:email]}
+              type="email"
+              label="Email"
+              autocomplete="email"
+              required
+            />
             <.input
               field={@email_form[:current_password]}
               name="current_password"
@@ -28,15 +47,20 @@ defmodule CakeWeb.UserSettingsLive do
               type="password"
               label="Current password"
               value={@email_form_current_password}
+              autocomplete="current-password"
               required
             />
-            <:actions>
-              <.button phx-disable-with="Changing...">Change Email</.button>
-            </:actions>
-          </.simple_form>
+            <.button phx-disable-with="Changing..." class="btn btn-outline mt-2">
+              Change Email
+            </.button>
+          </.form>
         </div>
-        <div>
-          <.simple_form
+      </section>
+
+      <section class="card card-border bg-base-100">
+        <div class="card-body">
+          <h2 class="card-title">Password</h2>
+          <.form
             for={@password_form}
             id="password_form"
             action={~p"/users/log_in?_action=password_updated"}
@@ -51,11 +75,18 @@ defmodule CakeWeb.UserSettingsLive do
               id="hidden_user_username"
               value={@current_username}
             />
-            <.input field={@password_form[:password]} type="password" label="New password" required />
+            <.input
+              field={@password_form[:password]}
+              type="password"
+              label="New password"
+              autocomplete="new-password"
+              required
+            />
             <.input
               field={@password_form[:password_confirmation]}
               type="password"
               label="Confirm new password"
+              autocomplete="new-password"
             />
             <.input
               field={@password_form[:current_password]}
@@ -64,14 +95,15 @@ defmodule CakeWeb.UserSettingsLive do
               label="Current password"
               id="current_password_for_password"
               value={@current_password}
+              autocomplete="current-password"
               required
             />
-            <:actions>
-              <.button phx-disable-with="Changing...">Change Password</.button>
-            </:actions>
-          </.simple_form>
+            <.button phx-disable-with="Changing..." class="btn btn-primary mt-2">
+              Change Password
+            </.button>
+          </.form>
         </div>
-      </div>
+      </section>
     </Layouts.app>
     """
   end
