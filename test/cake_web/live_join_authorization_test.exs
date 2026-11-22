@@ -13,9 +13,12 @@ defmodule CakeWeb.LiveJoinAuthorizationTest do
   case. Each test renders a page over HTTP to obtain the tokens a browser
   would hold, revokes the user's access, and then joins with and without the
   URL. A join with the URL before the revocation shows the tokens were valid.
+
+  The module is `async: false` because one test turns off
+  `config :cake, :self_service_accounts`, which is global (#367).
   """
 
-  use CakeWeb.ConnCase, async: true
+  use CakeWeb.ConnCase, async: false
 
   import Cake.AccountsFixtures
 
@@ -47,6 +50,34 @@ defmodule CakeWeb.LiveJoinAuthorizationTest do
       assert {:ok, _, _} = join_live(page, url: true)
 
       :ok = Accounts.delete_user_session_token(page.http_session["user_token"])
+
+      assert_refused(join_live(page, url: true))
+      assert_refused(join_live(page, url: false))
+    end
+  end
+
+  describe "a page the self-service switch closes" do
+    setup do
+      previous = Application.fetch_env(:cake, :self_service_accounts)
+
+      on_exit(fn ->
+        case previous do
+          {:ok, value} -> Application.put_env(:cake, :self_service_accounts, value)
+          :error -> Application.delete_env(:cake, :self_service_accounts)
+        end
+      end)
+    end
+
+    # The page is rendered while the switch is on, which is the only way to
+    # hold its tokens: with the switch off the page is never served.
+    test "the registration page cannot be mounted once the switch is off, with or without the URL",
+         %{conn: conn} do
+      Application.put_env(:cake, :self_service_accounts, true)
+      page = render_page(conn, ~p"/users/register")
+
+      assert {:ok, _, _} = join_live(page, url: true)
+
+      Application.put_env(:cake, :self_service_accounts, false)
 
       assert_refused(join_live(page, url: true))
       assert_refused(join_live(page, url: false))
