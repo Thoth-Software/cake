@@ -34,7 +34,8 @@ defmodule Cake.MixProject do
           Cake.Promptable,
           Cake.Citations,
           Cake.FailedIngests,
-          Cake.ParseBooks
+          Cake.ParseBooks,
+          Cake.Release
         ],
         Ingestion: [~r/^Cake\.(Books|Documents|Pipelines)/],
         Retrieval: [~r/^Cake\.(Search|Embeddings)/],
