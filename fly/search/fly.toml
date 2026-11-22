@@ -1,0 +1,71 @@
+# The staging search node (#364, part of #360): one self-run OpenSearch node,
+# shared by every tester app, reached over the organisation's private network
+# only. Deploy from this directory:
+#
+#   fly deploy --no-public-ips --ha=false
+#
+# There is deliberately no [http_service] and no [[services]] section. With
+# none, Fly's proxy routes nothing to this app, allocates it no public
+# address on deploy, and cannot stop its machine when idle (a JVM cold start
+# is slow, so the node is always on). Adding a service section is what would
+# make the node public the moment the app also held a public IP.
+app = "cake-staging-search"
+primary_region = "iad"
+
+# SIGTERM (the default) is a clean OpenSearch shutdown; give the translog time.
+kill_timeout = 60
+
+[build]
+  # The stock image plus a root entrypoint; the Dockerfile says why.
+  dockerfile = "Dockerfile"
+
+[env]
+  # Security plugin off, as in docker-compose.yml (#364's default: the node
+  # has no public address, and every tester app would hold the same
+  # credentials anyway).
+  DISABLE_SECURITY_PLUGIN = "true"
+  # The performance-analyzer agent is a second JVM nothing here reads.
+  DISABLE_PERFORMANCE_ANALYZER_AGENT_CLI = "true"
+  # Half the machine's memory. The image's jvm.options fixes the heap at
+  # 1 GB whatever the machine has, so this must move with [[vm]] memory.
+  # The other half is for k-NN's HNSW graphs, which live off-heap.
+  OPENSEARCH_JAVA_OPTS = "-Xms2g -Xmx2g"
+
+[processes]
+  # OpenSearch settings go on the command line, not in [env]: the image's
+  # entrypoint turns dotted environment names into -E flags, but whether Fly
+  # accepts a dot in an environment name is not documented.
+  #
+  # network.host: loopback, plus every address on eth0. Fly's private
+  # network is IPv6 (the machine's 6PN address), and the health check below
+  # arrives over the machine's private IPv4, so the node has to listen on
+  # both; the image's default, 0.0.0.0, is IPv4 only.
+  app = "opensearch -Ediscovery.type=single-node -Enetwork.host=_local_,_eth0_"
+
+[mounts]
+  source = "search_data"
+  destination = "/usr/share/opensearch/data"
+  initial_size = "10gb"
+  # "Backups: none" (#360). Fly snapshots volumes daily by default and keeps
+  # them five days; off, so that the statement is true.
+  scheduled_snapshots = false
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "4gb"
+
+[[restart]]
+  policy = "always"
+
+# A node that fails during start-up logs the error and keeps its process
+# alive, so "the machine is started" says nothing. This check is what
+# `fly checks list` and `fly status` report.
+[checks]
+  [checks.cluster_health]
+    type = "http"
+    port = 9200
+    method = "get"
+    path = "/_cluster/health"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "90s"
