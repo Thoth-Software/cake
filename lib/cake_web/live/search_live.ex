@@ -185,22 +185,29 @@ defmodule CakeWeb.SearchLive do
             <p class="text-sm text-base-content/70">
               {result.hit_count} relevant sections found
             </p>
-            <div class="flex flex-wrap gap-2">
+            <%!-- The row is the positioned ancestor and each tooltip is
+            `static`, as for the chat's source chips: a preview opens above the
+            row, starts where the row starts and is no wider than it. Centred
+            on its own chip, as daisyUI places it, one for a chip near the
+            edge ran off a phone and made the page scroll sideways. The tail
+            that would point at the chip is hidden, and the chip whose
+            preview is open is ringed instead. --%>
+            <div class="relative flex flex-wrap gap-2">
               <%!-- The chip is focusable so the preview opens from the keyboard
               too: daisyUI shows a tooltip on hover and when something inside
               it has focus. --%>
-              <div :for={page <- result.pages} class="tooltip max-w-full">
+              <div :for={page <- result.pages} class="group tooltip static max-w-full after:hidden">
                 <div
                   id={"preview-#{book_index}-#{page.page_number}"}
                   role="tooltip"
-                  class="tooltip-content max-w-xs text-left"
+                  class="tooltip-content left-0 max-w-[min(20rem,100%)] translate-x-1/2 text-left"
                 >
                   {page.chunk_preview}
                 </div>
                 <span
                   tabindex="0"
                   aria-describedby={"preview-#{book_index}-#{page.page_number}"}
-                  class="badge badge-soft badge-primary h-auto min-h-6 cursor-help whitespace-normal py-0.5 text-left"
+                  class="badge badge-soft badge-primary h-auto min-h-6 cursor-help whitespace-normal py-0.5 text-left ring-primary group-hover:ring-1 focus:ring-1"
                 >
                   <span class="whitespace-nowrap">p. {page.page_number}</span>
                   <span :if={page.section_title} class="text-base-content/70">
