@@ -49,6 +49,7 @@ defmodule CakeWeb.Admin.UserLiveTest do
   @own_login "You cannot delete your own login."
   @gone "That login no longer exists."
   @own_confirmation "You cannot take back your own confirmation."
+  @own_confirming "You cannot confirm your own email."
 
   # A password no fixture uses and no page has a reason to contain, so
   # finding it anywhere means it was put there.
@@ -332,6 +333,22 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert text_of(lv, "#login-refusal [data-part=body]") == @own_confirmation
       assert has_element?(lv, "#login-refusal.alert-error")
       assert can_log_in?(admin.username, valid_user_password())
+    end
+
+    # An admin whose confirmation another admin took back keeps the sessions
+    # they have (#401), and could otherwise put it back from their own page.
+    test "offers an admin no way to confirm their own email, and refuses a request for it with a notice",
+         %{conn: conn, admin: admin} do
+      {:ok, _} = Accounts.set_user_confirmed(:operator, admin, false)
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{admin}")
+
+      assert text_of(lv, "#login") =~ "Confirmed no"
+      refute has_element?(lv, "#confirm-login")
+
+      render_click(lv, "confirm", %{})
+
+      assert text_of(lv, "#login-refusal [data-part=body]") == @own_confirming
+      refute Accounts.get_user!(admin.id).confirmed_at
     end
 
     test "sends the admin back to the list, saying so, for a login deleted meanwhile",
@@ -767,6 +784,7 @@ defmodule CakeWeb.Admin.UserLiveTest do
                |> follow_redirect(conn, ~p"/admin/users/#{member}/edit")
 
       assert text_of(lv, "h1") == "Edit login"
+      assert render(lv) =~ "The username, email and role of #{member.username}."
       refute has_element?(lv, ~s|#user-form input[type="password"]|)
 
       assert {:ok, index, _html} =
@@ -786,11 +804,17 @@ defmodule CakeWeb.Admin.UserLiveTest do
     # they create, so a changed email stays confirmed.
     test "keeps the login confirmed when its email is changed", %{conn: conn} do
       member = login_fixture(:member)
+      email = unique_user_email()
       {:ok, lv, _html} = live(conn, ~p"/admin/users/#{member}/edit")
 
-      lv |> form("#user-form", user: %{email: unique_user_email()}) |> render_submit()
+      assert {:ok, index, _html} =
+               lv
+               |> form("#user-form", user: %{email: email})
+               |> render_submit()
+               |> follow_redirect(conn, ~p"/admin/users")
 
-      assert Accounts.get_user!(member.id).confirmed_at
+      assert has_element?(index, "#flash-info", "Login updated")
+      assert %User{email: ^email, confirmed_at: %DateTime{}} = Accounts.get_user!(member.id)
       assert can_log_in?(member.username, valid_user_password())
     end
 
