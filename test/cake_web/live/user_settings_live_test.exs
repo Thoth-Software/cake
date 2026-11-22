@@ -13,8 +13,8 @@ defmodule CakeWeb.UserSettingsLiveTest do
         |> log_in_user(user_fixture())
         |> live(~p"/users/settings")
 
-      assert html =~ "Change Email"
-      assert html =~ "Change Password"
+      assert html =~ "Change email"
+      assert html =~ "Change password"
     end
 
     # Changing a username is an admin's action (#376), so the page shows it
@@ -81,7 +81,7 @@ defmodule CakeWeb.UserSettingsLiveTest do
           "user" => %{"email" => "with spaces"}
         })
 
-      assert result =~ "Change Email"
+      assert result =~ "Change email"
       assert result =~ "must have the @ sign and no spaces"
     end
 
@@ -96,7 +96,7 @@ defmodule CakeWeb.UserSettingsLiveTest do
         })
         |> render_submit()
 
-      assert result =~ "Change Email"
+      assert result =~ "Change email"
       assert result =~ "did not change"
       assert result =~ "is not valid"
     end
@@ -152,7 +152,7 @@ defmodule CakeWeb.UserSettingsLiveTest do
           }
         })
 
-      assert result =~ "Change Password"
+      assert result =~ "Change password"
       assert result =~ "should be at least 12 character(s)"
       assert result =~ "does not match password"
     end
@@ -171,7 +171,7 @@ defmodule CakeWeb.UserSettingsLiveTest do
         })
         |> render_submit()
 
-      assert result =~ "Change Password"
+      assert result =~ "Change password"
       assert result =~ "should be at least 12 character(s)"
       assert result =~ "does not match password"
       assert result =~ "is not valid"
