@@ -2,10 +2,12 @@ defmodule CakeWeb.Admin.UserLive.Form do
   @moduledoc """
   The admin panel's forms for a login, one per live action:
 
-    * `:new`, at `/admin/users/new`: a username, a password and a role
-      (`Cake.Accounts.create_user/1`);
-    * `:edit`, at `/admin/users/:id/edit`: the username and the role, and no
-      password (`Cake.Accounts.update_user/2`);
+    * `:new`, at `/admin/users/new`: a username, an email, a password and a
+      role (`Cake.Accounts.create_user/1`). The login is confirmed from the
+      start, so it can log in at once;
+    * `:edit`, at `/admin/users/:id/edit`: the username, the email and the
+      role, and no password (`Cake.Accounts.update_user/2`). A changed email
+      leaves the login confirmed or not, as it was;
     * `:password`, at `/admin/users/:id/password`: a new password and
       nothing else (`Cake.Accounts.reset_user_password/2`). It ends every
       session the user has, and sends their open pages to the log-in page
@@ -13,11 +15,12 @@ defmodule CakeWeb.Admin.UserLive.Form do
       working everywhere at once.
 
   A refusal is an error on the field it is about: a taken username on the
-  username, the demotion of the last admin on the role.
+  username, a taken or missing email on the email, the demotion of the last
+  admin on the role.
 
-  The edit form writes only what was changed on it. It sends both fields
+  The edit form writes only what was changed on it. It sends every field
   every time, so a form opened a while ago would otherwise put back a
-  username or a role that someone else has changed since. A login deleted
+  username, an email or a role that someone else has changed since. A login deleted
   while its form is open is reported, and the admin is sent to the list.
 
   A password is typed in and never comes back. The password field is always
@@ -69,6 +72,7 @@ defmodule CakeWeb.Admin.UserLive.Form do
         phx-submit="save"
       >
         <.input field={@form[:username]} type="text" label="Username" autocomplete="off" />
+        <.input field={@form[:email]} type="email" label="Email" autocomplete="off" />
         <.input
           :if={@live_action == :new}
           field={@form[:password]}
@@ -207,7 +211,11 @@ defmodule CakeWeb.Admin.UserLive.Form do
   # sends nothing else. A hand-written request can send a map or a list in
   # a field's place, which a changeset refuses but a template cannot
   # render; such a field counts as not sent.
-  @fields %{new: ~w(username password role), edit: ~w(username role), password: ~w(password)}
+  @fields %{
+    new: ~w(username email password role),
+    edit: ~w(username email role),
+    password: ~w(password)
+  }
 
   defp text_fields(action, %{} = user_params) do
     user_params
@@ -274,9 +282,10 @@ defmodule CakeWeb.Admin.UserLive.Form do
   # form last showed it (when it was opened, or after a refused save).
   defp changed(%User{} = user, user_params) do
     user_params
-    |> Map.take(["username", "role"])
+    |> Map.take(["username", "email", "role"])
     |> Map.reject(fn
       {"username", username} -> username == user.username
+      {"email", email} -> email == user.email
       {"role", role} -> role == to_string(user.role)
     end)
   end

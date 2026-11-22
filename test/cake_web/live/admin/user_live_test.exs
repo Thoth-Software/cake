@@ -128,8 +128,13 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
   defp created_on(%User{inserted_at: inserted_at}), do: Calendar.strftime(inserted_at, "%Y-%m-%d")
 
+  # Whether the log-in form, in a browser of its own, logs this username in:
+  # the password has to be right and the email confirmed (#377).
   defp can_log_in?(username, password) do
-    Accounts.get_user_by_username_and_password(username, password) != nil
+    Phoenix.ConnTest.build_conn()
+    |> post(~p"/users/log_in", %{"user" => %{"username" => username, "password" => password}})
+    |> get_session(:user_token)
+    |> is_binary()
   end
 
   # A second browser: `user`, logged in, with a live page open.
@@ -388,7 +393,7 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert can_log_in?(username, @typed_password)
 
       assert has_element?(index, "#flash-info", "Login created")
-      assert text_of(index, "#users-#{user.id}") =~ "#{username} member"
+      assert text_of(index, "#users-#{user.id}") =~ "#{username} #{email} member"
       refute render(index) =~ @typed_password
     end
 
@@ -539,7 +544,13 @@ defmodule CakeWeb.Admin.UserLiveTest do
     test "logs neither the password typed nor the one submitted", %{conn: conn} do
       username = unique_user_username()
       {:ok, lv, _html} = live(conn, ~p"/admin/users/new")
-      attrs = %{username: username, password: @typed_password, role: "member"}
+
+      attrs = %{
+        username: username,
+        email: unique_user_email(),
+        password: @typed_password,
+        role: "member"
+      }
 
       # The level is global, and lowered only while the log is captured, so
       # nothing logged at it reaches the console.
@@ -969,12 +980,13 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert has_element?(show, "#flash-info", "Password set")
       refute render(show) =~ @typed_password
 
-      refute can_log_in?(member.username, valid_user_password())
-      assert can_log_in?(member.username, @typed_password)
-
       refute Accounts.get_user_by_session_token(token)
       assert Repo.all(UserToken.by_user_and_contexts_query(member, :all)) == []
       assert_redirect(members_page, ~p"/users/log_in")
+
+      # After the tokens are checked: logging in makes one.
+      refute can_log_in?(member.username, valid_user_password())
+      assert can_log_in?(member.username, @typed_password)
 
       # Nobody else is logged out: the admin who did it carries on.
       assert Repo.all(UserToken.by_user_and_contexts_query(admin, :all)) != []

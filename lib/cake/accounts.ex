@@ -285,25 +285,29 @@ defmodule Cake.Accounts do
   ## Roles and the last admin
 
   @doc """
-  Changes a user's username and role, as an admin does from the panel.
+  Changes a user's username, email and role, as an admin does from the panel.
 
-  Nothing else is changed: a password or an email among the attributes is
-  ignored. (An admin sets a password with `reset_user_password/2`, which
-  also ends the user's sessions.)
+  Nothing else is changed: a password or a confirmation among the attributes
+  is ignored. (An admin sets a password with `reset_user_password/2`, which
+  also ends the user's sessions, and a confirmation with
+  `set_user_confirmed/3`.) A changed email leaves the user confirmed or not,
+  as they were: the admin vouches for the address they type, as for a login
+  they create.
 
   The role is changed under the rule `update_user_role/2` keeps, in the same
   way: demoting the last admin is refused with `{:error, :last_admin}`, and
   then nothing changes, the username included. The decision goes by the role
   in the database, and is safe when requests race (see `delete_user/1`).
 
-  A username that breaks a rule or is already taken, or a role that is
-  neither `:member` nor `:admin`, is `{:error, changeset}`.
+  A username or an email that breaks a rule or is already taken, a missing
+  email, or a role that is neither `:member` nor `:admin`, is
+  `{:error, changeset}`.
 
   Raises `Ecto.NoResultsError` if the user no longer exists.
 
   ## Examples
 
-      iex> update_user(user, %{username: "caleb", role: :admin})
+      iex> update_user(user, %{username: "caleb", email: "caleb@example.com", role: :admin})
       {:ok, %User{}}
 
       iex> update_user(the_only_admin, %{role: :member})
@@ -332,8 +336,8 @@ defmodule Cake.Accounts do
   makes, for the admin panel's form.
 
   It validates as `update_user/2` does, except that it does not ask the
-  database whether the username is taken, and knows nothing of the
-  last-admin rule: both are decided when the change is made.
+  database whether the username or the email is taken, and knows nothing of
+  the last-admin rule: those are decided when the change is made.
 
   ## Examples
 
@@ -343,7 +347,7 @@ defmodule Cake.Accounts do
   """
   @spec change_user(User.t(), map()) :: Ecto.Changeset.t()
   def change_user(%User{} = user, attrs \\ %{}) do
-    User.update_changeset(user, attrs, validate_username: false)
+    User.update_changeset(user, attrs, validate_username: false, validate_email: false)
   end
 
   @doc """

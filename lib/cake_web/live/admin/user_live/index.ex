@@ -1,13 +1,14 @@
 defmodule CakeWeb.Admin.UserLive.Index do
   @moduledoc """
   The admin panel's list of logins, at `/admin/users`: each user's username,
-  role and created date, with the way to a login's own page, to its form,
-  to a new one, and the button that deletes it.
+  email, role, whether their email is confirmed, and created date, with the
+  way to a login's own page, to its form, to a new one, and the button that
+  deletes it. A login is confirmed or not from its own page.
 
   On a phone the table keeps the username, the role and Delete, and drops
-  the rest (the created date, the email, the Edit shortcut) so that it does
-  not scroll sideways: the username leads to the login's own page, which has
-  them.
+  the rest (the email, the confirmation, the created date, the Edit
+  shortcut) so that it does not scroll sideways: the username leads to the
+  login's own page, which has them.
 
   Deleting goes through `Cake.Accounts.delete_user/1`, so the last admin
   cannot be deleted, and an admin cannot delete their own login: their row
@@ -47,11 +48,14 @@ defmodule CakeWeb.Admin.UserLive.Index do
             {user.username}
           </.link>
         </:col>
-        <:col :let={{_id, user}} :if={@show_email?} label="Email" class="hidden lg:table-cell">
+        <:col :let={{_id, user}} label="Email" class="hidden lg:table-cell">
           <span class="wrap-anywhere">{user.email}</span>
         </:col>
         <:col :let={{_id, user}} label="Role">
           <span class={["badge badge-soft", role_badge(user.role)]}>{user.role}</span>
+        </:col>
+        <:col :let={{_id, user}} label="Confirmed" class="hidden sm:table-cell">
+          <.confirmation user={user} />
         </:col>
         <:col :let={{_id, user}} label="Created" class="hidden sm:table-cell">
           <span class="whitespace-nowrap">{created_on(user)}</span>
@@ -92,15 +96,14 @@ defmodule CakeWeb.Admin.UserLive.Index do
      |> list_users()}
   end
 
-  # The whole list, afresh. The Email column depends on every row, and a row
+  # The whole list, afresh, after anything that changes it. A deletion is
+  # shown by reading the list again rather than by patching the stream, so
+  # every row is as the database has it now.
+  # (Formerly also because a column depended on every row.)
   # of a stream is rendered once, so when the list changes it is read and
   # rendered again rather than patched.
   defp list_users(socket) do
-    users = Accounts.list_users()
-
-    socket
-    |> assign(:show_email?, Enum.any?(users, & &1.email))
-    |> stream(:users, users, reset: true)
+    stream(socket, :users, Accounts.list_users(), reset: true)
   end
 
   @impl Phoenix.LiveView
@@ -145,6 +148,20 @@ defmodule CakeWeb.Admin.UserLive.Index do
     Accounts.delete_user(user)
   rescue
     Ecto.NoResultsError -> {:error, :gone}
+  end
+
+  attr :user, User, required: true
+
+  # Whether a login's email is confirmed: a login that is not cannot log in.
+  defp confirmation(assigns) do
+    ~H"""
+    <span :if={@user.confirmed_at} class="badge badge-soft badge-success whitespace-nowrap">
+      Confirmed
+    </span>
+    <span :if={!@user.confirmed_at} class="badge badge-soft badge-ghost whitespace-nowrap">
+      Not confirmed
+    </span>
+    """
   end
 
   defp role_badge(:admin), do: "badge-primary"
