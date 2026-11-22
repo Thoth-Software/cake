@@ -135,8 +135,9 @@ defmodule Cake.Search.DeploymentTest do
           assert_receive {:EXIT, ^task, :normal}
         end)
 
-      assert requests() ==
-               List.duplicate({:get, "/_cat/indices"}, 6) ++ [{:put, @chunks_path}]
+      # Six lists (five refused connections, one answer), then the one create.
+      assert {lists, [{:put, @chunks_path}]} = Enum.split(requests(), 6)
+      assert lists == List.duplicate({:get, "/_cat/indices"}, 6)
 
       # Every failed attempt is logged with its reason; the delay doubles
       # from :initial_ms and stops growing at :max_ms.
