@@ -877,6 +877,14 @@ defmodule Cake.ConversationTest do
       {:ok, pid} = Conversation.start(valid_opts(%{owner: owner}))
       ref = Process.monitor(pid)
 
+      # Process.monitor/1 only sends a signal. Under load the conversation
+      # can exit before it has handled it, and its :DOWN then says :noproc
+      # although the exit was normal: a trace of a failing run showed the
+      # owner and then the conversation exiting :normal, in that order
+      # (#397). A call is answered after every earlier signal from this
+      # process, so once this one returns the monitor is in place.
+      _ = :sys.get_state(pid)
+
       # CI once saw this monitor report :noproc: the conversation was already
       # gone before :stop was sent, and the assert_receive below could only
       # report a timeout. A :noproc DOWN is enqueued by Process.monitor/1
