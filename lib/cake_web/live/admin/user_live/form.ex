@@ -25,8 +25,11 @@ defmodule CakeWeb.Admin.UserLive.Form do
 
   A password is typed in and never comes back. The password field is always
   rendered empty, whatever was typed and whatever the outcome, so no
-  response carries one; nothing typed goes into a URL; and the parameter is
-  named `password`, which Phoenix filters out of the log.
+  response carries one; nothing typed goes into a URL, a form submitted
+  without LiveView included, since every form here says `method="post"`
+  (a form for a stored record would otherwise say `put`, which a browser
+  sends as GET); and the parameter is named `password`, which Phoenix
+  filters out of the log.
 
   That filter does not reach a crash report, which prints the message a
   page was handling and everything it held. What this module can do about
@@ -68,6 +71,7 @@ defmodule CakeWeb.Admin.UserLive.Form do
         :if={@live_action in [:new, :edit]}
         for={@form}
         id="user-form"
+        method="post"
         phx-change="validate"
         phx-submit="save"
       >
@@ -92,6 +96,7 @@ defmodule CakeWeb.Admin.UserLive.Form do
         :if={@live_action == :password}
         for={@form}
         id="password-form"
+        method="post"
         phx-change="validate"
         phx-submit="save"
       >
@@ -207,7 +212,9 @@ defmodule CakeWeb.Admin.UserLive.Form do
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
-  # What a form is allowed to send: its own fields, each as text. A browser
+  # What a form is allowed to send: its own fields, each as text, and for
+  # each the `_unused_` key a browser sends beside a field nobody has touched
+  # yet, by which the form leaves that field's errors unshown. A browser
   # sends nothing else. A hand-written request can send a map or a list in
   # a field's place, which a changeset refuses but a template cannot
   # render; such a field counts as not sent.
@@ -218,8 +225,10 @@ defmodule CakeWeb.Admin.UserLive.Form do
   }
 
   defp text_fields(action, %{} = user_params) do
+    fields = Map.fetch!(@fields, action)
+
     user_params
-    |> Map.take(Map.fetch!(@fields, action))
+    |> Map.take(fields ++ Enum.map(fields, &("_unused_" <> &1)))
     |> Map.filter(fn {_field, value} -> is_binary(value) end)
   end
 

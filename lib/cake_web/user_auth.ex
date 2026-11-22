@@ -18,6 +18,7 @@ defmodule CakeWeb.UserAuth do
 
   @must_log_in "You must log in to access this page."
   @not_authorized "You are not authorized to access this page."
+  @session_ended "Your session has ended. Log in again to go on."
 
   # Make the remember me cookie valid for 60 days.
   # If you want bump or reduce this value, also change
@@ -222,6 +223,14 @@ defmodule CakeWeb.UserAuth do
     end
   end
 
+  # Whatever the page, so it says what happened rather than that the page
+  # needs a log-in: it is also heard on pages anyone may open.
+  defp halt_sessions_ended(socket) do
+    socket
+    |> Phoenix.LiveView.put_flash(:error, @session_ended)
+    |> Phoenix.LiveView.redirect(to: ~p"/users/log_in")
+  end
+
   defp halt_to_log_in(socket) do
     socket
     |> Phoenix.LiveView.put_flash(:error, @must_log_in)
@@ -246,16 +255,24 @@ defmodule CakeWeb.UserAuth do
   # deleted or logged out is turned away as on a mount, and the event is
   # dropped.
   defp ensure_admin_on_events(socket, session) do
-    if Phoenix.LiveView.connected?(socket) do
-      Phoenix.LiveView.attach_hook(socket, :ensure_admin, :handle_event, fn _event,
-                                                                            _params,
-                                                                            socket ->
+    if Phoenix.LiveView.connected?(socket) and not hooked?(socket, :ensure_admin) do
+      socket
+      |> mark_hooked(:ensure_admin)
+      |> Phoenix.LiveView.attach_hook(:ensure_admin, :handle_event, fn _event, _params, socket ->
         ensure_admin_still(socket, session)
       end)
     else
       socket
     end
   end
+
+  # A LiveView can run more than one of these hooks (a `live_session`'s and
+  # its own, or two of its own), and a hook attached twice under one name
+  # raises. Each is attached once per page, and remembered here.
+  defp hooked?(socket, name), do: Map.has_key?(socket.private, {__MODULE__, name})
+
+  defp mark_hooked(socket, name),
+    do: Phoenix.LiveView.put_private(socket, {__MODULE__, name}, true)
 
   defp ensure_admin_still(socket, session) do
     case user_of_session(session) do
@@ -321,7 +338,7 @@ defmodule CakeWeb.UserAuth do
   # Every `on_mount` hook mounts the user through `mount_current_user/2`, so
   # every live page of a logged-in user listens here.
   defp leave_when_sessions_end(%{assigns: %{current_user: %User{id: id}}} = socket, session) do
-    if Phoenix.LiveView.connected?(socket) do
+    if Phoenix.LiveView.connected?(socket) and not hooked?(socket, :sessions_ended) do
       :ok = Phoenix.PubSub.subscribe(Cake.PubSub, sessions_topic(id))
       still_logged_in(socket, session)
     else
@@ -337,8 +354,10 @@ defmodule CakeWeb.UserAuth do
   defp still_logged_in(socket, session) do
     case user_of_session(session) do
       %User{} ->
-        Phoenix.LiveView.attach_hook(socket, :sessions_ended, :handle_info, fn
-          {__MODULE__, :sessions_ended}, socket -> {:halt, halt_to_log_in(socket)}
+        socket
+        |> mark_hooked(:sessions_ended)
+        |> Phoenix.LiveView.attach_hook(:sessions_ended, :handle_info, fn
+          {__MODULE__, :sessions_ended}, socket -> {:halt, halt_sessions_ended(socket)}
           _message, socket -> {:cont, socket}
         end)
 

@@ -8,7 +8,11 @@ defmodule CakeWeb.UserAuthTest.TwoHooksLive do
   on_mount {CakeWeb.UserAuth, :ensure_authenticated}
 
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
-  def render(assigns), do: ~H"<p id=\"who\">{@current_user.username}</p>"
+  def render(assigns) do
+    ~H"""
+    <p id="who">{@current_user.username}</p>
+    """
+  end
 end
 
 defmodule CakeWeb.UserAuthTest do
