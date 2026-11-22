@@ -1003,14 +1003,16 @@ defmodule Cake.AccountsTest do
   end
 
   describe "update_user/2" do
-    test "changes the username and the role" do
+    test "changes the username, the email and the role" do
       user = user_fixture()
       username = unique_user_username()
+      email = unique_user_email()
 
       assert {:ok, %User{} = updated} =
-               Accounts.update_user(user, %{username: username, role: :admin})
+               Accounts.update_user(user, %{username: username, email: email, role: :admin})
 
       assert updated.username == username
+      assert updated.email == email
       assert updated.role == :admin
       assert Accounts.get_user!(user.id) == updated
     end
@@ -1025,17 +1027,17 @@ defmodule Cake.AccountsTest do
       assert {updated.username, updated.role} == {username, :admin}
     end
 
-    test "changes nothing else: a password or an email among the attributes is ignored" do
-      user = user_fixture()
+    test "changes nothing else: a password or a confirmation among the attributes is ignored" do
+      user = unconfirmed_user_fixture()
 
       assert {:ok, updated} =
                Accounts.update_user(user, %{
                  role: :admin,
                  password: "another long password",
-                 email: unique_user_email()
+                 confirmed_at: DateTime.utc_now(:second)
                })
 
-      assert updated.email == user.email
+      assert updated.confirmed_at == nil
       assert updated.hashed_password == user.hashed_password
       assert Accounts.get_user_by_username_and_password(user.username, valid_user_password())
       refute Accounts.get_user_by_username_and_password(user.username, "another long password")
@@ -1071,6 +1073,36 @@ defmodule Cake.AccountsTest do
                Accounts.update_user(user, %{username: String.upcase(user.username)})
 
       assert updated.username == String.upcase(user.username)
+    end
+
+    test "holds the email to the rules registration holds it to, and refuses one another user has" do
+      taken = user_fixture()
+      user = user_fixture()
+
+      assert {:error, changeset} =
+               Accounts.update_user(user, %{email: String.upcase(taken.email)})
+
+      assert errors_on(changeset).email == ["has already been taken"]
+
+      assert {:error, changeset} = Accounts.update_user(user, %{email: "no-at-sign"})
+      assert errors_on(changeset).email == ["must have the @ sign and no spaces"]
+
+      assert {:error, changeset} = Accounts.update_user(user, %{email: nil})
+      assert errors_on(changeset).email == ["can't be blank"]
+
+      assert Accounts.get_user!(user.id).email == user.email
+    end
+
+    # The admin vouches for the address, as for a login they create.
+    test "leaves the confirmation as it was when the email changes" do
+      confirmed = user_fixture()
+      unconfirmed = unconfirmed_user_fixture()
+
+      assert {:ok, %User{confirmed_at: %DateTime{}}} =
+               Accounts.update_user(confirmed, %{email: unique_user_email()})
+
+      assert {:ok, %User{confirmed_at: nil}} =
+               Accounts.update_user(unconfirmed, %{email: unique_user_email()})
     end
 
     test "refuses a role that is neither member nor admin" do
@@ -1117,39 +1149,45 @@ defmodule Cake.AccountsTest do
   end
 
   describe "change_user/2" do
-    test "returns a changeset for the username and the role, and nothing else" do
+    test "returns a changeset for the username, the email and the role, and nothing else" do
       user = user_fixture()
       username = unique_user_username()
 
       assert %Ecto.Changeset{} = changeset = Accounts.change_user(user)
       assert changeset.changes == %{}
 
+      email = unique_user_email()
+
       changeset =
         Accounts.change_user(user, %{
           username: username,
+          email: email,
           role: :admin,
           password: "another long password"
         })
 
       assert changeset.valid?
-      assert changeset.changes == %{username: username, role: :admin}
+      assert changeset.changes == %{username: username, email: email, role: :admin}
     end
 
-    test "validates as update_user/2 does, without asking the database whether the username is taken" do
+    test "validates as update_user/2 does, without asking the database whether the username or the email is taken" do
       taken = user_fixture()
       user = user_fixture()
 
       assert errors_on(Accounts.change_user(user, %{username: "x"})).username ==
                ["should be at least 3 character(s)"]
 
-      assert Accounts.change_user(user, %{username: taken.username}).valid?
+      assert errors_on(Accounts.change_user(user, %{email: "no-at-sign"})).email ==
+               ["must have the @ sign and no spaces"]
+
+      assert Accounts.change_user(user, %{username: taken.username, email: taken.email}).valid?
     end
   end
 
   describe "change_user_creation/2" do
-    test "returns a changeset for a new login: username, password and role" do
+    test "returns a changeset for a new login: username, email, password and role" do
       assert %Ecto.Changeset{} = changeset = Accounts.change_user_creation(%User{})
-      assert changeset.required == [:role, :password, :username]
+      assert Enum.sort(changeset.required) == [:email, :password, :role, :username]
     end
 
     test "validates as create_user/1 does, without hashing the password or asking whether the username is taken" do
@@ -1158,6 +1196,7 @@ defmodule Cake.AccountsTest do
       changeset =
         Accounts.change_user_creation(%User{}, %{
           username: taken.username,
+          email: taken.email,
           password: valid_user_password(),
           role: :member
         })
@@ -1170,6 +1209,7 @@ defmodule Cake.AccountsTest do
 
       assert %{
                username: ["should be at least 3 character(s)"],
+               email: ["can't be blank"],
                password: ["should be at least 12 character(s)"],
                role: ["can't be blank"]
              } = errors_on(invalid)

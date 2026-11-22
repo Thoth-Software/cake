@@ -4,6 +4,11 @@ defmodule CakeWeb.Admin.UserLiveTest do
   that creates a login and the one that changes it, the separate action that
   sets a password, and deletion.
 
+  Every login has an email, and a login cannot log in until its email is
+  confirmed (#377). The panel takes the email when it creates and edits a
+  login, shows it and whether it is confirmed, and confirms a login or takes
+  the confirmation back by hand.
+
   The screens are `CakeWeb.Admin.UserLive.Index`, `.Show` and `.Form`. What
   each context function does on its own is in `Cake.AccountsTest`; this is
   what an admin can do from a page, and what the page refuses.
@@ -43,18 +48,20 @@ defmodule CakeWeb.Admin.UserLiveTest do
   @last_admin "cannot be changed: this is the last admin"
   @own_login "You cannot delete your own login."
   @gone "That login no longer exists."
+  @own_confirmation "You cannot take back your own confirmation."
 
   # A password no fixture uses and no page has a reason to contain, so
   # finding it anywhere means it was put there.
   @typed_password "correct horse battery staple"
 
-  # A login as the panel makes one: a username, a password and a role, and
-  # no email. (`user_fixture/1` and `admin_fixture/1` give theirs an email.)
+  # A login as the panel makes one: a username, an email, a password and a
+  # role. Confirmed, as `Cake.Accounts.create_user/1` makes every login.
   defp login_fixture(role, attrs \\ %{}) do
     {:ok, user} =
       attrs
       |> Enum.into(%{
         username: unique_user_username(),
+        email: unique_user_email(),
         password: valid_user_password(),
         role: role
       })
@@ -141,24 +148,33 @@ defmodule CakeWeb.Admin.UserLiveTest do
   describe "the list" do
     setup :log_in_admin
 
-    test "shows each login's username, role and created date, in username order, in the wide column",
+    test "shows each login's username, email, role, confirmation and created date, in username order, in the wide column",
          %{conn: conn, admin: admin} do
       Repo.delete_all(from_other_than(admin))
       # Capital Z sorts before every lowercase letter by bytes, and last
       # when letter case is ignored.
       zoe = login_fixture(:member, %{username: "Zoe"})
       abe = login_fixture(:admin, %{username: "abe"})
+      new = unconfirmed_user_fixture(%{username: "newcomer"})
 
       {:ok, lv, _html} = live(conn, ~p"/admin/users")
 
       assert text_of(lv, "h1") == "Logins"
       assert has_element?(lv, ~s|#page[data-width="wide"]|)
 
-      assert column_labels(lv) == ["Username", "Role", "Created", "Actions"]
-      assert row_ids(lv) == Enum.map([abe, admin, zoe], &"users-#{&1.id}")
+      assert column_labels(lv) ==
+               ["Username", "Email", "Role", "Confirmed", "Created", "Actions"]
 
-      assert text_of(lv, "#users-#{zoe.id}") =~ "Zoe member #{created_on(zoe)}"
-      assert text_of(lv, "#users-#{abe.id}") =~ "abe admin #{created_on(abe)}"
+      assert row_ids(lv) == Enum.map([abe, admin, new, zoe], &"users-#{&1.id}")
+
+      assert text_of(lv, "#users-#{zoe.id}") =~
+               "Zoe #{zoe.email} member Confirmed #{created_on(zoe)}"
+
+      assert text_of(lv, "#users-#{abe.id}") =~
+               "abe #{abe.email} admin Confirmed #{created_on(abe)}"
+
+      assert text_of(lv, "#users-#{new.id}") =~
+               "newcomer #{new.email} member Not confirmed #{created_on(new)}"
     end
 
     test "never shows a password hash", %{conn: conn, admin: admin} do
@@ -168,28 +184,26 @@ defmodule CakeWeb.Admin.UserLiveTest do
       refute html =~ "$2b$"
     end
 
-    test "has an email column only when a login has an email", %{conn: conn, admin: admin} do
-      Repo.delete_all(from_other_than(admin))
-      {:ok, without, _html} = live(conn, ~p"/admin/users")
-      refute "Email" in column_labels(without)
-
-      with_email = user_fixture()
+    # Every login has an email now (#377), so the column is always there.
+    # On a phone the table keeps the username, the role and Delete.
+    test "drops the email, the confirmation and the created date on a phone", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/admin/users")
 
-      assert column_labels(lv) == ["Username", "Email", "Role", "Created", "Actions"]
-      assert text_of(lv, "#users-#{with_email.id}") =~ with_email.email
+      headings =
+        lv
+        |> render()
+        |> Floki.parse_document!()
+        |> Floki.find("thead th")
+        |> Map.new(fn th -> {String.trim(Floki.text(th)), Floki.attribute(th, "class")} end)
 
-      # The column goes with the last login that had an email, on the page
-      # that is open, and no row keeps an empty cell for it.
-      lv |> element("#delete-#{with_email.id}") |> render_click()
+      for label <- ["Email", "Confirmed", "Created"] do
+        assert [classes] = headings[label]
+        assert "hidden" in String.split(classes), label
+      end
 
-      assert column_labels(lv) == ["Username", "Role", "Created", "Actions"]
-
-      assert lv
-             |> render()
-             |> Floki.parse_document!()
-             |> Floki.find("#users-#{admin.id} td")
-             |> length() == 4
+      for label <- ["Username", "Role"] do
+        refute "hidden" in String.split(Enum.join(headings[label], " ")), label
+      end
     end
 
     test "leads to a login's own page, to its form, and to the form for a new one",
@@ -217,7 +231,7 @@ defmodule CakeWeb.Admin.UserLiveTest do
   describe "a login's page" do
     setup :log_in_admin
 
-    test "shows the username, role and created date, and leads to the form and to setting a password",
+    test "shows the username, email, role, confirmation and created date, and leads to the form and to setting a password",
          %{conn: conn} do
       member = login_fixture(:member)
       {:ok, lv, html} = live(conn, ~p"/admin/users/#{member}")
@@ -226,7 +240,8 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert page_title(lv) =~ member.username
 
       assert text_of(lv, "#login") =~
-               "#{member.username} Role member Created #{created_on(member)}"
+               "Username #{member.username} Email #{member.email} Role member " <>
+                 "Confirmed yes Created #{created_on(member)}"
 
       refute html =~ member.hashed_password
 
@@ -263,10 +278,92 @@ defmodule CakeWeb.Admin.UserLiveTest do
     end
   end
 
+  # A login cannot log in until its email is confirmed (#377). The admin can
+  # confirm it by hand, from the login's page, and take the confirmation
+  # back. Taking it back ends no session the login already has: that is
+  # #401's, and nothing here pins it either way.
+  describe "confirming a login by hand" do
+    setup :log_in_admin
+
+    test "confirms a login that is not confirmed, which can then log in", %{conn: conn} do
+      newcomer = unconfirmed_user_fixture()
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{newcomer}")
+
+      assert text_of(lv, "#login") =~ "Confirmed no"
+      refute can_log_in?(newcomer.username, valid_user_password())
+      refute has_element?(lv, "#unconfirm-login")
+
+      lv |> element("#confirm-login") |> render_click()
+
+      assert text_of(lv, "#login") =~ "Confirmed yes"
+      assert has_element?(lv, "#flash-info", "Email confirmed")
+      assert can_log_in?(newcomer.username, valid_user_password())
+      refute has_element?(lv, "#confirm-login")
+    end
+
+    test "takes a confirmation back, behind a confirmation, and the login can no longer log in",
+         %{conn: conn} do
+      member = login_fixture(:member)
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{member}")
+
+      assert lv |> element("#unconfirm-login") |> render() =~ "data-confirm="
+
+      lv |> element("#unconfirm-login") |> render_click()
+
+      assert text_of(lv, "#login") =~ "Confirmed no"
+      assert has_element?(lv, "#flash-info", "Confirmation taken back")
+      refute can_log_in?(member.username, valid_user_password())
+      assert has_element?(lv, "#confirm-login")
+    end
+
+    test "offers no way to take back the admin's own confirmation, and refuses a request for it with a notice",
+         %{conn: conn, admin: admin} do
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{admin}")
+
+      refute has_element?(lv, "#unconfirm-login")
+
+      render_click(lv, "unconfirm", %{})
+
+      assert text_of(lv, "#login-refusal [data-part=body]") == @own_confirmation
+      assert has_element?(lv, "#login-refusal.alert-error")
+      assert can_log_in?(admin.username, valid_user_password())
+    end
+
+    test "sends the admin back to the list, saying so, for a login deleted meanwhile",
+         %{conn: conn} do
+      newcomer = unconfirmed_user_fixture()
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{newcomer}")
+      {:ok, _deleted} = Accounts.delete_user(newcomer)
+
+      assert {:ok, index, _html} =
+               lv
+               |> element("#confirm-login")
+               |> render_click()
+               |> follow_redirect(conn, ~p"/admin/users")
+
+      assert has_element?(index, "#flash-error", @gone)
+    end
+
+    test "an admin demoted while the page is open confirms nothing from it", %{conn: conn} do
+      admin = login_fixture(:admin)
+      login_fixture(:admin)
+      newcomer = unconfirmed_user_fixture()
+      {:ok, lv, _html} = conn |> log_in_user(admin) |> live(~p"/admin/users/#{newcomer}")
+
+      {:ok, _demoted} = Accounts.update_user_role(admin, :member)
+
+      render_click(lv, "confirm", %{})
+
+      assert_redirect(lv, ~p"/")
+      refute Accounts.get_user!(newcomer.id).confirmed_at
+    end
+  end
+
   describe "creating a login" do
     setup :log_in_admin
 
-    test "takes a username, a password and a role, and the login works at once", %{conn: conn} do
+    test "takes a username, an email, a password and a role, and the login works at once",
+         %{conn: conn} do
       username = unique_user_username()
       {:ok, lv, _html} = live(conn, ~p"/admin/users/new")
 
@@ -274,12 +371,20 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert {:ok, index, _html} =
                lv
                |> form("#user-form",
-                 user: %{username: username, password: @typed_password, role: "member"}
+                 user: %{
+                   username: username,
+                   email: unique_user_email(),
+                   password: @typed_password,
+                   role: "member"
+                 }
                )
                |> render_submit()
                |> follow_redirect(conn, ~p"/admin/users")
 
-      assert %User{role: :member} = user = Repo.get_by!(User, username: username)
+      assert %User{role: :member, email: email} = user = Repo.get_by!(User, username: username)
+      assert email =~ "@example.com"
+      # Confirmed from the start: the admin vouches for the login (#377).
+      assert user.confirmed_at
       assert can_log_in?(username, @typed_password)
 
       assert has_element?(index, "#flash-info", "Login created")
@@ -292,7 +397,14 @@ defmodule CakeWeb.Admin.UserLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/admin/users/new")
 
       lv
-      |> form("#user-form", user: %{username: username, password: @typed_password, role: "admin"})
+      |> form("#user-form",
+        user: %{
+          username: username,
+          email: unique_user_email(),
+          password: @typed_password,
+          role: "admin"
+        }
+      )
       |> render_submit()
 
       assert %User{role: :admin} = Repo.get_by!(User, username: username)
@@ -306,7 +418,9 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
       changed =
         lv
-        |> form("#user-form", user: %{username: username, password: short, role: "member"})
+        |> form("#user-form",
+          user: %{username: username, email: unique_user_email(), password: short, role: "member"}
+        )
         |> render_change()
 
       assert changed =~ @too_short
@@ -314,7 +428,9 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
       submitted =
         lv
-        |> form("#user-form", user: %{username: username, password: short, role: "member"})
+        |> form("#user-form",
+          user: %{username: username, email: unique_user_email(), password: short, role: "member"}
+        )
         |> render_submit()
 
       assert submitted =~ @too_short
@@ -325,10 +441,59 @@ defmodule CakeWeb.Admin.UserLiveTest do
       # keeps the form on the page.
       rejected =
         lv
-        |> form("#user-form", user: %{username: "x", password: @typed_password, role: "member"})
+        |> form("#user-form",
+          user: %{
+            username: "x",
+            email: unique_user_email(),
+            password: @typed_password,
+            role: "member"
+          }
+        )
         |> render_submit()
 
       refute rejected =~ @typed_password
+    end
+
+    test "requires the email, and holds it to the rules registration does", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/new")
+      username = unique_user_username()
+
+      for {email, error} <- [
+            {"", "can&#39;t be blank"},
+            {"no-at-sign", "must have the @ sign and no spaces"}
+          ] do
+        html =
+          lv
+          |> form("#user-form",
+            user: %{username: username, email: email, password: @typed_password, role: "member"}
+          )
+          |> render_submit()
+
+        assert html =~ error, email
+      end
+
+      refute Repo.get_by(User, username: username)
+    end
+
+    test "refuses an email another login has, whatever its letter case, as an error on the field",
+         %{conn: conn, admin: admin} do
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/new")
+      username = unique_user_username()
+
+      html =
+        lv
+        |> form("#user-form",
+          user: %{
+            username: username,
+            email: String.upcase(admin.email),
+            password: @typed_password,
+            role: "member"
+          }
+        )
+        |> render_submit()
+
+      assert html =~ @taken
+      refute Repo.get_by(User, username: username)
     end
 
     # `return_to` belongs to the edit form. A new login has no page of its
@@ -340,7 +505,12 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert {:ok, _index, _html} =
                lv
                |> form("#user-form",
-                 user: %{username: username, password: @typed_password, role: "member"}
+                 user: %{
+                   username: username,
+                   email: unique_user_email(),
+                   password: @typed_password,
+                   role: "member"
+                 }
                )
                |> render_submit()
                |> follow_redirect(conn, ~p"/admin/users")
@@ -355,6 +525,7 @@ defmodule CakeWeb.Admin.UserLiveTest do
         |> form("#user-form",
           user: %{
             username: String.upcase(admin.username),
+            email: unique_user_email(),
             password: @typed_password,
             role: "member"
           }
@@ -469,7 +640,12 @@ defmodule CakeWeb.Admin.UserLiveTest do
         with_log(fn ->
           new
           |> form("#user-form",
-            user: %{username: unique_user_username(), password: @typed_password, role: "member"}
+            user: %{
+              username: unique_user_username(),
+              email: unique_user_email(),
+              password: @typed_password,
+              role: "member"
+            }
           )
           |> render_submit()
         end)
@@ -505,7 +681,12 @@ defmodule CakeWeb.Admin.UserLiveTest do
         capture_log(fn ->
           typing
           |> form("#user-form",
-            user: %{username: "validname", password: @typed_password, role: "member"}
+            user: %{
+              username: "validname",
+              email: unique_user_email(),
+              password: @typed_password,
+              role: "member"
+            }
           )
           |> render_change()
 
@@ -561,9 +742,11 @@ defmodule CakeWeb.Admin.UserLiveTest do
   describe "editing a login" do
     setup :log_in_admin
 
-    test "changes the username and the role, and asks for no password", %{conn: conn} do
+    test "changes the username, the email and the role, and asks for no password",
+         %{conn: conn} do
       member = login_fixture(:member)
       username = unique_user_username()
+      email = unique_user_email()
       {:ok, index, _html} = live(conn, ~p"/admin/users")
 
       assert {:ok, lv, _html} =
@@ -577,13 +760,40 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
       assert {:ok, index, _html} =
                lv
-               |> form("#user-form", user: %{username: username, role: "admin"})
+               |> form("#user-form", user: %{username: username, email: email, role: "admin"})
                |> render_submit()
                |> follow_redirect(conn, ~p"/admin/users")
 
       assert has_element?(index, "#flash-info", "Login updated")
-      assert text_of(index, "#users-#{member.id}") =~ "#{username} admin"
-      assert %User{username: ^username, role: :admin} = Accounts.get_user!(member.id)
+      assert text_of(index, "#users-#{member.id}") =~ "#{username} #{email} admin"
+
+      assert %User{username: ^username, email: ^email, role: :admin} =
+               Accounts.get_user!(member.id)
+    end
+
+    # The admin vouches for the address they type, as they do for a login
+    # they create, so a changed email stays confirmed.
+    test "keeps the login confirmed when its email is changed", %{conn: conn} do
+      member = login_fixture(:member)
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{member}/edit")
+
+      lv |> form("#user-form", user: %{email: unique_user_email()}) |> render_submit()
+
+      assert Accounts.get_user!(member.id).confirmed_at
+      assert can_log_in?(member.username, valid_user_password())
+    end
+
+    test "refuses an email another login has, as an error on the field, and requires one",
+         %{conn: conn, admin: admin} do
+      member = login_fixture(:member)
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{member}/edit")
+
+      assert lv |> form("#user-form", user: %{email: admin.email}) |> render_submit() =~ @taken
+
+      assert lv |> form("#user-form", user: %{email: ""}) |> render_submit() =~
+               "can&#39;t be blank"
+
+      assert Accounts.get_user!(member.id).email == member.email
     end
 
     test "goes back to the login's own page when it was opened from there", %{conn: conn} do
@@ -1023,7 +1233,12 @@ defmodule CakeWeb.Admin.UserLiveTest do
       username = unique_user_username()
 
       render_submit(new, "save", %{
-        "user" => %{"username" => username, "password" => @typed_password, "role" => "admin"}
+        "user" => %{
+          "username" => username,
+          "email" => unique_user_email(),
+          "password" => @typed_password,
+          "role" => "admin"
+        }
       })
 
       render_submit(edit, "save", %{"user" => %{"role" => "admin"}})
