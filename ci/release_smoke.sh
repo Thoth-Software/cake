@@ -26,6 +26,9 @@
 #   2. migrations  `bin/migrate` (Cake.Release.migrate/0) against a Postgres
 #                  container applies every migration under
 #                  priv/repo/migrations.
+#   3. no_seeds    No seeds.exs anywhere in the release (/app): priv/repo/seeds.exs
+#                  creates a login whose password is in the repo, and a
+#                  release that does not carry the file cannot run it.
 #
 # Adding a check: write a `check_<name>` function that calls `fail` when the
 # image is wrong, and add `<name>` to `checks`. The helpers a check is built
@@ -74,7 +77,7 @@ RELEASE_SMOKE_DB_TIMEOUT="${RELEASE_SMOKE_DB_TIMEOUT:-120}"
 # The checks, in the order they run against the built image. `migrations`
 # leaves the smoke database migrated, so a check that reads the schema goes
 # after it.
-checks=(nif migrations)
+checks=(nif migrations no_seeds)
 
 network="$RELEASE_SMOKE_PROJECT"
 db_container="$RELEASE_SMOKE_PROJECT-db"
@@ -238,6 +241,17 @@ check_migrations() {
   [ "$applied" = "$expected" ] ||
     fail "Expected $expected migrations in schema_migrations, found '$applied'"
   log "bin/migrate applied all $applied migrations"
+}
+
+check_no_seeds() {
+  local found
+
+  # /app is the whole release (the runner stage copies nothing else in), and
+  # all of it is readable by the image's user.
+  found=$(release find /app -name 'seeds.exs') ||
+    fail "Could not search the release image for seeds.exs"
+  [ -z "$found" ] || fail "The release image carries a seeds file: $found"
+  log "The release image carries no seeds.exs"
 }
 
 # The image is built before Postgres is started: a build failure is the
