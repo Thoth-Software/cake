@@ -1,0 +1,69 @@
+# The shared staging Postgres machine (#365, part of the staging epic #360).
+#
+# The official image on one machine with one volume, run by us: not Fly
+# Managed Postgres and not `fly postgres create`. No pooler, no replica and no
+# backups. Each tester app gets one database and one owning role on it.
+# fly/db/README.md is the runbook: first deploy, how to connect, how to add a
+# tester, what is lost if the volume is lost.
+#
+# Everything the image needs is carried by the two [env] values below and one
+# secret, so there is no init script and no Dockerfile.
+#
+# The secret: POSTGRES_PASSWORD, the superuser's password. The image reads it
+# once, when it initialises an empty volume; changing the secret afterwards
+# does not change the password (use ALTER ROLE for that).
+
+app = "cake-staging-db"
+primary_region = "iad"
+
+# Postgres' "fast shutdown": roll back open transactions, checkpoint, exit.
+# It is the signal the image itself declares (STOPSIGNAL SIGINT).
+kill_signal = "SIGINT"
+kill_timeout = 60
+
+[build]
+  # 14 matches the `postgres` services in .github/workflows/quality.yml and
+  # the `db` service in docker-compose.yml. Moving all three to a supported
+  # major is a separate change (#365, "Version note").
+  image = "postgres:14"
+
+[env]
+  # A fresh volume has `lost+found` at its root and initdb refuses a
+  # non-empty directory, so the cluster lives one level down.
+  PGDATA = "/var/lib/postgresql/data/pgdata"
+  # scram for every connection, the unix socket and loopback included. The
+  # image's default leaves those two on `trust`; the rule it appends for all
+  # other addresses is already scram (password_encryption's default in 14).
+  POSTGRES_INITDB_ARGS = "--auth-local=scram-sha-256 --auth-host=scram-sha-256"
+
+[mounts]
+  source = "pgdata"
+  destination = "/var/lib/postgresql/data"
+  initial_size = "10gb"
+  # Left unset on purpose: scheduled_snapshots and snapshot_retention. Fly's
+  # documented default is a daily snapshot of every volume, kept 5 days
+  # (fly/db/README.md, "Snapshots"). Nobody restores from them or tests that
+  # they restore, so they are not a backup.
+
+# No [http_service] and no [[services]]: nothing is published through Fly's
+# proxy, so the app needs no public address and is reached only over the
+# private network, at cake-staging-db.internal:5432. The image sets
+# listen_addresses = '*', which includes the machine's private IPv6 address.
+# With no service there is also nothing to auto-stop the machine: it is
+# always on. The check below is Fly's top-level kind, for apps without
+# services; it needs the port on 0.0.0.0, which '*' also covers.
+
+[[restart]]
+  policy = "always"
+
+[checks]
+  [checks.postgres]
+    type = "tcp"
+    port = 5432
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "30s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
