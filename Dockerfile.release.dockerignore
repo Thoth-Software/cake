@@ -69,3 +69,8 @@ erl_crash.dump
 
 # Dialyzer PLTs (large, machine-specific).
 /priv/plts/
+
+# Developer files a release has no use for: the reference documents loaded by
+# CLAUDE.md's trigger table, and the git hooks `mix hooks.install` installs.
+/priv/reference/
+/priv/hooks/
