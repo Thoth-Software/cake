@@ -99,9 +99,6 @@ defmodule CakeWeb.Admin.UserLive.Index do
   # The whole list, afresh, after anything that changes it. A deletion is
   # shown by reading the list again rather than by patching the stream, so
   # every row is as the database has it now.
-  # (Formerly also because a column depended on every row.)
-  # of a stream is rendered once, so when the list changes it is read and
-  # rendered again rather than patched.
   defp list_users(socket) do
     stream(socket, :users, Accounts.list_users(), reset: true)
   end

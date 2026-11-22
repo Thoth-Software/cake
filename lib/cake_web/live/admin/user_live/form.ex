@@ -147,7 +147,7 @@ defmodule CakeWeb.Admin.UserLive.Form do
   defp title(:password), do: "Set password"
 
   defp subtitle(:new, _user), do: "Someone who can log in. They can use the password at once."
-  defp subtitle(:edit, user), do: "The username and role of #{user.username}."
+  defp subtitle(:edit, user), do: "The username, email and role of #{user.username}."
 
   defp subtitle(:password, user),
     do: "For #{user.username}. Everywhere they are logged in, they are logged out."

@@ -8,8 +8,11 @@ defmodule CakeWeb.Admin.UserLive.Show do
   A login cannot log in until its email is confirmed (#377). From here the
   admin confirms it by hand, or takes the confirmation back
   (`Cake.Accounts.set_user_confirmed/3`), behind a confirmation. Nobody
-  takes their own confirmation back: the admin's own page has no button for
-  it, and a request for it is refused with a notice. Taking a confirmation
+  changes their own confirmation, either way: the admin's own page has
+  neither button, and a request for either is refused with a notice.
+  `set_user_confirmed/3` refuses only the taking back; an admin whose
+  confirmation was taken back keeps their sessions (#401), so this page
+  refuses the confirming too. Taking a confirmation
   back stops the next log-in; it does not end the sessions the login
   already has (#401).
   """
@@ -53,7 +56,7 @@ defmodule CakeWeb.Admin.UserLive.Show do
 
       <div class="flex flex-wrap gap-2">
         <button
-          :if={!@user.confirmed_at}
+          :if={!@user.confirmed_at && @user.id != @current_user.id}
           id="confirm-login"
           type="button"
           class="btn btn-outline"
@@ -109,6 +112,14 @@ defmodule CakeWeb.Admin.UserLive.Show do
   def handle_event("unconfirm", _params, socket), do: set_confirmed(socket, false)
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
+  # Nobody confirms their own email: it is what another admin took back.
+  defp set_confirmed(
+         %{assigns: %{user: %User{id: id}, current_user: %User{id: id}}} = socket,
+         true
+       ) do
+    {:noreply, socket |> clear_flash() |> assign(:refusal, "You cannot confirm your own email.")}
+  end
+
   defp set_confirmed(socket, confirmed?) do
     case Accounts.set_user_confirmed(socket.assigns.current_user, socket.assigns.user, confirmed?) do
       {:ok, user} ->
@@ -128,8 +139,9 @@ defmodule CakeWeb.Admin.UserLive.Show do
          |> assign(:refusal, "You cannot take back your own confirmation.")}
     end
   rescue
-    # The login was deleted while its page was open.
-    Ecto.NoResultsError ->
+    # The login was deleted while its page was open: before the read, or
+    # between the read and the write.
+    _gone in [Ecto.NoResultsError, Ecto.StaleEntryError] ->
       {:noreply,
        socket
        |> put_flash(:error, @gone)
