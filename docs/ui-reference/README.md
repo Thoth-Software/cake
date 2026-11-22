@@ -12,7 +12,7 @@ Each state is captured four times, as `<state>-<width>-<theme>.png`:
 | `home` | The home page for a visitor: the product name, one sentence, the log-in button. |
 | `shell-member` | The app shell for a member, on the search screen before any search: the top bar's links, the theme toggle, the user menu, a `header/1` and a form with its one primary button. |
 | `shell-member-menu` | Phone width only: the menu the top bar's links collapse into, open. |
-| `shell-admin` | The app shell for an admin: the same, with the Admin link. |
+| `shell-admin` | The app shell for an admin, on the admin landing page: the same, with the Admin link, marked as the current page. |
 | `search-working` | `working/1`: a search in flight. |
 | `search-empty` | `empty_state/1`: a search that finished and found nothing. |
 | `search-error` | `notice/1` of kind `:error`: a search that failed. |

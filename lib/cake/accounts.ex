@@ -102,6 +102,48 @@ defmodule Cake.Accounts do
   @spec get_user!(binary()) :: User.t()
   def get_user!(id), do: Repo.get!(User, id)
 
+  @doc """
+  Gets a single user, or `nil`.
+
+  `nil` is the answer for an id no user has and for a value that is not an
+  id at all, so it can be handed what a request carried. It is for a caller
+  that has something to say when the user is gone: the admin panel, when a
+  login is deleted while a page still shows it.
+
+  ## Examples
+
+      iex> get_user("3f5242a5-dd9a-44ca-8316-7ecb66b4d10f")
+      %User{}
+
+      iex> get_user("not-an-id")
+      nil
+
+  """
+  @spec get_user(term()) :: User.t() | nil
+  def get_user(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} -> Repo.get(User, uuid)
+      :error -> nil
+    end
+  end
+
+  @doc """
+  Returns every user, ordered by username whatever its letter case.
+
+  It is the admin panel's list, and it is not paged: a Cake has as many
+  users as an admin has made logins for.
+
+  ## Examples
+
+      iex> list_users()
+      [%User{}, ...]
+
+  """
+  @spec list_users() :: [User.t()]
+  def list_users do
+    Repo.all(from u in User, order_by: [asc: u.username, asc: u.id])
+  end
+
   ## User registration
 
   @doc """
@@ -159,6 +201,29 @@ defmodule Cake.Accounts do
     %User{}
     |> User.creation_changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking the creation of a user with a
+  role, for the admin panel's form.
+
+  It validates as `create_user/1` does, except that it does not hash the
+  password and does not ask the database whether the username or the email
+  is taken: it runs on every keystroke.
+
+  ## Examples
+
+      iex> change_user_creation(%User{})
+      %Ecto.Changeset{data: %User{}}
+
+  """
+  @spec change_user_creation(User.t(), map()) :: Ecto.Changeset.t()
+  def change_user_creation(%User{} = user, attrs \\ %{}) do
+    User.creation_changeset(user, attrs,
+      hash_password: false,
+      validate_email: false,
+      validate_username: false
+    )
   end
 
   ## Confirming by hand
@@ -220,6 +285,72 @@ defmodule Cake.Accounts do
   ## Roles and the last admin
 
   @doc """
+  Changes a user's username, email and role, as an admin does from the panel.
+
+  Nothing else is changed: a password or a confirmation among the attributes
+  is ignored. (An admin sets a password with `reset_user_password/2`, which
+  also ends the user's sessions, and a confirmation with
+  `set_user_confirmed/3`.) A changed email leaves the user confirmed or not,
+  as they were: the admin vouches for the address they type, as for a login
+  they create.
+
+  The role is changed under the rule `update_user_role/2` keeps, in the same
+  way: demoting the last admin is refused with `{:error, :last_admin}`, and
+  then nothing changes, the username included. The decision goes by the role
+  in the database, and is safe when requests race (see `delete_user/1`).
+
+  A username or an email that breaks a rule or is already taken, a missing
+  email, or a role that is neither `:member` nor `:admin`, is
+  `{:error, changeset}`.
+
+  Raises `Ecto.NoResultsError` if the user no longer exists.
+
+  ## Examples
+
+      iex> update_user(user, %{username: "caleb", email: "caleb@example.com", role: :admin})
+      {:ok, %User{}}
+
+      iex> update_user(the_only_admin, %{role: :member})
+      {:error, :last_admin}
+
+      iex> update_user(user, %{username: "taken"})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  @spec update_user(User.t(), map()) ::
+          {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
+  def update_user(%User{} = user, attrs) do
+    under_last_admin_rule(user, fn current, last_admin? ->
+      changeset = User.update_changeset(current, attrs)
+
+      if last_admin? and steps_down?(changeset) do
+        {:error, :last_admin}
+      else
+        Repo.update(changeset)
+      end
+    end)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking the changes `update_user/2`
+  makes, for the admin panel's form.
+
+  It validates as `update_user/2` does, except that it does not ask the
+  database whether the username or the email is taken, and knows nothing of
+  the last-admin rule: those are decided when the change is made.
+
+  ## Examples
+
+      iex> change_user(user)
+      %Ecto.Changeset{data: %User{}}
+
+  """
+  @spec change_user(User.t(), map()) :: Ecto.Changeset.t()
+  def change_user(%User{} = user, attrs \\ %{}) do
+    User.update_changeset(user, attrs, validate_username: false, validate_email: false)
+  end
+
+  @doc """
   Changes a user's role.
 
   There is always at least one admin: demoting the last one is refused with
@@ -279,11 +410,11 @@ defmodule Cake.Accounts do
   Two requests can each see two admins and each remove one; or one can
   demote a user whose promotion, still uncommitted when it looked, made
   them the only admin. Both come from deciding on what was true a moment
-  ago. So this function and `update_user_role/2` are decided one at a time:
-  each takes the same transaction-level advisory lock before it reads
-  anything, and holds it until it commits or rolls back. Whatever it then
-  reads (the user's role, whether another admin exists) cannot be changed
-  under it by another call to either function.
+  ago. So this function, `update_user_role/2` and `update_user/2` are
+  decided one at a time: each takes the same transaction-level advisory lock
+  before it reads anything, and holds it until it commits or rolls back.
+  Whatever it then reads (the user's role, whether another admin exists)
+  cannot be changed under it by another call to any of the three.
 
   It is one lock for all users, not a lock on rows, so two calls cannot wait
   on each other in a circle, and a call does not hold up anything else that

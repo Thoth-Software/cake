@@ -1,7 +1,34 @@
+defmodule CakeWeb.UserAuthTest.TwoHooksLive do
+  @moduledoc false
+  # A LiveView that stacks two of UserAuth's hooks, as the `on_mount/4`
+  # @doc shows a LiveView declaring its own.
+  use CakeWeb, :live_view
+
+  on_mount {CakeWeb.UserAuth, :mount_current_user}
+  on_mount {CakeWeb.UserAuth, :ensure_authenticated}
+
+  @spec render(map()) :: Phoenix.LiveView.Rendered.t()
+  def render(assigns) do
+    ~H"""
+    <p id="who">{@current_user.username}</p>
+    """
+  end
+end
+
 defmodule CakeWeb.UserAuthTest do
   use CakeWeb.ConnCase, async: true
 
   import Cake.AccountsFixtures
+
+  import Phoenix.LiveViewTest,
+    only: [
+      live: 2,
+      live_isolated: 3,
+      element: 2,
+      render: 1,
+      assert_redirect: 1,
+      assert_redirect: 2
+    ]
 
   alias Cake.Accounts
   alias CakeWeb.UserAuth
@@ -115,6 +142,39 @@ defmodule CakeWeb.UserAuthTest do
       conn = UserAuth.fetch_current_user(conn, [])
       refute get_session(conn, :user_token)
       refute conn.assigns.current_user
+    end
+  end
+
+  # Every hook subscribes a connected page to its user's topic, so that
+  # end_live_sessions/1 can send the page away (#376).
+  describe "a connected page whose user's sessions are ended" do
+    test "mounts and is sent away once, with two of UserAuth's hooks stacked", %{user: user} do
+      token = Accounts.generate_user_session_token(user)
+
+      {:ok, lv, _html} =
+        live_isolated(build_conn(), CakeWeb.UserAuthTest.TwoHooksLive,
+          session: %{"user_token" => token}
+        )
+
+      assert lv |> element("#who") |> render() =~ user.username
+
+      :ok = UserAuth.end_live_sessions(user)
+
+      assert_redirect(lv, ~p"/users/log_in")
+    end
+
+    # On a page anyone may open the user is not required to log in, so the
+    # message says what happened, not that the page needs a log-in.
+    test "is told that its session has ended, on a page that needs no log-in", %{
+      conn: conn,
+      user: user
+    } do
+      {:ok, lv, _html} = conn |> log_in_user(user) |> live(~p"/users/confirm")
+
+      :ok = UserAuth.end_live_sessions(user)
+
+      assert {_path, flash} = assert_redirect(lv)
+      assert flash["error"] == "Your session has ended. Log in again to go on."
     end
   end
 

@@ -23,7 +23,16 @@ defmodule CakeWeb.ShellTest do
     "/users/confirm"
   ]
   @member_pages ["/chat", "/documents", "/search", "/upload", "/users/settings"]
-  @admin_pages ["/chat", "/documents", "/search", "/upload", "/users/settings", "/admin"]
+  @admin_pages [
+    "/chat",
+    "/documents",
+    "/search",
+    "/upload",
+    "/users/settings",
+    "/admin",
+    "/admin/users",
+    "/admin/users/new"
+  ]
 
   @member_links ["/chat", "/documents", "/upload", "/search"]
   @admin_links ["/chat", "/documents", "/upload", "/search", "/admin"]
@@ -44,7 +53,9 @@ defmodule CakeWeb.ShellTest do
       {"/users/settings", "Account settings · Cake"}
     ],
     admin: [
-      {"/admin", "Admin · Cake"}
+      {"/admin", "Admin · Cake"},
+      {"/admin/users", "Logins · Cake"},
+      {"/admin/users/new", "New login · Cake"}
     ]
   }
 

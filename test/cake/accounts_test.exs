@@ -130,6 +130,19 @@ defmodule Cake.AccountsTest do
     end
   end
 
+  describe "get_user/1" do
+    test "returns the user with the given id" do
+      user = user_fixture()
+      assert Accounts.get_user(user.id) == Accounts.get_user!(user.id)
+    end
+
+    test "returns nil for an id no user has, and for what is not an id at all" do
+      assert Accounts.get_user(Ecto.UUID.generate()) == nil
+      assert Accounts.get_user("not-an-id") == nil
+      assert Accounts.get_user(nil) == nil
+    end
+  end
+
   describe "register_user/1" do
     test "requires a username, an email and a password" do
       {:error, changeset} = Accounts.register_user(%{})
@@ -965,6 +978,241 @@ defmodule Cake.AccountsTest do
   describe "inspect/2 for the User module" do
     test "does not include password" do
       refute inspect(%User{password: "123456"}) =~ "password: \"123456\""
+    end
+  end
+
+  # The admin panel's functions (#376). `get_user!/1`, `create_user/1` and
+  # `delete_user/1` have their own describes above, from before the panel.
+  describe "list_users/0" do
+    test "returns every user, ordered by username whatever its letter case" do
+      Repo.delete_all(User)
+
+      for username <- ["bob", "Carol", "alice"] do
+        user_fixture(username: username)
+      end
+
+      assert Enum.map(Accounts.list_users(), & &1.username) == ["alice", "bob", "Carol"]
+    end
+
+    test "returns users as get_user!/1 does" do
+      Repo.delete_all(User)
+      user = user_fixture()
+
+      assert Accounts.list_users() == [Accounts.get_user!(user.id)]
+    end
+  end
+
+  describe "update_user/2" do
+    test "changes the username, the email and the role" do
+      user = user_fixture()
+      username = unique_user_username()
+      email = unique_user_email()
+
+      assert {:ok, %User{} = updated} =
+               Accounts.update_user(user, %{username: username, email: email, role: :admin})
+
+      assert updated.username == username
+      assert updated.email == email
+      assert updated.role == :admin
+      assert Accounts.get_user!(user.id) == updated
+    end
+
+    test "takes the attributes a form sends: string keys and a role as a string" do
+      user = user_fixture()
+      username = unique_user_username()
+
+      assert {:ok, updated} =
+               Accounts.update_user(user, %{"username" => username, "role" => "admin"})
+
+      assert {updated.username, updated.role} == {username, :admin}
+    end
+
+    test "changes nothing else: a password or a confirmation among the attributes is ignored" do
+      user = unconfirmed_user_fixture()
+
+      assert {:ok, updated} =
+               Accounts.update_user(user, %{
+                 role: :admin,
+                 password: "another long password",
+                 confirmed_at: DateTime.utc_now(:second)
+               })
+
+      assert updated.confirmed_at == nil
+      assert updated.hashed_password == user.hashed_password
+      assert Accounts.get_user_by_username_and_password(user.username, valid_user_password())
+      refute Accounts.get_user_by_username_and_password(user.username, "another long password")
+    end
+
+    test "holds the username to the rules registration holds it to, and changes nothing when it breaks one" do
+      user = user_fixture()
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Accounts.update_user(user, %{username: "no spaces", role: :admin})
+
+      assert errors_on(changeset).username == [@username_character_error]
+      assert Accounts.get_user!(user.id) == user
+
+      assert {:error, changeset} = Accounts.update_user(user, %{username: nil, role: nil})
+      assert %{username: ["can't be blank"], role: ["can't be blank"]} = errors_on(changeset)
+    end
+
+    test "refuses a username another user has, whatever its letter case" do
+      taken = user_fixture()
+      user = user_fixture()
+
+      assert {:error, changeset} =
+               Accounts.update_user(user, %{username: String.upcase(taken.username)})
+
+      assert errors_on(changeset).username == ["has already been taken"]
+    end
+
+    test "keeps a user's own username, in another letter case too" do
+      user = user_fixture()
+
+      assert {:ok, updated} =
+               Accounts.update_user(user, %{username: String.upcase(user.username)})
+
+      assert updated.username == String.upcase(user.username)
+    end
+
+    test "holds the email to the rules registration holds it to, and refuses one another user has" do
+      taken = user_fixture()
+      user = user_fixture()
+
+      assert {:error, changeset} =
+               Accounts.update_user(user, %{email: String.upcase(taken.email)})
+
+      assert errors_on(changeset).email == ["has already been taken"]
+
+      assert {:error, changeset} = Accounts.update_user(user, %{email: "no-at-sign"})
+      assert errors_on(changeset).email == ["must have the @ sign and no spaces"]
+
+      assert {:error, changeset} = Accounts.update_user(user, %{email: nil})
+      assert errors_on(changeset).email == ["can't be blank"]
+
+      assert Accounts.get_user!(user.id).email == user.email
+    end
+
+    # The admin vouches for the address, as for a login they create.
+    test "leaves the confirmation as it was when the email changes" do
+      confirmed = user_fixture()
+      unconfirmed = unconfirmed_user_fixture()
+
+      assert {:ok, %User{confirmed_at: %DateTime{}}} =
+               Accounts.update_user(confirmed, %{email: unique_user_email()})
+
+      assert {:ok, %User{confirmed_at: nil}} =
+               Accounts.update_user(unconfirmed, %{email: unique_user_email()})
+    end
+
+    test "refuses a role that is neither member nor admin" do
+      user = user_fixture()
+
+      assert {:error, changeset} = Accounts.update_user(user, %{role: :owner})
+      assert errors_on(changeset).role == ["is invalid"]
+    end
+
+    # The last-admin rule (#373) holds whichever function changes the role.
+    test "refuses to demote the last admin, and changes nothing, the username included" do
+      admin = admin_fixture()
+      user_fixture()
+
+      assert Accounts.update_user(admin, %{username: unique_user_username(), role: :member}) ==
+               {:error, :last_admin}
+
+      assert Accounts.get_user!(admin.id) == admin
+    end
+
+    test "renames the last admin, who stays an admin" do
+      admin = admin_fixture()
+      username = unique_user_username()
+
+      assert {:ok, renamed} = Accounts.update_user(admin, %{username: username})
+      assert {renamed.username, renamed.role} == {username, :admin}
+    end
+
+    test "demotes an admin while another admin remains" do
+      admin = admin_fixture()
+      admin_fixture()
+
+      assert {:ok, demoted} = Accounts.update_user(admin, %{role: :member})
+      assert demoted.role == :member
+    end
+
+    test "goes by the role in the database, not the role on the struct it is given" do
+      admin = admin_fixture()
+      stale = %{admin | role: :member}
+
+      assert Accounts.update_user(stale, %{role: :member}) == {:error, :last_admin}
+      assert Accounts.get_user!(admin.id).role == :admin
+    end
+  end
+
+  describe "change_user/2" do
+    test "returns a changeset for the username, the email and the role, and nothing else" do
+      user = user_fixture()
+      username = unique_user_username()
+
+      assert %Ecto.Changeset{} = changeset = Accounts.change_user(user)
+      assert changeset.changes == %{}
+
+      email = unique_user_email()
+
+      changeset =
+        Accounts.change_user(user, %{
+          username: username,
+          email: email,
+          role: :admin,
+          password: "another long password"
+        })
+
+      assert changeset.valid?
+      assert changeset.changes == %{username: username, email: email, role: :admin}
+    end
+
+    test "validates as update_user/2 does, without asking the database whether the username or the email is taken" do
+      taken = user_fixture()
+      user = user_fixture()
+
+      assert errors_on(Accounts.change_user(user, %{username: "x"})).username ==
+               ["should be at least 3 character(s)"]
+
+      assert errors_on(Accounts.change_user(user, %{email: "no-at-sign"})).email ==
+               ["must have the @ sign and no spaces"]
+
+      assert Accounts.change_user(user, %{username: taken.username, email: taken.email}).valid?
+    end
+  end
+
+  describe "change_user_creation/2" do
+    test "returns a changeset for a new login: username, email, password and role" do
+      assert %Ecto.Changeset{} = changeset = Accounts.change_user_creation(%User{})
+      assert Enum.sort(changeset.required) == [:email, :password, :role, :username]
+    end
+
+    test "validates as create_user/1 does, without hashing the password or asking whether the username is taken" do
+      taken = user_fixture()
+
+      changeset =
+        Accounts.change_user_creation(%User{}, %{
+          username: taken.username,
+          email: taken.email,
+          password: valid_user_password(),
+          role: :member
+        })
+
+      assert changeset.valid?
+      assert get_change(changeset, :password) == valid_user_password()
+      assert is_nil(get_change(changeset, :hashed_password))
+
+      invalid = Accounts.change_user_creation(%User{}, %{username: "x", password: "short"})
+
+      assert %{
+               username: ["should be at least 3 character(s)"],
+               email: ["can't be blank"],
+               password: ["should be at least 12 character(s)"],
+               role: ["can't be blank"]
+             } = errors_on(invalid)
     end
   end
 end

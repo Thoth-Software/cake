@@ -75,7 +75,7 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   # Mostly asked to step down or be deleted: contention for the last admin is
   # the case this file is for.
   defp admin_request do
-    frequency([{4, member_of([:demote, :delete])}, {1, constant(:none)}])
+    frequency([{4, member_of([:demote, :demote_by_update, :delete])}, {1, constant(:none)}])
   end
 
   # A population: `{role, request}` per user, with at least one admin.
@@ -119,6 +119,9 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   defp ask(user, :demote), do: fn -> Accounts.update_user_role(user, :member) end
   defp ask(user, :delete), do: fn -> Accounts.delete_user(user) end
 
+  # The admin panel's way to change a role (#376), held to the same rule.
+  defp ask(user, :demote_by_update), do: fn -> Accounts.update_user(user, %{role: :member}) end
+
   # Starts one process per request, each waiting for `:go` on a connection of
   # its own, releases them together, and returns their answers in order.
   defp race(requests) do
@@ -157,12 +160,13 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   defp refused?(%{answer: answer}), do: answer == {:error, :last_admin}
 
   defp removal?(%{role: role, request: request}),
-    do: role == :admin and request in [:demote, :delete]
+    do: role == :admin and request in [:demote, :demote_by_update, :delete]
 
   # The role a user ends with if the database applied exactly the requests
   # answered `:ok`; `:deleted` for a user who is gone.
   defp role_after(%{answer: {:ok, %User{}}, request: :promote}), do: :admin
   defp role_after(%{answer: {:ok, %User{}}, request: :demote}), do: :member
+  defp role_after(%{answer: {:ok, %User{}}, request: :demote_by_update}), do: :member
   defp role_after(%{answer: {:ok, %User{}}, request: :delete}), do: :deleted
   defp role_after(%{role: role}), do: role
 
@@ -275,6 +279,8 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
 
   for {name, request} <- [
         {"demotion", quote(do: &Accounts.update_user_role(&1, :member))},
+        {"demotion through update_user/2",
+         quote(do: &Accounts.update_user(&1, %{role: :member}))},
         {"deletion", quote(do: &Accounts.delete_user/1)}
       ] do
     test "a #{name} that arrives while the same user's promotion is uncommitted is refused once it commits" do

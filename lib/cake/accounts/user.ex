@@ -14,9 +14,10 @@ defmodule Cake.Accounts.User do
   (`Cake.Accounts.set_user_confirmed/3`).
 
   A user has a role, `:member` or `:admin`. Registration never sets it: a
-  registered user is a member. Only `creation_changeset/3` and
-  `role_changeset/2` cast it, and `Cake.Accounts` is where they are used, so
-  that the rule about the last admin is applied in one place.
+  registered user is a member. Only `creation_changeset/3`,
+  `role_changeset/2` and `update_changeset/3` cast it, and `Cake.Accounts`
+  is where they are used, so that the rule about the last admin is applied
+  in one place.
   """
 
   use Cake.Schema
@@ -146,6 +147,35 @@ defmodule Cake.Accounts.User do
     user
     |> cast(attrs, [:role])
     |> validate_required([:role])
+  end
+
+  @doc """
+  A changeset for what an admin may change about a user: the username, the
+  email and the role, as `Cake.Accounts.update_user/2` does. Nothing else is
+  cast: not a password, and not the confirmation, which a changed email
+  leaves as it was (the admin vouches for the address, as for a login they
+  create).
+
+  The username and the email are held to the rules
+  `registration_changeset/3` holds them to, the email being required.
+  As in `role_changeset/2`, the role only has to be one a user can have:
+  whether this user may lose the one they hold is `Cake.Accounts`'s to
+  decide.
+
+  ## Options
+
+    * `:validate_username` and `:validate_email` - as in
+      `registration_changeset/3`. Both default to `true`.
+  """
+  @spec update_changeset(t(), map(), keyword()) :: Ecto.Changeset.t()
+  def update_changeset(user, attrs, opts \\ []) do
+    user
+    |> cast(attrs, [:role, :email])
+    |> validate_required([:role, :email])
+    |> cast_username(attrs)
+    |> validate_username(opts)
+    |> validate_email(opts)
+    |> sanitize_text_fields()
   end
 
   # `cast/4` trims a value before it decides whether the value is empty, so a
