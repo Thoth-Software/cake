@@ -58,7 +58,10 @@ defmodule Cake.Books.Pipeline do
   @doc "The source format this pipeline handles (e.g. `:pdf`)."
   @callback format() :: atom()
 
-  @doc "Human-readable message logged when a run completes."
+  @doc """
+  Human-readable message for a completed run. It becomes the run summary's
+  `message`, which the upload page shows; nothing logs it.
+  """
   @callback success_message() :: String.t()
 
   @typedoc """
@@ -253,7 +256,8 @@ defmodule Cake.Books.Pipeline do
   # A storage key is an identifier, so an unstorable key is rejected rather
   # than sanitized: any rewrite would point at a different object. Postgres
   # text columns reject invalid UTF-8 outright and cannot hold NUL; NUL is
-  # valid UTF-8, but `Cake.Schema.sanitize_text_fields/1` would strip it from
+  # valid UTF-8, but `Cake.Schema.sanitize_text_fields/2` (the helper behind
+  # each schema's injected `sanitize_text_fields/1`) would strip it from
   # `ParsedBook.source_file_path` and `FailedIngest.input_identifier`, so a
   # retry would load a different key than the one that failed.
   defp valid_path?(path) do
@@ -409,8 +413,9 @@ defmodule Cake.Books.Pipeline do
   the book's final status write of the run (`embed_all_chunks/4` set
   `:processing` when embedding began), placed after the index stage on
   purpose — it is the durable record `Persistence` reads to decide whether
-  a later `file_hash` hit is a duplicate or a book to resume. Emits the
-  indexed chunks.
+  a later `file_hash` hit is a duplicate or a book to resume. Emits one
+  element per indexed chunk: `:indexed`, or the chunk itself when the
+  search backend is skipped.
   """
   @spec index_books_and_update_statuses(Enumerable.t(), Pipelines.Context.t()) :: Enumerable.t()
   def index_books_and_update_statuses(embedded_books_stream, %Pipelines.Context{} = ctx) do
