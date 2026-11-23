@@ -120,15 +120,15 @@ Tests are the contract; code satisfies it. Tests written after the implementatio
 
 ## Typespecs, DI, Result Tuples
 
-- **Every public function has a `@spec`.** No exceptions — including `@impl` callback implementations, so specs appear in LLM context. An `@impl` spec's return type is a subset of the callback's. Its argument types narrow the callback's only for values the implementing module itself produces (its state, a `start_async` result, a name it chose); arguments the framework or other processes produce (messages, requests, exit reasons, `from`) keep the callback's type, usually `term()`. Dialyzer flags only an argument or return with *nothing in common* with the callback's, so this rule is enforced in review, not by the gate.
-- **`term()` is for values whose shape the module genuinely cannot know**, never a stand-in for a type another spec already names. If the value comes from one call with a typed result, the spec names that type.
-- **Every custom struct defines `@type t :: %__MODULE__{}`** with all fields typed. Use `MyStruct.t()` in specs, never `%MyStruct{}`.
-- **Every `@type` has a `@typedoc`**, struct `t/0` included. `@typep` is exempt.
-- Behaviour callbacks (`@callback`) and protocol functions (`@spec`) get full typespecs.
-- Retrieval callbacks return `[struct()]`, not a specific struct type — deliberate (see GDS behaviour docs in README).
-- **List-of-struct args use `when is_list(arg)` guards**, not head-matching on list elements. The `@spec` controls what the list contains; the guard validates the container type at runtime.
-- **DI is for Mox, not runtime polymorphism:** modules depending on external services accept collaborator modules as args (or read them from config); define a behaviour, implement it, provide a mock in test. `Cake.Conversation` requires a `:gds` opt validated in `start_link/1`/`start/1` before the GenServer spawns (`init/1` only builds state). Follow the same required-opt pattern for future orchestration-layer modules.
-- **Result tuples:** every fallible pipeline operation reports through `{:ok, _}`/`{:error, _}`, with the exceptions, the stream-callback detuple rule and the pipeline-fatal `with` chain spelled out in `priv/reference/creating-things.md` (loaded by the trigger row for creating or modifying a pipeline).
+- **Every public function you write has a `@spec`**, `@impl` callback implementations included, and every `@callback` and protocol function is fully typed. Two things are exempt: the lower-arity heads the compiler generates for default arguments (spec the full arity), and `__using__/1` macros.
+- **An `@impl` spec's return type is a subset of the callback's.** Its argument types narrow the callback's only for values the module itself produces (its state, a `start_async` result, a name it chose); what the framework or another process sends keeps the callback's type, usually `term()`. Dialyzer does not check this; review does.
+- **`term()` is for a value whose shape the module cannot know**, never a stand-in for a type another spec already names.
+- **Every custom struct defines `@type t :: %__MODULE__{}`** with every field typed; specs say `MyStruct.t()`, never `%MyStruct{}`.
+- **Every `@type` has a `@typedoc`**, struct `t/0` included; `@typep` is exempt.
+- Retrieval callbacks return `[struct()]`, not a specific struct, on purpose (the `Cake.GDS` moduledoc, "Return types", says why).
+- **List-of-struct arguments are guarded with `when is_list(arg)`**, not matched on their elements: the `@spec` says what the list holds, the guard checks the container.
+- **DI is for Mox, not runtime polymorphism.** A module that depends on an external service takes its collaborator as an argument or from config, behind a behaviour with a mock. An orchestration-layer module validates its required opts before it spawns, as `Cake.Conversation.start_link/1` and `start/1` do for `:gds`.
+- **Result tuples:** every fallible pipeline operation reports `{:ok, _}`/`{:error, _}`; the exceptions are in `priv/reference/creating-things.md`.
 
 ---
 
