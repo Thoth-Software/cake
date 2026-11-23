@@ -145,8 +145,9 @@ After a task that changes architecture, module boundaries, conventions or toolin
 
 ## Known Defects and Deferred Work
 
-One line each; the detail lives in the linked issue.
-- **Post-demo formats** (README "Roadmap"): Word, Excel, CSV, JPG pipelines are explicitly deferred.
-- **xref coupling ratchet (#208):** `--fail-above 3` baseline comes from `Conversation.State`'s defstruct DI defaults; ratchets to 0 once those are decoupled.
-- **Book status after a sweep (#305, found by #248):** `Books.Pipeline.ingest_with_sweep/5` leaves `embedding_status` at `:failed` after `retry_from_chunk` resolves a book's last failing chunk.
-- **Hexdocs sources with several top-level forms (#291, found by #248):** `Hexdoc.to_parsed_docs/1` accepts only a bare `defmodule` AST, so `enum.ex`, `kernel.ex`, `string.ex` and the like yield no `ParsedDocument` and no `FailedIngest`.
+An entry belongs here when you would otherwise fix the defect in passing, or trust code that is known to be wrong. One line each; the detail is in the issue.
+
+- **xref coupling ratchet (#208):** the `--fail-above 3` baseline comes from `Conversation.State`'s defstruct DI defaults; it ratchets to 0 once those are decoupled.
+- **Book status after a sweep (#305):** `Books.Pipeline.ingest_with_sweep/5` leaves `embedding_status` at `:failed` after `retry_from_chunk` resolves a book's last failing chunk.
+- **Hexdocs sources with several top-level forms (#291):** `Hexdoc.to_parsed_docs/1` accepts only a bare `defmodule` AST, so `enum.ex`, `kernel.ex`, `string.ex` and the like yield no `ParsedDocument` and no `FailedIngest`.
+- **Post-demo formats (#418):** Word, Excel, CSV and JPG pipelines are deferred.
