@@ -57,7 +57,7 @@ The rules in `.claude/rules/` load themselves when you open a file their `paths:
 
 Run `mix precommit` before every push. It runs compile `--force --warnings-as-errors`, `format --check-formatted` and `credo --strict` in the dev env (where the `boundary` compiler runs), then `test --exclude integration` in the test env, and stops at the first failure. Every gate must pass before you present changes: zero warnings, zero credo issues, zero test failures. `mix quality.fast` (compile, credo, unused-deps check; no database) and `mix quality` (the same plus dialyzer) are lighter loops for iteration.
 
-If the session-start hook printed a line beginning `!!` (`toolchain`, `postgres`, `lawspec`), fix what it names before trusting a gate.
+If the session-start hook printed a line beginning `!!`, fix what it names before trusting a gate.
 
 CI (`.github/workflows/quality.yml`) also runs gates `mix precommit` does not. Run the ones your change can trip:
 
@@ -75,7 +75,7 @@ The last two gate the images, not the code. A failure there is a finding about t
 
 ### Test tags and run modes
 
-A plain `mix test` excludes three tags, split by what a test needs. Each is a merge gate, run on its own:
+A plain `mix test` excludes three tags, split by what a test needs. Two merge gates run them, each in a run of its own: the `integration` job (`:integration` with `:network`) and the `llm` job.
 
 - `:integration` — real OpenSearch, object store, NIF and Oban. `docker compose up -d opensearch moto`, then `mix test --only integration`.
 - `:network` — the integration tests that also clone from the public internet. `mix test --only integration --include network` is the gate's command. Never `--only network` or `--include network` without `--only integration`.
