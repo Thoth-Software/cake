@@ -27,8 +27,8 @@ defmodule CakeWeb.AdminJourneyTest do
   @not_authorized "You are not authorized to access this page."
 
   # The dev login `priv/repo/seeds.exs` creates. If the seed changes its
-  # username or password, `docs/architecture/web.md` and anyone's habits change
-  # with it, and so does this.
+  # username or password, anyone's habits change with it, and so does this;
+  # `docs/architecture/web.md` names the username.
   @seeded_username "admin"
   @seeded_password "adminpassword@1234"
 
