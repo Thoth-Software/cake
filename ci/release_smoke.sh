@@ -26,7 +26,13 @@
 #   2. migrations  `bin/migrate` (Cake.Release.migrate/0) against a Postgres
 #                  container applies every migration under
 #                  priv/repo/migrations.
-#   3. no_seeds    No seeds.exs anywhere in the release (/app): priv/repo/seeds.exs
+#   3. host_nif    Nothing from the host's priv/native is in the release. The
+#                  script plants a marker file there before building (planted,
+#                  below), as a host-built NIF would lie there; the release's
+#                  priv/native must hold parsebooks.so and nothing else. That
+#                  passes only while Dockerfile.release.dockerignore or the
+#                  Dockerfile's own `rm` keeps the directory out.
+#   4. no_seeds    No seeds.exs anywhere in the release (/app): priv/repo/seeds.exs
 #                  creates a login whose password is in the repo, and a
 #                  release that does not carry the file cannot run it.
 #
@@ -37,11 +43,11 @@
 # through `bin/cake eval`) and `db_query` (SQL against the smoke database,
 # which the migrations check has migrated by then and nothing has seeded).
 #
-# Everything the script creates (the Postgres container and the network) is
-# removed on exit, success or failure; on failure the Postgres log is printed
+# Everything the script creates (the Postgres container, the network and the
+# planted marker file) is removed on exit, success or failure; on failure the Postgres log is printed
 # first, if Postgres was started. The built image is left in the local image store, where it is the
 # next run's layer cache. RELEASE_SMOKE_KEEP=1 leaves the container and the
-# network up for a look around.
+# network up for a look around (the marker file is removed all the same).
 #
 # Knobs (all optional):
 #   RELEASE_SMOKE_IMAGE          tag given to the built image (default
@@ -58,8 +64,8 @@
 #                                builds need a proxy or a host network; CI
 #                                passes nothing.
 #   RELEASE_SMOKE_POSTGRES_IMAGE the Postgres image (default postgres:14, the
-#                                release docker-compose.yml and the CI service
-#                                containers run).
+#                                version that docker-compose.yml and the CI
+#                                service containers run).
 #   RELEASE_SMOKE_DB_TIMEOUT     seconds to wait for Postgres to accept
 #                                connections (default 120).
 
@@ -77,7 +83,7 @@ RELEASE_SMOKE_DB_TIMEOUT="${RELEASE_SMOKE_DB_TIMEOUT:-120}"
 # The checks, in the order they run against the built image. `migrations`
 # leaves the smoke database migrated, so a check that reads the schema goes
 # after it.
-checks=(nif migrations no_seeds)
+checks=(nif migrations host_nif no_seeds)
 
 network="$RELEASE_SMOKE_PROJECT"
 db_container="$RELEASE_SMOKE_PROJECT-db"
@@ -104,6 +110,16 @@ release_env=(
   --env "BOOK_STORAGE_S3_BUCKET=release-smoke-placeholder-bucket"
 )
 
+# The marker planted in the build context before the build (check_host_nif).
+# priv/native is where Rustler writes the NIF and is gitignored, so a fresh
+# checkout has none and a developer's has their host-built parsebooks.so. The
+# marker is a second file there, under a name nothing else uses: Rustler would
+# overwrite a planted parsebooks.so when it compiles the crate, and the check
+# could not tell.
+host_nif_dir=priv/native
+host_nif_marker=release-smoke-planted-host-nif.so
+created_host_nif_dir=0
+
 poll_interval=2
 
 log() { printf '==> %s\n' "$*"; }
@@ -126,8 +142,17 @@ cleanup() {
     fi
   fi
 
+  rm -f "$host_nif_dir/$host_nif_marker"
+  if [ "$created_host_nif_dir" = "1" ]; then
+    rmdir "$host_nif_dir" 2>/dev/null || true
+  fi
+
   if [ "${RELEASE_SMOKE_KEEP:-0}" = "1" ]; then
-    log "RELEASE_SMOKE_KEEP=1: leaving $db_container and the $network network up"
+    if docker container inspect "$db_container" >/dev/null 2>&1; then
+      log "RELEASE_SMOKE_KEEP=1: leaving $db_container and the $network network up"
+    else
+      log "RELEASE_SMOKE_KEEP=1: nothing to leave up (Postgres was never started)"
+    fi
   else
     log "Removing the Postgres container and the network"
     docker rm --force --volumes "$db_container" >/dev/null 2>&1 || true
@@ -198,12 +223,27 @@ start_db() {
   wait_until "$RELEASE_SMOKE_DB_TIMEOUT" "Postgres accepts connections" db_ready
 }
 
+# Plants the marker check_host_nif looks for. Removed by cleanup, with the
+# directory if this created it.
+plant_host_nif() {
+  if [ ! -d "$host_nif_dir" ]; then
+    mkdir -p "$host_nif_dir"
+    created_host_nif_dir=1
+  fi
+
+  printf 'planted by ci/release_smoke.sh; must never reach the release image\n' \
+    >"$host_nif_dir/$host_nif_marker"
+  log "Planted $host_nif_dir/$host_nif_marker in the build context"
+}
+
 build_image() {
   local build_opts=()
   read -r -a build_opts <<<"$RELEASE_SMOKE_BUILD_OPTS"
 
   log "Building $RELEASE_SMOKE_IMAGE from $RELEASE_SMOKE_DOCKERFILE"
-  docker build "${build_opts[@]}" \
+  # ${arr[@]+...}: bash before 4.4 (macOS ships 3.2) treats expanding an empty
+  # array as an unbound variable under `set -u`.
+  docker build ${build_opts[@]+"${build_opts[@]}"} \
     --file "$RELEASE_SMOKE_DOCKERFILE" --tag "$RELEASE_SMOKE_IMAGE" . ||
     fail "The release image does not build from $RELEASE_SMOKE_DOCKERFILE"
   log "The release image builds"
@@ -243,6 +283,24 @@ check_migrations() {
   log "bin/migrate applied all $applied migrations"
 }
 
+# The release's priv/native is searched by name, not by a fixed path, because
+# the path carries the app's version (lib/cake-<vsn>/priv/native).
+check_host_nif() {
+  local found
+
+  found=$(release sh -c 'find /app/lib -path "*/cake-*/priv/native/*" | sort') ||
+    fail "Could not list the release's priv/native"
+
+  # Exactly one file, and it is the NIF the builder stage compiled.
+  case "$found" in
+    *$'\n'*) fail "Files from the host's $host_nif_dir reached the release image: $(printf '%s' "$found" | tr '\n' ' ')" ;;
+    */priv/native/parsebooks.so) ;;
+    *) fail "The release's priv/native should hold parsebooks.so and nothing else, found: ${found:-nothing}" ;;
+  esac
+
+  log "Nothing from the host's $host_nif_dir is in the release"
+}
+
 check_no_seeds() {
   local found
 
@@ -256,6 +314,7 @@ check_no_seeds() {
 
 # The image is built before Postgres is started: a build failure is the
 # likeliest one, and it needs no database to report.
+plant_host_nif
 build_image
 start_db
 

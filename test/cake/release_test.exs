@@ -6,11 +6,13 @@ defmodule Cake.ReleaseTest do
   alias Cake.Release
 
   # The test database is already migrated (the `test` alias runs ecto.migrate),
-  # so both functions are exercised on their no-op paths: enough to pin the
-  # shape of what they return and that they run without Mix's tasks, which is
-  # how a release calls them (`bin/migrate`, `bin/cake eval`). That every
-  # migration applies to an empty database from inside the release image is
-  # ci/release_smoke.sh's assertion, not this file's.
+  # so both functions are exercised on their no-op paths only. That pins the
+  # shape of what they return and that they leave a migrated database alone,
+  # and nothing more: these tests cannot tell a migration from a rollback, and
+  # under `mix test` Mix is loaded, so they do not show the functions work
+  # without it. That every migration applies to an empty database from inside
+  # the release image, where there is no Mix, is ci/release_smoke.sh's
+  # assertion. Running both directions against a scratch database is #409.
 
   describe "migrate/0" do
     test "reports one result per configured repo and applies nothing to a migrated database" do

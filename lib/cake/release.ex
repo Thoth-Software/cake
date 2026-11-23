@@ -12,8 +12,14 @@ defmodule Cake.Release do
 
   `bin/migrate` is `rel/overlays/bin/migrate`, which Mix copies into the
   release. Neither function starts `:cake`: `Ecto.Migrator.with_repo/3` starts
-  the repo and what it needs, runs, and stops it again, so migrating needs a
-  reachable database (`DATABASE_URL`) and nothing else the running app needs.
+  the repo and what it needs, runs, and stops it again, so migrating reaches
+  the database and none of the other services the running app needs.
+
+  It still needs the app's environment, though. `bin/cake eval` evaluates
+  `config/runtime.exs` before anything runs, and its prod block raises unless
+  `DATABASE_URL`, `SECRET_KEY_BASE`, `OPENAI_KEY` and `BOOK_STORAGE_S3_BUCKET`
+  are all set, whether or not the command uses them. Run `bin/migrate` with the
+  environment the server gets.
 
   There is deliberately no seeding function. `priv/repo/seeds.exs` creates a
   login whose password is in the repository; a release never runs it, and the
