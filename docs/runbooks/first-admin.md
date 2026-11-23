@@ -17,7 +17,7 @@ IFS= read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
 mix run -e 'case Cake.Accounts.create_user(%{username: "caleb", email: "caleb@example.com", password: System.fetch_env!("ADMIN_PASSWORD"), role: :admin}) do {:ok, user} -> IO.puts("created #{user.username} (#{user.role})"); {:error, changeset} -> IO.inspect(changeset.errors); System.halt(1) end'
 ```
 
-In a release (#361) the call goes through `bin/cake rpc`, which evaluates the expression on the running node. That node does not have the environment of the shell that ran `rpc`, so the password comes from standard input, which `rpc` does pass through:
+In a release the call goes through `bin/cake rpc`, which evaluates the expression on the running node. That node does not have the environment of the shell that ran `rpc`, so the password comes from standard input, which `rpc` does pass through:
 
 ```bash
 IFS= read -rs ADMIN_PASSWORD
