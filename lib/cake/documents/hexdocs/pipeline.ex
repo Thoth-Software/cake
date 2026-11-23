@@ -2,8 +2,10 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
   @moduledoc """
   Implements the document ingestion pipeline for hexdocs.
 
-  `to_hexdoc_attrs/2` is public so tests can drive that stage directly. It
-  is `@doc false`: not part of the API.
+  `to_hexdoc_attrs/2`, a step of `persist_raw_docs/2`, and `list_files/1`,
+  which `download/1` uses to walk the cloned source tree, are public though
+  nothing outside this module calls them, its tests included. Both are
+  `@doc false`: not part of the API.
   """
 
   @behaviour Cake.Documents.Pipeline
@@ -191,6 +193,7 @@ defmodule Cake.Documents.Hexdocs.Pipeline do
     end
   end
 
+  @doc false
   @spec list_files(String.t()) :: [String.t()]
   def list_files(path) do
     all_paths =

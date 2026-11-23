@@ -22,6 +22,11 @@ defmodule Cake.Documents.Pipeline do
   The default embedding model, right now, is "text-embedding-ada-002":
 
       Cake.Documents.Pipeline.ingest(:openai, Cake.Documents.Hexdocs.Pipeline, {1, 18, 3}, "text-embedding-ada-002")
+
+  `batch_embed/5`, a stage of `ingest/4`, and
+  `unwrap_persisted_doc_result/1`, a step of its persist stage, are public
+  so tests can drive them directly. They are `@doc false`: not part of the
+  API.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -254,6 +259,7 @@ defmodule Cake.Documents.Pipeline do
   end
 
   # TODO: give `ctx` a custom type the Dialyzer can check instead of `map()`.
+  @doc false
   @spec batch_embed(Enumerable.t(), atom(), atom(), String.t(), map()) :: Enumerable.t()
   def batch_embed(
         persisted_parsed_docs_stream,

@@ -26,8 +26,11 @@ defmodule Cake.Books.Pipeline do
   ## Stage functions
 
   `persist_books_and_chunks/2,3` and `munge_persisted_stream/1` are public
-  so tests can drive a single stage directly. They are `@doc false`: not
-  part of the API, and free to change with `ingest/4`.
+  so tests can drive a single stage directly. `load_all_binaries/3`,
+  `parse_all_binaries/3` and `embed_all_chunks/4` are stages of `ingest/4`
+  as well, and public though nothing outside this module calls them, its
+  tests included. All five are `@doc false`: not part of the API, and free
+  to change with `ingest/4`.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -265,6 +268,7 @@ defmodule Cake.Books.Pipeline do
       String.trim(path) != ""
   end
 
+  @doc false
   @spec load_all_binaries([String.t()], atom(), Pipelines.Context.t()) :: {:ok, Enumerable.t()}
   def load_all_binaries(paths, format_pipeline, ctx) do
     binary_stream =
@@ -277,6 +281,7 @@ defmodule Cake.Books.Pipeline do
     {:ok, binary_stream}
   end
 
+  @doc false
   @spec parse_all_binaries(atom(), Enumerable.t(), Pipelines.Context.t()) :: {:ok, Enumerable.t()}
   def parse_all_binaries(format_pipeline, binary_stream, ctx) do
     books_and_chunks_stream =
@@ -367,6 +372,7 @@ defmodule Cake.Books.Pipeline do
 
   defp skip_duplicate?(_result), do: false
 
+  @doc false
   @spec embed_all_chunks(Enumerable.t(), atom(), String.t(), Pipelines.Context.t()) ::
           {:ok, Enumerable.t()}
   def embed_all_chunks(persisted_stream, embedding_service, embedding_model, ctx) do
