@@ -14,18 +14,13 @@ Refactored 2026-07-12: task-specific policy moved out of this file to
 
 # CLAUDE.md — Operational Contract for Cake
 
-This file governs how you work on Cake. The README describes what things are and why; this file tells you what you must do. Read both before making changes. If this file contradicts what you infer from the code, **this file wins** — flag the discrepancy rather than silently following the code.
-
-For architecture, module responsibilities, schemas, domain model, cardinality, behaviours, protocols, and the RAG loop, read the README. Don't duplicate that here — reference it.
+This file says what you must do when you work on Cake; the README says what things are and why (reference it, don't restate it here). If this file contradicts what you infer from the code, **this file wins**: flag the discrepancy rather than silently following the code.
 
 ---
 
 ## Context Loading
 
-### Always load before any task
-- `README.md` — architecture reference. Understand the domain model and module boundaries before touching code.
-- `priv/reference/naming-conventions.md` — for any task involving naming (modules, functions, variables, atoms).
-- `priv/reference/enum-cheat.cheatmd` — before writing any collection transformation. If about to write explicit recursion over a list, check this first.
+**Always load:** `README.md` (the domain model, the layers and which way they depend), `priv/reference/naming-conventions.md`, and `priv/reference/enum-cheat.cheatmd` (before any collection transformation or explicit recursion over a list).
 
 ### Load by trigger
 Load the full file when the task matches the trigger. Reference files live in `priv/reference/`.
@@ -42,7 +37,7 @@ Load the full file when the task matches the trigger. Reference files live in `p
 | Create or modify a GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct | `priv/reference/creating-things.md` |
 | Add/modify a GDS, or implement `Cake.GDS`/`Cake.Promptable`/`Cake.Citable` | README "Cardinality" + "Adding a New GDS"; `lib/cake/gds.ex` + `promptable.ex` + `citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md` |
 | Add/modify a decomposition strategy, or touch `Cake.Decomposition` | README "Query Decomposition"; `lib/cake/decomposition.ex` + `decomposition/result.ex`; `decomposition/llm.ex` as reference implementation |
-| Change `Cake.Decomposition.Result`, or any module listed in `@cake_sources` in `lawspec/mix.exs`; add a LawSpec specification | `lawspec/README.md`; the module's `.lawspec` file under `lawspec/laws/` (update the laws first, as with any test), regenerate, and run the `laws` job's steps under OTP 29 |
+| Change a module listed in `@cake_sources` in `lawspec/mix.exs`, or add a LawSpec specification | `lawspec/README.md`; update the module's `.lawspec` file first, as with any test, regenerate, and run the `laws` job's steps |
 | Add a `Cake.Search.Backend` implementation, or change `Backend.OpenSearch` / `Search.Deployment` | README "Search Design"; `test/support/backend_conformance.ex` (instantiate it for the new backend) + `test/support/search_integration_case.ex`; run `mix test --only integration` (see `.claude/rules/integration-tests.md`) |
 | Change what `Books.Pipeline.ingest/4` / `Documents.Pipeline.ingest/4` / `ingest_with_sweep/5` persist, embed, index or report, or add an end-to-end ingestion test | `.claude/rules/integration-tests.md`; `test/support/ingest_integration_helpers.ex`; the existing `*_integration_test.exs` for the pipeline as reference; run `mix test --only integration --include network` against a real node (the `:network` group clones elixir-lang/elixir) |
 | Change `Cake.Books.Adapters.S3`, ExAws config, or `Cake.S3IntegrationCase`; add a `Cake.Books.Adapters` implementation | `lib/cake/books/adapters.ex` + `adapters/s3.ex` (the "Authentication" and "Errors" sections); `test/support/s3_integration_case.ex`; `test/cake/books/adapters/s3_integration_test.exs` as reference; run `mix test --only integration` (see `.claude/rules/integration-tests.md`) |
@@ -55,15 +50,11 @@ Path-scoped rules in `.claude/rules/` auto-load when you work on a file their `p
 
 ## Quality Gates
 
-Run `mix precommit` before every push. It is a Mix task (`lib/mix/tasks/precommit.ex`, not an alias) that runs the pre-push chain one child `mix` process per step with `MIX_ENV` set explicitly, stops at the first failing step, and exits non-zero — so it works the same whatever `MIX_ENV` you invoke it under:
+Run `mix precommit` before every push. It runs compile `--force --warnings-as-errors`, `format --check-formatted` and `credo --strict` in the dev env (where the `boundary` compiler runs), then `test --exclude integration` in the test env, and stops at the first failure. Every gate must pass before you present changes: zero warnings, zero credo issues, zero test failures. `mix quality.fast` (compile, credo, unused-deps check; no database) and `mix quality` (the same plus dialyzer) are lighter loops for iteration.
 
-```bash
-mix precommit  # MIX_ENV=dev: compile --force --warnings-as-errors → format --check-formatted → credo --strict; then MIX_ENV=test: test --exclude integration
-```
+The test step expects the Postgres role `postgres` to have the password `postgres` (config/{dev,test}.exs); the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first, and in Claude Code on the web the session-start hook (`.claude/hooks/session-start.sh`) sets that password and prints `!! postgres:` if it could not.
 
-The compile, format and credo steps run in the dev env (so `--warnings-as-errors` enforces `boundary`); the test step runs in the test env. Every gate must pass before presenting changes: zero warnings, zero credo issues (no inline disables without approval), zero test failures. Two lighter aliases exist for iteration: `mix quality.fast` (compile + credo + `deps.unlock --check-unused`, never touches the database) and `mix quality` (the same plus dialyzer). The test step expects the Postgres role `postgres` to have the password `postgres` (config/{dev,test}.exs); the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first, and in Claude Code on the web the session-start hook sets that password and prints `!! postgres:` if it could not.
-
-In Claude Code on the web that hook (`.claude/hooks/session-start.sh`) also installs the toolchain the gates run on: the Erlang/OTP and Elixir that `.tool-versions` pins, read from that file, so a session compiles and tests on the release lines CI and the two Dockerfiles use. It prints `!! toolchain:` if it could not, and a session on any other toolchain can disagree with CI, on warnings under `--warnings-as-errors` and on what dialyzer reports. To move Cake to another OTP or Elixir, change `.tool-versions` (with the `Dockerfile`, `Dockerfile.release` and `quality.yml`), never the hook.
+In Claude Code on the web that hook also installs the toolchain the gates run on: the Erlang/OTP and Elixir that `.tool-versions` pins, read from that file, so a session compiles and tests on the release lines CI and the two Dockerfiles use. It prints `!! toolchain:` if it could not, and a session on any other toolchain can disagree with CI, on warnings under `--warnings-as-errors` and on what dialyzer reports. To move Cake to another OTP or Elixir, change `.tool-versions` (with the `Dockerfile`, `Dockerfile.release` and `quality.yml`), never the hook.
 
 On-push CI (`.github/workflows/quality.yml`) runs the same checks **plus** gates with no local alias, so run them yourself when a change is likely to trip one:
 
@@ -102,44 +93,39 @@ The detail behind each gate lives in a path-scoped rule that auto-loads when you
 ## When to Stop and Ask
 
 Stop and ask before proceeding when:
-- **Ambiguous scope** — a task reads multiple ways and the difference changes which modules are touched.
-- **Architecture boundary change** — moving a responsibility between modules, adding a module, or changing an existing module's public API. Describe the change and why before doing it.
-- **Behaviour/protocol modification** — adding/removing/changing a callback. Existing implementations will need updating.
-- **CLAUDE.md/README contradicts code** — this file wins; flag it.
-- **Known-defect adjacency** — task touches a known defect or deferred item (see bottom); flag, don't silently resolve.
-- **Uncertain doc update** — unsure whether a change warrants a README/CLAUDE.md edit.
-- **Credo disable** — no inline `# credo:disable-for-this-file` / `# credo:disable-for-next-line` without explicit approval.
-- **Branch management** — each new issue gets its own branch, cut from `master`. Within an issue, stay on its branch.
+- **Ambiguous scope** — a task reads more than one way and the difference changes which modules are touched.
+- **Architecture boundary change** — moving a responsibility between modules, adding a module, or changing a module's public API. Describe the change and why first.
+- **Behaviour/protocol modification** — adding, removing or changing a callback.
+- **Known-defect adjacency** — the task touches an item under "Known Defects and Deferred Work": flag it, don't silently resolve or ignore it.
+- **Uncertain doc update** — unsure whether a change warrants a README or CLAUDE.md edit.
+- **Credo disable** — no inline `# credo:disable-*` without explicit approval.
+- **Branch management** — each issue gets its own branch, cut from `master`; within an issue, stay on its branch.
 
 ---
 
 ## Pull Requests
 
-- Every PR description names the issue it closes with `closes #nnn`.
-- Merges are squash-and-merge.
+Every PR description names the issue it closes with `closes #nnn`. Merges are squash-and-merge.
 
 ---
 
 ## Testing: Ordering and Failure Handling
 
-Tests are the contract; code satisfies it. (Mechanical conventions — fixtures/factory tracks, the property-test preference, the no-`Process.sleep` rule — auto-load via `.claude/rules/test-conventions.md` when you touch `test/`.)
+Tests are the contract; code satisfies it. Tests written after the implementation encode what the code did, not what it should do.
 
-**Ordering — for any behavior change:**
-1. **Spec.** User describes the change.
-2. **Tests first.** Encode the new contract in tests before touching implementation. If the change is non-trivial, push the test diff for review and STOP for approval.
-3. **Human reviews tests** — the tests are the spec.
-4. **Implement** against the reviewed tests.
-5. **Run gates** (Quality Gates above). Iterate on the *implementation*, not the tests, until green.
-6. **Stop and ask** if step 5 keeps failing in ways that suggest the test itself is wrong.
+**For any behaviour change:**
 
-Tests written after implementation encode what the code did, not what it should do. Write them first.
+1. The user describes the change.
+2. **Tests first.** Encode the new contract in tests before touching the implementation. If the change is non-trivial, push the test diff and STOP for approval: the tests are the spec.
+3. Implement against the reviewed tests.
+4. Run the gates. Iterate on the *implementation*, not the tests, until green.
+5. Stop and ask if the gates keep failing in ways that suggest the test itself is wrong.
 
 **When `mix test` is red, classify before reacting:**
-1. Test asserts behavior the spec says is **correct** → fix the implementation; do not edit the test.
-2. Test asserts behavior the spec says **should change** → update the test to the new contract, then the implementation; note the contract change in the PR.
-3. **Neither** (test/spec ambiguous, or the failure surfaces a question neither answers) → **stop, ask.** Do NOT paper over it by deleting assertions, broadening matchers, adding `try/rescue`, or `@tag :skip`.
 
-If you're loosening an assertion to make a test pass, you're almost certainly in case 3.
+1. The test asserts behaviour the spec says is **correct** → fix the implementation; do not edit the test.
+2. The test asserts behaviour the spec says **should change** → update the test to the new contract, then the implementation; note the contract change in the PR.
+3. **Neither** → stop and ask. Do not delete assertions, broaden matchers, add `try/rescue` or `@tag :skip`. If you are loosening an assertion to make a test pass, you are almost certainly here.
 
 ---
 
@@ -163,7 +149,6 @@ After any task that changes architecture, module boundaries, conventions, or too
 1. Review this file and README.md for now-stale sections.
 2. Propose specific edits: "I changed X → section Y should update; here's the diff."
 3. Make approved edits before closing.
-4. Unsure whether a change warrants a doc update? Ask.
 
 **Enumeration rule:** if the README lists things (behaviours, protocols, structs, implementations, pipeline implementations) and you create a new instance of that kind, add it to the list. Every new issue cut must include, as its **final checkbox**, a documentation update that applies this rule — in particular, adding any custom structs the work introduces to the README's struct inventory.
 
@@ -171,7 +156,7 @@ After any task that changes architecture, module boundaries, conventions, or too
 
 ## Known Defects and Deferred Work
 
-If your task touches these, flag rather than silently resolving or ignoring. One line each; the detail lives in the linked issue.
+One line each; the detail lives in the linked issue.
 - **Post-demo formats** (README "Roadmap"): Word, Excel, CSV, JPG pipelines are explicitly deferred.
 - **xref coupling ratchet (#208):** `--fail-above 3` baseline comes from `Conversation.State`'s defstruct DI defaults; ratchets to 0 once those are decoupled.
 - **Book status after a sweep (#305, found by #248):** `Books.Pipeline.ingest_with_sweep/5` leaves `embedding_status` at `:failed` after `retry_from_chunk` resolves a book's last failing chunk.
