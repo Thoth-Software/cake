@@ -7,7 +7,7 @@ defmodule CakeWeb.UserResetPasswordLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <.header>Reset Password</.header>
+      <.header>Reset password</.header>
 
       <%!-- Shown after a refused submit, not while a password is still being
       typed: the notice is an alert, which a screen reader speaks at once. --%>
@@ -38,7 +38,7 @@ defmodule CakeWeb.UserResetPasswordLive do
               required
             />
             <.button phx-disable-with="Resetting..." class="btn btn-primary mt-2 w-full">
-              Reset Password
+              Reset password
             </.button>
           </.form>
         </div>
