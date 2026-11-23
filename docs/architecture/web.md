@@ -38,7 +38,7 @@ Seven LiveViews. A user logs in with a username. Every user also has an email, a
 | Page | Module | Route | What it needs |
 |---|---|---|---|
 | Log in | `CakeWeb.UserLoginLive` | `/users/log_in` | A username and a password. The form posts to `CakeWeb.UserSessionController`, which answers a wrong username and a wrong password alike, and refuses a user whose email is not confirmed, saying so only when the password is right. The page links to the confirmation instructions page. |
-| Register | `CakeWeb.UserRegistrationLive` | `/users/register` | A username, an email and a password. It sends the confirmation instructions and sends the visitor to the log-in page; it logs nobody in. |
+| Register | `CakeWeb.UserRegistrationLive` | `/users/register` | A username, an email and a password. It sends the confirmation instructions and sends the visitor to the log-in page; it logs nobody in. A delivery that failed would crash the page with the user already stored: the mail adapter in use cannot fail, and the module's moduledoc says what a release changes. |
 | Settings | `CakeWeb.UserSettingsLive` | `/users/settings` | A logged-in user. Shows the username, which this page does not change (an admin's action). Offers changing the email, confirmed by a link mailed to the new address (the link opens this same LiveView at `/users/settings/confirm_email/:token`), and changing the password. |
 | Forgot password | `CakeWeb.UserForgotPasswordLive` | `/users/reset_password` | An email. The answer is the same whether or not it matches a user. |
 | Reset password | `CakeWeb.UserResetPasswordLive` | `/users/reset_password/:token` | The token from the reset mail. Resetting a password does not confirm the email (#402). |
