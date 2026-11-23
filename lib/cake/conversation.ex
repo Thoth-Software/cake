@@ -6,7 +6,9 @@ defmodule Cake.Conversation do
 
       :idle --{:autoask, q}-->       :generating        --> :idle
       :idle --{:manualask, q}-->     :retrieving        --> :awaiting_selection
+      :retrieving --retrieval error or task crash--> :idle
       :awaiting_selection --{:select, ids}--> :generating --> :idle
+      :awaiting_selection --{:select, unknown ids}--> :idle
       :generating --{:autoask, q}--> :generating (question queued)
 
   Every slow stage — retrieval for a manual turn, and generation for any
@@ -350,7 +352,8 @@ defmodule Cake.Conversation do
 
   # Runs on every `{:stop, _, _}` return (the owner's exit included). The
   # in-flight task is unlinked, so it would otherwise keep calling the
-  # embedder or model and broadcasting to a topic nobody listens to.
+  # embedder or model for a conversation that is gone. (The task itself
+  # never broadcasts: only the GenServer's callbacks do.)
   @impl GenServer
   @spec terminate(term(), State.t()) :: :ok
   def terminate(_reason, %State{turn_pid: nil}), do: :ok

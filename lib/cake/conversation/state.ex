@@ -22,11 +22,13 @@ defmodule Cake.Conversation.State do
 
       :idle --{:autoask, q}-->       :generating        --> :idle
       :idle --{:manualask, q}-->     :retrieving        --> :awaiting_selection
+      :retrieving --retrieval error or task crash--> :idle
       :awaiting_selection --{:select, ids}--> :generating --> :idle
+      :awaiting_selection --{:select, unknown ids}--> :idle
 
   An `:autoask` during `:generating` is queued in `queued_question` (a
   later one overwrites an earlier one) and replayed when the turn
-  completes; every other invalid transition crashes the GenServer (no
+  ends, whether it completed, failed or crashed; every other invalid transition crashes the GenServer (no
   defensive clauses).
   """
 
