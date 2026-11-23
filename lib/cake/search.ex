@@ -134,7 +134,7 @@ defmodule Cake.Search do
     end
   end
 
-  @doc "Alias of `search_chunks/4` retained for call-site clarity. Same signature."
+  @doc "Alias of `search_chunks/4`, with the same signature. Nothing in `lib/` or `test/` calls it."
   @spec search_docs(search_type(), String.t(), [float()] | nil, search_opts()) ::
           search_result()
   def search_docs(search_type, keywords, embedding \\ nil, opts \\ []) do
