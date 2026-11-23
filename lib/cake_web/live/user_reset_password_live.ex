@@ -1,4 +1,15 @@
 defmodule CakeWeb.UserResetPasswordLive do
+  @moduledoc """
+  The page a password-reset link opens, at `/users/reset_password/:token`:
+  it asks for a new password, twice. A token that
+  `Cake.Accounts.get_user_by_reset_password_token/1` does not accept
+  redirects to `/` with an error flash. `Cake.Accounts.reset_user_password/2`
+  sets the password and deletes the user's sessions, or refuses with errors
+  shown on the form. A reset redirects to the log-in page and logs nobody
+  in, and it does not confirm the email (#402): a user who was unconfirmed
+  is still refused at log-in.
+  """
+
   use CakeWeb, :live_view
 
   alias Cake.Accounts

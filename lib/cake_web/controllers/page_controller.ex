@@ -1,4 +1,10 @@
 defmodule CakeWeb.PageController do
+  @moduledoc """
+  Serves `/`. A visitor gets the home page: the product's name, a line on
+  what it does and a link to the log-in page. A logged-in user is
+  redirected to `/chat`.
+  """
+
   use CakeWeb, :controller
 
   @spec home(Plug.Conn.t(), map()) :: Plug.Conn.t()

@@ -1,4 +1,14 @@
 defmodule CakeWeb.UserConfirmationInstructionsLive do
+  @moduledoc """
+  The page that sends the confirmation instructions again, at
+  `/users/confirm`, open to visitors and logged-in users alike: it asks for
+  an email. If `Cake.Accounts.get_user_by_email/1` finds a user,
+  `Cake.Accounts.deliver_user_confirmation_instructions/2` mails a new link
+  when they are unconfirmed and nothing when they are confirmed. Found or
+  not, confirmed or not, and whatever the delivery returns, the page
+  answers with the same flash and a redirect to `/`.
+  """
+
   use CakeWeb, :live_view
 
   alias Cake.Accounts

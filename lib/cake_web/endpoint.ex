@@ -1,4 +1,11 @@
 defmodule CakeWeb.Endpoint do
+  @moduledoc """
+  The Phoenix endpoint: where an HTTP request and the LiveView socket
+  (`/live`) enter the application. It serves the static files, parses the
+  request, loads the session from a signed cookie (`_cake_key`) and hands
+  the request to `CakeWeb.Router`.
+  """
+
   use Phoenix.Endpoint, otp_app: :cake
 
   # The session will be stored in the cookie and signed,

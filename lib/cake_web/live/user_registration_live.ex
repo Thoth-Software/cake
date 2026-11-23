@@ -1,4 +1,22 @@
 defmodule CakeWeb.UserRegistrationLive do
+  @moduledoc """
+  The registration page, at `/users/register`: a username, an email and a
+  password. `Cake.Accounts.register_user/1` stores an unconfirmed member;
+  the page then mails the confirmation link and redirects to the log-in
+  page. It logs nobody in, since log-in waits on the confirmed email. A
+  refused registration shows its errors on the form.
+
+  The delivery (`Cake.Accounts.deliver_user_confirmation_instructions/2`)
+  is hard-matched on `{:ok, _}` after the user row is inserted, so a
+  delivery that answered anything else would crash the LiveView with the
+  user stored and no flash or redirect for the visitor. The adapter
+  `config/config.exs` sets, `Swoosh.Adapters.Local`, answers only
+  `{:ok, _}`, so the match cannot fail today. In a release that adapter's
+  store is switched off (`config :swoosh, local: false` in
+  `config/prod.exs`), and a delivery is expected to exit instead, with the
+  same result (#367).
+  """
+
   use CakeWeb, :live_view
 
   alias Cake.Accounts

@@ -1,4 +1,13 @@
 defmodule CakeWeb.UserConfirmationLive do
+  @moduledoc """
+  The page a confirmation link opens, at `/users/confirm/:token`, open to
+  visitors and logged-in users alike. Opening it confirms nothing: it shows
+  one button, which passes the token to `Cake.Accounts.confirm_user/1`.
+  Whether or not that confirms a user, the page then redirects to `/` and
+  logs nobody in. A token it refuses gets an error flash, unless the
+  visitor is logged in as a confirmed user, who gets no message.
+  """
+
   use CakeWeb, :live_view
 
   alias Cake.Accounts

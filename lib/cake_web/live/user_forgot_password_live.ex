@@ -1,4 +1,13 @@
 defmodule CakeWeb.UserForgotPasswordLive do
+  @moduledoc """
+  The forgotten-password page, at `/users/reset_password`: it asks for an
+  email. If `Cake.Accounts.get_user_by_email/1` finds a user, confirmed or
+  not, they are mailed a link to `CakeWeb.UserResetPasswordLive`
+  (`Cake.Accounts.deliver_user_reset_password_instructions/2`). Found or
+  not, and whatever the delivery returns, the page answers with the same
+  flash and a redirect to `/`.
+  """
+
   use CakeWeb, :live_view
 
   alias Cake.Accounts

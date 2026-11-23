@@ -1,4 +1,24 @@
 defmodule CakeWeb.Router do
+  @moduledoc """
+  The routes, and who may open each. Every scope goes through the `:browser`
+  pipeline, which loads the current user.
+
+  The LiveViews are in five `live_session`s. Four are guarded twice, by a
+  `CakeWeb.UserAuth` plug on the request and by its `on_mount` hook on the
+  LiveView mount: `:authenticated_app` (chat, documents, search, upload)
+  and `:require_authenticated_user` (account settings) need a logged-in
+  user, `:admin` (everything under `/admin`) needs an admin, and
+  `:redirect_if_user_is_authenticated` (register, log in, the two
+  password-reset pages) turns a logged-in user away. The fifth,
+  `:current_user` (the two confirmation pages), is open to everyone: its
+  hook loads the user and turns nobody away.
+
+  Outside them, `/` and the log-out are open to everyone, the book download
+  needs a logged-in user, and the log-in POST turns one away.
+  `/dev/dashboard` and `/dev/mailbox` are routed only where `:dev_routes`
+  is set, as `config/dev.exs` does.
+  """
+
   use CakeWeb, :router
 
   import CakeWeb.UserAuth

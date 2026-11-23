@@ -1,4 +1,15 @@
 defmodule CakeWeb.UserLoginLive do
+  @moduledoc """
+  The log-in page, at `/users/log_in`: a username, a password and "Keep me
+  logged in". The LiveView handles no event and calls nothing in
+  `Cake.Accounts`: the browser posts the form to
+  `CakeWeb.UserSessionController`, which redirects a refused log-in back
+  here with the reason and the typed username in the flash, and `mount/3`
+  puts that username back in the field. Log-in waits on a confirmed email,
+  so the page links to `/users/confirm`, which sends the confirmation
+  instructions again.
+  """
+
   use CakeWeb, :live_view
 
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
