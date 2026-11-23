@@ -56,16 +56,19 @@ The test step expects the Postgres role `postgres` to have the password `postgre
 
 In Claude Code on the web that hook also installs the toolchain the gates run on: the Erlang/OTP and Elixir that `.tool-versions` pins, read from that file, so a session compiles and tests on the release lines CI and the two Dockerfiles use. It prints `!! toolchain:` if it could not, and a session on any other toolchain can disagree with CI, on warnings under `--warnings-as-errors` and on what dialyzer reports. To move Cake to another OTP or Elixir, change `.tool-versions` (with the `Dockerfile`, `Dockerfile.release` and `quality.yml`), never the hook.
 
-On-push CI (`.github/workflows/quality.yml`) runs the same checks **plus** gates with no local alias, so run them yourself when a change is likely to trip one:
+CI (`.github/workflows/quality.yml`) also runs gates `mix precommit` does not. Run the ones your change can trip:
 
-- `mix docs --warnings-as-errors` — the documentation gate (#204): zero broken `@moduledoc`/`@doc` references; runs in the dev env.
-- `mix xref graph --label compile-connected --fail-above 3` — the compile-coupling ratchet (baseline 3; see #208).
-- `mix dialyzer` — the `dialyzer` job runs on every push to master and every PR targeting master, with no event guard (PLT caching makes repeat runs cheap); run `mix quality` before pushing spec-heavy changes rather than waiting for it.
-- `mix coveralls.json --exclude integration` — coverage must not drop below the minimum in `coveralls.json` (the SSOT for the threshold).
-- The `laws` job (#323): the LawSpec specifications in `lawspec/`, on Erlang/OTP 29 in their own Mix project (`npm run check`, `npm run fmt:check`, `npm run generate:check`, `mix test`; run LawSpec through these npm scripts, not `npx lawspec`, which segfaults on Node 22 once its cache is warm, `lawspec/README.md` "Running LawSpec"). `mix precommit` never runs them; run them yourself when you touch a module a `.lawspec` file covers (`lawspec/README.md`). In Claude Code on the web the session-start hook installs that toolchain beside Cake's and prints `!! lawspec:` if it could not; run each step there as `otp29 <command>` from `lawspec/` (`otp29 mix test`), since a plain `mix` is Cake's.
-- The `security` job, every step blocking: `mix deps.unlock --check-unused`, `mix hex.audit` + `mix deps.audit` (zero advisories, nothing ignored: a red audit means a new advisory, fixed by bumping the package) and `mix sobelow --config --exit`. `.claude/rules/security-gate.md` has the detail, including what else a dependency bump has to move.
+| Gate | Trips when you change |
+|---|---|
+| `mix docs --warnings-as-errors` (dev env) | a `@moduledoc`, `@doc` or `@typedoc`, the README, or a file under `docs/architecture/` or `docs/runbooks/` |
+| `mix xref graph --label compile-connected --fail-above 3` | compile-time dependencies between modules |
+| `mix dialyzer` (in `mix quality`) | specs or types |
+| `mix coveralls.json --exclude integration` | code without tests: the minimum is in `coveralls.json` |
+| the `laws` job | a module a `.lawspec` file covers (`lawspec/README.md`) |
+| the `security` job | dependencies, config, the web layer, or a file, shell or raw-SQL call anywhere (`.claude/rules/security-gate.md`) |
+| `compose-smoke` and `release-image` (pull requests only) | a Dockerfile, `entrypoint.sh`, a compose file or `rel/` (`.claude/rules/compose-smoke.md`, `docs/architecture/deployment.md`) |
 
-Tests tagged `:integration`, `:network` and `:llm` are excluded on-push and run separately as merge gates (see "Test tags and run modes" below). PRs additionally run the compose smoke test, `ci/compose_smoke.sh`, which gates the containers rather than the code (`.claude/rules/compose-smoke.md`). A failure there is a finding about the containers: fix `Dockerfile`, `entrypoint.sh` or the compose files, never loosen an assertion. PRs also run the `release-image` job, `ci/release_smoke.sh`, which gates the other image: it builds `Dockerfile.release` (the release image, the one that is deployed; the default `Dockerfile` is the dev image) and asserts that the NIF loads through `bin/cake eval`, that `bin/migrate` applies every migration to an empty Postgres, that nothing from the host's `priv/native` reaches the release, and that the release carries no `seeds.exs`. It does not boot the app (#362). The same rule holds: a failure is a finding about the image, fixed in `Dockerfile.release`, `Dockerfile.release.dockerignore` or `rel/`, never by loosening an assertion. Run it locally with Docker up: `ci/release_smoke.sh` (README "Deployment"; `.claude/rules/infrastructure-gotchas.md`).
+The last two gate the images, not the code. A failure there is a finding about the image: fix the image, never loosen an assertion.
 
 ### Test tags and run modes
 
