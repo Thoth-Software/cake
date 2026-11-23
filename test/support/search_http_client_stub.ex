@@ -10,7 +10,7 @@ defmodule Cake.Search.HTTPClientStub do
   returns the HTTP response; the function is stored in the calling
   process's dictionary, so concurrent tests never see each other's
   responders. A `Task` the test starts (or one started on its behalf, such
-  as the boot task `Cake.Search.Deployment.init/1` links to its caller) is
+  as the `Cake.Search.CollectionSetup` task it starts and links itself) is
   served by the test's responder too: a process with none of its own uses
   the first one found along its `$callers`. A process with no responder
   there either gets a transport error, which is what an unreachable

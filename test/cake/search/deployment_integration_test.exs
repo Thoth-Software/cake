@@ -14,6 +14,7 @@ defmodule Cake.Search.DeploymentIntegrationTest do
   use Cake.SearchIntegrationCase, async: false
 
   alias Cake.Search.Backend.OpenSearch
+  alias Cake.Search.CollectionSetup
   alias Cake.Search.Deployment
 
   defmodule BootCollection do
@@ -58,6 +59,20 @@ defmodule Cake.Search.DeploymentIntegrationTest do
       assert :ok = Deployment.create_collections_unless_exist(deployment_pid(), @collections)
 
       assert Deployment.collections() == before
+    end
+  end
+
+  describe "Cake.Search.CollectionSetup against a real node" do
+    test "creates a listed collection that is missing and exits normally",
+         %{collection: collection} do
+      Process.flag(:trap_exit, true)
+
+      assert {:ok, task} = CollectionSetup.start_link(collections: @collections)
+      assert_receive {:EXIT, ^task, :normal}, 30_000
+
+      assert {:ok, listed} = OpenSearch.list_collections()
+      assert collection in listed
+      assert server_mapping!(collection)["embedding"]["type"] == "knn_vector"
     end
   end
 end

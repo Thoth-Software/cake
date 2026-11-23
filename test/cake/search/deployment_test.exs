@@ -1,227 +1,62 @@
 defmodule Cake.Search.DeploymentTest do
   use ExUnit.Case, async: true
 
-  import ExUnit.CaptureLog
-
   alias Cake.Search.Backend.OpenSearch
   alias Cake.Search.Deployment
   alias Cake.Search.HTTPClientStub
 
-  # The boot path (#363). `init/1` runs in whichever process calls the
-  # cluster's `start_link/1` (Snap calls `init/1` before it starts its own
-  # supervisor), so the task it links is linked to that caller: under the
-  # application that is `Cake.Supervisor`, here it is the test process,
-  # trapping exits as a supervisor does. The task finds the test's stub
-  # responder through `$callers` (`Cake.Search.HTTPClientStub`), and the
-  # responder reports every request to the test, so each test synchronizes
-  # on those messages and on the task's exit signal: nothing sleeps. The
-  # retry interval is injected through the `:collection_retry` key of the
-  # config `init/1` receives, in milliseconds.
-  @retry [initial_ms: 1, max_ms: 4]
-
-  @docs_path "/docs"
-  @chunks_path "/chunks_of_books"
-
   defp transport_error(reason), do: {:error, Snap.HTTPClient.Error.new(reason, :deployment_test)}
 
-  # `GET /_cat/indices?format=json` answers with a JSON array.
-  defp listing(names) do
-    {:ok,
-     %Snap.HTTPClient.Response{
-       status: 200,
-       body: Jason.encode!(Enum.map(names, &%{"index" => &1})),
-       headers: [{"content-type", "application/json"}]
-     }}
-  end
-
-  defp created(name) do
-    HTTPClientStub.json_response(200, %{
-      "acknowledged" => true,
-      "shards_acknowledged" => true,
-      "index" => name
-    })
-  end
-
-  defp refused(status, type, reason) do
-    HTTPClientStub.json_response(status, %{
-      "error" => %{"type" => type, "reason" => reason},
-      "status" => status
-    })
-  end
-
-  # Serves the boot task's requests from `script`, a function of the request
-  # and of how many requests came before it, and reports each one to the test.
-  defp script_cluster(script) when is_function(script, 3) do
+  # Serves this test's Snap requests with `reply` and reports each to the test.
+  defp answer_every_request_with(reply) do
     test_pid = self()
-    seen = :counters.new(1, [])
 
     HTTPClientStub.put_responder(fn method, url, _headers, _body ->
-      path = URI.parse(url).path
-      nth = :counters.get(seen, 1)
-      :counters.add(seen, 1, 1)
-      send(test_pid, {:request, method, path})
-      script.(method, path, nth)
+      send(test_pid, {:request, method, URI.parse(url).path})
+      reply
     end)
   end
 
-  # Runs the boot path as a supervisor would and returns the task it linked.
-  defp boot(config) do
-    Process.flag(:trap_exit, true)
-    {:links, links_before} = Process.info(self(), :links)
+  describe "create_missing_collections/1 (one pass, no retry)" do
+    test "returns the failed step and the error when the cluster is unreachable" do
+      answer_every_request_with(transport_error(:econnrefused))
 
-    assert {:ok, ^config} = Deployment.init(config)
+      assert {:error, {"listing collections", %Snap.HTTPClient.Error{reason: :econnrefused}}} =
+               Deployment.create_missing_collections(Deployment.collections())
 
-    {:links, links_after} = Process.info(self(), :links)
-    assert [task] = links_after -- links_before
-    task
-  end
-
-  defp requests(acc \\ []) do
-    receive do
-      {:request, method, path} -> requests([{method, path} | acc])
-    after
-      0 -> Enum.reverse(acc)
-    end
-  end
-
-  # The `{attempt, delay_ms}` pairs of the retry warnings that name `reason`.
-  # The filter keeps out the application's own boot task, which is retrying
-  # against the stub's `:no_responder` for the whole unit run.
-  defp retries_logged(log, reason) do
-    ~r/not reachable \(attempt (\d+)\): #{reason}; retrying collection creation in (\d+) ms/
-    |> Regex.scan(log, capture: :all_but_first)
-    |> Enum.map(fn [attempt, delay] -> {String.to_integer(attempt), String.to_integer(delay)} end)
-  end
-
-  describe "init/1 when the cluster answers at once" do
-    test "creates what is missing without waiting, and the task exits normally" do
-      script_cluster(fn
-        :get, "/_cat/indices", _nth -> listing([])
-        :put, @docs_path, _nth -> created("docs")
-        :put, @chunks_path, _nth -> created("chunks_of_books")
-      end)
-
-      # No :collection_retry: the default interval never comes into play.
-      task = boot([])
-
-      assert_receive {:EXIT, ^task, :normal}
-
-      assert requests() == [
-               {:get, "/_cat/indices"},
-               {:put, @docs_path},
-               {:put, @chunks_path}
-             ]
-    end
-  end
-
-  describe "init/1 when the cluster is unreachable" do
-    test "retries with a bounded backoff until the cluster answers, then creates only what is missing, once" do
-      deployment = Process.whereis(Deployment)
-
-      # Five transport failures, then the cluster answers: `docs` is there
-      # already, `chunks_of_books` is not.
-      script_cluster(fn
-        :get, "/_cat/indices", nth when nth < 5 -> transport_error(:econnrefused)
-        :get, "/_cat/indices", _nth -> listing(["docs"])
-        :put, @chunks_path, _nth -> created("chunks_of_books")
-      end)
-
-      log =
-        capture_log(fn ->
-          task = boot(collection_retry: @retry)
-
-          # A normal exit after the last request: the task lived through
-          # every failure and stopped only when the work was done.
-          assert_receive {:EXIT, ^task, :normal}
-        end)
-
-      # Six lists (five refused connections, one answer), then the one create.
-      assert {lists, [{:put, @chunks_path}]} = Enum.split(requests(), 6)
-      assert lists == List.duplicate({:get, "/_cat/indices"}, 6)
-
-      # Every failed attempt is logged with its reason; the delay doubles
-      # from :initial_ms and stops growing at :max_ms.
-      assert retries_logged(log, :econnrefused) == [{1, 1}, {2, 2}, {3, 4}, {4, 4}, {5, 4}]
-
-      assert Process.whereis(Deployment) == deployment
-      assert Process.alive?(deployment)
+      assert_received {:request, :get, "/_cat/indices"}
+      refute_received {:request, _method, _path}
     end
 
-    test "a transport failure while creating is retried too: the next pass lists again and creates only what is still missing" do
-      # The node goes away between the two creates of the first pass.
-      script_cluster(fn
-        :get, "/_cat/indices", 0 -> listing([])
-        :put, @docs_path, 1 -> created("docs")
-        :put, @chunks_path, 2 -> transport_error(:closed)
-        :get, "/_cat/indices", 3 -> listing(["docs"])
-        :put, @chunks_path, 4 -> created("chunks_of_books")
-      end)
+    test "returns a 5xx the same way: the cluster is not there yet" do
+      answer_every_request_with(
+        HTTPClientStub.json_response(503, %{
+          "error" => %{"type" => "cluster_block_exception", "reason" => "not recovered"},
+          "status" => 503
+        })
+      )
 
-      log =
-        capture_log(fn ->
-          task = boot(collection_retry: @retry)
-          assert_receive {:EXIT, ^task, :normal}
-        end)
-
-      assert requests() == [
-               {:get, "/_cat/indices"},
-               {:put, @docs_path},
-               {:put, @chunks_path},
-               {:get, "/_cat/indices"},
-               {:put, @chunks_path}
-             ]
-
-      assert retries_logged(log, :closed) == [{1, 1}]
-    end
-  end
-
-  describe "init/1 when the cluster refuses" do
-    test "a rejected mapping fails loudly: the task raises, and nothing is retried" do
-      deployment = Process.whereis(Deployment)
-
-      script_cluster(fn
-        :get, "/_cat/indices", _nth ->
-          listing([])
-
-        :put, @docs_path, _nth ->
-          refused(400, "mapper_parsing_exception", "unknown parameter [engine]")
-      end)
-
-      capture_log(fn ->
-        task = boot(collection_retry: @retry)
-
-        assert_receive {:EXIT, ^task, {%RuntimeError{message: message}, _stacktrace}}
-        assert message =~ "Application error creating collection 'docs'"
-        assert message =~ "Status 400"
-      end)
-
-      # The pass stops at the refusal: one list, one create, no second try.
-      assert requests() == [{:get, "/_cat/indices"}, {:put, @docs_path}]
-
-      assert Process.whereis(Deployment) == deployment
-      assert Process.alive?(deployment)
+      assert {:error, {"listing collections", %Snap.ResponseError{status: 503}}} =
+               Deployment.create_missing_collections(Deployment.collections())
     end
 
-    test "a rejected list fails loudly too: the task raises, and nothing is retried" do
-      script_cluster(fn :get, "/_cat/indices", _nth ->
-        refused(403, "security_exception", "no permissions for [indices:monitor/stats]")
-      end)
+    test "raises when the cluster refuses the request" do
+      answer_every_request_with(
+        HTTPClientStub.json_response(403, %{
+          "error" => %{"type" => "security_exception", "reason" => "no permissions"},
+          "status" => 403
+        })
+      )
 
-      capture_log(fn ->
-        task = boot(collection_retry: @retry)
-
-        assert_receive {:EXIT, ^task, {%RuntimeError{message: message}, _stacktrace}}
-        assert message =~ "Application error listing collections"
-        assert message =~ "Status 403"
-      end)
-
-      assert requests() == [{:get, "/_cat/indices"}]
+      assert_raise RuntimeError, ~r/Application error listing collections: Status 403/, fn ->
+        Deployment.create_missing_collections(Deployment.collections())
+      end
     end
   end
 
   describe "create_collections_unless_exist/2 (one pass, no retry)" do
     test "raises on a transport error, naming the reason, after its one request" do
-      script_cluster(fn :get, "/_cat/indices", _nth -> transport_error(:econnrefused) end)
+      answer_every_request_with(transport_error(:econnrefused))
 
       assert_raise RuntimeError,
                    ~r/Transport-layer error listing collections.*econnrefused/s,
@@ -232,7 +67,8 @@ defmodule Cake.Search.DeploymentTest do
                      )
                    end
 
-      assert requests() == [{:get, "/_cat/indices"}]
+      assert_received {:request, :get, "/_cat/indices"}
+      refute_received {:request, _method, _path}
     end
   end
 
