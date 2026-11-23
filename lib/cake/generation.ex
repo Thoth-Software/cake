@@ -2,8 +2,9 @@ defmodule Cake.Generation do
   @moduledoc """
   Behaviour contract for LLM text generation services.
 
-  The real implementations are `Cake.Generation.OpenAI` and
-  `Cake.Generation.Anthropic`. In tests: `Cake.Generation.Mock` (Mox).
+  The real implementation is `Cake.Generation.OpenAI`.
+  `Cake.Generation.Anthropic` is a placeholder that answers every call with
+  an error. In tests: `Cake.Generation.Mock` (Mox).
 
   Callers receive the implementation module as an injected argument — the
   same collaborator-module pattern `Cake.Conversation` uses for its
