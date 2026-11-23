@@ -9,9 +9,12 @@ defmodule Cake.Search.Provenance do
   survive the merge.
 
   For a decomposed search, `sub_question_index` is the sub-question's
-  positional key in `Cake.Decomposition.Result`'s `question_index`, so
-  citations trace back to a specific sub-question by index rather than by
-  string matching. For a `:self_ask` or `:ircot` resolution the model
+  positional key in `Cake.Decomposition.Result`'s `question_index`, so a
+  result traces back to a specific sub-question by index rather than by
+  string matching. That is as far as the trace goes today: `Cake.Conversation`
+  stamps the fields and nothing reads them, a citation carries no
+  provenance, and when several sub-questions surface the same unit the
+  merge keeps the highest-scoring hit and only its index. For a `:self_ask` or `:ircot` resolution the model
   discovers its questions at run time — `question_index` is empty — so
   the index instead counts rounds in discovery order, zero-based:
   follow-up rounds for self-ask, reasoning/retrieval rounds for IRCoT.
