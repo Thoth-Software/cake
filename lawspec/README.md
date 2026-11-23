@@ -1,7 +1,7 @@
 # Cake laws (LawSpec)
 
 This directory holds [LawSpec](https://github.com/brain-fuel/lawspec)
-specifications for Cake modules (#323). LawSpec states the laws a module must
+specifications for Cake modules. LawSpec states the laws a module must
 obey, with pinned examples, and compiles them into native property tests. For
 Elixir these are StreamData properties inside ExUnit.
 
@@ -28,8 +28,8 @@ Elixir these are StreamData properties inside ExUnit.
   dialyzer or coverage gates, and it should not be.
 
 So this project compiles only the Cake source files listed in `@cake_sources`
-in `mix.exs`, never the application (#326 chose this over depending on all of
-Cake as a path dependency). It runs in the `laws` job of
+in `mix.exs`, never the application (the alternative, depending on all of
+Cake as a path dependency, was rejected). It runs in the `laws` job of
 `.github/workflows/quality.yml`. A covered module that gains a dependency on
 another Cake module needs that module added to `@cake_sources`.
 
@@ -69,7 +69,7 @@ same way as in Cake, by Cake's bump being moved here: Cake's audits are
 blocking (`.claude/rules/security-gate.md`), and this project, which is
 test-only and never deployed, has no audit of its own.
 
-**Why `snap` (#332).** The search query unit takes `snap` and `finch` for
+**Why `snap`.** The search query unit takes `snap` and `finch` for
 one pure function, `to_query_map/1`. The alternative was to leave
 `open_search.ex` out and state the clause-order law on `Cake.Search.Query`'s
 own struct fields. That law would pin the wrong thing. The struct holds each
@@ -83,7 +83,7 @@ cost is eight more packages in `mix.lock` (`snap`, `finch`, `castore`,
 `mint`, `hpax`, `mime`, `nimble_options`, `nimble_pool`), each at Cake's
 locked version, and about three seconds on a cold dependency compile.
 
-**Why `Cake.Generation.OpenAI` is bound (#333).** The generation unit could
+**Why `Cake.Generation.OpenAI` is bound.** The generation unit could
 have stated its laws over spec handlers only. Then the one handler under
 test would be `scripted`, which is written in the specification to keep
 those laws, and nothing would tie the fake to the code production runs.
@@ -153,8 +153,8 @@ are copied into the importer. Adapter signatures and laws can't be imported;
 each unit states its own.
 
 Add a type here once a second specification needs it. `CitableMeta` and
-`Segment` are here already because the citations and responses units (#327,
-#328) both build on them.
+`Segment` are here already because the citations and responses units
+both build on them.
 
 **Importing another unit.** Any unit's types and checked definitions can be
 imported the same way, not only the shared unit's: `laws/responses.lawspec`
@@ -291,7 +291,7 @@ end law
 - By LawSpec's handler reference, an adapter whose signature ends `uses
   Generation` receives the handler before its other arguments and calls an
   operation as `handler.complete.(messages, model)`. No unit here has such
-  an adapter yet; #334 will be the first.
+  an adapter yet.
 
 **Most generated replies are failures.** `GenerationError` has ten
 constructors and most carry little, so the generator favours them (see
@@ -346,7 +346,7 @@ rejects it in `NODE_OPTIONS`, so it goes on the command line.
 
 LawSpec 0.32.0 fixes this in its own compiler host, which now turns those
 fast calls off itself. Upstream verified the fix only under x64 emulation.
-On native x64 (#349), 0.31.3 without the flag segfaulted in 3 of 5
+On native x64, 0.31.3 without the flag segfaulted in 3 of 5
 warm-cache runs, and 0.32.0 without it ran clean in 25 of 25. The scripts
 keep the flag until a follow-up drops it from them, from this section and
 from the `laws` job's comment in `quality.yml` together.
