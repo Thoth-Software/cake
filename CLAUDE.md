@@ -26,6 +26,13 @@ This file says what you must do when you work on Cake; the README says what thin
 
 | When you're about to... | Load |
 |---|---|
+| Work on a GDS, a pipeline, `FailedIngest`, the sweep, a storage adapter or an ingestion job | `docs/architecture/ingestion.md` |
+| Work on `Cake.Search`, a backend, the deployment or embeddings | `docs/architecture/search.md` |
+| Work on `Conversation`, `Prompt`, `Generation`, `Responses`, `Citations` or `Decomposition` | `docs/architecture/conversation.md` |
+| Work on `CakeWeb`, `Cake.Accounts`, `Cake.Candidates` or `assets/` | `docs/architecture/web.md` |
+| Create, rename or remove a module, struct, behaviour, protocol, boundary dep or config key | `docs/architecture/inventories.md` |
+| Work on a Dockerfile, `rel/`, `entrypoint.sh` or `Cake.Release` | `docs/architecture/deployment.md` |
+| Give someone a login, or create the first admin | `docs/runbooks/first-admin.md` |
 | Refactor function bodies; change pattern matching, string/list/map logic, params, arity or exception handling; add a boolean/flag param | `code-anti-patterns.md` + `patterns-and-guards.md` + `docs-tests-and-with.md` |
 | Create/rename/move modules or directories; define public APIs or behaviours; add/change structs or schemas; add deps or config; change call graphs | `design-anti-patterns.md` + `config-and-distribution.md` |
 | Add or restyle a screen, component or layout; move daisyUI, heroicons, Tailwind or esbuild | `.claude/rules/front-end.md`; then build the assets and look at the page in both themes and at phone width, because the suite cannot see a style; `docs/demo-script.md` when the change alters a step of the demo |

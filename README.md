@@ -74,15 +74,17 @@ Each layer has a file of its own under `docs/architecture/`; this README says on
 
 **Layer 4: Web.** `CakeWeb`: the chat, upload, search and documents LiveViews, the admin panel and the account pages, behind `CakeWeb.Router` and the guards in `CakeWeb.UserAuth`, over `Cake.Accounts`. It depends on the layers below it, and only the application's supervisor depends on it.
 
-| File | Read it when you work on |
+| File | Holds |
 |---|---|
-| `docs/architecture/ingestion.md` | a GDS, a pipeline, `FailedIngest`, the sweep, a storage adapter or an ingestion job; it also has the field-level schemas |
-| `docs/architecture/search.md` | `Cake.Search`, a backend, the deployment or embeddings |
-| `docs/architecture/conversation.md` | `Conversation`, `Prompt`, `Generation`, `Responses`, `Citations` or `Decomposition` |
-| `docs/architecture/web.md` | `CakeWeb`, `Cake.Accounts`, `Cake.Candidates` or `assets/` |
-| `docs/architecture/inventories.md` | creating, renaming or removing a module, struct, behaviour, protocol, boundary dep or config key |
-| `docs/architecture/deployment.md` | a Dockerfile, `rel/`, `entrypoint.sh` or `Cake.Release` |
-| `docs/runbooks/first-admin.md` | giving someone a login, or creating the first admin |
+| `docs/architecture/ingestion.md` | Layer 1 module by module; the field-level schemas; adding a GDS or a pipeline; error handling in pipelines |
+| `docs/architecture/search.md` | Layer 2 module by module; the search design |
+| `docs/architecture/conversation.md` | Layer 3 module by module; query decomposition; the per-turn pipeline |
+| `docs/architecture/web.md` | Layer 4 screen by screen; the account pages; the app shell; components, layouts and assets; roles |
+| `docs/architecture/inventories.md` | the module boundaries; every custom struct, behaviour and protocol; the LawSpec specifications; the configuration keys |
+| `docs/architecture/deployment.md` | the two images, the release's entry points and the release-image gate |
+| `docs/runbooks/first-admin.md` | the commands that give someone a login or create the first admin |
+
+`CLAUDE.md`'s trigger table says when to load each.
 
 ### Supervision Tree Boot Order
 
