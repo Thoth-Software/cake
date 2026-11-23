@@ -104,12 +104,12 @@ defmodule Cake.Search.Deployment do
     raise "Application error #{step}: Status #{status}, Message: #{message}"
   end
 
-  defp unreachable_or_raise(%Snap.HTTPError{status: status, body: body}, step) do
-    raise "Application error #{step}: Status #{status}, Body: #{body}"
-  end
-
-  defp unreachable_or_raise(%Jason.DecodeError{data: data}, step) do
-    raise "Application layer error #{step} (cannot parse JSON):\n\n Data: #{data}"
+  # A response Snap could not read as JSON: a `Jason.DecodeError` for a 2xx
+  # body, a `Snap.HTTPError` for any other status. (No clause names
+  # `Snap.HTTPError`: Snap's specs leave it out of the errors it returns, so
+  # dialyzer would call the clause unreachable.)
+  defp unreachable_or_raise(error, step) do
+    raise "Application layer error #{step} (cannot parse JSON): #{Exception.message(error)}"
   end
 
   defp describe_error(%Snap.HTTPClient.Error{reason: reason, origin: origin}) do
