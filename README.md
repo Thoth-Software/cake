@@ -58,11 +58,6 @@ These four cardinality relationships are stated explicitly because the rest of t
 
 **Pipeline behaviour → implementations: 1:many.** Each pipeline behaviour can have any number of concrete implementations. Adding a new source format is an additive operation against a stable behaviour; it never reshapes the GDS.
 
-### Worked Examples
-
-- **`ParsedBook` + `Chunk`:** One GDS, two data structures (parent/child), one pipeline behaviour (`Cake.Books.Pipeline`), currently one implementation (`Cake.Books.Pdf.Pipeline`). Retrieval unit is `Chunk`, not `ParsedBook`.
-- **`ParsedDocument`:** One GDS, one data structure, one pipeline behaviour (`Cake.Documents.Pipeline`), currently one implementation (`Cake.Documents.Hexdocs.Pipeline`). The GDS is its own retrieval unit.
-
 ---
 
 ## Architecture: Application Layers
@@ -91,7 +86,7 @@ Both orchestrators are also pinned end to end in that job — a fixture PDF, or 
 
 **`Cake.Search.Hit`** is the backend-agnostic search hit struct. Every backend maps its native hit type into `%Hit{}` at the boundary; downstream code (`load_from_hits/1`, result builders) works exclusively with hits. `Hit.id` is taken from the document's own `id` field in `_source`, not from the OpenSearch `_id`, so every indexer must store an `id` field — `Pipelines.add_to_search_backend/3` indexes each record under `record.id`, and so do the two retry-path indexers in `Books.Pipeline` and `Documents.Pipeline`, which call `Backend.backend().index_document/3` directly.
 
-**`Cake.Search.Deployment`** is the OpenSearch `Snap.Cluster` — connection management and index lifecycle only, not query logic. Query construction lives in `Cake.Search.Query`. At boot it reads `collections/0` (the `{name_module, mapping_schema}` pairs in `:search_collections`) and calls `create_collections_unless_exist/2`, which lists the cluster's collections and creates the missing ones with `Backend.OpenSearch.build_mapping/1`: the schema-derived mapping (`:text` → `text`; `:embedding` → an HNSW `knn_vector` on the `faiss` engine with cosine similarity, `ef_construction: 512`, `m: 16`; everything else `keyword`) plus three index settings: `index.knn`, a 30 s `index.refresh_interval` and `index.merge.policy.max_merge_at_once: 2`. `init/1` starts a linked task that polls `Process.whereis/1` every 10 s until the cluster process is registered and only then creates the collections, and that path calls `Backend.OpenSearch` directly rather than through `Backend.backend/0`, so a second backend would get no boot-time collection creation.
+**`Cake.Search.Deployment`** is the OpenSearch `Snap.Cluster` — connection management and index lifecycle only, not query logic. Query construction lives in `Cake.Search.Query`. At boot it reads `collections/0` (the `{name_module, mapping_schema}` pairs in `:search_collections`) and calls `create_collections_unless_exist/2`, which lists the cluster's collections and creates the missing ones with `Backend.OpenSearch.build_mapping/1`: the schema-derived mapping (`:text` → `text`; `:embedding` → an HNSW `knn_vector`, sized by `:default_embedding_dimension`, on the `faiss` engine with cosine similarity, `ef_construction: 512`, `m: 16`; everything else `keyword`) plus three index settings: `index.knn`, a 30 s `index.refresh_interval` and `index.merge.policy.max_merge_at_once: 2`. `init/1` starts a linked task that polls `Process.whereis/1` every 10 s until the cluster process is registered and only then creates the collections, and that path calls `Backend.OpenSearch` directly rather than through `Backend.backend/0`, so a second backend would get no boot-time collection creation.
 
 **`Cake.Embeddings`** calls the embedding service its provider argument names. OpenAI is the only one: `embed/3` has a single clause, `embed(:openai, …)`, and any other provider raises `FunctionClauseError`. Implements `Cake.Embeddings.Behaviour` for Mox substitution. It embeds the text it is given verbatim — it does no title prepending itself. At ingestion time the pipelines prepend a title to the text before calling it (the chunk's `section_title` for books, the document `title` for docs); query-time callers embed the question as-is. Used at both ingestion time (by the pipelines) and query time (by `Cake.Conversation`, and directly by `CakeWeb.SearchLive`, which is why `CakeWeb` declares `Cake.Embeddings` as a boundary dep). Its live contract — a vector of the configured dimension, the usage shape, a 401 as an error tuple — is pinned against the real endpoint in the `llm` CI job (`Cake.EmbeddingsLiveTest` on `Cake.LiveLLMCase`; `.claude/rules/live-llm-tests.md`).
 
@@ -368,7 +363,7 @@ Protocols in Cake define value-level contracts. The question they answer is "wha
 | Protocol | Module | Purpose | Current Implementations |
 |---|---|---|---|
 | `Cake.Promptable` | `lib/cake/promptable.ex` | Renders a struct as prompt context for the LLM. Each implementation defines how its data should appear in the numbered context block. | `Cake.Books.Chunk`, `Cake.Documents.ParsedDocument` |
-| `Cake.Citable` | `lib/cake/citable.ex` | Extracts citation metadata from a struct. Returns a map with exactly five keys: `id` (a string), `label`, `source_ref`, `preview`, and `extras`. | `Cake.Books.Chunk`, `Cake.Documents.ParsedDocument` |
+| `Cake.Citable` | `lib/cake/citable.ex` | Extracts citation metadata from a struct. Returns a map with exactly five keys: `id` (a string, normally the record's UUID), `label`, `source_ref`, `preview`, and `extras`. | `Cake.Books.Chunk`, `Cake.Documents.ParsedDocument` |
 
 ---
 
@@ -398,14 +393,14 @@ Protocols in Cake define value-level contracts. The question they answer is "wha
 
 ## Adding a New GDS
 
-The question to ask when designing a new GDS is *Why is the customer interested in this kind of documentation, and what is the atomic unit they'd want returned from a search?* The answer determines whether your GDS is a single schema or a parent/child pair. Existing GDSes (`ParsedBook` + `Chunk` and `ParsedDocument`) are the reference implementations.
+Start from the question under "Generic Data Structure (GDS)" (why the customer wants this kind of documentation, and what atomic unit a search should return). The answer determines whether your GDS is a single schema or a parent/child pair. Existing GDSes (`ParsedBook` + `Chunk` and `ParsedDocument`) are the reference implementations.
 
 1. **Design the schema(s).** Decide single-schema vs. parent/child. Use `Cake.Schema`. Every changeset with string fields must call `sanitize_text_fields/1`. UUIDs are binary.
 2. **Declare `use Cake.GDS` on the identity module.** Implement `collection_name/0`, `search_fields/0`, `load_from_hits/1`. Override `expand_with_neighbors/2` if the GDS has ordering; otherwise inherit the identity default.
 3. **Implement `Cake.Promptable`** on the retrieval-unit schema. Define how a search result renders in the numbered context block.
-4. **Implement `Cake.Citable`** on the retrieval-unit schema. Define citation metadata — the map must carry exactly five keys: `id` (a string, normally the record's UUID), `label`, `source_ref`, `preview`, `extras`.
+4. **Implement `Cake.Citable`** on the retrieval-unit schema. Define citation metadata: the five-key map described under "Protocols and Implementations".
 5. **Design a pipeline behaviour** targeting this GDS, or implement an existing one if the GDS already has a behaviour.
-6. **Register the collection in `config :cake, :search_collections`** as a `{IdentityModule, RetrievalUnitSchema}` pair. `Cake.Search.Deployment` creates every registered collection at boot, and `Backend.OpenSearch.build_mapping/1` derives the mapping from the retrieval-unit schema's fields (`:text` → `text`, `:embedding` → `knn_vector` sized by `:default_embedding_dimension`, everything else → `keyword`), so that schema must carry `:text` and `:embedding` fields. Nobody hand-writes a mapping, and an unregistered GDS gets no collection.
+6. **Register the collection in `config :cake, :search_collections`** as a `{IdentityModule, RetrievalUnitSchema}` pair. `Cake.Search.Deployment` creates every registered collection at boot, with a mapping derived from the retrieval-unit schema's fields (the rule is under `Cake.Search.Deployment` in Layer 2), so that schema must carry `:text` and `:embedding` fields. Nobody hand-writes a mapping, and an unregistered GDS gets no collection.
 7. **Thread the GDS through `Cake.Conversation`.** Pass `gds: YourGDS` in opts. `Cake.Search` will use the GDS's callbacks for collection name, field selection, hit hydration, and neighbor expansion.
 
 ---
@@ -457,8 +452,7 @@ A `with` clause short-circuits to `else` only when its result fails to match its
 
 Pipeline-fatal and item-level failures are separate. A fatal error means nothing was attempted, and the caller gets `{:error, {step, reason}}`. A run where every item failed still completes, and the caller gets `{:error, {:no_items_ingested, summary}}` from `finalize_ingest/3` in the `do` body, never from `else`.
 
-Item-level step names follow `"pipeline.step"` convention (e.g., `"books.parse"`, `"docs.embed"`), with one exception: the index stage both pipelines share records `"search_backend.index"`. A pipeline-fatal row carries its step's bare name: `"download"`, `"validate_paths"`, or `"ingest"` for an untagged error. The item-level steps are `"books.load_binary"`, `"books.parse"`, `"books.persist"` and `"books.embed"` for Books, and `"docs.persist_raw"`, `"docs.parse"`, `"docs.persist"`, `"docs.embed"` and `"docs.embed_persist"` for Documents. The `Context` struct carries pipeline identity so error records are traceable to their source.
-
+Item-level step names follow `"pipeline.step"` convention (e.g., `"books.parse"`, `"docs.embed"`), with one exception: the index stage both pipelines share records `"search_backend.index"`. A pipeline-fatal row carries its step's bare name: `"download"`, `"validate_paths"`, or `"ingest"` for an untagged error. The item-level steps are `"books.load_binary"`, `"books.parse"`, `"books.persist"` and `"books.embed"` for Books, and `"docs.persist_raw"`, `"docs.parse"`, `"docs.persist"`, `"docs.embed"` and `"docs.embed_persist"` for Documents.
 ### Error Type Unions
 
 Behaviours that return `{:error, reason}` define a named union type enumerating the concrete error shapes their implementations produce. The behaviour owns the union; adding a new implementation means adding its error types to the union. Six unions follow this pattern today: `t:Cake.Documents.Pipeline.retry_from_raw_error/0`, `t:Cake.Generation.error_reason/0`, `t:Cake.Decomposition.error_reason/0`, and the three worked through here:
