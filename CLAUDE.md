@@ -86,7 +86,7 @@ Stop and ask before proceeding when:
 - **Architecture boundary change** — moving a responsibility between modules, adding a module, or changing a module's public API. Describe the change and why first.
 - **Behaviour/protocol modification** — adding, removing or changing a callback.
 - **Known-defect adjacency** — the task touches an item under "Known Defects and Deferred Work": flag it, don't silently resolve or ignore it.
-- **Uncertain doc update** — unsure whether a change warrants a README or CLAUDE.md edit.
+- **Uncertain doc update** — unsure whether a change warrants a README, architecture-file or CLAUDE.md edit.
 - **Credo disable** — no inline `# credo:disable-*` without explicit approval.
 - **Branch management** — each issue gets its own branch, cut from `master`; within an issue, stay on its branch.
 
@@ -134,12 +134,12 @@ Tests are the contract; code satisfies it. Tests written after the implementatio
 
 ## README Update Protocol
 
-After any task that changes architecture, module boundaries, conventions, or tooling:
-1. Review this file and README.md for now-stale sections.
-2. Propose specific edits: "I changed X → section Y should update; here's the diff."
-3. Make approved edits before closing.
+After a task that changes architecture, module boundaries, conventions or tooling:
+1. Review this file, the README and the files under `docs/architecture/` for stale sections.
+2. Propose the specific edits: "I changed X → section Y should say Z."
+3. Make the approved edits before closing.
 
-**Enumeration rule:** if the README lists things (behaviours, protocols, structs, implementations, pipeline implementations) and you create a new instance of that kind, add it to the list. Every new issue cut must include, as its **final checkbox**, a documentation update that applies this rule — in particular, adding any custom structs the work introduces to the README's struct inventory.
+**Enumeration rule:** when those files list things of a kind (behaviours, protocols, structs, implementations, pipelines, boundaries, config keys) and you create another, add it. The inventories are in `docs/architecture/inventories.md`. Every issue cut ends with a **final checkbox** for a documentation update that applies this rule, naming any custom struct the work introduces.
 
 ---
 
