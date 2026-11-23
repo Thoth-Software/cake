@@ -9,8 +9,12 @@ defmodule Cake.Search.HTTPClientStub do
   response-parsing path calls `put_responder/1` with a function that
   returns the HTTP response; the function is stored in the calling
   process's dictionary, so concurrent tests never see each other's
-  responders. A process with no responder gets a transport error, which
-  is what an unreachable cluster would produce.
+  responders. A `Task` the test starts (or one started on its behalf, such
+  as the `Cake.Search.CollectionSetup` task it starts and links itself) is
+  served by the test's responder too: a process with none of its own uses
+  the first one found along its `$callers`. A process with no responder
+  there either gets a transport error, which is what an unreachable
+  cluster would produce.
   """
 
   @behaviour Snap.HTTPClient
@@ -57,9 +61,19 @@ defmodule Cake.Search.HTTPClientStub do
           keyword()
         ) :: {:ok, Response.t()} | {:error, Error.t()}
   def request(_cluster, method, url, headers, body, _opts) do
-    case Process.get(__MODULE__) do
+    case Enum.find_value([self() | Process.get(:"$callers", [])], &responder_of/1) do
       fun when is_function(fun, 4) -> fun.(method, url, headers, body)
       nil -> {:error, Error.new(:no_responder, __MODULE__)}
+    end
+  end
+
+  # The responder in `pid`'s process dictionary, or nil (also for a dead pid).
+  defp responder_of(pid) do
+    with {:dictionary, dictionary} <- Process.info(pid, :dictionary),
+         {__MODULE__, fun} <- List.keyfind(dictionary, __MODULE__, 0) do
+      fun
+    else
+      _no_responder -> nil
     end
   end
 end

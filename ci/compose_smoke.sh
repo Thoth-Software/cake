@@ -5,7 +5,7 @@
 # Builds the compose stack from the checked-in Dockerfile, boots it through
 # entrypoint.sh, and probes the running containers for what the ExUnit suite
 # cannot see: Phoenix runs `server: false` in test, so Cake.Application's
-# supervision order and Cake.Search.Deployment's boot-time collection creation
+# supervision order and Cake.Search.CollectionSetup's boot-time collection creation
 # are exercised nowhere else, and the NIF-clobbering recompile sequence lives
 # in entrypoint.sh, where only a broken container ever surfaced a regression.
 # The `integration` job tests the code inside service containers; this script
@@ -19,7 +19,7 @@
 #      without waiting, so starting everything at once would race a cold
 #      runner's Postgres.
 #   2. The app answers HTTP 200 through the published port.
-#   3. Both search collections exist in OpenSearch (Deployment boot ran).
+#   3. Both search collections exist in OpenSearch (the CollectionSetup child ran).
 #   4. Every migration under priv/repo/migrations is in schema_migrations.
 #   5. The parsebooks NIF loads inside the app container: a one-shot
 #      `mix cake.nif.check` there extracts a fixture PDF through
@@ -57,8 +57,8 @@
 #                              (default 1500: entrypoint.sh recompiles the app
 #                              and the NIF before starting Phoenix).
 #   SMOKE_COLLECTIONS_TIMEOUT  seconds to wait for the collections after the app
-#                              answers (default 120: Deployment creates them 10s
-#                              after boot).
+#                              answers (default 120: CollectionSetup creates them
+#                              as the app boots).
 
 set -euo pipefail
 
@@ -78,7 +78,7 @@ for compose_file in "${compose_files[@]}"; do
   compose+=(--file "$compose_file")
 done
 
-# The collections Cake.Search.Deployment creates at boot: the
+# The collections Cake.Search.CollectionSetup creates at boot: the
 # `:search_collections` entries in config/config.exs, by their
 # `collection_name/0` (Cake.Books.ParsedBook and Cake.Documents.ParsedDocument).
 collections=(chunks_of_books docs)

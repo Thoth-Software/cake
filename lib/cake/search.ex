@@ -19,7 +19,7 @@ defmodule Cake.Search do
   use Boundary,
     top_level?: true,
     deps: [Cake],
-    exports: [Result, Query, Hit, Backend, Provenance, Deployment]
+    exports: [Result, Query, Hit, Backend, Provenance, Deployment, CollectionSetup]
 
   alias Cake.Search.Backend
   alias Cake.Search.Hit

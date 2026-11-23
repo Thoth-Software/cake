@@ -5,6 +5,13 @@ defmodule Cake.Search.Backend.OpenSearchTest do
   alias Cake.Search.HTTPClientStub
   alias Cake.Search.Query
 
+  describe "search/1" do
+    test "returns the transport error when the cluster is unreachable" do
+      assert {:error, %Snap.HTTPClient.Error{reason: :no_responder}} =
+               OpenSearch.search(Query.new("docs"))
+    end
+  end
+
   describe "index_document/3" do
     test "returns :ok when OpenSearch acknowledges the upsert" do
       # A real `_update` reply: Snap decodes the 2xx JSON body and hands the

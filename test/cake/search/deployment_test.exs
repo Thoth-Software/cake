@@ -3,6 +3,74 @@ defmodule Cake.Search.DeploymentTest do
 
   alias Cake.Search.Backend.OpenSearch
   alias Cake.Search.Deployment
+  alias Cake.Search.HTTPClientStub
+
+  defp transport_error(reason), do: {:error, Snap.HTTPClient.Error.new(reason, :deployment_test)}
+
+  # Serves this test's Snap requests with `reply` and reports each to the test.
+  defp answer_every_request_with(reply) do
+    test_pid = self()
+
+    HTTPClientStub.put_responder(fn method, url, _headers, _body ->
+      send(test_pid, {:request, method, URI.parse(url).path})
+      reply
+    end)
+  end
+
+  describe "create_missing_collections/1 (one pass, no retry)" do
+    test "returns the failed step and the error when the cluster is unreachable" do
+      answer_every_request_with(transport_error(:econnrefused))
+
+      assert {:error, {"listing collections", %Snap.HTTPClient.Error{reason: :econnrefused}}} =
+               Deployment.create_missing_collections(Deployment.collections())
+
+      assert_received {:request, :get, "/_cat/indices"}
+      refute_received {:request, _method, _path}
+    end
+
+    test "returns a 5xx the same way: the cluster is not there yet" do
+      answer_every_request_with(
+        HTTPClientStub.json_response(503, %{
+          "error" => %{"type" => "cluster_block_exception", "reason" => "not recovered"},
+          "status" => 503
+        })
+      )
+
+      assert {:error, {"listing collections", %Snap.ResponseError{status: 503}}} =
+               Deployment.create_missing_collections(Deployment.collections())
+    end
+
+    test "raises when the cluster refuses the request" do
+      answer_every_request_with(
+        HTTPClientStub.json_response(403, %{
+          "error" => %{"type" => "security_exception", "reason" => "no permissions"},
+          "status" => 403
+        })
+      )
+
+      assert_raise RuntimeError, ~r/Application error listing collections: Status 403/, fn ->
+        Deployment.create_missing_collections(Deployment.collections())
+      end
+    end
+  end
+
+  describe "create_collections_unless_exist/2 (one pass, no retry)" do
+    test "raises on a transport error, naming the reason, after its one request" do
+      answer_every_request_with(transport_error(:econnrefused))
+
+      assert_raise RuntimeError,
+                   ~r/Transport-layer error listing collections.*econnrefused/s,
+                   fn ->
+                     Deployment.create_collections_unless_exist(
+                       Process.whereis(Deployment),
+                       Deployment.collections()
+                     )
+                   end
+
+      assert_received {:request, :get, "/_cat/indices"}
+      refute_received {:request, _method, _path}
+    end
+  end
 
   describe "collections/0" do
     test "reads the collection list from :search_collections config" do

@@ -32,9 +32,9 @@ defmodule Cake.IngestIntegrationHelpers do
       pipelines index into and `Cake.Search` reads from: `ensure_collection!/1`
       creates it on the real node with the production mapping if it is
       missing, empties it, and empties it again on exit. The collection is
-      left in place: `Cake.Search.Deployment`'s boot task creates the same
-      names in the namespace on its own schedule, and tolerating its
-      existence on both sides keeps the two from racing.
+      left in place: these are the names `Cake.Search.CollectionSetup`
+      creates at boot, and tolerating their existence keeps a test from
+      depending on whether anything created them first.
   """
 
   import Ecto.Query, only: [from: 2]

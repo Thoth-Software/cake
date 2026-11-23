@@ -3,9 +3,9 @@ defmodule Cake.Search.DeploymentIntegrationTest do
   `Cake.Search.Deployment.create_collections_unless_exist/2` against a real
   node (#245): the boot path that creates every configured collection. The
   tests hand the function an explicit collection list naming the test's own
-  collection, so they never touch `:search_collections` and the 10s boot
-  task `init/1` spawns (which reads that config) can neither observe nor
-  race them.
+  collection, so they never touch `:search_collections`, which the
+  application's own `Cake.Search.CollectionSetup` child reads. The last
+  test runs that child's body against the node with the same explicit list.
 
   `async: false`: the stand-in name module reads its name from application
   config.
@@ -14,6 +14,7 @@ defmodule Cake.Search.DeploymentIntegrationTest do
   use Cake.SearchIntegrationCase, async: false
 
   alias Cake.Search.Backend.OpenSearch
+  alias Cake.Search.CollectionSetup
   alias Cake.Search.Deployment
 
   defmodule BootCollection do
@@ -58,6 +59,19 @@ defmodule Cake.Search.DeploymentIntegrationTest do
       assert :ok = Deployment.create_collections_unless_exist(deployment_pid(), @collections)
 
       assert Deployment.collections() == before
+    end
+  end
+
+  describe "Cake.Search.CollectionSetup against a real node" do
+    test "creates a listed collection that is missing, in one pass",
+         %{collection: collection} do
+      # The task's body, run in the test process: it returns once a pass has
+      # completed, and the node is up, so the first one does.
+      assert :ok = CollectionSetup.run(initial_ms: 1, max_ms: 1, collections: @collections)
+
+      assert {:ok, listed} = OpenSearch.list_collections()
+      assert collection in listed
+      assert server_mapping!(collection)["embedding"]["type"] == "knn_vector"
     end
   end
 end

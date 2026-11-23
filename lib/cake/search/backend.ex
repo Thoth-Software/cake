@@ -16,7 +16,11 @@ defmodule Cake.Search.Backend do
   @type collection :: String.t()
 
   @typedoc "Error reasons returned by Snap-backed operations."
-  @type search_error :: Snap.ResponseError.t() | Snap.HTTPClient.Error.t() | Jason.DecodeError.t()
+  @type search_error ::
+          Snap.ResponseError.t()
+          | Snap.HTTPError.t()
+          | Snap.HTTPClient.Error.t()
+          | Jason.DecodeError.t()
 
   @doc "Execute a search query and return matching hits."
   @callback search(Query.t()) :: {:ok, [Hit.t()]} | {:error, search_error()}

@@ -2,62 +2,70 @@ defmodule Cake.Search.Deployment do
   @moduledoc """
   Search deployment process — the Snap cluster that connects to OpenSearch.
 
-  Manages lifecycle: starts the connection, creates collections on init
-  if they don't exist. Named `Deployment` because it represents the running
-  search engine instance, regardless of backend (OpenSearch cluster,
-  Qdrant instance, etc.).
+  Manages lifecycle: starts the connection and creates the collections that
+  do not exist yet (`create_missing_collections/1`). It does not decide when:
+  at boot that is `Cake.Search.CollectionSetup`, the next child in the
+  supervision tree, which retries until the cluster answers. Named
+  `Deployment` because it represents the running search engine instance,
+  regardless of backend (OpenSearch cluster, Qdrant instance, etc.).
   """
 
   use Snap.Cluster, otp_app: :cake
 
+  alias Cake.Search.Backend
   alias Cake.Search.Backend.OpenSearch
 
   require Logger
 
   @doc """
-  `Snap.Cluster` init hook: starts a linked task that creates the configured
-  collections once the cluster process is registered (see
-  `create_collections_unless_exist/1`) and returns the config unchanged.
-  """
-  @spec init(keyword()) :: {:ok, keyword()}
-  def init(config) do
-    _ = Task.start_link(fn -> create_collections_unless_exist(nil) end)
-    {:ok, config}
-  end
-
-  @doc """
-  Boot-time collection creation. Called with `nil` from `init/1`, it sleeps
-  10 s and checks `Process.whereis/1` for the cluster process, re-entering the
-  same clause until it is registered; then it calls itself with the pid for
-  one `create_collections_unless_exist/2` pass over the `collections/0` list.
-  """
-  @spec create_collections_unless_exist(nil | pid()) :: :ok
-  def create_collections_unless_exist(nil) do
-    Logger.debug("Deployment not running yet.\n\nWaiting to create collections...")
-    Process.sleep(10_000)
-
-    create_collections_unless_exist(Process.whereis(__MODULE__))
-  end
-
-  def create_collections_unless_exist(pid) when is_pid(pid) do
-    create_collections_unless_exist(pid, collections())
-  end
-
-  @doc """
   Creates every collection in `collections` that the deployment does not
-  have yet, leaving existing ones untouched. Each entry is
-  `{name_module, mapping_schema}` as in `collections/0`, which is what the
-  boot path passes; callers with their own list (integration tests, for
-  one) pass it here and never touch the `:search_collections` config.
+  have yet, leaving existing ones untouched: one pass, no retry. Each entry
+  is `{name_module, mapping_schema}` as in `collections/0`.
+
+  A pass has two ways to fail, and they are reported differently on purpose:
+
+    * the cluster is **not reachable yet** (a transport failure, or a 5xx
+      from the node or from a proxy in front of it): the pass stops and
+      returns `{:error, {step, error}}`, `step` naming what it was doing
+      (`"listing collections"`, `"creating collection 'docs'"`). Running
+      the pass again later is safe: it lists again and creates only what is
+      still missing.
+    * the cluster **refuses** the request (any other response, such as a
+      rejected mapping): the pass raises. Trying again would get the same
+      answer.
+  """
+  @spec create_missing_collections([{module(), module()}]) ::
+          :ok | {:error, {String.t(), Backend.search_error()}}
+  def create_missing_collections(collections) when is_list(collections) do
+    case OpenSearch.list_collections() do
+      {:ok, existing} ->
+        Enum.reduce_while(collections, :ok, fn {name_module, mapping_schema}, :ok ->
+          name = name_module.collection_name()
+
+          case create_collection_if_missing(existing, name, mapping_schema) do
+            :ok -> {:cont, :ok}
+            {:error, _unreachable} = error -> {:halt, error}
+          end
+        end)
+
+      {:error, error} ->
+        unreachable_or_raise(error, "listing collections")
+    end
+  end
+
+  @doc """
+  `create_missing_collections/1` for a caller that wants one pass or a
+  crash: raises when the cluster cannot be reached as well as when it
+  refuses. Callers with their own list (integration tests, for one) pass it
+  here and never touch the `:search_collections` config.
   """
   @spec create_collections_unless_exist(pid(), [{module(), module()}]) :: :ok
   def create_collections_unless_exist(pid, collections)
       when is_pid(pid) and is_list(collections) do
-    {:ok, existing} = OpenSearch.list_collections()
-
-    Enum.each(collections, fn {name_module, mapping_schema} ->
-      create_collection_if_missing(existing, name_module.collection_name(), mapping_schema)
-    end)
+    case create_missing_collections(collections) do
+      :ok -> :ok
+      {:error, {step, error}} -> raise "Transport-layer error #{step}: #{describe_error(error)}"
+    end
   end
 
   @doc """
@@ -76,34 +84,37 @@ defmodule Cake.Search.Deployment do
   defp create_collection_if_missing(existing, name, schema) do
     if name in existing do
       Logger.info("Collection '#{name}' already exists")
-      {:ok, "Collection already exists"}
     else
       Logger.info("Creating collection '#{name}'...")
-      mapping = OpenSearch.build_mapping(schema)
-      result = OpenSearch.create_collection(name, mapping)
-      handle_create_result(result, name)
+
+      case OpenSearch.create_collection(name, OpenSearch.build_mapping(schema)) do
+        :ok -> Logger.info("Successfully created collection '#{name}'")
+        {:error, error} -> unreachable_or_raise(error, "creating collection '#{name}'")
+      end
     end
   end
 
-  defp handle_create_result(:ok, name) do
-    Logger.info("Successfully created collection '#{name}'")
-    :ok
+  defp unreachable_or_raise(%Snap.HTTPClient.Error{} = error, step), do: {:error, {step, error}}
+
+  defp unreachable_or_raise(%{status: status} = error, step)
+       when is_integer(status) and status >= 500,
+       do: {:error, {step, error}}
+
+  defp unreachable_or_raise(%Snap.ResponseError{status: status, message: message}, step) do
+    raise "Application error #{step}: Status #{status}, Message: #{message}"
   end
 
-  defp handle_create_result(
-         {:error, %Snap.HTTPClient.Error{reason: reason, origin: origin}},
-         name
-       ) do
-    raise "Transport-layer error creating collection '#{name}': Reason #{reason}, Origin: #{origin}"
+  # A response Snap could not read as JSON: a `Jason.DecodeError` for a 2xx
+  # body, a `Snap.HTTPError` for any other status. (No clause names
+  # `Snap.HTTPError`: Snap's specs leave it out of the errors it returns, so
+  # dialyzer would call the clause unreachable.)
+  defp unreachable_or_raise(error, step) do
+    raise "Application layer error #{step} (cannot parse JSON): #{Exception.message(error)}"
   end
 
-  defp handle_create_result({:error, %Snap.ResponseError{status: status, message: message}}, name) do
-    raise "Application error creating collection '#{name}': Status #{status}, Message: #{message}"
+  defp describe_error(%Snap.HTTPClient.Error{reason: reason, origin: origin}) do
+    "Reason #{reason}, Origin: #{inspect(origin)}"
   end
 
-  defp handle_create_result({:error, %Jason.DecodeError{data: data}}, name) do
-    raise "Application layer error creating collection '#{name}' (cannot parse JSON):\n\n Data: #{data}"
-  end
-
-  defp handle_create_result(_, _name), do: :ok
+  defp describe_error(error), do: Exception.message(error)
 end
