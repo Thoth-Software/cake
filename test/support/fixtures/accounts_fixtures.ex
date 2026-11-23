@@ -61,6 +61,19 @@ defmodule Cake.AccountsFixtures do
     user
   end
 
+  # An admin who cannot log in: registered and not yet confirmed, then
+  # promoted, which is how the panel makes one (a promotion confirms
+  # nothing). They are an admin by role, and no help to anyone locked out.
+  @spec unconfirmed_admin_fixture(map()) :: Cake.Accounts.User.t()
+  def unconfirmed_admin_fixture(attrs \\ %{}) do
+    {:ok, admin} =
+      attrs
+      |> unconfirmed_user_fixture()
+      |> Cake.Accounts.update_user_role(:admin)
+
+    admin
+  end
+
   @spec extract_user_token((String.t() -> {:ok, Swoosh.Email.t()})) :: String.t()
   def extract_user_token(fun) do
     {:ok, captured_email} = fun.(&"[TOKEN]#{&1}[TOKEN]")

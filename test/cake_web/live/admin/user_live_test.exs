@@ -51,6 +51,11 @@ defmodule CakeWeb.Admin.UserLiveTest do
   @own_confirmation "You cannot take back your own confirmation."
   @own_confirming "You cannot confirm your own email."
 
+  # The last confirmed admin (#405), wherever the panel meets them.
+  @last_confirmed_admin_role "cannot be changed: no other admin has a confirmed email"
+  @last_confirmed_admin_confirmation "You cannot take back the last confirmed admin's confirmation."
+  @last_confirmed_admin_login "The last admin with a confirmed email cannot be deleted."
+
   # A password no fixture uses and no page has a reason to contain, so
   # finding it anywhere means it was put there.
   @typed_password "correct horse battery staple"
@@ -148,6 +153,17 @@ defmodule CakeWeb.Admin.UserLiveTest do
     |> post(~p"/users/log_in", %{"user" => %{"username" => username, "password" => password}})
     |> get_session(:user_token)
     |> is_binary()
+  end
+
+  # An admin who is not confirmed and is logged in all the same, in a browser
+  # of their own: `other` took back their confirmation after they logged in,
+  # and that ends no session they have (#401).
+  defp log_in_unconfirmed_admin(%User{} = other) do
+    admin = login_fixture(:admin)
+    conn = log_in_user(Phoenix.ConnTest.build_conn(), admin)
+    {:ok, unconfirmed} = Accounts.set_user_confirmed(other, admin, false)
+
+    %{conn: conn, admin: unconfirmed}
   end
 
   # A second browser: `user`, logged in, with a live page open.
@@ -373,7 +389,8 @@ defmodule CakeWeb.Admin.UserLiveTest do
     # they have (#401), and could otherwise put it back from their own page.
     test "offers an admin no way to confirm their own email, and refuses a request for it with a notice",
          %{conn: conn, admin: admin} do
-      {:ok, _} = Accounts.set_user_confirmed(:operator, admin, false)
+      other = login_fixture(:admin)
+      {:ok, _} = Accounts.set_user_confirmed(other, admin, false)
       {:ok, lv, _html} = live(conn, ~p"/admin/users/#{admin}")
 
       assert text_of(lv, "#login") =~ "Confirmed no"
@@ -383,6 +400,41 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
       assert text_of(lv, "#login-refusal [data-part=body]") == @own_confirming
       refute Accounts.get_user!(admin.id).confirmed_at
+    end
+
+    # #405. One admin took back the other's confirmation; the other is still
+    # logged in (#401) and asks the same in return. Were it allowed, neither
+    # could log in again, and nobody else could let them.
+    test "refuses to take back the last confirmed admin's confirmation, with a notice, and changes nothing",
+         %{admin: last} do
+      %{conn: conn} = log_in_unconfirmed_admin(last)
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{last}")
+
+      lv |> element("#unconfirm-login") |> render_click()
+
+      assert text_of(lv, "#login-refusal [data-part=body]") == @last_confirmed_admin_confirmation
+      assert has_element?(lv, "#login-refusal.alert-error")
+      refute has_element?(lv, "#flash-info")
+      assert text_of(lv, "#login") =~ "Confirmed yes"
+      assert can_log_in?(last.username, valid_user_password())
+
+      # The page is still there, and still works.
+      assert has_element?(lv, "#unconfirm-login")
+    end
+
+    test "takes back an admin's confirmation while another confirmed admin remains", %{
+      conn: conn,
+      admin: admin
+    } do
+      other = login_fixture(:admin)
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{other}")
+
+      lv |> element("#unconfirm-login") |> render_click()
+
+      assert has_element?(lv, "#flash-info", "Confirmation taken back")
+      refute has_element?(lv, "#login-refusal")
+      refute can_log_in?(other.username, valid_user_password())
+      assert can_log_in?(admin.username, valid_user_password())
     end
 
     test "sends the admin back to the list, saying so, for a login deleted meanwhile",
@@ -1017,6 +1069,27 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert has_element?(lv, "#user-form")
     end
 
+    # #405. Another admin exists, so this is not the last admin; but that one
+    # is not confirmed, and so cannot log in.
+    test "refuses to demote the last confirmed admin while the other admins are unconfirmed, as an error on the role, and changes nothing",
+         %{conn: conn, admin: admin} do
+      unconfirmed_admin_fixture()
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{admin}/edit")
+
+      html =
+        lv
+        |> form("#user-form", user: %{username: unique_user_username(), role: "member"})
+        |> render_submit()
+
+      assert html =~ @last_confirmed_admin_role
+      refute html =~ @last_admin
+      assert %User{role: :admin, username: username} = Accounts.get_user!(admin.id)
+      assert username == admin.username
+
+      # The page is still there, and still works.
+      assert has_element?(lv, "#user-form")
+    end
+
     test "demotes an admin while another remains", %{conn: conn} do
       other = login_fixture(:admin)
       {:ok, lv, _html} = live(conn, ~p"/admin/users/#{other}/edit")
@@ -1153,6 +1226,22 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
       assert has_element?(lv, "#users-refusal")
       refute has_element?(lv, "#flash-info")
+    end
+
+    # #405. Nobody deletes their own login, so the one asking is another
+    # admin: one who is not confirmed, and is still logged in (#401).
+    test "refuses to delete the last confirmed admin while the other admins are unconfirmed, with a notice, and deletes nothing",
+         %{admin: last} do
+      %{conn: conn} = log_in_unconfirmed_admin(last)
+      {:ok, lv, _html} = live(conn, ~p"/admin/users")
+
+      lv |> element("#delete-#{last.id}") |> render_click()
+
+      assert text_of(lv, "#users-refusal [data-part=body]") == @last_confirmed_admin_login
+      assert has_element?(lv, "#users-refusal.alert-error")
+      assert Repo.get(User, last.id)
+      assert has_element?(lv, "#users-#{last.id}")
+      assert can_log_in?(last.username, valid_user_password())
     end
 
     test "deletes another admin while one remains", %{conn: conn} do
