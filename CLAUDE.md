@@ -147,6 +147,8 @@ After a task that changes architecture, module boundaries, conventions or toolin
 
 **Enumeration rule:** when those files list things of a kind (behaviours, protocols, structs, implementations, pipelines, boundaries, config keys) and you create another, add it. The inventories are in `docs/architecture/inventories.md`. Every issue cut ends with a **final checkbox** for a documentation update that applies this rule, naming any custom struct the work introduces.
 
+**Issue numbers** in this file, the README, `docs/architecture/`, `.claude/rules/` and `lawspec/README.md`: never for a schedule (state the rule and the exception, not who will fix it). For an open defect or a deferred item, yes, in one place, and it leaves when the issue closes. For provenance, only where the reader needs it to act.
+
 ---
 
 ## Known Defects and Deferred Work
