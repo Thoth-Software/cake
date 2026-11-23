@@ -44,7 +44,7 @@ fi
 #
 # The versions are the ones .tool-versions pins, read from it here so the
 # hook cannot drift from it again (#351): a session compiles, checks and
-# tests Cake on the OTP and Elixir the Dockerfile and quality.yml are on.
+# tests Cake on the OTP and Elixir the Dockerfiles and quality.yml are on.
 # An asdf name is a builds.hex.pm name: `erlang 28.5` is
 # builds/otp/ubuntu-24.04/OTP-28.5.tar.gz, and `elixir 1.20.2-otp-28` is
 # builds/elixir/v1.20.2-otp-28.zip. OTP_VERSION and ELIXIR_VERSION in the
