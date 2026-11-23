@@ -52,11 +52,13 @@ defmodule Cake.Conversation do
 
   Opt-in via the `:decomposition` opt (a module implementing
   `Cake.Decomposition`; default `nil` — no decomposition). When set, an
-  autoask turn that begins before any retrieval has completed
+  autoask turn that begins before any turn has completed
   (`search_results` still `nil`) has its question decomposed before
-  searching — the first auto-mode turn; a completed retrieval that found
-  nothing (`[]`) is cached and suppresses decomposition like any other
-  cached result. An atomic result
+  searching. `search_results` is written only when a whole turn succeeds,
+  so a turn that retrieved and then failed leaves it `nil`, and the next
+  autoask turn searches and decomposes again. A completed turn whose
+  retrieval found nothing (`[]`) is cached and suppresses decomposition
+  like any other cached result. An atomic result
   searches the original question exactly as before, while a decomposed one
   runs one embed+search per sub-question and merges the deduplicated
   results into a single context. Each merged result's
@@ -421,11 +423,12 @@ defmodule Cake.Conversation do
     end
   end
 
-  # Decomposition drives the first turn only: a completed retrieval —
-  # even one that found nothing ([]) — means the question flows through
-  # the standard chain (and its reuse clause). Only the nil sentinel
-  # (never retrieved) decomposes, so decomposition fires once per
-  # conversation (#255).
+  # Decomposition runs until a turn has completed. search_results is
+  # written only when a whole turn succeeds (update_state/5), so a list —
+  # even [] — means the question flows through the standard chain (and
+  # its reuse clause), and nil means no turn has completed yet. A turn
+  # that retrieved and then failed leaves nil, so the next auto turn
+  # decomposes again (#255).
   defp maybe_decompose(_question, %State{search_results: results}) when is_list(results) do
     {:ok, nil}
   end
@@ -483,9 +486,9 @@ defmodule Cake.Conversation do
 
   # --- Stage 0: resolve search results (search on first turn, reuse on subsequent) ---
 
-  # Any completed retrieval is reused — [] included, so a first turn that
-  # found nothing is not retried on later turns (#255). Only the nil
-  # sentinel (never retrieved) searches.
+  # A completed turn's retrieval is reused — [] included, so a first turn
+  # that found nothing is not retried on later turns (#255). Only the nil
+  # sentinel (no turn has completed) searches.
   #
   # Decomposition dispatch lives upstream in maybe_decompose/2 and
   # resolve_context/3; this stage only reuses cached results or runs the
