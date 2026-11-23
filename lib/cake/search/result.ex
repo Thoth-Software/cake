@@ -11,7 +11,8 @@ defmodule Cake.Search.Result do
   - CAKE-computed scores (cosine, relevance)
   - Hit provenance (direct search vs. expansion)
   - Search conditions (via `Provenance`)
-  - Prompt index (assigned by `Prompt.prepare_context/2`)
+  - Prompt index (assigned by `Prompt.prepare_context/2` on auto turns;
+    nothing reads the field)
 
   ## Lifecycle
 
@@ -21,8 +22,9 @@ defmodule Cake.Search.Result do
   2. `Search.score_results/2` — populates `cosine_score`.
   3. `Search.normalize_and_combine/1` — populates `relevance_score`.
   4. `Prompt.prepare_context/2` — populates `prompt_index`.
-  5. `Responses.process/3` — reads `prompt_index` and `retrieval_unit`
-     to build the citation map.
+  5. `Responses.process/3` — builds the citation map from each
+     `{index, result}` pair's index and the result's `retrieval_unit`. It
+     does not read `prompt_index`.
   """
 
   alias Cake.Search.Provenance

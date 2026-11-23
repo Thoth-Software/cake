@@ -383,8 +383,9 @@ defmodule CakeWeb.UserAuth do
   @doc """
   Used for routes that require the user to be authenticated.
 
-  If you want to enforce the user email is confirmed before
-  they use the application at all, here would be a good place.
+  Whether the user's email is confirmed is not checked here. It is enforced
+  at log-in, by `CakeWeb.UserSessionController`; taking a confirmation back
+  does not end the sessions the user already has (#401).
   """
   @spec require_authenticated_user(Plug.Conn.t(), keyword()) :: Plug.Conn.t()
   def require_authenticated_user(conn, _opts) do

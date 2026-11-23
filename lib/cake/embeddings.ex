@@ -6,8 +6,8 @@ defmodule Cake.Embeddings do
   The input text is embedded verbatim — callers own any preprocessing
   (the ingestion pipelines prepend a title to the text; query-time callers
   embed the question as-is). Different APIs may require or return data
-  having different shapes, so Embeddings defines bespoke functions for
-  each API we foresee using.
+  having different shapes, so each provider would get an `embed/3` clause
+  of its own. There is one today, for OpenAI.
   """
 
   @behaviour Cake.Embeddings.Behaviour

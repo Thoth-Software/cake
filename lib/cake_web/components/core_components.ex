@@ -602,9 +602,9 @@ defmodule CakeWeb.CoreComponents do
   @doc """
   Renders a [Heroicon](https://heroicons.com).
 
-  Heroicons come in three styles – outline, solid, and mini.
-  By default, the outline style is used, but solid and mini may
-  be applied by using the `-solid` and `-mini` suffix.
+  Heroicons come in four styles – outline, solid, mini, and micro.
+  By default, the outline style is used, but solid, mini and micro may
+  be applied by using the `-solid`, `-mini` and `-micro` suffix.
 
   You can customize the size and colors of the icons by setting
   width, height, and background color classes.

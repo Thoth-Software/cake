@@ -4,10 +4,12 @@
 #
 # Builds the compose stack from the checked-in Dockerfile, boots it through
 # entrypoint.sh, and probes the running containers for what the ExUnit suite
-# cannot see: Phoenix runs `server: false` in test, so Cake.Application's
-# supervision order and Cake.Search.Deployment's boot-time collection creation
-# are exercised nowhere else, and the NIF-clobbering recompile sequence lives
-# in entrypoint.sh, where only a broken container ever surfaced a regression.
+# cannot see. The ExUnit jobs start the application, so Cake.Application's
+# supervision order runs there too (`server: false` in test only keeps the
+# endpoint from listening), but nothing in them boots through entrypoint.sh or
+# asserts that Cake.Search.Deployment's boot-time collection creation
+# happened; and the NIF-clobbering recompile sequence lives in entrypoint.sh,
+# where only a broken container ever surfaced a regression.
 # The `integration` job tests the code inside service containers; this script
 # tests the containers themselves, so it doubles as the executable record of
 # the deployment topology.

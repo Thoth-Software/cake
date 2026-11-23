@@ -79,8 +79,9 @@ defmodule Cake.Documents.Hexdocs.Hexdoc do
 
   @doc """
   Turns one raw `Hexdoc` row into the `ParsedDocument` attrs the parse stage
-  emits: one map per documented function, each `doc_attrs/0` merged with the
-  function's `text` and `title`, the row's `url` and `version`, and the module
+  emits: one map per `def` or `defp` clause, documented or not (a preceding
+  `@doc` is carried into its text), each `doc_attrs/0` merged with the
+  clause's `text` and `title`, the row's `url` and `version`, and the module
   as `package`. Accepts the row bare or as `{:ok, row}`. Only a source whose AST
   is a single bare `defmodule` yields anything; a top-level `__block__` (several
   forms in one file) or a parse error yields `[]` with no error — the gap

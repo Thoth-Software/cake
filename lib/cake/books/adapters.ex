@@ -13,8 +13,10 @@ defmodule Cake.Books.Adapters do
   ## Key scheme
 
   Keys follow the pattern `cake-documents/<tenant>/<gds>/<unique-id>`.
-  For books, the unique ID is `<title>_<file_hash>` to aid human readability
-  when browsing the storage backend directly.
+  For books, the unique ID is the upload's sanitized file name, an
+  underscore, and the first 12 hex characters of the file's SHA-256 (built in
+  `CakeWeb.UploadLive`), to aid human readability when browsing the storage
+  backend directly.
   """
 
   @typedoc """

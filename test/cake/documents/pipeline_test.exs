@@ -143,8 +143,9 @@ defmodule Cake.Documents.PipelineTest do
 
   describe "retry/4 on a row with no input_identifier" do
     test "rejects a docs.persist row with an error tuple instead of crashing" do
-      # A "docs.persist" row recorded from {:error, {:task_exit, _}} carries no
-      # identifier, so there is no raw doc to re-parse from.
+      # A row with no identifier has no raw doc to re-parse from. The pipeline
+      # itself records `package@version` on every "docs.persist" row, a task
+      # exit included, so this one is built by hand.
       failure = insert_failure(build_ctx(), "docs.persist", %{input_identifier: nil})
 
       assert {:error, {:no_input_identifier, failure.id}} == retry(failure)

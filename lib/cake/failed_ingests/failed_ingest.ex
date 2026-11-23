@@ -1,8 +1,9 @@
 defmodule Cake.FailedIngests.FailedIngest do
   @moduledoc """
-  Ecto schema for an item-level ingest failure. Records which pipeline and step
-  failed, the offending input, and retry bookkeeping so the sweep machinery can
-  later re-attempt the item.
+  Ecto schema for an ingest failure: an item-level one, or a pipeline-fatal one
+  (`pipeline_fatal: true`). Records which pipeline and step failed, the
+  offending input, and retry bookkeeping so the sweep machinery can later
+  re-attempt an item.
 
   `run_id` is the `Cake.Pipelines.Context.run_id` of the ingest run that
   recorded the failure. Concurrent runs of the same pipeline, implementation,

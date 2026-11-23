@@ -160,7 +160,8 @@ defmodule Cake.Accounts.UserToken do
   @doc """
   Checks if the token is valid and returns its underlying lookup query.
 
-  The query returns the user found by the token, if any.
+  The query returns the token row found, if any; its `sent_to` is the new
+  address.
 
   This is used to validate requests to change the user
   email. It is different from `verify_email_token_query/2` precisely because
@@ -189,7 +190,7 @@ defmodule Cake.Accounts.UserToken do
   end
 
   @doc """
-  Returns the token struct for the given token value and context.
+  Returns the query for the token with the given value and context.
   """
   @spec by_token_and_context_query(binary(), String.t()) :: Ecto.Query.t()
   def by_token_and_context_query(token, context) do
@@ -197,7 +198,7 @@ defmodule Cake.Accounts.UserToken do
   end
 
   @doc """
-  Gets all tokens for the given user for the given contexts.
+  Returns the query for all of the given user's tokens in the given contexts.
   """
   @spec by_user_and_contexts_query(%Cake.Accounts.User{}, :all | [String.t()]) :: Ecto.Query.t()
   def by_user_and_contexts_query(user, :all) do

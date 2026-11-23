@@ -10,7 +10,9 @@ defmodule Cake.Books.ParsedBook do
     :language is ISO language code, e.g. "en", "es", "fr", etc.
     :file_size is in bytes.
     :source_file_path is an object storage key (e.g. S3 key) or other path.
-    :source_format is required because we pattern match on format to select chunking strategy.
+    :source_format is the format string the pipeline implementation writes
+      ("pdf"). It names the download and feeds the by_format/2 query helper.
+      Nothing matches on it: the chunking strategy is the pipeline module.
     :file_hash is for deduplication
     :total_pages is the document's page count, including pages whose text
       could not be extracted (those are logged as skipped, not dropped from
@@ -28,6 +30,7 @@ defmodule Cake.Books.ParsedBook do
     :file_hash,             # Always compute for deduplication
     :file_size,             # Always available from file system
     :title,                 # Should extract this at minimum
+    :word_count,            # Counted when the book is parsed
     :parsed_at,             # Set when parsing completes
     :embedding_status       # Has a default, but good to require
 

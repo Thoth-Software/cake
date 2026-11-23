@@ -19,10 +19,12 @@ ExUnit.start(exclude: [:integration, :llm, :network], assert_receive_timeout: 1_
 Ecto.Adapters.SQL.Sandbox.mode(Cake.Repo, :manual)
 
 # Search-backend operations are skipped in every run mode: the pipelines
-# never touch the network unless a test opted in. Only Cake.SearchIntegrationCase
-# turns the flag off, in its own setup, for the tests that use it; every other
-# test — including pre-existing :integration-tagged ones such as the Oban job
-# tests — keeps skipping. Tests that need search behaviour mock the backend
+# never touch the network unless a test opted in. Cake.SearchIntegrationCase
+# turns the flag off, in its own setup, for the real-cluster tests that use it,
+# and the two pipelines_search_backend suites turn it off (and restore it) to
+# drive indexing through the Mox backend; every other test — including
+# pre-existing :integration-tagged ones such as the Oban job tests — keeps
+# skipping. Tests that need search behaviour mock the backend
 # via Mox or the HTTPClientStub adapter.
 Application.put_env(:cake, :skip_search_backend, true)
 

@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Mirrors the documented pre-push chain in CLAUDE.md and the on-push CI gate
 # by running `mix precommit` (lib/mix/tasks/precommit.ex), which runs each
-# step in the env CI runs it in:
+# step in an explicit env (CI itself runs credo and format under its
+# workflow-wide MIX_ENV=test):
 #   MIX_ENV=dev  mix compile --force --warnings-as-errors
 #   MIX_ENV=dev  mix format --check-formatted
 #   MIX_ENV=dev  mix credo --strict

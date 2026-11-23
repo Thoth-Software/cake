@@ -4,9 +4,11 @@ defmodule Cake.Documents.ParsedDocument do
   and store searchable metadata in the search backend.
 
   Fields are tagged to indicate how they're used downstream:
-  - `embedding_input`: indexed for embedding
-  - `plaintext`: indexed for full-text keyword search
-  - `metadata:<key>`: included in search backend metadata under the given key
+  - `embedding_input`: part of what is embedded (`:title`, which the pipeline
+    prepends to `:text`)
+  - `text`: the body, embedded after the title and indexed for full-text
+    keyword search
+  - `metadata: <key>`: included in search backend metadata under the given key
 
   `:embedding` contains the vector generated from the title-prepended `:text`
   value used by the ingestion pipeline. It is a semantic representation and
