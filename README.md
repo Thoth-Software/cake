@@ -1,7 +1,7 @@
 ---
 title: "Cake — RAG Framework for Enterprise Document Q&A"
 tags: [cake, rag, elixir, phoenix, opensearch, architecture, domain-model]
-date: 2026-10-01
+date: 2026-11-23
 domain: architecture, reference
 source: project-maintainer
 ---
