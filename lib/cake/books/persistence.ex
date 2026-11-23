@@ -145,8 +145,11 @@ defmodule Cake.Books.Persistence do
   the winner is already `:completed` under `embedding_model`, and otherwise
   `{:error, {source_file_path, {:concurrent_ingest, winner_id}}}`. The
   pipeline records that as a `"books.persist"` failure, which its sweep
-  retries from the file through the model-aware lookup once the winner has
-  settled, rather than silently skipping a run under another model (#284).
+  retries from the file through the model-aware lookup, rather than
+  silently skipping a run under another model (#284). Nothing waits for
+  the winner to settle: the sweep runs straight after its own run, so the
+  retry can meet a winner that is still in flight, which the lookup then
+  treats as a book to resume.
   """
   @spec insert_books_and_chunks(ParsedBook.t(), [Chunk.t()], String.t()) ::
           {:ok, {ParsedBook.t(), [Chunk.t()]}}

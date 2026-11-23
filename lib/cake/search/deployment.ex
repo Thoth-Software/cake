@@ -3,9 +3,10 @@ defmodule Cake.Search.Deployment do
   Search deployment process — the Snap cluster that connects to OpenSearch.
 
   Manages lifecycle: starts the connection, creates collections on init
-  if they don't exist. Named `Deployment` because it represents the running
-  search engine instance, regardless of backend (OpenSearch cluster,
-  Qdrant instance, etc.).
+  if they don't exist. Named `Deployment` for the running search engine
+  instance it represents. The name is backend-neutral; the module is not:
+  it is a Snap cluster, and it lists and creates the collections by calling
+  `Cake.Search.Backend.OpenSearch` directly.
   """
 
   use Snap.Cluster, otp_app: :cake
