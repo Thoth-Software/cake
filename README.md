@@ -146,13 +146,13 @@ Every arrow originates from `Conversation`:
 
 1. User message arrives at `Conversation`.
 2. `Conversation` resolves search results: cached results are reused; otherwise it embeds the question and searches via `Cake.Search.search_chunks_with_context/5`. With `:decomposition` set on such a no-cache `autoask` turn, `Decomposition.decompose` runs first — an atomic result searches the original question once; otherwise one embed+search per sub-question (concurrent for `:flat`, topologically ordered with accumulated prior answers for `:sequential`, model-driven one follow-up at a time for `:self_ask`, one retrieval query per JSON reasoning step for `:ircot`), merged into one context. Manual mode retrieves through `manualask/2` and never decomposes.
-3. `Conversation` → `Prompt.prepare_context` (filter/rank/index chunks).
+3. `Conversation` → `Prompt.prepare_context` (filter and index chunks; they were ranked at retrieval, by `Search.sort_by_relevance/1`). Auto turns only: a manual turn indexes the user's selection instead.
 4. `Conversation` → `Prompt.build` (assemble messages list).
 5. `Conversation` → `Generation.complete` (LLM call).
 6. `Conversation` → `Responses.process` (chunk map, citations, structuring).
 7. `Conversation` updates state and notifies the frontend.
 
-On follow-up turns, retrieval is skipped — cached chunks are reused with the new question appended to message history.
+On follow-up auto turns, retrieval is skipped — cached chunks are reused with the new question appended to message history. A manual turn always retrieves.
 
 ### Layer 4: Web — Phoenix LiveView Chat Interface
 
