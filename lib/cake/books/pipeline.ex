@@ -222,12 +222,17 @@ defmodule Cake.Books.Pipeline do
   bytes are a book that exists but is not complete under `embedding_model`,
   `Persistence` resumes the whole book and clears every vector another
   model produced, before the check above runs. So a file-step retry called
-  with another model moves the book to that model, whole.
+  with another model re-embeds the book under that model, and the book is
+  never mixed, because the other model's vectors are already gone.
 
-  Within `ingest_with_sweep/5` the sweep's model is the run's own: a
-  file-step retry does there what the run's own ingest of that file would
-  have done, and the check only refuses a retry called with a model the
-  book was not embedded under.
+  A file-step retry is not the run's own ingest of that file in two
+  respects. It embeds chunk by chunk and stops at the first one that fails,
+  leaving the rest unembedded and recording no row per chunk. And it never
+  writes the book's `embedding_status`: only `ingest/4`'s stages do.
+
+  Within `ingest_with_sweep/5` the sweep's model is the run's own, so the
+  check only refuses a retry called with a model the book was not embedded
+  under.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, retry_error()}
