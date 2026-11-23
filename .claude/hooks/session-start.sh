@@ -14,7 +14,7 @@
 set -euo pipefail
 
 # Only run in remote (Claude Code on the web) environments. Local
-# dev uses docker-compose per the README.
+# dev uses docker-compose (docs/architecture/deployment.md).
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   echo "Not a Claude Code on the web session; skipping setup."
   exit 0

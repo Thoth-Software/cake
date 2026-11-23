@@ -9,7 +9,7 @@ paths:
 
 # Front end
 
-Auto-loaded when working on `assets/`, the components and layouts, a LiveView or a controller template. README "Components, Layouts and Assets" says what each piece is; this says how to work on them.
+Auto-loaded when working on `assets/`, the components and layouts, a LiveView or a controller template. "Components, Layouts and Assets" in `docs/architecture/web.md` says what each piece is; this says how to work on them.
 
 ## The rules
 

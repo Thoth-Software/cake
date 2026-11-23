@@ -7,7 +7,7 @@ It takes about ten minutes. The only waiting is the upload (a short PDF ingests 
 ## Before you start
 
 - **A PDF with real text in it.** Not a scan: see "What a tester will run into" below. Pick one you can ask a pointed question about, with an answer you know and can find on a page.
-- **A first admin.** No screen creates one; README, "Roles and the First Admin", has the command. A dev database has one already if the seed has been run on it (`mix ecto.setup` runs it, and so does the dev container on every boot).
+- **A first admin.** No screen creates one; `docs/runbooks/first-admin.md` has the command. A dev database has one already if the seed has been run on it (`mix ecto.setup` runs it, and so does the dev container on every boot).
 - **Two browser windows**, one of them private, if you want to show steps 12 and 13: the admin acts in one and the member's open page reacts in the other.
 - **The theme.** The top bar's toggle switches between following the system, light and dark. Pick before you start; it is remembered per browser.
 

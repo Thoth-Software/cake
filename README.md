@@ -95,7 +95,7 @@ The application starts children in this order under Cake.Application:
 5. `Phoenix.PubSub` — pub/sub for LiveView
 6. `Finch` (`Cake.Finch`) — the HTTP client pool for Swoosh's API client, which only the prod config names; the OpenAI and S3 clients go through Req's own pool
 7. `Cake.Search.Deployment` — OpenSearch connection + index creation
-8. `Task.Supervisor` (`Cake.TaskSupervisor`) — shared task supervisor: conversation turn tasks, flat-decomposition sub-search fan-out, and every ingestion fan-out (see "Error Handling in Pipelines")
+8. `Task.Supervisor` (`Cake.TaskSupervisor`) — shared task supervisor: conversation turn tasks, flat-decomposition sub-search fan-out, and every ingestion fan-out (see "Error Handling in Pipelines" in `docs/architecture/ingestion.md`)
 9. `DynamicSupervisor` (`Cake.ConversationSupervisor`) — supervises the per-session `Conversation` GenServers started via `Conversation.start/1` (`:temporary` children; each stops on its own when its `:owner` LiveView exits)
 10. `CakeWeb.Endpoint` — Phoenix HTTP server (last, so all dependencies are ready)
 

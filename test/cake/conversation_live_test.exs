@@ -43,7 +43,7 @@ defmodule Cake.ConversationLiveTest do
   @moduletag timeout: @turn_timeout + :timer.seconds(60)
 
   # A strategy that emits the dependency edge no production strategy can
-  # yet (README "Strategies and tiers"): the live part is every step's
+  # yet (`docs/architecture/conversation.md`, "Strategies and tiers"): the live part is every step's
   # embedding and generation, not the decomposition itself.
   defmodule SequentialDecomposition do
     @moduledoc false

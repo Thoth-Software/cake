@@ -21,7 +21,7 @@ Indices are one-per-GDS on a shared OpenSearch cluster: `collection_name/0` retu
 
 ## Search Design
 
-OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi_match), `:vector` (k-NN with cosine similarity over an HNSW/FAISS index), and `:hybrid` (vector in `must`, keyword in `should` with configurable boost). The defaults for `k`, `size` and the boost, and how a call overrides them, are under `Cake.Search` in Layer 2. Hybrid is the default because pure vector search struggles with exact identifiers and rare terms, while pure keyword search misses semantic similarity.
+OpenSearch queries support three modes via `search_type`: `:keyword` (BM25 multi_match), `:vector` (k-NN with cosine similarity over an HNSW/FAISS index), and `:hybrid` (vector in `must`, keyword in `should` with configurable boost). The defaults for `k`, `size` and the boost, and how a call overrides them, are under `Cake.Search` above. Hybrid is the default because pure vector search struggles with exact identifiers and rare terms, while pure keyword search misses semantic similarity.
 
 A new backend implementation instantiates the conformance suite, `Cake.Search.BackendConformance`, and must pass it unchanged (`.claude/rules/integration-tests.md`).
 

@@ -1,10 +1,10 @@
 # Creating logins, and the first admin
 
-How an operator gives someone a login, and how the first admin is made when no screen can make one. What a login is, and the rule that there is always at least one admin, are under "Roles and the First Admin" in the README.
+How an operator gives someone a login, and how the first admin is made when no screen can make one. What a login is, and the rule that there is always at least one admin, are under "Roles and the First Admin" in `docs/architecture/web.md`.
 
 ## A login for someone
 
-An admin opens Admin, then Logins, then "New login" (`/admin/users/new`), types a username, the person's email and a password, picks a role, and tells the person the password. The login works at once (see "Confirmation"). To change it later, open the login from the list and use "Set password", which also logs that person out everywhere.
+An admin opens Admin, then Logins, then "New login" (`/admin/users/new`), types a username, the person's email and a password, picks a role, and tells the person the password. The login works at once (see "Confirmation" in `docs/architecture/web.md`). To change it later, open the login from the list and use "Set password", which also logs that person out everywhere.
 
 ## The first admin
 
