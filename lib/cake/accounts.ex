@@ -88,14 +88,15 @@ defmodule Cake.Accounts do
   @doc """
   Gets a single user.
 
-  Raises `Ecto.NoResultsError` if the User does not exist.
+  Raises `Ecto.NoResultsError` if the User does not exist, and
+  `Ecto.Query.CastError` if `id` is not a UUID.
 
   ## Examples
 
-      iex> get_user!(123)
+      iex> get_user!("7c2b0f6e-5d4a-4c1b-9f3e-2a1b0c9d8e7f")
       %User{}
 
-      iex> get_user!(456)
+      iex> get_user!("00000000-0000-0000-0000-000000000000")
       ** (Ecto.NoResultsError)
 
   """

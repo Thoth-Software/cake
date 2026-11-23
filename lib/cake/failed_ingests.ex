@@ -37,14 +37,15 @@ defmodule Cake.FailedIngests do
   @doc """
   Gets a single failed_ingest.
 
-  Raises `Ecto.NoResultsError` if the Failed ingest does not exist.
+  Raises `Ecto.NoResultsError` if the Failed ingest does not exist, and
+  `Ecto.Query.CastError` if `id` is not a UUID.
 
   ## Examples
 
-      iex> get_failed_ingest!(123)
+      iex> get_failed_ingest!("7c2b0f6e-5d4a-4c1b-9f3e-2a1b0c9d8e7f")
       %FailedIngest{}
 
-      iex> get_failed_ingest!(456)
+      iex> get_failed_ingest!("00000000-0000-0000-0000-000000000000")
       ** (Ecto.NoResultsError)
 
   """

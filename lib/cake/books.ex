@@ -90,14 +90,15 @@ defmodule Cake.Books do
   @doc """
   Gets a single parsed_book.
 
-  Raises `Ecto.NoResultsError` if the Parsed book does not exist.
+  Raises `Ecto.NoResultsError` if the Parsed book does not exist, and
+  `Ecto.Query.CastError` if `id` is not a UUID.
 
   ## Examples
 
-      iex> get_parsed_book!(123)
+      iex> get_parsed_book!("7c2b0f6e-5d4a-4c1b-9f3e-2a1b0c9d8e7f")
       %ParsedBook{}
 
-      iex> get_parsed_book!(456)
+      iex> get_parsed_book!("00000000-0000-0000-0000-000000000000")
       ** (Ecto.NoResultsError)
 
   """
@@ -192,14 +193,15 @@ defmodule Cake.Books do
   @doc """
   Gets a single chunk.
 
-  Raises `Ecto.NoResultsError` if the Chunk does not exist.
+  Raises `Ecto.NoResultsError` if the Chunk does not exist, and
+  `Ecto.Query.CastError` if `id` is not a UUID.
 
   ## Examples
 
-      iex> get_chunk!(123)
+      iex> get_chunk!("7c2b0f6e-5d4a-4c1b-9f3e-2a1b0c9d8e7f")
       %Chunk{}
 
-      iex> get_chunk!(456)
+      iex> get_chunk!("00000000-0000-0000-0000-000000000000")
       ** (Ecto.NoResultsError)
 
   """
