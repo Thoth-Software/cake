@@ -243,19 +243,20 @@ defmodule Cake.Accounts do
   ids. Whether `actor` may do this at all is not decided here: the admin
   routes are what keep a member out.
 
-  There is always a confirmed admin, since an admin who is not confirmed
-  cannot log in to the admin panel. Taking back the confirmation of the last
-  one is refused with `{:error, :last_confirmed_admin}`, and nothing
-  changes. That is so whoever asks, `:operator` included: the rule is about
-  what the database is left with. It goes by the role and the confirmation
-  in the database, and is safe when requests race: it is decided under the
-  lock that a demotion and a deletion are decided under (see
-  `delete_user/1`), so two admins cannot each take back the other's.
+  There is always a confirmed admin, once there is one, since an admin who
+  is not confirmed cannot log in to the admin panel. Taking back the
+  confirmation of the last one is refused with
+  `{:error, :last_confirmed_admin}`, and nothing changes. That is so whoever
+  asks, `:operator` included: the rule is about what the database is left
+  with. It goes by the role and the confirmation in the database, and is
+  safe when requests race: it is decided under the lock that a demotion and
+  a deletion are decided under (see `delete_user/1`), so two admins cannot
+  each take back the other's.
 
-  Confirming is never refused, and takes no lock: it can only add a
-  confirmed admin. So it is the way out, from the command line, for a
-  database where no admin is confirmed (the README has the command, under
-  "Roles and the First Admin").
+  Confirming is never refused here, and does not take that lock: it can
+  only add a confirmed admin. So it is the way out, from the command line,
+  for a database where no admin is confirmed (the README has the command,
+  under "Roles and the First Admin").
 
   Confirming also drops the user's pending confirmation links. A user who
   is already as asked is returned as they are. Taking a confirmation back
@@ -452,19 +453,23 @@ defmodule Cake.Accounts do
   this function, `update_user_role/2`, `update_user/2` and the taking back
   of a confirmation (`set_user_confirmed/3`) are decided one at a time: each
   takes the same transaction-level advisory lock before it reads anything,
-  and holds it until it commits or rolls back. Whatever it then reads (the
-  user's role and confirmation, whether another admin exists, whether
-  another confirmed one does) cannot be changed under it by another call to
-  any of the four.
+  and holds it until it commits or rolls back. Whatever it then reads
+  (whether another admin exists, whether another confirmed one does) cannot
+  be changed under it by another call to any of the four.
 
   It is one lock for all users, not a lock on rows, so two calls cannot wait
   on each other in a circle, and a call does not hold up anything else that
-  touches a user: logging in, registering, changing a password.
+  touches another user: logging in, registering, changing a password.
 
   `create_user/1` does not take the lock, and neither does confirming a
   user, by the mailed link or by hand. Each can only add a confirmed admin,
-  never remove one, so the worst a race with one does is refuse a change
-  that would have been allowed a moment later.
+  never remove one. For another user, the worst a race with one does is
+  refuse a change that would have been allowed a moment later. For the user
+  the change is about, a confirmation matters more: read as unconfirmed,
+  they could be confirmed before the change is written, and the only
+  confirmed admin demoted or deleted. So each of the four also locks the
+  user's own row when it reads them, after the advisory lock: a confirmation
+  in flight is waited for and seen, and a later one waits its turn.
 
   Raises `Ecto.NoResultsError` if the user no longer exists.
 
@@ -504,11 +509,21 @@ defmodule Cake.Accounts do
   #
   # The lock comes first, before anything is read: a statement run after it
   # is granted sees every such change that committed while this call waited.
+  #
+  # The user is then read with their row locked, because one change that
+  # matters takes no part in the lock: a confirmation. A confirmation of
+  # this user still in flight is waited for, and seen; one that comes later
+  # waits for this change. Without it, a user read as unconfirmed could be
+  # confirmed before the change is written, and the only confirmed admin
+  # demoted or deleted. `FOR NO KEY UPDATE` is the lock an update of the row
+  # takes anyway; it holds up nobody who only refers to the user, as logging
+  # in does when it stores a session. Nothing that locks a user's row takes
+  # the advisory lock afterwards, so the two cannot wait on each other.
   defp under_last_admin_rule(%User{id: id}, change) do
     Repo.transaction(fn ->
       _ = Repo.query!("SELECT pg_advisory_xact_lock($1)", [@role_changes_lock])
 
-      case change.(Repo.get!(User, id)) do
+      case change.(User |> lock("FOR NO KEY UPDATE") |> Repo.get!(id)) do
         {:ok, user} -> user
         {:error, reason} -> Repo.rollback(reason)
       end
