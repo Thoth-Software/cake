@@ -143,7 +143,9 @@ defmodule CakeWeb.Admin.UserLive.Form do
   defp login(:new, _params), do: %User{}
   defp login(_action, %{"id" => id}), do: Accounts.get_user(id)
 
-  # Only the edit form is opened from a login's own page.
+  # The edit form is opened from two places, the list and the login's own
+  # page, so it is told which to go back to. The password form is opened
+  # from the login's own page only, and always goes back there.
   defp return_to(:edit, "show"), do: "show"
   defp return_to(_action, _), do: "index"
 

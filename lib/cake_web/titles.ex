@@ -60,8 +60,9 @@ defmodule CakeWeb.Titles do
   A citation's label is a document's title followed by ", p. N", put
   together by the citation and not stored anywhere. It is cleaned as
   `display/1` cleans a title, and its page is spelled out: ", p. N" reads
-  ", PDF page N". Only a label gets this; a stored title is shown with
-  `display/1`, which leaves a ", p. N" of its own alone.
+  ", PDF page N". A label gets this, and in the chat so does a candidate's
+  stored title; everywhere else a stored title is shown with `display/1`,
+  which leaves a ", p. N" of its own alone.
 
   ## Examples
 
