@@ -1,8 +1,9 @@
 <!--
 CLAUDE.md — Operational Contract for Cake
 Maintainer metadata (block HTML comments are stripped before injection; cost zero context):
-  created 2026-04-15 · last reviewed 2026-04-23 [jasper] · last verified 2026-09-15
-  Certified accurate by Claude 2026-06-19; re-audited against code 2026-09-15 (#256).
+  created 2026-04-15 · last reviewed 2026-04-23 [jasper] · last verified 2026-11-23
+  Certified accurate by Claude 2026-06-19; re-audited against code 2026-09-15 (#256)
+  and 2026-11-23 (the documentation sweep, #417).
 Refactored 2026-07-12: task-specific policy moved out of this file to
   priv/reference/creating-things.md (trigger-loaded) and
   .claude/rules/test-conventions.md (path-scoped, auto-loads under test/).
@@ -10,6 +11,11 @@ Refactored 2026-07-12: task-specific policy moved out of this file to
 2026-09-15 (#256): creating-things.md had gone missing from priv/reference/;
   restored same day (content re-reviewed against code — result-tuple bullet
   aligned with the corrected rule below) and the trigger row points at it again.
+Trimmed 2026-11-23 (#422): statements made more than once now have one home;
+  the CI gates are a table; the toolchain and Postgres detail moved to
+  .claude/rules/infrastructure-gotchas.md; trigger rows that duplicated a rule's
+  paths: were retired; the README was split, and each file under
+  docs/architecture/ has a trigger row.
 -->
 
 # CLAUDE.md — Operational Contract for Cake
