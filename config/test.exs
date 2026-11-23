@@ -62,6 +62,11 @@ config :cake, book_storage_adapter: Cake.Books.Adapters.Mock
 # backend tests exercise Snap's real request/response path without a cluster.
 config :cake, Cake.Search.Deployment, http_client_adapter: Cake.Search.HTTPClientStub
 
+# The application's own Cake.Search.CollectionSetup child has no stub
+# responder, so its first pass fails as against an unreachable cluster. One
+# attempt (one warning) per run is enough: park it for the rest of the run.
+config :cake, Cake.Search.CollectionSetup, initial_ms: 3_600_000, max_ms: 3_600_000
+
 # Resolve the embeddings collaborator to the Mox mock for the whole test run.
 # The ingestion pipelines read `Application.get_env(:cake, :embeddings_module,
 # Cake.Embeddings)` at call time; setting it here once (immutably) — rather than

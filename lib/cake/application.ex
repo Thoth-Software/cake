@@ -18,6 +18,8 @@ defmodule Cake.Application do
       # Start the Finch HTTP client for sending emails
       {Finch, name: Cake.Finch},
       {Cake.Search.Deployment, name: Cake.Search.Deployment},
+      # Creates the search collections once the cluster answers, then exits
+      Cake.Search.CollectionSetup,
       {Task.Supervisor, name: Cake.TaskSupervisor},
       {DynamicSupervisor, name: Cake.ConversationSupervisor, strategy: :one_for_one},
       # Start to serve requests, typically the last entry
