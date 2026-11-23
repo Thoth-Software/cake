@@ -1,6 +1,6 @@
 # Creating New Things — Policies
 
-Load when creating or modifying a GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct. The headings below say "new", but the rules hold for changes to an existing one too.
+Load when creating or modifying a GDS, ingestion pipeline, decomposition strategy, behaviour, protocol, Ecto schema, or non-Ecto struct. The headings below say "new", but the rules hold for changes to an existing one too.
 
 When asked to create new functionality, first reason about whether it is testable. If so, write the tests first, ensure they fail, then STOP. If the user approves, write the code that makes them pass. Do unit tests this way as a matter of course. If the functionality requires integration testing, stop and ask the user what to do. Always favor property tests where possible: while reasoning about testability, consider what properties each function ought to have and whether a property test can cover them; if so, prefer property tests over ordinary tests.
 
@@ -18,7 +18,11 @@ Consult "Adding a New Ingestion Pipeline" and "Requirements for All Pipeline Imp
 
 ## New GDS
 
-Consult "Adding a New GDS" in `docs/architecture/ingestion.md` first. Checklist: design schemas, declare `use Cake.GDS`, implement `Cake.Promptable` and `Cake.Citable`, design a pipeline behaviour, register the collection in `config :cake, :search_collections` (the mapping is derived from the retrieval-unit schema; nobody writes one), thread the GDS through `Cake.Conversation`.
+Consult "Cardinality" in the README and "Adding a New GDS" in `docs/architecture/ingestion.md` first. Then read `lib/cake/gds.ex`, `lib/cake/promptable.ex` and `lib/cake/citable.ex`, one existing GDS as the reference (`lib/cake/books/parsed_book.ex` or `lib/cake/documents/parsed_document.ex`), and `design-anti-patterns.md`. The same reading applies when you implement `Cake.GDS`, `Cake.Promptable` or `Cake.Citable` for an existing module. Checklist: design schemas, declare `use Cake.GDS`, implement `Cake.Promptable` and `Cake.Citable`, design a pipeline behaviour, register the collection in `config :cake, :search_collections` (the mapping is derived from the retrieval-unit schema; nobody writes one), thread the GDS through `Cake.Conversation`.
+
+## New decomposition strategy
+
+Consult "Query Decomposition" in `docs/architecture/conversation.md` first. Then read `lib/cake/decomposition.ex` (the behaviour) and `lib/cake/decomposition/result.ex` (what a strategy returns); `lib/cake/decomposition/llm.ex` is the reference implementation. The same reading applies to any change to `Cake.Decomposition`. All three files are listed in `@cake_sources` in `lawspec/mix.exs`, so the LawSpec row of CLAUDE.md's trigger table applies too.
 
 ## New behaviour
 

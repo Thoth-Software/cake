@@ -33,9 +33,7 @@ This file says what you must do when you work on Cake; the README says what thin
 | Work on GenServers/Agents/Tasks or `spawn`, the supervision tree, Registry/PubSub or message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` + `task-and-gen-tcp.md` (+ `dynamic-supervisor.md` for dynamic spawning) |
 | Write/modify `@type`/`@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
 | Write/modify an API or behaviour for third-party use | `library-guidelines.md` |
-| Create or modify a GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct | `creating-things.md` |
-| Add/modify a GDS, or implement `Cake.GDS`/`Cake.Promptable`/`Cake.Citable` | README "Cardinality" + "Adding a New GDS"; `lib/cake/gds.ex` + `promptable.ex` + `citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md` |
-| Add/modify a decomposition strategy, or touch `Cake.Decomposition` | README "Query Decomposition"; `lib/cake/decomposition.ex` + `decomposition/result.ex`; `decomposition/llm.ex` as reference implementation |
+| Create or modify a GDS (or implement `Cake.GDS`, `Cake.Promptable` or `Cake.Citable`), an ingestion pipeline, a decomposition strategy (or `Cake.Decomposition`), a behaviour, protocol, Ecto schema or struct | `creating-things.md` |
 | Change a module listed in `@cake_sources` in `lawspec/mix.exs`, or add a LawSpec specification | `lawspec/README.md`; update the module's `.lawspec` file first, as with any test, regenerate, and run the `laws` job's steps |
 
 The rules in `.claude/rules/` load themselves when you open a file their `paths:` frontmatter matches: `test-conventions.md`, `integration-tests.md`, `live-llm-tests.md`, `compose-smoke.md`, `infrastructure-gotchas.md`, `security-gate.md`, `front-end.md`. When one names a suite for the files you changed, run it.
