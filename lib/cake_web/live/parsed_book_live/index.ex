@@ -10,6 +10,15 @@ defmodule CakeWeb.ParsedBookLive.Index do
   pressed, and the page says when that was. Nothing tells the page that an ingest finished: that would need
   the ingestion layer to broadcast. Each row shows what the database says,
   so a status the pipeline left stale (#305) is shown stale.
+
+  ## What the page shows
+
+  Each row has the document's title (a link to its page), page count,
+  ingestion status as a `status_badge/1`, upload time in UTC and a download
+  link to `/books/download/…`, named after its document for a screen reader.
+  An empty corpus is an `empty_state/1` with a link to Upload. Below the `sm`
+  breakpoint the Pages and Uploaded columns are hidden and the download link
+  is an icon.
   """
 
   use CakeWeb, :live_view
