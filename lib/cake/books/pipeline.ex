@@ -203,8 +203,9 @@ defmodule Cake.Books.Pipeline do
   persisted chunk. A file that turns out to be a duplicate of an already
   ingested book resolves the failure without embedding or indexing anything.
 
-  A retry never writes a vector under a model other than the one its book
-  already carries: before embedding a chunk it reads the `embedding_model`
+  A chunk-step retry (`"books.embed"`, `"search_backend.index"`) never writes
+  a vector under a model other than the one its book already carries:
+  before embedding a chunk it reads the `embedding_model`
   of that chunk and its siblings, and if any is set to another model, or
   holds a vector with no recorded model (a row embedded before the column
   existed), it refuses with `{:error, {:embedding_model_mismatch, chunk_id,
@@ -214,9 +215,19 @@ defmodule Cake.Books.Pipeline do
   model is exactly how a book ends up half one model and half another.
   Moving a book to a new model is a re-ingest of its bytes, which
   `Persistence` resumes as a whole (clearing the old vectors first).
-  Within `ingest_with_sweep/5` the sweep's model is the run's own, so the
-  check only refuses a retry called with a model the book was not
-  embedded under.
+
+  A file-step retry (`"books.load_binary"`, `"books.parse"`,
+  `"books.persist"`) is that re-ingest. It loads and parses the file again
+  and persists it through `Persistence.persist_books_and_chunks/2`. If the
+  bytes are a book that exists but is not complete under `embedding_model`,
+  `Persistence` resumes the whole book and clears every vector another
+  model produced, before the check above runs. So a file-step retry called
+  with another model moves the book to that model, whole.
+
+  Within `ingest_with_sweep/5` the sweep's model is the run's own: a
+  file-step retry does there what the run's own ingest of that file would
+  have done, and the check only refuses a retry called with a model the
+  book was not embedded under.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, retry_error()}
