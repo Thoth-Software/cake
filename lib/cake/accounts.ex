@@ -247,7 +247,9 @@ defmodule Cake.Accounts do
   is already as asked is returned as they are. Taking a confirmation back
   does not end the sessions the user already has (#401).
 
-  Raises `Ecto.NoResultsError` if the user no longer exists.
+  Raises `Ecto.NoResultsError` if the user no longer exists, and
+  `Ecto.StaleEntryError` if they are deleted between this function's read
+  and its write.
 
   ## Examples
 
@@ -563,7 +565,7 @@ defmodule Cake.Accounts do
   ## Examples
 
       iex> deliver_user_update_email_instructions(user, current_email, &url(~p"/users/settings/confirm_email/#{&1}"))
-      {:ok, %{to: ..., body: ...}}
+      {:ok, %Swoosh.Email{}}
 
   """
   @spec deliver_user_update_email_instructions(User.t(), String.t(), (String.t() -> String.t())) ::
@@ -644,7 +646,7 @@ defmodule Cake.Accounts do
   end
 
   @doc """
-  Deletes the signed token with the given context.
+  Deletes the session token.
   """
   @spec delete_user_session_token(binary()) :: :ok
   def delete_user_session_token(token) do
@@ -660,7 +662,7 @@ defmodule Cake.Accounts do
   ## Examples
 
       iex> deliver_user_confirmation_instructions(user, &url(~p"/users/confirm/#{&1}"))
-      {:ok, %{to: ..., body: ...}}
+      {:ok, %Swoosh.Email{}}
 
       iex> deliver_user_confirmation_instructions(confirmed_user, &url(~p"/users/confirm/#{&1}"))
       {:error, :already_confirmed}
@@ -710,7 +712,7 @@ defmodule Cake.Accounts do
   ## Examples
 
       iex> deliver_user_reset_password_instructions(user, &url(~p"/users/reset_password/#{&1}"))
-      {:ok, %{to: ..., body: ...}}
+      {:ok, %Swoosh.Email{}}
 
   """
   @spec deliver_user_reset_password_instructions(User.t(), (String.t() -> String.t())) ::
