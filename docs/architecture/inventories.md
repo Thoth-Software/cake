@@ -6,7 +6,7 @@ The complete lists: module boundaries, every custom struct, behaviour and protoc
 
 The layer responsibilities (README, "Architecture: Application Layers") are enforced at compile time by the [`boundary`](https://hex.pm/packages/boundary) compiler. Each top-level context is a boundary that declares the boundaries it may call (`deps`) and the modules it makes public (`exports`); any cross-boundary call not covered by a declared dep is a compiler warning, which fails the build under `--warnings-as-errors` (how `mix precommit`, `mix quality` and CI compile). Calls made from a protocol implementation are not checked unless it is classified into a boundary, and none of the four `defimpl`s is.
 
-- **`Cake`** — the shared kernel: `Repo`, `Schema`, `Mailer`, the `GDS` behaviour, the `Citable`/`Promptable` protocols, `Citations`, `FailedIngests` and `FailedIngests.FailedIngest`, `ParseBooks`. `Cake.Release`, the release's database tasks, is in the kernel too, and is not exported: it touches only `Cake.Repo`, and nothing calls it but the release's own scripts (see `docs/architecture/deployment.md`). Depends on nothing internal; every context may depend on it.
+- **`Cake`** — the shared kernel: `Repo`, `Schema`, `Mailer`, the `GDS` behaviour, the `Citable`/`Promptable` protocols, `Citations`, `FailedIngests` and `FailedIngests.FailedIngest`, `ParseBooks`. `Cake.Release`, the release's database tasks, is in the kernel too, and is not exported: it touches only `Cake.Repo`, and nothing in `lib/` calls it: its callers are the release's own scripts and `test/cake/release_test.exs` (see `docs/architecture/deployment.md`). Depends on nothing internal; every context may depend on it.
 - **Ingestion** — `Cake.Books` (exports `Adapters`, `ParsedBook`, `Chunk`, `Pipeline`, `Pdf.Pipeline`, `ZipExtractor`) and `Cake.Documents` (exports `Pipeline`, `Hexdocs.Pipeline`, `ParsedDocument`) depend on `Cake.Search`, `Cake.Embeddings`, and `Cake.Pipelines` (exports `Context`; in turn depends on `Cake.Search`).
 - **Retrieval** — `Cake.Search` depends only on the kernel and exports `Result`, `Query`, `Hit`, `Backend`, `Provenance` and `Deployment`. The collections created at boot come from `:search_collections` config, which is what keeps the search layer from depending back on the ingestion contexts (an otherwise-cyclic dependency). `Cake.Embeddings` likewise depends only on the kernel and exports `Behaviour`.
 - **Conversation** — `Cake.Conversation` is the orchestrator (exports `Events`); it depends on `Cake.Prompt` (exports nothing), `Cake.Search`, `Cake.Embeddings`, `Cake.Generation` (exports `OpenAI` only, so `Cake.Generation.Anthropic` is unreachable from outside its boundary), `Cake.Responses` (exports `Result`), and `Cake.Decomposition` (exports `Result` and `LLM`). Peer-to-peer deps among the service modules are minimal: `Cake.Responses → Cake.Search`, `Cake.Prompt → Cake.Search` (for the `Result` type), and `Cake.Decomposition → Cake.Prompt`/`Cake.Generation`. Nothing depends back on `Cake.Conversation` except the web layer. `Cake.Candidates` is a top-level boundary of its own (deps `Cake` and `Cake.Search`, exports nothing) that the web layer calls alongside `Conversation`.
@@ -19,9 +19,9 @@ The compiler runs in `:dev`/`:prod` only — test files and support modules deli
 
 ## Custom Structs: Complete Inventory
 
-Every custom struct in Cake, its module, and its purpose. Every one of them defines `@type t`.
+Every custom struct in Cake, its module, and its purpose. Every one of them defines `@type t`. Both kinds of schema below `use Cake.Schema`.
 
-### Ecto Schemas (use Cake.Schema)
+### Ecto Schemas (database tables)
 
 | Struct | Module | Purpose |
 |---|---|---|

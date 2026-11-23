@@ -4,7 +4,7 @@ How an operator gives someone a login, and how the first admin is made when no s
 
 ## A login for someone
 
-An admin opens Admin, then Logins, then "New login" (`/admin/users/new`), types a username, the person's email and a password, picks a role, and tells the person the password. The login works at once (see "Confirmation" in `docs/architecture/web.md`). To change it later, open the login from the list and use "Set password", which also logs that person out everywhere.
+An admin opens Admin, then "Manage logins", then "New login" (`/admin/users/new`), types a username, the person's email and a password, picks a role, and tells the person the password. The login works at once (see "Confirmation" in `docs/architecture/web.md`). To change it later, open the login from the list and use "Set password", which also logs that person out everywhere.
 
 ## The first admin
 

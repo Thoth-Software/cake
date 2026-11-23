@@ -122,4 +122,4 @@ This section traces how content flows from raw document to user-facing answer, c
 
 **Post-demo planned:** test coverage expansion, Word/Excel/CSV/JPG pipelines.
 
-**Longer-term:** autorating (`Search` or dedicated module), cross-encoder reranking (`Search`), HyDE-style query expansion (`Prompt` + `Retrieval`), multi-index search and result merging (`Retrieval`).
+**Longer-term:** autorating (`Search` or dedicated module), cross-encoder reranking (`Search`), HyDE-style query expansion (`Prompt` and a retrieval module that does not exist yet), multi-index search and result merging (that same module; `Cake.Books.Retrieval`, which exists, is the Books GDS's read path and is not it).
