@@ -7,7 +7,7 @@ It takes about ten minutes. The only waiting is the upload (a short PDF ingests 
 ## Before you start
 
 - **A PDF with real text in it.** Not a scan: see "What a tester will run into" below. Pick one you can ask a pointed question about, with an answer you know and can find on a page.
-- **A first admin.** No screen creates one; README, "Roles and the First Admin", has the command. On a dev database the seed has already made one.
+- **A first admin.** No screen creates one; README, "Roles and the First Admin", has the command. A dev database has one already if the seed has been run on it (`mix ecto.setup` runs it, and so does the dev container on every boot).
 - **Two browser windows**, one of them private, if you want to show steps 12 and 13: the admin acts in one and the member's open page reacts in the other.
 - **The theme.** The top bar's toggle switches between following the system, light and dark. Pick before you start; it is remembered per browser.
 
@@ -36,9 +36,9 @@ Steps 5 to 10 are the product. Steps 1 to 4 and 11 to 13 are how a tester gets a
 Say these before the tester finds them. Each is how the product works today, not a fault in the demo.
 
 - **A reload starts a new conversation.** The chat is not saved anywhere. Reloading the page, or leaving it and coming back, gives an empty chat.
-- **A conversation searches once.** The passages found for the first question are the ones every follow-up is answered from. A follow-up on the same subject works well; a second question about something else is answered from the wrong passages, or not at all. For a new subject, reload the page first.
+- **A conversation searches once, unless you ask it to search again.** The passages found for the first question are the ones every ordinary follow-up is answered from. A follow-up on the same subject works well; a second question about something else is answered from the wrong passages, or not at all. For a new subject, either reload the page or ask with **Manual selection** switched on: a manual-selection question always searches afresh, and the follow-ups after it use what it found.
 - **An upload needs its tab.** Ingestion runs for as long as the upload page is open. Closing the tab or navigating away stops it. There is no progress bar: the page says it is working until it is done.
-- **Give a new document half a minute.** The search index takes in new passages every 30 seconds, so a question asked the moment the upload page says "Ingestion complete" can find nothing, and that conversation then stays empty-handed (see "A conversation searches once"). Going by way of the documents list, as step 6 does, is long enough. If an answer says it found nothing about a document you just uploaded, reload the chat and ask again.
+- **Give a new document half a minute.** The search index takes in new passages every 30 seconds, so a question asked sooner than that after the upload page says "Ingestion complete" can find nothing, and the follow-ups in that conversation then find nothing either (see "A conversation searches once"). The upload page's own link to the chat leads straight into this. Step 6's detour through the documents list uses up some of the half minute, not necessarily all of it: count to thirty before step 7. If an answer says it found nothing about a document you just uploaded, wait a moment, then reload the chat and ask again.
 - **Scanned PDFs do not work.** A PDF that is pictures of pages has no text to read. It uploads, and it is listed as Completed, but nothing in it can be found. Use a PDF whose text can be selected in a PDF viewer.
 - **The upload's figures count sections, not files.** "6 indexed" is six passages of one document.
 - **The same file twice is not ingested twice.** Uploading a file that is already in the library reports nothing indexed and nothing failed.
