@@ -70,24 +70,13 @@ The last two gate the images, not the code. A failure there is a finding about t
 
 ### Test tags and run modes
 
-Test tags split by what a test *needs*, not by how slow it is:
+A plain `mix test` excludes three tags, split by what a test needs. Each is a merge gate, run on its own:
 
-- `:integration` — hermetic infrastructure (OpenSearch, the Rustler NIF, Oban): free and deterministic, so a required merge gate on every PR (the `integration` job; `.claude/rules/integration-tests.md`).
-- `:network` — the integration tests that also reach the public internet (the hexdocs clone): the same required merge gate, run by the same job via `--include network`; tagged separately only so a plain local `--only integration` can leave them out.
-- `:llm` — real provider calls: secret-bearing (`OPENAI_KEY`), cost-bearing, and rate-limit-flaky. `test_helper.exs` excludes it from every default run alongside `:integration`; only `mix test --only llm` runs it.
+- `:integration` — real OpenSearch, object store, NIF and Oban. `docker compose up -d opensearch moto`, then `mix test --only integration`.
+- `:network` — the integration tests that also clone from the public internet. `mix test --only integration --include network` is the gate's command. Never `--only network` or `--include network` without `--only integration`.
+- `:llm` — real provider calls. `OPENAI_KEY=... mix test --only llm` (its conversation suite needs the OpenSearch node too).
 
-```bash
-docker compose up -d opensearch moto               # the real node and object store an integration run needs (OPENSEARCH_URL / S3_ENDPOINT_URL override the localhost defaults)
-mix test --only integration --include network      # the integration merge gate's command
-mix test --only integration                        # the same minus the :network group (no clone) — a local shortcut, not the gate
-OPENAI_KEY=... mix test --only llm                 # the live merge gate (its conversation suite needs the OpenSearch node up too)
-```
-
-Unit and integration tests cannot share one run (the skip flag and the Deployment config are global): `test_helper.exs` refuses a mixed `--include integration` run with an error pointing at `--only integration`. Never `--only network` or `--include network` alone: without `--only integration` it is a unit-mode run, and the tests refuse it.
-
-A live test asserts shapes and invariants, never generated content; one that stays red after the wiring is in means provider drift or a parsing defect: stop and ask, never loosen the assertion.
-
-The detail behind each gate lives in a path-scoped rule that auto-loads when you touch the files it covers: `.claude/rules/integration-tests.md` (what the `integration` job runs, the case templates, local setup) and `.claude/rules/live-llm-tests.md` (the `llm` job, its fork-PR guard, `Cake.LiveLLMCase`, what each live suite pins).
+Unit and integration tests cannot share a run; `test_helper.exs` refuses `--include integration`. A live test asserts shapes and invariants, never generated content, and one that stays red means provider drift or a parsing defect: stop and ask, never loosen the assertion. The detail is in `.claude/rules/integration-tests.md` and `.claude/rules/live-llm-tests.md`.
 
 ---
 
