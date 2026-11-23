@@ -8,7 +8,7 @@ defmodule CakeWeb.UserSettingsLive do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
       <.header>
-        Account Settings
+        Account settings
         <:subtitle>
           <span id="settings-subtitle">
             Manage your account email address and password settings
@@ -51,7 +51,7 @@ defmodule CakeWeb.UserSettingsLive do
               required
             />
             <.button phx-disable-with="Changing..." class="btn btn-outline mt-2">
-              Change Email
+              Change email
             </.button>
           </.form>
         </div>
@@ -99,7 +99,7 @@ defmodule CakeWeb.UserSettingsLive do
               required
             />
             <.button phx-disable-with="Changing..." class="btn btn-primary mt-2">
-              Change Password
+              Change password
             </.button>
           </.form>
         </div>

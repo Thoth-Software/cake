@@ -8,7 +8,7 @@ defmodule CakeWeb.UserConfirmationLive do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
       <.header>
-        Confirm Account
+        Confirm account
         <:subtitle>Confirm the email address this link was sent to</:subtitle>
       </.header>
 

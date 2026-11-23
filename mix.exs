@@ -34,7 +34,8 @@ defmodule Cake.MixProject do
           Cake.Promptable,
           Cake.Citations,
           Cake.FailedIngests,
-          Cake.ParseBooks
+          Cake.ParseBooks,
+          Cake.Release
         ],
         Ingestion: [~r/^Cake\.(Books|Documents|Pipelines)/],
         Retrieval: [~r/^Cake\.(Search|Embeddings)/],
@@ -121,7 +122,7 @@ defmodule Cake.MixProject do
       {:bandit, "~> 1.5"},
       {:req, "~> 0.6.3"},
       {:snap, "~> 0.12.1"},
-      {:mox, "~> 1.2.0"},
+      {:mox, "~> 1.2.0", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test]},
       {:credo_naming, "~> 2.1", only: [:dev, :test], runtime: false},
       {:jump_credo_checks, "~> 0.4.0", only: [:dev, :test], runtime: false},

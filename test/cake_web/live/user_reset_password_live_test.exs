@@ -21,7 +21,7 @@ defmodule CakeWeb.UserResetPasswordLiveTest do
     test "renders reset password with valid token", %{conn: conn, token: token} do
       {:ok, _lv, html} = live(conn, ~p"/users/reset_password/#{token}")
 
-      assert html =~ "Reset Password"
+      assert html =~ "Reset password"
     end
 
     test "does not render reset password with invalid token", %{conn: conn} do
@@ -81,7 +81,7 @@ defmodule CakeWeb.UserResetPasswordLiveTest do
         )
         |> render_submit()
 
-      assert result =~ "Reset Password"
+      assert result =~ "Reset password"
       assert result =~ "should be at least 12 character(s)"
       assert result =~ "does not match password"
     end
