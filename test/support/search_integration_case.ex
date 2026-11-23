@@ -32,14 +32,15 @@ defmodule Cake.SearchIntegrationCase do
 
     * The production mapping sets `index.refresh_interval` to 30s, so
       nothing indexed is searchable until `refresh!/1` is called.
-    * `Cake.Search.Deployment.init/1` spawns a task that sleeps 10s and then
-      creates the collections in `:search_collections`. Tests never wait on
-      it and never touch that config: they create what they need under
-      names of their own, and the boot-path tests pass their collection
-      list to `create_collections_unless_exist/2` explicitly, so the task
-      can neither observe nor race them. (The restart in
-      `start_real_deployment!/0` spawns a second such task; both land in
-      the namespace and neither is a test's concern.)
+    * The application's `Cake.Search.CollectionSetup` child creates the
+      collections in `:search_collections` at boot. In a test run it never
+      reaches the real node: it makes its one attempt against the stub
+      before `start_real_deployment!/0` runs, and `config/test.exs` parks
+      it for an hour after that. Tests never wait on it and never touch
+      that config all the same: they create what they need under names of
+      their own, and the boot-path tests pass their collection list to
+      `create_collections_unless_exist/2` or `CollectionSetup.run/1`
+      explicitly.
     * Collection names are random per test, so async tests never see each
       other's indices, and a crashed run leaves nothing a later run can
       collide with.
