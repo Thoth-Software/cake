@@ -64,6 +64,26 @@ These four cardinality relationships are stated explicitly because the rest of t
 
 The system is organized into four layers. Each layer has a clear responsibility boundary, and modules within a layer communicate through defined interfaces (behaviours, function signatures, GenServer protocols). The guiding principle is that **modules are organized by what they're responsible for, not by what infrastructure they share.** Two functions that both call an HTTP API don't belong together unless they operate on the same domain concept and change for the same reasons.
 
+Each layer has a file of its own under `docs/architecture/`; this README says only what the layer is, which modules it is made of, and which way its dependencies run. The [`boundary`](https://hex.pm/packages/boundary) compiler enforces those dependencies at compile time (`docs/architecture/inventories.md`, "Module Boundaries"). Beneath all four sits the shared kernel, `Cake`, which holds among other things the repo, the base schema, the `Cake.GDS` behaviour, and the `Cake.Citable` and `Cake.Promptable` protocols. It declares no internal dependency, and every layer may depend on it.
+
+**Layer 1: Ingestion.** Two parallel pipeline systems, one per GDS: `Cake.Books.Pipeline` (implemented by `Cake.Books.Pdf.Pipeline`, over a Rust NIF) and `Cake.Documents.Pipeline` (implemented by `Cake.Documents.Hexdocs.Pipeline`). Each behaviour module also holds its `ingest/4` orchestrator. `Cake.Pipelines` is what they share: recording failures to `FailedIngest`, indexing, and the retry sweep. `Cake.Jobs` runs the Documents pipeline as an Oban job. Ingestion depends on search and embeddings, never the reverse.
+
+**Layer 2: Search and Retrieval.** `Cake.Search` orchestrates keyword, vector and hybrid search over a GDS's collection through the `Cake.Search.Backend` behaviour (implemented by `Cake.Search.Backend.OpenSearch`), with `Cake.Search.Query` to build a query and `Cake.Search.Result` to carry what comes back. `Cake.Search.Deployment` owns the cluster connection and creates the collections at boot. `Cake.Embeddings` turns text into vectors. Both depend only on the kernel.
+
+**Layer 3: Conversation.** `Cake.Conversation`, a GenServer per chat, is the sole orchestrator of a turn, and every other module in the layer is a peer service it calls: `Cake.Prompt`, `Cake.Generation`, `Cake.Responses` (which calls `Cake.Citations`) and, when opted into, `Cake.Decomposition`. It also calls `Cake.Search` and `Cake.Embeddings`. Nothing depends back on it but the web layer.
+
+**Layer 4: Web.** `CakeWeb`: the chat, upload, search and documents LiveViews, the admin panel and the account pages, behind `CakeWeb.Router` and the guards in `CakeWeb.UserAuth`, over `Cake.Accounts`. It depends on the layers below it, and only the application's supervisor depends on it.
+
+| File | Read it when you work on |
+|---|---|
+| `docs/architecture/ingestion.md` | a GDS, a pipeline, `FailedIngest`, the sweep, a storage adapter or an ingestion job; it also has the field-level schemas |
+| `docs/architecture/search.md` | `Cake.Search`, a backend, the deployment or embeddings |
+| `docs/architecture/conversation.md` | `Conversation`, `Prompt`, `Generation`, `Responses`, `Citations` or `Decomposition` |
+| `docs/architecture/web.md` | `CakeWeb`, `Cake.Accounts`, `Cake.Candidates` or `assets/` |
+| `docs/architecture/inventories.md` | creating, renaming or removing a module, struct, behaviour, protocol, boundary dep or config key |
+| `docs/architecture/deployment.md` | a Dockerfile, `rel/`, `entrypoint.sh` or `Cake.Release` |
+| `docs/runbooks/first-admin.md` | giving someone a login, or creating the first admin |
+
 ### Supervision Tree Boot Order
 
 The application starts children in this order under Cake.Application:
