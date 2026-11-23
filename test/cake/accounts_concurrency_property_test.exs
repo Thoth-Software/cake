@@ -37,7 +37,7 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   One user can also be the subject of two requests at once. The dangerous
   pair is a promotion and its undoing: a demotion or deletion that looks
   before the promotion commits (nobody is an admin, so this is not the last
-  one) and acts after it. Two tests fix that interleaving exactly, by holding
+  one) and acts after it. Tests fix that interleaving exactly, by holding
   the promotion's transaction open until the database reports the second
   request waiting on a lock, and a third property races several promotions
   and demotions of the same two users from a table with no admin at all.
@@ -45,16 +45,22 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   The same is done for the pair #405 is about: of two confirmed admins, one
   loses their confirmation while a request takes the other away. Each looks
   while the other is uncommitted, sees a confirmed admin who is about to
-  stop being one, and goes ahead. Six tests fix that interleaving, in both
+  stop being one, and goes ahead. Tests fix that interleaving, in both
   orders.
+
+  And for the one request that takes no part in the lock, a confirmation:
+  where no admin is confirmed, an admin's confirmation is held uncommitted
+  while a request takes that same admin away.
 
   The SQL sandbox gives a test one connection, on which nothing can race. So
   this module does not use it: every database call runs through
   `Ecto.Adapters.SQL.Sandbox.unboxed_run/2`, on a connection of its own, and
   commits. That is why the module is `async: false` (no sandboxed test is
   running to see the committed rows), why each run deletes its users, and why
-  it first deletes any a killed run left behind. No run asks for more
-  requests at once than the pool has connections.
+  it first deletes any a killed run left behind. No property asks for more
+  requests at once than the pool has connections; a test that holds a
+  transaction open needs three (the held one, the second request, and the
+  poll that watches for the wait).
 
   The requests are released by a message and collected with
   `Task.await_many/2`; nothing sleeps. A failure here comes from an
@@ -339,11 +345,16 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
     end
   end
 
-  for {name, request} <- [
-        {"demotion", quote(do: &Accounts.update_user_role(&1, :member))},
-        {"demotion through update_user/2",
-         quote(do: &Accounts.update_user(&1, %{role: :member}))},
-        {"deletion", quote(do: &Accounts.delete_user/1)}
+  # A confirmation taken back is the fourth way to undo the promotion of a
+  # confirmed member (#405, found in review): it leaves them an admin, and
+  # one who cannot log in.
+  for {name, request, refusal} <- [
+        {"demotion", quote(do: &Accounts.update_user_role(&1, :member)), :last_admin},
+        {"demotion through update_user/2", quote(do: &Accounts.update_user(&1, %{role: :member})),
+         :last_admin},
+        {"deletion", quote(do: &Accounts.delete_user/1), :last_admin},
+        {"confirmation taken back", quote(do: &Accounts.set_user_confirmed(:operator, &1, false)),
+         :last_confirmed_admin}
       ] do
     test "a #{name} that arrives while the same user's promotion is uncommitted is refused once it commits" do
       member = create_member()
@@ -359,8 +370,83 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
       assert {:ok, %User{}} = Task.await(promotion, 15_000)
 
       # The promotion committed first, so the user is the only admin.
-      assert Task.await(undoing, 15_000) == {:error, :last_admin}
+      assert Task.await(undoing, 15_000) == {:error, unquote(refusal)}
       assert stored() == %{member.id => {:admin, true}}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # One admin, two requests: a confirmation still uncommitted, and a removal
+  # ---------------------------------------------------------------------------
+
+  # Found in review on #416. Confirming takes no part in the lock: it can
+  # only add a confirmed admin. But it can add one out from under a request
+  # that has already looked. Where no admin is confirmed, an admin may be
+  # demoted or deleted while another admin remains. If that request reads
+  # the admin as unconfirmed, and their confirmation commits before it
+  # writes, it takes away the only confirmed admin there is: the database
+  # had one, by a committed change, and then has none.
+  #
+  # It is the state the command-line recovery is for, so the confirmation is
+  # likely to be the operator's. The removal has to see it: these tests hold
+  # the confirmation open until the removal is waiting on a lock, then let
+  # it commit first.
+
+  defp create_two_unconfirmed_admins do
+    unboxed(fn ->
+      for name <- ["first", "second"] do
+        create_user("#{@username_prefix}#{name}", :admin, false)
+      end
+    end)
+  end
+
+  defp confirmation_token(user) do
+    unboxed(fn ->
+      Cake.AccountsFixtures.extract_user_token(
+        &Accounts.deliver_user_confirmation_instructions(user, &1)
+      )
+    end)
+  end
+
+  # `confirm` is given the admin and answers the confirmation to make: the
+  # mailed link's token is made first, outside the transaction held open.
+  for {way, confirm} <- [
+        {"by hand",
+         quote do
+           fn user -> fn -> Accounts.set_user_confirmed(:operator, user, true) end end
+         end},
+        {"by the mailed link",
+         quote do
+           fn user ->
+             token = confirmation_token(user)
+             fn -> Accounts.confirm_user(token) end
+           end
+         end}
+      ],
+      {name, request} <- [
+        {"demotion", quote(do: &Accounts.update_user_role(&1, :member))},
+        {"demotion through update_user/2",
+         quote(do: &Accounts.update_user(&1, %{role: :member}))},
+        {"deletion", quote(do: &Accounts.delete_user/1)}
+      ] do
+    test "a #{name} that arrives while the same admin's confirmation #{way} is uncommitted is refused once it commits" do
+      [first, second] = create_two_unconfirmed_admins()
+      confirm = unquote(confirm).(first)
+      request = unquote(request)
+
+      confirmation = change_and_hold(confirm, self())
+      assert_receive :change_uncommitted
+
+      removal = Task.async(fn -> unboxed(fn -> request.(first) end) end)
+      assert await_blocked_or_done(removal) == :blocked
+
+      send(confirmation.pid, :commit)
+      assert {:ok, %User{confirmed_at: %DateTime{}}} = Task.await(confirmation, 15_000)
+
+      # The confirmation committed first, so the first admin is the only
+      # confirmed one.
+      assert Task.await(removal, 15_000) == {:error, :last_confirmed_admin}
+      assert stored() == %{first.id => {:admin, true}, second.id => {:admin, false}}
     end
   end
 
