@@ -467,7 +467,7 @@ jobs:
     # with one-shot commands -- `bin/cake eval` extracts a fixture PDF through
     # the parsebooks NIF, and `bin/migrate` applies every migration to a
     # Postgres container. It does not boot the app: the release cannot boot in
-    # prod until the production runtime config lands (#362). PR-only, like
+    # prod while the search node has no runtime configuration (#362). PR-only, like
     # `compose-smoke`, and for the same reason: the image build compiles the
     # app and the NIF from scratch. Register `Release Image (merge gate)` as
     # its own required check.
