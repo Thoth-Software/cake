@@ -22,29 +22,23 @@ This file says what you must do when you work on Cake; the README says what thin
 
 **Always load:** `README.md` (the domain model, the layers and which way they depend), `priv/reference/naming-conventions.md`, and `priv/reference/enum-cheat.cheatmd` (before any collection transformation or explicit recursion over a list).
 
-### Load by trigger
-Load the full file when the task matches the trigger. Reference files live in `priv/reference/`.
+**Load by trigger.** Files are in `priv/reference/` unless a path is given.
 
 | When you're about to... | Load |
 |---|---|
-| Refactor function bodies, change pattern matching, modify string/list/map logic, add params, change arity, modify exception handling, introduce boolean/flag params | `code-anti-patterns.md` + `patterns-and-guards.md` + `docs-tests-and-with.md` |
-| Create/rename/move modules, restructure dirs, define new public APIs/behaviours, add/change structs/schemas, introduce deps, change call graphs, add config | `design-anti-patterns.md` + `config-and-distribution.md` |
+| Refactor function bodies; change pattern matching, string/list/map logic, params, arity or exception handling; add a boolean/flag param | `code-anti-patterns.md` + `patterns-and-guards.md` + `docs-tests-and-with.md` |
+| Create/rename/move modules or directories; define public APIs or behaviours; add/change structs or schemas; add deps or config; change call graphs | `design-anti-patterns.md` + `config-and-distribution.md` |
 | Add or restyle a screen, component or layout; touch `assets/`, `core_components.ex`, `layouts.ex` or a LiveView template; move daisyUI, heroicons, Tailwind or esbuild | `.claude/rules/front-end.md` (start a new screen from `mix phx.gen.live` and commit its raw output first; daisyUI classes over ad-hoc utilities; no Node; select by `id` in LiveView tests; where the kit's files come from and how to update them); README "Components, Layouts and Assets"; then build the assets and look at the page in both themes and at phone width, because the suite cannot see a style; `docs/demo-script.md` when the change alters a step of the demo |
 | Write/modify macros, `use`, `quote`/`unquote`, DSLs, compile-time codegen | `macro-anti-patterns.md` + `macros.md` |
-| Create/modify/supervise GenServers/Agents/Tasks, modify supervision tree, use spawn/Task.async, work with Registry/PubSub/message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` + `task-and-gen-tcp.md` (+ `dynamic-supervisor.md` if dynamic spawning) |
+| Work on GenServers/Agents/Tasks or `spawn`, the supervision tree, Registry/PubSub or message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` + `task-and-gen-tcp.md` (+ `dynamic-supervisor.md` for dynamic spawning) |
 | Write/modify `@type`/`@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
-| Write/modify public API for external use, design behaviours for third-party use | `library-guidelines.md` |
-| Create or modify a GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct | `priv/reference/creating-things.md` |
+| Write/modify an API or behaviour for third-party use | `library-guidelines.md` |
+| Create or modify a GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct | `creating-things.md` |
 | Add/modify a GDS, or implement `Cake.GDS`/`Cake.Promptable`/`Cake.Citable` | README "Cardinality" + "Adding a New GDS"; `lib/cake/gds.ex` + `promptable.ex` + `citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md` |
 | Add/modify a decomposition strategy, or touch `Cake.Decomposition` | README "Query Decomposition"; `lib/cake/decomposition.ex` + `decomposition/result.ex`; `decomposition/llm.ex` as reference implementation |
 | Change a module listed in `@cake_sources` in `lawspec/mix.exs`, or add a LawSpec specification | `lawspec/README.md`; update the module's `.lawspec` file first, as with any test, regenerate, and run the `laws` job's steps |
-| Add a `Cake.Search.Backend` implementation, or change `Backend.OpenSearch` / `Search.Deployment` | README "Search Design"; `test/support/backend_conformance.ex` (instantiate it for the new backend) + `test/support/search_integration_case.ex`; run `mix test --only integration` (see `.claude/rules/integration-tests.md`) |
-| Change what `Books.Pipeline.ingest/4` / `Documents.Pipeline.ingest/4` / `ingest_with_sweep/5` persist, embed, index or report, or add an end-to-end ingestion test | `.claude/rules/integration-tests.md`; `test/support/ingest_integration_helpers.ex`; the existing `*_integration_test.exs` for the pipeline as reference; run `mix test --only integration --include network` against a real node (the `:network` group clones elixir-lang/elixir) |
-| Change `Cake.Books.Adapters.S3`, ExAws config, or `Cake.S3IntegrationCase`; add a `Cake.Books.Adapters` implementation | `lib/cake/books/adapters.ex` + `adapters/s3.ex` (the "Authentication" and "Errors" sections); `test/support/s3_integration_case.ex`; `test/cake/books/adapters/s3_integration_test.exs` as reference; run `mix test --only integration` (see `.claude/rules/integration-tests.md`) |
-| Add/modify a live-provider test (`:llm`), touch `Cake.LiveLLMCase`, or change what `Cake.Embeddings` / `Cake.Generation.OpenAI` / `Cake.Decomposition.LLM` send over the wire | `.claude/rules/live-llm-tests.md`; `test/support/live_llm_case.ex`; the existing `*_live_test.exs` for the module as reference; run `OPENAI_KEY=... mix test --only llm` |
-| Add/modify an end-to-end `Cake.Conversation` test (tier 1 `:integration` or tier 2 `:llm`), or touch `Cake.ConversationIntegrationHelpers` | `.claude/rules/integration-tests.md` + `.claude/rules/live-llm-tests.md`; `test/support/conversation_integration_helpers.ex`; README "The Per-Turn Pipeline"; `test/cake/conversation_integration_test.exs` as reference; run `mix test --only integration` (and `OPENAI_KEY=... mix test --only llm` for the live tier) |
 
-Path-scoped rules in `.claude/rules/` auto-load when you work on a file their `paths:` frontmatter matches — no manual trigger needed: `test-conventions.md` (anything under `test/`), `integration-tests.md`, `live-llm-tests.md`, `compose-smoke.md`, `infrastructure-gotchas.md`, `security-gate.md` and `front-end.md`. The rows above that name one of them are for loading it before you have opened a matching file. LawSpec work also loads the compiler's prelude through a hook (`.claude/hooks/lawspec-prelude.sh`; `lawspec/README.md`, "The prelude in Claude Code sessions"), so never write a `prelude.` name from memory.
+The rules in `.claude/rules/` load themselves when you open a file their `paths:` frontmatter matches: `test-conventions.md`, `integration-tests.md`, `live-llm-tests.md`, `compose-smoke.md`, `infrastructure-gotchas.md`, `security-gate.md`, `front-end.md`. When one names a suite for the files you changed, run it.
 
 ---
 
