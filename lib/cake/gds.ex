@@ -32,8 +32,9 @@ defmodule Cake.GDS do
   `search_fields/0` — live on the schema module directly, because they are
   compile-time constants the schema has full knowledge of. The repo-hitting
   callbacks — `load_from_hits/1` and `expand_with_neighbors/2` — delegate
-  from the schema to the corresponding context module (e.g. `Cake.Books`),
-  because that is where the Repo-aware query functions live.
+  from the schema to the module of its context that holds the Repo-aware
+  query functions: `Cake.Books.Retrieval` for `ParsedBook`,
+  `Cake.Documents.ParsedDocuments` for `ParsedDocument`.
 
   ## Return types
 
