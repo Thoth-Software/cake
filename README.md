@@ -271,13 +271,13 @@ The application starts children in this order under Cake.Application:
 3. Oban — background job processing
 4. `DNSCluster` — DNS-based node discovery
 5. `Phoenix.PubSub` — pub/sub for LiveView
-6. `Finch` — HTTP client pool
+6. `Finch` (`Cake.Finch`) — the HTTP client pool for Swoosh's API client, which only the prod config names; the OpenAI and S3 clients go through Req's own pool
 7. `Cake.Search.Deployment` — OpenSearch connection + index creation
 8. `Task.Supervisor` (`Cake.TaskSupervisor`) — shared task supervisor: conversation turn tasks, flat-decomposition sub-search fan-out, and every ingestion fan-out (the per-item task stages of both pipelines and of the source pipelines, `Pipelines.add_to_search_backend/3` included), run unlinked so a crashed item is reported to the consuming stream instead of taking it down (see "Error Handling in Pipelines")
 9. `DynamicSupervisor` (`Cake.ConversationSupervisor`) — supervises the per-session `Conversation` GenServers started via `Conversation.start/1` (`:temporary` children; each stops on its own when its `:owner` LiveView exits)
 10. `CakeWeb.Endpoint` — Phoenix HTTP server (last, so all dependencies are ready)
 
-Phoenix runs `server: false` in test, so this boot order is exercised in CI only by the compose smoke test, which boots the real stack through `entrypoint.sh` and asserts that step 7 created both collections (`.claude/rules/compose-smoke.md`).
+Every `mix test` run starts the application, so this boot order runs in every ExUnit job (`server: false` in test only keeps the endpoint from listening). What the compose smoke test alone adds is the boot of the real stack through `entrypoint.sh` and the assertion that step 7 created both collections (`.claude/rules/compose-smoke.md`).
 
 ### Module Boundaries (enforced by `boundary`)
 
