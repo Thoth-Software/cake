@@ -186,12 +186,16 @@ defmodule CakeWeb.SearchLive do
               {result.hit_count} relevant sections found
             </p>
             <%!-- The row is the positioned ancestor and each tooltip is
-            `static`, as for the chat's source chips: a preview opens above the
-            row, starts where the row starts and is no wider than it. Centred
-            on its own chip, as daisyUI places it, one for a chip near the
-            edge ran off a phone and made the page scroll sideways. The tail
-            that would point at the chip is hidden, and the chip whose
-            preview is open is ringed instead. --%>
+            `static`, as for the chat's source chips: a preview starts where
+            the row starts and is no wider than it. Centred on its own chip,
+            as daisyUI places it, one for a chip near the edge ran off a
+            phone and made the page scroll sideways. A book can have dozens
+            of chips, on many lines, so unlike the chat's the preview is not
+            put above the whole row, where it could be a screen away from
+            its chip: `bottom-auto` leaves it at its own line, and
+            `-translate-y-full` with `-mt-2` lifts it just above that line.
+            The tail that would point at the chip is hidden, and the chip
+            whose preview is open is ringed instead. --%>
             <div class="relative flex flex-wrap gap-2">
               <%!-- The chip is focusable so the preview opens from the keyboard
               too: daisyUI shows a tooltip on hover and when something inside
@@ -200,7 +204,7 @@ defmodule CakeWeb.SearchLive do
                 <div
                   id={"preview-#{book_index}-#{page.page_number}"}
                   role="tooltip"
-                  class="tooltip-content left-0 max-w-[min(20rem,100%)] translate-x-1/2 text-left"
+                  class="tooltip-content bottom-auto left-0 -mt-2 max-w-[min(20rem,100%)] translate-x-1/2 -translate-y-full text-left"
                 >
                   {page.chunk_preview}
                 </div>
