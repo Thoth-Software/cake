@@ -16,7 +16,7 @@ defmodule CakeWeb.Admin.UserLive.Form do
 
   A refusal is an error on the field it is about: a taken username on the
   username, a taken or missing email on the email, the demotion of the last
-  admin on the role.
+  admin, or of the last one whose email is confirmed, on the role.
 
   The edit form writes only what was changed on it. It sends every field
   every time, so a form opened a while ago would otherwise put back a
@@ -255,17 +255,8 @@ defmodule CakeWeb.Admin.UserLive.Form do
          |> put_flash(:info, "Login updated")
          |> push_navigate(to: return_path(socket.assigns.return_to, user))}
 
-      # A refused save shows the login as it is now, so that is what the next
-      # save's changes are measured against.
-      {:error, :last_admin} ->
-        user = Accounts.get_user(socket.assigns.user.id) || socket.assigns.user
-
-        changeset =
-          :edit
-          |> change(user, user_params)
-          |> Ecto.Changeset.add_error(:role, "cannot be changed: this is the last admin")
-
-        {:noreply, socket |> assign(:user, user) |> assign_form(changeset, action: :validate)}
+      {:error, last} when last in [:last_admin, :last_confirmed_admin] ->
+        {:noreply, refuse_demotion(socket, user_params, last)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, socket |> assign(:user, changeset.data) |> assign_form(changeset)}
@@ -286,6 +277,26 @@ defmodule CakeWeb.Admin.UserLive.Form do
         {:noreply, assign_form(socket, changeset)}
     end
   end
+
+  # A refused save shows the login as it is now, so that is what the next
+  # save's changes are measured against.
+  defp refuse_demotion(socket, user_params, last) do
+    user = Accounts.get_user(socket.assigns.user.id) || socket.assigns.user
+
+    changeset =
+      :edit
+      |> change(user, user_params)
+      |> Ecto.Changeset.add_error(:role, demotion_refusal(last))
+
+    socket |> assign(:user, user) |> assign_form(changeset, action: :validate)
+  end
+
+  # Why the role cannot be changed. An admin who is not confirmed cannot log
+  # in, so the last confirmed one stays an admin as the last one does.
+  defp demotion_refusal(:last_admin), do: "cannot be changed: this is the last admin"
+
+  defp demotion_refusal(:last_confirmed_admin),
+    do: "cannot be changed: no other admin has a confirmed email"
 
   # What the form changed: the fields that differ from the login as the
   # form last showed it (when it was opened, or after a refused save).

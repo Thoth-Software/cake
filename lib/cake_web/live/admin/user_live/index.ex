@@ -11,7 +11,8 @@ defmodule CakeWeb.Admin.UserLive.Index do
   login's own page, which has them.
 
   Deleting goes through `Cake.Accounts.delete_user/1`, so the last admin
-  cannot be deleted, and an admin cannot delete their own login: their row
+  cannot be deleted, nor the last one whose email is confirmed (the others
+  could not log in), and an admin cannot delete their own login: their row
   has no button, and a request for it is refused. A refusal is shown as a
   notice above the list, and so is a login that someone else deleted while
   this page still showed it. A deleted user's sessions go with them, and their
@@ -125,6 +126,9 @@ defmodule CakeWeb.Admin.UserLive.Index do
 
       {:error, :last_admin} ->
         {:noreply, refuse(socket, "The last admin cannot be deleted.")}
+
+      {:error, :last_confirmed_admin} ->
+        {:noreply, refuse(socket, "The last admin with a confirmed email cannot be deleted.")}
     end
   end
 
