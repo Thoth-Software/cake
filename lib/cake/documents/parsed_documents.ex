@@ -68,7 +68,7 @@ defmodule Cake.Documents.ParsedDocuments do
   that crashes or times out raises a `RuntimeError` in the caller as the
   stream is consumed, naming the doc as `package@version` and carrying the
   exit reason; the inserts already streamed stay committed. Accepts the list
-  wrapped as `{:ok, list}`. Nothing in `lib/` or `test/` calls it today: the
+  wrapped as `{:ok, list}`. Nothing in `lib/` calls it today, only its own test: the
   parse stage emits bare attrs, and the pipeline persists them one at a
   time.
   """
@@ -93,7 +93,8 @@ defmodule Cake.Documents.ParsedDocuments do
 
   @doc """
   Inserts one `ParsedDocument` from attrs, raising on an invalid changeset.
-  Query logging is off: this runs once per documented function.
+  Query logging is off: this runs once per function clause the parse stage
+  emits.
   """
   @spec create_parsed_doc!(map()) :: ParsedDocument.t()
   def create_parsed_doc!(attrs) do
