@@ -52,9 +52,7 @@ Path-scoped rules in `.claude/rules/` auto-load when you work on a file their `p
 
 Run `mix precommit` before every push. It runs compile `--force --warnings-as-errors`, `format --check-formatted` and `credo --strict` in the dev env (where the `boundary` compiler runs), then `test --exclude integration` in the test env, and stops at the first failure. Every gate must pass before you present changes: zero warnings, zero credo issues, zero test failures. `mix quality.fast` (compile, credo, unused-deps check; no database) and `mix quality` (the same plus dialyzer) are lighter loops for iteration.
 
-The test step expects the Postgres role `postgres` to have the password `postgres` (config/{dev,test}.exs); the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first, and in Claude Code on the web the session-start hook (`.claude/hooks/session-start.sh`) sets that password and prints `!! postgres:` if it could not.
-
-In Claude Code on the web that hook also installs the toolchain the gates run on: the Erlang/OTP and Elixir that `.tool-versions` pins, read from that file, so a session compiles and tests on the release lines CI and the two Dockerfiles use. It prints `!! toolchain:` if it could not, and a session on any other toolchain can disagree with CI, on warnings under `--warnings-as-errors` and on what dialyzer reports. To move Cake to another OTP or Elixir, change `.tool-versions` (with the `Dockerfile`, `Dockerfile.release` and `quality.yml`), never the hook.
+If the session-start hook printed a line beginning `!!` (`toolchain`, `postgres`, `lawspec`), fix what it names before trusting a gate.
 
 CI (`.github/workflows/quality.yml`) also runs gates `mix precommit` does not. Run the ones your change can trip:
 

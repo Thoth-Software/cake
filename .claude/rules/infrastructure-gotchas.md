@@ -14,11 +14,13 @@ paths:
   - "lib/cake/parse_books.ex"
   - "lib/cake/books/pdf/**"
   - "lib/mix/tasks/cake.nif.check.ex"
+  - ".tool-versions"
+  - ".claude/hooks/**"
 ---
 
 # Infrastructure Gotchas
 
-Auto-loaded when working on the Docker stack (the dev image and the release image), the release's overlays and `Cake.Release`, or the `parsebooks` NIF and its Elixir wrappers, so the NIF-clobbering warning reaches NIF work too.
+Auto-loaded when working on the Docker stack (the dev image and the release image), the release's overlays and `Cake.Release`, or the `parsebooks` NIF and its Elixir wrappers, so the NIF-clobbering warning reaches NIF work too, or on `.tool-versions` and the session hooks, which decide the toolchain the gates run on.
 
 Dev runs three containers via `docker-compose.yml`: `cake_app`, `cake_db` (Postgres 14), `cake_opensearch`.
 
@@ -31,3 +33,9 @@ Dev runs three containers via `docker-compose.yml`: `cake_app`, `cake_db` (Postg
 - **Colima port forwarder leak.** `limactl` accumulates CLOSED socket FDs. Fix: `colima start --network-address`.
 - **Colima port forwarder saturation.** `portForwarder: ssh` saturates under burst traffic. Use `grpc`.
 - **Bind mount hot paths.** Heavy virtiofs I/O through the mount is slow. Copy to `/tmp` inside the container on hot paths.
+
+## The toolchain and the database the gates run on
+
+In Claude Code on the web the session-start hook (`.claude/hooks/session-start.sh`) installs the toolchain the gates run on: the Erlang/OTP and Elixir that `.tool-versions` pins, read from that file, so a session compiles and tests on the release lines CI and the two Dockerfiles use. It prints `!! toolchain:` if it could not, and a session on any other toolchain can disagree with CI, on warnings under `--warnings-as-errors` and on what dialyzer reports. To move Cake to another OTP or Elixir, change `.tool-versions` (with the `Dockerfile`, `Dockerfile.release` and `quality.yml`), never the hook.
+
+`mix precommit`'s test step expects the Postgres role `postgres` to have the password `postgres` (config/{dev,test}.exs); the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first, and in Claude Code on the web the hook sets that password and prints `!! postgres:` if it could not.
