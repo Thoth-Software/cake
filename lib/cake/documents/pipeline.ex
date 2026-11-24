@@ -2,7 +2,7 @@ defmodule Cake.Documents.Pipeline do
   @moduledoc """
   Behaviour for document ingestion pipelines. These are understood to be programming language documentation with the structure that such docs normally have, e.g. Clojuredocs, Hexdocs, etc.
 
-  Modules implementing this pipeline live under the Cake.Documents namespace as `Cake.Documents.<Source>.Pipeline` (e.g. `Cake.Documents.Hexdocs.Pipeline`). Modules are abstractions over data types; in this case, the data type is "documents from a particular source". We want to do more-or-less the same thing with all our technical documents: turn them into embeddings and store 'em in OpenSearch with some metadata. However, each body of documents has unique HTML to parse and may be acquired uniquely. So we have a situation where we want to take a lot of heterogeneous data and feed it all through the same pipeline and get the same result. The natural move here is to use a behaviour to abstract away those details and expose callbacks for all the things that have to be made bespoke for each doc source. Breaking these tasks apart and exposing each one as a public function allows for greater observability and easier debugging. Yes, we certainly COULD write a lot of this as ponderous hundred-liners, but I prefer things to be more modular.
+  Modules implementing this pipeline live under the Cake.Documents namespace as `Cake.Documents.<Source>.Pipeline` (e.g. `Cake.Documents.Hexdocs.Pipeline`). Modules are abstractions over data types; in this case, the data type is "documents from a particular source". We want to do more-or-less the same thing with all our technical documents: turn them into embeddings and store 'em in OpenSearch with some metadata. However, each body of documents has its own source format to parse (Hexdocs parses Elixir source files, not HTML) and may be acquired uniquely. So we have a situation where we want to take a lot of heterogeneous data and feed it all through the same pipeline and get the same result. The natural move here is to use a behaviour to abstract away those details and expose callbacks for all the things that have to be made bespoke for each doc source. Breaking these tasks apart into separate functions (the callbacks and `batch_embed/5` are public; the generic persist stage is private) allows for greater observability and easier debugging. Yes, we certainly COULD write a lot of this as ponderous hundred-liners, but I prefer things to be more modular.
 
   (Functional programming analect: The Master had a chain made, with hundreds of smaller links rather than a few dozen big ones. When asked why, he said, "When it breaks, I will know precisely where.")
 
@@ -100,9 +100,10 @@ defmodule Cake.Documents.Pipeline do
   `retry/4` has no strategy for (a source pipeline's own `"docs.persist_raw"`
   or `"docs.parse"`): the sweep logs it and counts the row as remaining.
   `{:no_input_identifier, failure_id}` is the answer for any row with no
-  `input_identifier` to resume from — a `"docs.persist"` row recorded from
-  a task exit, or a `"docs.embed"` row recorded from a provider error —
-  likewise left for the sweep to count as remaining.
+  `input_identifier` to resume from — a `"docs.embed"` row recorded from a
+  provider error, for one (a `"docs.persist"` row always carries
+  `package@version`, a task exit included) — likewise left for the sweep to
+  count as remaining.
   """
   @type retry_error ::
           {:retry_not_implemented, module()}

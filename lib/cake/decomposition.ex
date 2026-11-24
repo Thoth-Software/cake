@@ -5,9 +5,10 @@ defmodule Cake.Decomposition do
   A strategy inspects a user question and returns a `Cake.Decomposition.Result`
   describing whether the question is atomic or decomposes into sub-questions.
   Strategies are retrieval-free: question in, sub-questions out. They never touch
-  `Cake.Search` or `Cake.Embeddings` — `Cake.Conversation` performs all
-  retrieval and feeds results back in as data (see the Query Decomposition
-  epic).
+  `Cake.Search` or `Cake.Embeddings`, and no retrieval result reaches them:
+  `decompose/2` is called once per turn, and `Cake.Conversation` performs
+  all retrieval, the interleaved self-ask and IRCoT loops included (see the
+  Query Decomposition epic).
 
   The first implementation is `Cake.Decomposition.LLM`; `Cake.Decomposition.Mock`
   (Mox) stands in for tests.

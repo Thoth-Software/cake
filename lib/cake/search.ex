@@ -54,18 +54,23 @@ defmodule Cake.Search do
   @default_keyword_weight 0.8
   @default_expand_offset 2
 
+  @doc "The default number of hits a query asks for (the `:size` opt)."
   @spec default_size() :: pos_integer()
   def default_size, do: @default_size
 
+  @doc "The default `k` of the k-NN clause (the `:k` opt)."
   @spec default_k() :: pos_integer()
   def default_k, do: @default_k
 
+  @doc "The default `ef_search` of the k-NN clause (the `:ef_search` opt)."
   @spec default_ef_search() :: pos_integer()
   def default_ef_search, do: @default_ef_search
 
+  @doc "The default boost on a hybrid query's keyword clause (the `:keyword_weight` opt)."
   @spec default_keyword_weight() :: float()
   def default_keyword_weight, do: @default_keyword_weight
 
+  @doc "The default neighbor window `search_chunks_with_context/5` expands each hit by."
   @spec default_expand_offset() :: non_neg_integer()
   def default_expand_offset, do: @default_expand_offset
 
@@ -73,7 +78,7 @@ defmodule Cake.Search do
   Run a keyword/vector/hybrid search against the GDS's collection.
 
   Required opt: `:gds` — a module implementing `Cake.GDS`. Other opts:
-  `:size`, `:k`, `:keyword_weight`, `:fields`. `embedding` may be
+  `:size`, `:k`, `:ef_search`, `:keyword_weight`, `:fields`. `embedding` may be
   nil for keyword-only search.
   """
   @spec search_chunks(search_type(), String.t(), [float()] | nil, search_opts()) ::
@@ -178,9 +183,10 @@ defmodule Cake.Search do
   min-max normalization, then computes the final `relevance_score` as a
   weighted average.
 
-  Results without a backend_score (expanded neighbors) use cosine_score
-  alone. Results with a backend_score use 0.5 * normalized_backend_score
-  + 0.5 * normalized_cosine_score.
+  Results without a backend_score (expanded neighbors) use the normalized
+  cosine score alone. Results with a backend_score use
+  0.5 * normalized_backend_score + 0.5 * normalized_cosine_score. When every
+  value in a set is equal, a single result included, each normalizes to 1.0.
   """
   @spec normalize_and_combine([Result.t()]) :: [Result.t()]
   def normalize_and_combine(results) when is_list(results) do

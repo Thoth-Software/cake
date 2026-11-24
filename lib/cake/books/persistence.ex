@@ -47,9 +47,10 @@ defmodule Cake.Books.Persistence do
   - `{:invalid_input, map()}` — the input tuple didn't contain a
     `%ParsedBook{}` (guard clause catch-all).
   - `{String.t(), reason}` — the Ecto.Multi transaction failed; the
-    string is `source_file_path` for traceability, and the reason is
-    either an `Ecto.Changeset.t()` (book insert failed) or a
-    `chunk_error()` (chunk validation or count mismatch).
+    string is `source_file_path` for traceability, and the reason is an
+    `Ecto.Changeset.t()` (book insert failed), a `chunk_error()` (chunk
+    validation or count mismatch), or `{:concurrent_ingest, winner_id}`
+    (the run lost the check-then-insert race to the book with that id).
   """
   @type persist_error ::
           {:invalid_input, map()}

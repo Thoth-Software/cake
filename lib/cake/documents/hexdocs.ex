@@ -50,14 +50,15 @@ defmodule Cake.Documents.Hexdocs do
   @doc """
   Gets a single hexdoc.
 
-  Raises `Ecto.NoResultsError` if the Hexdoc does not exist.
+  Raises `Ecto.NoResultsError` if the Hexdoc does not exist, and
+  `Ecto.Query.CastError` if `id` is not a UUID.
 
   ## Examples
 
-      iex> get_hexdoc!(123)
+      iex> get_hexdoc!("7c2b0f6e-5d4a-4c1b-9f3e-2a1b0c9d8e7f")
       %Hexdoc{}
 
-      iex> get_hexdoc!(456)
+      iex> get_hexdoc!("00000000-0000-0000-0000-000000000000")
       ** (Ecto.NoResultsError)
 
   """

@@ -38,9 +38,10 @@ defmodule Cake.Search.Backend do
 
   Reads `config :cake, :search_backend`, defaulting to
   `Cake.Search.Backend.OpenSearch`. No config file sets the key; tests inject
-  the Mox mock with `Application.put_env/3`. `Cake.Search` and
-  `Cake.Pipelines.add_to_search_backend/3` resolve the backend through this
-  function on every call.
+  the Mox mock with `Application.put_env/3`. `Cake.Search`,
+  `Cake.Pipelines.add_to_search_backend/3` and the retry-path indexers in
+  `Cake.Books.Pipeline` and `Cake.Documents.Pipeline` resolve the backend
+  through this function on every call.
   """
   @spec backend() :: module()
   def backend do

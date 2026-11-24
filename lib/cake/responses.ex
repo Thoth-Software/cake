@@ -4,7 +4,9 @@ defmodule Cake.Responses do
 
   `process/3` runs a six-stage pipeline over a `Result` struct:
   resolve → renumber → rewrite → media → actions → format.
-  Each stage is a pure `Result -> Result` transformation.
+  Each stage is a `Result -> Result` transformation, pure except resolve,
+  which logs a warning for every hallucinated index (through
+  `Cake.Citations.extract/2`).
 
   A citation stands for a retrieval unit, not for a marker. Resolve keeps one
   citation per `Cake.Citable` `:id`, so a unit that sits at two prompt indices
@@ -42,7 +44,8 @@ defmodule Cake.Responses do
 
   @doc """
   Builds the chunk map: prompt index → `Cake.Citable.metadata/1` of that
-  chunk's retrieval unit. Stage one of `process/3`, and the map
+  chunk's retrieval unit. The first step of `process/3`, ahead of its six
+  stages, and the map
   `Cake.Citations.extract/2` resolves `[N]` markers against.
   """
   @spec build_citation_map(Cake.Responses.Behaviour.indexed_chunks()) :: map()

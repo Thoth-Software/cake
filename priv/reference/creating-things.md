@@ -18,7 +18,7 @@ Consult README "Adding a New Ingestion Pipeline" and "Requirements for All Pipel
 
 ## New GDS
 
-Consult README "Adding a New GDS" first. Checklist: design schemas, declare `use Cake.GDS`, implement `Cake.Promptable` and `Cake.Citable`, design a pipeline behaviour, create an OpenSearch index mapping, thread the GDS through `Cake.Conversation`.
+Consult README "Adding a New GDS" first. Checklist: design schemas, declare `use Cake.GDS`, implement `Cake.Promptable` and `Cake.Citable`, design a pipeline behaviour, register the collection in `config :cake, :search_collections` (the mapping is derived from the retrieval-unit schema; nobody writes one), thread the GDS through `Cake.Conversation`.
 
 ## New behaviour
 

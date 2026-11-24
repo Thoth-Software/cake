@@ -11,7 +11,7 @@ defmodule Cake.Generation.OpenAI do
   ## Configuration
 
       config :cake, #{inspect(__MODULE__)},
-        openai_key: System.fetch_env!("OPENAI_API_KEY"),
+        openai_key: System.fetch_env!("OPENAI_KEY"),
         response_url: "https://api.openai.com/v1/responses"
 
   A `:plug` key can be added to the config (typically only in `config/test.exs`)

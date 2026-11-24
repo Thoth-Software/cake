@@ -125,9 +125,11 @@ defmodule Cake.Pipelines do
   @doc """
   Filters a stream of {:ok, value} | {:error, reason} tuples,
   logging errors, persisting them to `FailedIngest`, and passing through successes.
+  A value that is neither tuple is logged and persisted as a failure too.
 
-  The `step_name` parameter identifies which pipeline stage failed,
-  for log readability.
+  The `step_name` parameter identifies which pipeline stage failed. It is
+  logged, and persisted as the row's `FailedIngest.step`, which each
+  pipeline's `retry/4` dispatches on.
   """
   @spec detuple_with_logging(Enumerable.t(), String.t(), context()) :: Enumerable.t()
   def detuple_with_logging(stream_enumerable, step_name, %Context{} = ctx) do
@@ -208,8 +210,8 @@ defmodule Cake.Pipelines do
   @doc """
   Retries item-level failures for one pipeline run. Queries FailedIngests
   for the non-fatal failures recorded under the run's `Context.run_id`,
-  calls the provided retry function on each, and loops until clean or max
-  sweeps reached. Failures recorded by other runs of the same source are
+  calls the provided retry function on each, and loops until clean, until
+  max sweeps is reached, or until a pass resolves nothing. Failures recorded by other runs of the same source are
   never touched, so concurrent sweeps cannot retry the same row.
 
   The `retry_fn` argument is a 1-arity function that accepts a %FailedIngest{}

@@ -88,14 +88,15 @@ defmodule Cake.Accounts do
   @doc """
   Gets a single user.
 
-  Raises `Ecto.NoResultsError` if the User does not exist.
+  Raises `Ecto.NoResultsError` if the User does not exist, and
+  `Ecto.Query.CastError` if `id` is not a UUID.
 
   ## Examples
 
-      iex> get_user!(123)
+      iex> get_user!("7c2b0f6e-5d4a-4c1b-9f3e-2a1b0c9d8e7f")
       %User{}
 
-      iex> get_user!(456)
+      iex> get_user!("00000000-0000-0000-0000-000000000000")
       ** (Ecto.NoResultsError)
 
   """
@@ -262,7 +263,9 @@ defmodule Cake.Accounts do
   is already as asked is returned as they are. Taking a confirmation back
   does not end the sessions the user already has (#401).
 
-  Raises `Ecto.NoResultsError` if the user no longer exists.
+  Raises `Ecto.NoResultsError` if the user no longer exists, and
+  `Ecto.StaleEntryError` if they are deleted between this function's read
+  and its write.
 
   ## Examples
 
@@ -687,7 +690,7 @@ defmodule Cake.Accounts do
   ## Examples
 
       iex> deliver_user_update_email_instructions(user, current_email, &url(~p"/users/settings/confirm_email/#{&1}"))
-      {:ok, %{to: ..., body: ...}}
+      {:ok, %Swoosh.Email{}}
 
   """
   @spec deliver_user_update_email_instructions(User.t(), String.t(), (String.t() -> String.t())) ::
@@ -768,7 +771,7 @@ defmodule Cake.Accounts do
   end
 
   @doc """
-  Deletes the signed token with the given context.
+  Deletes the session token.
   """
   @spec delete_user_session_token(binary()) :: :ok
   def delete_user_session_token(token) do
@@ -784,7 +787,7 @@ defmodule Cake.Accounts do
   ## Examples
 
       iex> deliver_user_confirmation_instructions(user, &url(~p"/users/confirm/#{&1}"))
-      {:ok, %{to: ..., body: ...}}
+      {:ok, %Swoosh.Email{}}
 
       iex> deliver_user_confirmation_instructions(confirmed_user, &url(~p"/users/confirm/#{&1}"))
       {:error, :already_confirmed}
@@ -834,7 +837,7 @@ defmodule Cake.Accounts do
   ## Examples
 
       iex> deliver_user_reset_password_instructions(user, &url(~p"/users/reset_password/#{&1}"))
-      {:ok, %{to: ..., body: ...}}
+      {:ok, %Swoosh.Email{}}
 
   """
   @spec deliver_user_reset_password_instructions(User.t(), (String.t() -> String.t())) ::

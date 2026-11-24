@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Precommit do
-  @shortdoc "Runs the pre-push gate chain, each step in the env CI runs it in"
+  @shortdoc "Runs the pre-push gate chain, each step in an explicit env"
 
   @moduledoc """
   Runs the pre-push gate chain documented in CLAUDE.md as one command:

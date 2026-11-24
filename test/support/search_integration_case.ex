@@ -32,8 +32,9 @@ defmodule Cake.SearchIntegrationCase do
 
     * The production mapping sets `index.refresh_interval` to 30s, so
       nothing indexed is searchable until `refresh!/1` is called.
-    * `Cake.Search.Deployment.init/1` spawns a task that sleeps 10s and then
-      creates the collections in `:search_collections`. Tests never wait on
+    * `Cake.Search.Deployment.init/1` spawns a task that checks every 10s
+      whether the cluster process is registered and, once it is, creates
+      the collections in `:search_collections`. Tests never wait on
       it and never touch that config: they create what they need under
       names of their own, and the boot-path tests pass their collection
       list to `create_collections_unless_exist/2` explicitly, so the task
