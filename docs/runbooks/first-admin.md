@@ -1,6 +1,6 @@
-# Creating logins, and the first admin
+# Creating logins, the first admin, and getting an admin back in
 
-How an operator gives someone a login, and how the first admin is made when no screen can make one. What a login is, and the rule that there is always at least one admin, are under "Roles and the First Admin" in `docs/architecture/web.md`.
+How an operator gives someone a login, how the first admin is made when no screen can make one, and how to get an admin back in when none can log in. What a login is, and the rule that there is always at least one admin, are under "Roles and the First Admin" in `docs/architecture/web.md`.
 
 ## A login for someone
 
@@ -29,3 +29,19 @@ Three details of that command matter to a script that runs it:
 - `printf` is a shell builtin, so the password is not in the process list either.
 - Only the line's newline is removed (`String.trim_trailing/2`), so a password that begins or ends with a space is the one stored.
 - On failure it raises. The `rpc` command then exits non-zero, so a script stops there, and the running node is unaffected. It must not call `System.halt/1`, which would stop the node it runs on.
+
+## When no admin can log in
+
+An admin who is not confirmed cannot log in, and `Cake.Accounts` refuses to take away the last confirmed admin ("Roles and the First Admin" in `docs/architecture/web.md`). If no admin is confirmed anyway (a database from before that rule, or a row changed behind `Cake.Accounts`), confirm one from the command line, by their email: `Cake.Accounts` never refuses a confirmation. In dev:
+
+```bash
+mix run -e 'user = Cake.Accounts.get_user_by_email("caleb@example.com"); {:ok, user} = Cake.Accounts.set_user_confirmed(:operator, user, true); IO.puts("confirmed #{user.username} (#{user.role})")'
+```
+
+In a release, on the running node:
+
+```bash
+bin/cake rpc 'user = Cake.Accounts.get_user_by_email("caleb@example.com"); {:ok, user} = Cake.Accounts.set_user_confirmed(:operator, user, true); IO.puts("confirmed #{user.username} (#{user.role})")'
+```
+
+An email no user has raises, so the command exits non-zero and changes nothing. If the user it confirms is a member, make them an admin the same way, with `Cake.Accounts.update_user_role(user, :admin)`.

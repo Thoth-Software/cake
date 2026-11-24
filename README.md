@@ -82,7 +82,7 @@ Each layer has a file of its own under `docs/architecture/`; this README says on
 | `docs/architecture/web.md` | Layer 4 screen by screen; the account pages; the app shell; components, layouts and assets; roles |
 | `docs/architecture/inventories.md` | the module boundaries; every custom struct, behaviour and protocol; the LawSpec specifications; the configuration keys |
 | `docs/architecture/deployment.md` | the two images, the release's entry points and the release-image gate |
-| `docs/runbooks/first-admin.md` | the commands that give someone a login or create the first admin |
+| `docs/runbooks/first-admin.md` | the commands that give someone a login, create the first admin, or get an admin back in when none can log in |
 
 `CLAUDE.md`'s trigger table says when to load each.
 
