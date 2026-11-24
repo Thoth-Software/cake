@@ -21,7 +21,22 @@ defmodule Cake.MixProject do
     [
       name: "Cake",
       source_url: "https://github.com/Thoth-Software/cake",
-      extras: ["README.md"],
+      # `filename:` because a page's name defaults to the file's basename, and
+      # `search` is ExDoc's own search page.
+      extras: [
+        "README.md",
+        "docs/architecture/ingestion.md": [filename: "architecture-ingestion"],
+        "docs/architecture/search.md": [filename: "architecture-search"],
+        "docs/architecture/conversation.md": [filename: "architecture-conversation"],
+        "docs/architecture/web.md": [filename: "architecture-web"],
+        "docs/architecture/inventories.md": [filename: "architecture-inventories"],
+        "docs/architecture/deployment.md": [filename: "architecture-deployment"],
+        "docs/runbooks/first-admin.md": [filename: "runbook-first-admin"]
+      ],
+      groups_for_extras: [
+        Architecture: ~r"^docs/architecture/",
+        Runbooks: ~r"^docs/runbooks/"
+      ],
       main: "readme",
       groups_for_modules: [
         Kernel: [
@@ -179,7 +194,7 @@ defmodule Cake.MixProject do
       # here — an alias of the same name would shadow the task. `precommit` in
       # particular cannot be an alias: it runs the test step in the test env
       # and the compile/format/credo steps in the dev env, one child `mix`
-      # process each (see CLAUDE.md "Quality Gates").
+      # process each (see the task's moduledoc).
     ]
   end
 

@@ -1,4 +1,22 @@
 defmodule CakeWeb.UserSettingsLive do
+  @moduledoc """
+  The account settings page, at `/users/settings`, for a logged-in user. It
+  shows the username, with no field to change it, and two forms.
+
+  The email form (new email, current password) does not change the email:
+  once `Cake.Accounts.apply_user_email/3` accepts it, a link is mailed to
+  the new address. The link opens this LiveView at
+  `/users/settings/confirm_email/:token`, where
+  `Cake.Accounts.update_user_email/2` changes the email and marks it
+  confirmed, or refuses the token.
+
+  The password form (new password twice, current password) calls
+  `Cake.Accounts.update_user_password/3`. A change deletes the user's
+  sessions, this one included, so the browser then posts the form to
+  `CakeWeb.UserSessionController` with `_action=password_updated`, which
+  logs the user in again and returns them here.
+  """
+
   use CakeWeb, :live_view
 
   alias Cake.Accounts

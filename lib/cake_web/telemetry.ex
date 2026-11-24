@@ -1,4 +1,11 @@
 defmodule CakeWeb.Telemetry do
+  @moduledoc """
+  A supervisor that starts a `:telemetry_poller` whose list of periodic
+  measurements is empty, and no reporter. `metrics/0` lists the Phoenix,
+  `Cake.Repo` and VM metrics handed to the LiveDashboard at
+  `/dev/dashboard`.
+  """
+
   use Supervisor
   import Telemetry.Metrics
 

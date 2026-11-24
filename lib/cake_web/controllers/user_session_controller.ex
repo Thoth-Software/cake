@@ -1,4 +1,20 @@
 defmodule CakeWeb.UserSessionController do
+  @moduledoc """
+  Logs users in and out; it renders no page. `create/2` takes the POST of
+  the log-in form (`CakeWeb.UserLoginLive`) and looks the user up with
+  `Cake.Accounts.get_user_by_username_and_password/2`. A wrong username and
+  a wrong password get the same answer. A user whose email is unconfirmed
+  is refused too and told why, an answer only a right password gets. Both
+  refusals redirect to the log-in page; otherwise
+  `CakeWeb.UserAuth.log_in_user/3` starts the session.
+
+  The settings page posts to the same action with
+  `_action=password_updated` after a password change, which has deleted the
+  user's sessions: it logs them in again, under the same checks, and
+  returns them to `/users/settings`. `delete/2` (`DELETE /users/log_out`)
+  logs out and redirects to `/`, logged in or not.
+  """
+
   use CakeWeb, :controller
 
   alias Cake.Accounts

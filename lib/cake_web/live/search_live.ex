@@ -3,6 +3,18 @@ defmodule CakeWeb.SearchLive do
   Direct search UI: runs a search against the indexed book collection
   (the `Cake.Books.ParsedBook` GDS is hardcoded) and renders the grouped
   results, without starting a conversation.
+
+  ## What the page shows
+
+  Each book is a card: its title links to the download, and its matching pages
+  are chips, each showing the first 200 characters of its chunk on hover, from
+  the keyboard and by tap. A preview starts where the row of chips starts and
+  is no wider than it, as the chat's are, so one for a chip near the edge
+  cannot run off a phone; it opens just above its own chip's line, since a
+  book's chips can fill many lines. Its states are the shared state
+  components: a search in flight is a `working/1` line, a failed one a
+  `notice/1` with a generic message (the reason is only logged), and one that
+  finished and found nothing an `empty_state/1` naming the query.
   """
 
   use CakeWeb, :live_view

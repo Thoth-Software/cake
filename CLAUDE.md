@@ -1,178 +1,161 @@
 <!--
 CLAUDE.md — Operational Contract for Cake
 Maintainer metadata (block HTML comments are stripped before injection; cost zero context):
-  created 2026-04-15 · last reviewed 2026-04-23 [jasper] · last verified 2026-09-15
-  Certified accurate by Claude 2026-06-19; re-audited against code 2026-09-15 (#256).
+  created 2026-04-15 · last reviewed 2026-04-23 [jasper] · last verified 2026-11-23
+  Certified accurate by Claude 2026-06-19; re-audited against code 2026-09-15
+  and 2026-11-23 (the documentation sweep).
 Refactored 2026-07-12: task-specific policy moved out of this file to
   priv/reference/creating-things.md (trigger-loaded) and
   .claude/rules/test-conventions.md (path-scoped, auto-loads under test/).
   This file now holds only universal, always-on rules.
-2026-09-15 (#256): creating-things.md had gone missing from priv/reference/;
+2026-09-15: creating-things.md had gone missing from priv/reference/;
   restored same day (content re-reviewed against code — result-tuple bullet
   aligned with the corrected rule below) and the trigger row points at it again.
+Trimmed 2026-11-23: statements made more than once now have one home;
+  the CI gates are a table; the toolchain and Postgres detail moved to
+  .claude/rules/infrastructure-gotchas.md; trigger rows that duplicated a rule's
+  paths: were retired; the README was split, and each file under
+  docs/architecture/ has a trigger row.
 -->
 
 # CLAUDE.md — Operational Contract for Cake
 
-This file governs how you work on Cake. The README describes what things are and why; this file tells you what you must do. Read both before making changes. If this file contradicts what you infer from the code, **this file wins** — flag the discrepancy rather than silently following the code.
-
-For architecture, module responsibilities, schemas, domain model, cardinality, behaviours, protocols, and the RAG loop, read the README. Don't duplicate that here — reference it.
+This file says what you must do when you work on Cake; the README says what things are and why (reference it, don't restate it here). If this file contradicts what you infer from the code, **this file wins**: flag the discrepancy rather than silently following the code.
 
 ---
 
 ## Context Loading
 
-### Always load before any task
-- `README.md` — architecture reference. Understand the domain model and module boundaries before touching code.
-- `priv/reference/naming-conventions.md` — for any task involving naming (modules, functions, variables, atoms).
-- `priv/reference/enum-cheat.cheatmd` — before writing any collection transformation. If about to write explicit recursion over a list, check this first.
+**Always load:** `README.md` (the domain model, the layers and which way they depend), `priv/reference/naming-conventions.md`, and `priv/reference/enum-cheat.cheatmd` (before any collection transformation or explicit recursion over a list).
 
-### Load by trigger
-Load the full file when the task matches the trigger. Reference files live in `priv/reference/`.
+**Load by trigger.** Files are in `priv/reference/` unless a path is given.
 
 | When you're about to... | Load |
 |---|---|
-| Refactor function bodies, change pattern matching, modify string/list/map logic, add params, change arity, modify exception handling, introduce boolean/flag params | `code-anti-patterns.md` + `patterns-and-guards.md` + `docs-tests-and-with.md` |
-| Create/rename/move modules, restructure dirs, define new public APIs/behaviours, add/change structs/schemas, introduce deps, change call graphs, add config | `design-anti-patterns.md` + `config-and-distribution.md` |
-| Add or restyle a screen, component or layout; touch `assets/`, `core_components.ex`, `layouts.ex` or a LiveView template; move daisyUI, heroicons, Tailwind or esbuild | `.claude/rules/front-end.md` (start a new screen from `mix phx.gen.live` and commit its raw output first; daisyUI classes over ad-hoc utilities; no Node; select by `id` in LiveView tests; where the kit's files come from and how to update them); README "Components, Layouts and Assets"; then build the assets and look at the page in both themes and at phone width, because the suite cannot see a style; `docs/demo-script.md` when the change alters a step of the demo |
+| Work on a GDS, a pipeline, `FailedIngest`, the sweep, a storage adapter or an ingestion job | `docs/architecture/ingestion.md` |
+| Work on `Cake.Search`, a backend, the deployment or embeddings | `docs/architecture/search.md` |
+| Work on `Conversation`, `Prompt`, `Generation`, `Responses`, `Citations` or `Decomposition` | `docs/architecture/conversation.md` |
+| Work on `CakeWeb`, `Cake.Accounts`, `Cake.Candidates` or `assets/` | `docs/architecture/web.md` |
+| Create, rename or remove a module, struct, behaviour, protocol, boundary dep or config key | `docs/architecture/inventories.md` |
+| Work on a Dockerfile, `rel/`, `entrypoint.sh` or `Cake.Release` | `docs/architecture/deployment.md` |
+| Give someone a login, create the first admin, or get an admin back in | `docs/runbooks/first-admin.md` |
+| Refactor function bodies; change pattern matching, string/list/map logic, params, arity or exception handling; add a boolean/flag param | `code-anti-patterns.md` + `patterns-and-guards.md` + `docs-tests-and-with.md` |
+| Create/rename/move modules or directories; define public APIs or behaviours; add/change structs or schemas; add deps or config; change call graphs | `design-anti-patterns.md` + `config-and-distribution.md` |
+| Add or restyle a screen, component or layout; move daisyUI, heroicons, Tailwind or esbuild | `.claude/rules/front-end.md`; then build the assets and look at the page in both themes and at phone width, because the suite cannot see a style; `docs/demo-script.md` when the change alters a step of the demo |
 | Write/modify macros, `use`, `quote`/`unquote`, DSLs, compile-time codegen | `macro-anti-patterns.md` + `macros.md` |
-| Create/modify/supervise GenServers/Agents/Tasks, modify supervision tree, use spawn/Task.async, work with Registry/PubSub/message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` + `task-and-gen-tcp.md` (+ `dynamic-supervisor.md` if dynamic spawning) |
+| Work on GenServers/Agents/Tasks or `spawn`, the supervision tree, Registry/PubSub or message passing | `process-anti-patterns.md` + `genservers.md` + `supervisor-and-application.md` + `task-and-gen-tcp.md` (+ `dynamic-supervisor.md` for dynamic spawning) |
 | Write/modify `@type`/`@spec`, address type warnings, design data types | `gradual-set-theoretic-types.md` + `typespecs.md` |
-| Write/modify public API for external use, design behaviours for third-party use | `library-guidelines.md` |
-| Create or modify a GDS, ingestion pipeline, behaviour, protocol, Ecto schema, or non-Ecto struct | `priv/reference/creating-things.md` |
-| Add/modify a GDS, or implement `Cake.GDS`/`Cake.Promptable`/`Cake.Citable` | README "Cardinality" + "Adding a New GDS"; `lib/cake/gds.ex` + `promptable.ex` + `citable.ex`; one existing GDS impl (`ParsedBook` or `ParsedDocument`) as reference; `design-anti-patterns.md` |
-| Add/modify a decomposition strategy, or touch `Cake.Decomposition` | README "Query Decomposition"; `lib/cake/decomposition.ex` + `decomposition/result.ex`; `decomposition/llm.ex` as reference implementation |
-| Change `Cake.Decomposition.Result`, or any module listed in `@cake_sources` in `lawspec/mix.exs`; add a LawSpec specification | `lawspec/README.md`; the module's `.lawspec` file under `lawspec/laws/` (update the laws first, as with any test), regenerate, and run the `laws` job's steps under OTP 29 |
-| Add a `Cake.Search.Backend` implementation, or change `Backend.OpenSearch` / `Search.Deployment` | README "Search Design"; `test/support/backend_conformance.ex` (instantiate it for the new backend) + `test/support/search_integration_case.ex`; run `mix test --only integration` (see `.claude/rules/integration-tests.md`) |
-| Change what `Books.Pipeline.ingest/4` / `Documents.Pipeline.ingest/4` / `ingest_with_sweep/5` persist, embed, index or report, or add an end-to-end ingestion test | `.claude/rules/integration-tests.md`; `test/support/ingest_integration_helpers.ex`; the existing `*_integration_test.exs` for the pipeline as reference; run `mix test --only integration --include network` against a real node (the `:network` group clones elixir-lang/elixir) |
-| Change `Cake.Books.Adapters.S3`, ExAws config, or `Cake.S3IntegrationCase`; add a `Cake.Books.Adapters` implementation | `lib/cake/books/adapters.ex` + `adapters/s3.ex` (the "Authentication" and "Errors" sections); `test/support/s3_integration_case.ex`; `test/cake/books/adapters/s3_integration_test.exs` as reference; run `mix test --only integration` (see `.claude/rules/integration-tests.md`) |
-| Add/modify a live-provider test (`:llm`), touch `Cake.LiveLLMCase`, or change what `Cake.Embeddings` / `Cake.Generation.OpenAI` / `Cake.Decomposition.LLM` send over the wire | `.claude/rules/live-llm-tests.md`; `test/support/live_llm_case.ex`; the existing `*_live_test.exs` for the module as reference; run `OPENAI_KEY=... mix test --only llm` |
-| Add/modify an end-to-end `Cake.Conversation` test (tier 1 `:integration` or tier 2 `:llm`), or touch `Cake.ConversationIntegrationHelpers` | `.claude/rules/integration-tests.md` + `.claude/rules/live-llm-tests.md`; `test/support/conversation_integration_helpers.ex`; README "The Per-Turn Pipeline"; `test/cake/conversation_integration_test.exs` as reference; run `mix test --only integration` (and `OPENAI_KEY=... mix test --only llm` for the live tier) |
+| Write/modify an API or behaviour for third-party use | `library-guidelines.md` |
+| Create or modify a GDS (or implement `Cake.GDS`, `Cake.Promptable` or `Cake.Citable`), an ingestion pipeline, a decomposition strategy (or `Cake.Decomposition`), a behaviour, protocol, Ecto schema or struct | `creating-things.md` |
+| Change a module listed in `@cake_sources` in `lawspec/mix.exs`, or add a LawSpec specification | `lawspec/README.md`; update the module's `.lawspec` file first, as with any test, regenerate, and run the `laws` job's steps |
 
-Path-scoped rules in `.claude/rules/` auto-load when you work on a file their `paths:` frontmatter matches — no manual trigger needed: `test-conventions.md` (anything under `test/`), `integration-tests.md`, `live-llm-tests.md`, `compose-smoke.md`, `infrastructure-gotchas.md`, `security-gate.md` and `front-end.md`. The rows above that name one of them are for loading it before you have opened a matching file. LawSpec work also loads the compiler's prelude through a hook (`.claude/hooks/lawspec-prelude.sh`; `lawspec/README.md`, "The prelude in Claude Code sessions"), so never write a `prelude.` name from memory.
+The rules in `.claude/rules/` load themselves when you open a file their `paths:` frontmatter matches: `test-conventions.md`, `integration-tests.md`, `live-llm-tests.md`, `compose-smoke.md`, `infrastructure-gotchas.md`, `security-gate.md`, `front-end.md`. When one names a suite for the files you changed, run it.
 
 ---
 
 ## Quality Gates
 
-Run `mix precommit` before every push. It is a Mix task (`lib/mix/tasks/precommit.ex`, not an alias) that runs the pre-push chain one child `mix` process per step with `MIX_ENV` set explicitly, stops at the first failing step, and exits non-zero — so it works the same whatever `MIX_ENV` you invoke it under:
+Run `mix precommit` before every push. It runs compile `--force --warnings-as-errors`, `format --check-formatted` and `credo --strict` in the dev env (where the `boundary` compiler runs), then `test --exclude integration` in the test env, and stops at the first failure. Every gate must pass before you present changes: zero warnings, zero credo issues, zero test failures. `mix quality.fast` (compile, credo, unused-deps check; no database) and `mix quality` (the same plus dialyzer) are lighter loops for iteration.
 
-```bash
-mix precommit  # MIX_ENV=dev: compile --force --warnings-as-errors → format --check-formatted → credo --strict; then MIX_ENV=test: test --exclude integration
-```
+If the session-start hook printed a line beginning `!!`, fix what it names before trusting a gate.
 
-The compile, format and credo steps run in the dev env (so `--warnings-as-errors` enforces `boundary`); the test step runs in the test env. Every gate must pass before presenting changes: zero warnings, zero credo issues (no inline disables without approval), zero test failures. Two lighter aliases exist for iteration: `mix quality.fast` (compile + credo + `deps.unlock --check-unused`, never touches the database) and `mix quality` (the same plus dialyzer). The test step expects the Postgres role `postgres` to have the password `postgres` (config/{dev,test}.exs); the test alias runs `ecto.create --quiet` and `ecto.migrate --quiet` first, and in Claude Code on the web the session-start hook sets that password and prints `!! postgres:` if it could not.
+CI (`.github/workflows/quality.yml`) also runs gates `mix precommit` does not. Run the ones your change can trip:
 
-In Claude Code on the web that hook (`.claude/hooks/session-start.sh`) also installs the toolchain the gates run on: the Erlang/OTP and Elixir that `.tool-versions` pins, read from that file, so a session compiles and tests on the release lines CI and the two Dockerfiles use. It prints `!! toolchain:` if it could not, and a session on any other toolchain can disagree with CI, on warnings under `--warnings-as-errors` and on what dialyzer reports. To move Cake to another OTP or Elixir, change `.tool-versions` (with the `Dockerfile`, `Dockerfile.release` and `quality.yml`), never the hook.
+| Gate | Trips when you change |
+|---|---|
+| `mix docs --warnings-as-errors` (dev env) | a `@moduledoc`, `@doc` or `@typedoc`, the README, or a file under `docs/architecture/` or `docs/runbooks/` |
+| `mix xref graph --label compile-connected --fail-above 3` | compile-time dependencies between modules |
+| `mix dialyzer` (in `mix quality`) | specs or types |
+| `mix coveralls.json --exclude integration` | code without tests: the minimum is in `coveralls.json` |
+| the `laws` job | a module a `.lawspec` file covers (`lawspec/README.md`) |
+| the `security` job | dependencies, config, the web layer, or a file, shell or raw-SQL call anywhere (`.claude/rules/security-gate.md`) |
+| `compose-smoke` and `release-image` (pull requests only) | a Dockerfile, `entrypoint.sh`, a compose file or `rel/` (`.claude/rules/compose-smoke.md`, `docs/architecture/deployment.md`) |
 
-On-push CI (`.github/workflows/quality.yml`) runs the same checks **plus** gates with no local alias, so run them yourself when a change is likely to trip one:
-
-- `mix docs --warnings-as-errors` — the documentation gate (#204): zero broken `@moduledoc`/`@doc` references; runs in the dev env.
-- `mix xref graph --label compile-connected --fail-above 3` — the compile-coupling ratchet (baseline 3; see #208).
-- `mix dialyzer` — the `dialyzer` job runs on every push to master and every PR targeting master, with no event guard (PLT caching makes repeat runs cheap); run `mix quality` before pushing spec-heavy changes rather than waiting for it.
-- `mix coveralls.json --exclude integration` — coverage must not drop below the minimum in `coveralls.json` (the SSOT for the threshold).
-- The `laws` job (#323): the LawSpec specifications in `lawspec/`, on Erlang/OTP 29 in their own Mix project (`npm run check`, `npm run fmt:check`, `npm run generate:check`, `mix test`; run LawSpec through these npm scripts, not `npx lawspec`, which segfaults on Node 22 once its cache is warm, `lawspec/README.md` "Running LawSpec"). `mix precommit` never runs them; run them yourself when you touch a module a `.lawspec` file covers (`lawspec/README.md`). In Claude Code on the web the session-start hook installs that toolchain beside Cake's and prints `!! lawspec:` if it could not; run each step there as `otp29 <command>` from `lawspec/` (`otp29 mix test`), since a plain `mix` is Cake's.
-- The `security` job, every step blocking: `mix deps.unlock --check-unused`, `mix hex.audit` + `mix deps.audit` (zero advisories, nothing ignored: a red audit means a new advisory, fixed by bumping the package) and `mix sobelow --config --exit`. `.claude/rules/security-gate.md` has the detail, including what else a dependency bump has to move.
-
-Tests tagged `:integration`, `:network` and `:llm` are excluded on-push and run separately as merge gates (see "Test tags and run modes" below). PRs additionally run the compose smoke test, `ci/compose_smoke.sh`, which gates the containers rather than the code (`.claude/rules/compose-smoke.md`). A failure there is a finding about the containers: fix `Dockerfile`, `entrypoint.sh` or the compose files, never loosen an assertion. PRs also run the `release-image` job, `ci/release_smoke.sh`, which gates the other image: it builds `Dockerfile.release` (the release image, the one that is deployed; the default `Dockerfile` is the dev image) and asserts that the NIF loads through `bin/cake eval`, that `bin/migrate` applies every migration to an empty Postgres, that nothing from the host's `priv/native` reaches the release, and that the release carries no `seeds.exs`. It does not boot the app (#362). The same rule holds: a failure is a finding about the image, fixed in `Dockerfile.release`, `Dockerfile.release.dockerignore` or `rel/`, never by loosening an assertion. Run it locally with Docker up: `ci/release_smoke.sh` (README "Deployment"; `.claude/rules/infrastructure-gotchas.md`).
+The last two gate the images, not the code. A failure there is a finding about the image: fix the image, never loosen an assertion.
 
 ### Test tags and run modes
 
-Test tags split by what a test *needs*, not by how slow it is:
+A plain `mix test` excludes three tags, split by what a test needs. Two merge gates run them, each in a run of its own: the `integration` job (`:integration` with `:network`) and the `llm` job.
 
-- `:integration` — hermetic infrastructure (OpenSearch, the Rustler NIF, Oban): free and deterministic, so a required merge gate on every PR (the `integration` job; `.claude/rules/integration-tests.md`).
-- `:network` — the integration tests that also reach the public internet (the hexdocs clone): the same required merge gate, run by the same job via `--include network`; tagged separately only so a plain local `--only integration` can leave them out.
-- `:llm` — real provider calls: secret-bearing (`OPENAI_KEY`), cost-bearing, and rate-limit-flaky. `test_helper.exs` excludes it from every default run alongside `:integration`; only `mix test --only llm` runs it.
+- `:integration` — real OpenSearch, object store, NIF and Oban. `docker compose up -d opensearch moto`, then `mix test --only integration`.
+- `:network` — the integration tests that also clone from the public internet. `mix test --only integration --include network` is the gate's command. Never `--only network` or `--include network` without `--only integration`.
+- `:llm` — real provider calls. `OPENAI_KEY=... mix test --only llm` (its conversation suite needs the OpenSearch node too).
 
-```bash
-docker compose up -d opensearch moto               # the real node and object store an integration run needs (OPENSEARCH_URL / S3_ENDPOINT_URL override the localhost defaults)
-mix test --only integration --include network      # the integration merge gate's command
-mix test --only integration                        # the same minus the :network group (no clone) — a local shortcut, not the gate
-OPENAI_KEY=... mix test --only llm                 # the live merge gate (its conversation suite needs the OpenSearch node up too)
-```
-
-Unit and integration tests cannot share one run (the skip flag and the Deployment config are global): `test_helper.exs` refuses a mixed `--include integration` run with an error pointing at `--only integration`. Never `--only network` or `--include network` alone: without `--only integration` it is a unit-mode run, and the tests refuse it.
-
-A live test asserts shapes and invariants, never generated content; one that stays red after the wiring is in means provider drift or a parsing defect: stop and ask, never loosen the assertion.
-
-The detail behind each gate lives in a path-scoped rule that auto-loads when you touch the files it covers: `.claude/rules/integration-tests.md` (what the `integration` job runs, the case templates, local setup) and `.claude/rules/live-llm-tests.md` (the `llm` job, its fork-PR guard, `Cake.LiveLLMCase`, what each live suite pins).
+Unit and integration tests cannot share a run; `test_helper.exs` refuses `--include integration`. A live test asserts shapes and invariants, never generated content, and one that stays red means provider drift or a parsing defect: stop and ask, never loosen the assertion. The detail is in `.claude/rules/integration-tests.md` and `.claude/rules/live-llm-tests.md`.
 
 ---
 
 ## When to Stop and Ask
 
 Stop and ask before proceeding when:
-- **Ambiguous scope** — a task reads multiple ways and the difference changes which modules are touched.
-- **Architecture boundary change** — moving a responsibility between modules, adding a module, or changing an existing module's public API. Describe the change and why before doing it.
-- **Behaviour/protocol modification** — adding/removing/changing a callback. Existing implementations will need updating.
-- **CLAUDE.md/README contradicts code** — this file wins; flag it.
-- **Known-defect adjacency** — task touches a known defect or deferred item (see bottom); flag, don't silently resolve.
-- **Uncertain doc update** — unsure whether a change warrants a README/CLAUDE.md edit.
-- **Credo disable** — no inline `# credo:disable-for-this-file` / `# credo:disable-for-next-line` without explicit approval.
-- **Branch management** — each new issue gets its own branch, cut from `master`. Within an issue, stay on its branch.
+- **Ambiguous scope** — a task reads more than one way and the difference changes which modules are touched.
+- **Architecture boundary change** — moving a responsibility between modules, adding a module, or changing a module's public API. Describe the change and why first.
+- **Behaviour/protocol modification** — adding, removing or changing a callback.
+- **Known-defect adjacency** — the task touches an item under "Known Defects and Deferred Work": flag it, don't silently resolve or ignore it.
+- **Uncertain doc update** — unsure whether a change warrants a README, architecture-file or CLAUDE.md edit.
+- **Credo disable** — no inline `# credo:disable-*` without explicit approval.
+- **Branch management** — each issue gets its own branch, cut from `master`; within an issue, stay on its branch.
 
 ---
 
 ## Pull Requests
 
-- Every PR description names the issue it closes with `closes #nnn`.
-- Merges are squash-and-merge.
+Every PR description names the issue it closes with `closes #nnn`. Merges are squash-and-merge.
 
 ---
 
 ## Testing: Ordering and Failure Handling
 
-Tests are the contract; code satisfies it. (Mechanical conventions — fixtures/factory tracks, the property-test preference, the no-`Process.sleep` rule — auto-load via `.claude/rules/test-conventions.md` when you touch `test/`.)
+Tests are the contract; code satisfies it. Tests written after the implementation encode what the code did, not what it should do.
 
-**Ordering — for any behavior change:**
-1. **Spec.** User describes the change.
-2. **Tests first.** Encode the new contract in tests before touching implementation. If the change is non-trivial, push the test diff for review and STOP for approval.
-3. **Human reviews tests** — the tests are the spec.
-4. **Implement** against the reviewed tests.
-5. **Run gates** (Quality Gates above). Iterate on the *implementation*, not the tests, until green.
-6. **Stop and ask** if step 5 keeps failing in ways that suggest the test itself is wrong.
+**For any behaviour change:**
 
-Tests written after implementation encode what the code did, not what it should do. Write them first.
+1. The user describes the change.
+2. **Tests first.** Encode the new contract in tests before touching the implementation. If the change is non-trivial, push the test diff and STOP for approval: the tests are the spec.
+3. Implement against the reviewed tests.
+4. Run the gates. Iterate on the *implementation*, not the tests, until green.
+5. Stop and ask if the gates keep failing in ways that suggest the test itself is wrong.
 
 **When `mix test` is red, classify before reacting:**
-1. Test asserts behavior the spec says is **correct** → fix the implementation; do not edit the test.
-2. Test asserts behavior the spec says **should change** → update the test to the new contract, then the implementation; note the contract change in the PR.
-3. **Neither** (test/spec ambiguous, or the failure surfaces a question neither answers) → **stop, ask.** Do NOT paper over it by deleting assertions, broadening matchers, adding `try/rescue`, or `@tag :skip`.
 
-If you're loosening an assertion to make a test pass, you're almost certainly in case 3.
+1. The test asserts behaviour the spec says is **correct** → fix the implementation; do not edit the test.
+2. The test asserts behaviour the spec says **should change** → update the test to the new contract, then the implementation; note the contract change in the PR.
+3. **Neither** → stop and ask. Do not delete assertions, broaden matchers, add `try/rescue` or `@tag :skip`. If you are loosening an assertion to make a test pass, you are almost certainly here.
 
 ---
 
 ## Typespecs, DI, Result Tuples
 
-- **Every public function has a `@spec`.** No exceptions — including `@impl` callback implementations, so specs appear in LLM context. An `@impl` spec's return type is a subset of the callback's. Its argument types narrow the callback's only for values the implementing module itself produces (its state, a `start_async` result, a name it chose); arguments the framework or other processes produce (messages, requests, exit reasons, `from`) keep the callback's type, usually `term()`. Dialyzer flags only an argument or return with *nothing in common* with the callback's, so this rule is enforced in review, not by the gate.
-- **`term()` is for values whose shape the module genuinely cannot know**, never a stand-in for a type another spec already names. If the value comes from one call with a typed result, the spec names that type.
-- **Every custom struct defines `@type t :: %__MODULE__{}`** with all fields typed. Use `MyStruct.t()` in specs, never `%MyStruct{}`.
-- **Every `@type` has a `@typedoc`**, struct `t/0` included. `@typep` is exempt.
-- Behaviour callbacks (`@callback`) and protocol functions (`@spec`) get full typespecs.
-- Retrieval callbacks return `[struct()]`, not a specific struct type — deliberate (see GDS behaviour docs in README).
-- **List-of-struct args use `when is_list(arg)` guards**, not head-matching on list elements. The `@spec` controls what the list contains; the guard validates the container type at runtime.
-- **DI is for Mox, not runtime polymorphism:** modules depending on external services accept collaborator modules as args (or read them from config); define a behaviour, implement it, provide a mock in test. `Cake.Conversation` requires a `:gds` opt validated in `start_link/1`/`start/1` before the GenServer spawns (`init/1` only builds state). Follow the same required-opt pattern for future orchestration-layer modules.
-- **Result tuples:** every fallible pipeline operation reports through `{:ok, _}`/`{:error, _}`, with the exceptions, the stream-callback detuple rule and the pipeline-fatal `with` chain spelled out in `priv/reference/creating-things.md` (loaded by the trigger row for creating or modifying a pipeline).
+- **Every public function you write has a `@spec`**, `@impl` callback implementations included, and every `@callback` and protocol function is fully typed. Two things are exempt: the lower-arity heads the compiler generates for default arguments (spec the full arity), and `__using__/1` macros.
+- **An `@impl` spec's return type is a subset of the callback's.** Its argument types narrow the callback's only for values the module itself produces (its state, a `start_async` result, a name it chose); what the framework or another process sends keeps the callback's type, usually `term()`. Dialyzer does not check this; review does.
+- **`term()` is for a value whose shape the module cannot know**, never a stand-in for a type another spec already names.
+- **Every custom struct defines `@type t :: %__MODULE__{}`** with every field typed; specs say `MyStruct.t()`, never `%MyStruct{}`.
+- **Every `@type` has a `@typedoc`**, struct `t/0` included; `@typep` is exempt.
+- Retrieval callbacks return `[struct()]`, not a specific struct, on purpose (the `Cake.GDS` moduledoc, "Return types", says why).
+- **List-of-struct arguments are guarded with `when is_list(arg)`**, not matched on their elements: the `@spec` says what the list holds, the guard checks the container.
+- **DI is for Mox, not runtime polymorphism.** A module that depends on an external service takes its collaborator as an argument or from config, behind a behaviour with a mock. An orchestration-layer module validates its required opts before it spawns, as `Cake.Conversation.start_link/1` and `start/1` do for `:gds`.
+- **Result tuples:** every fallible pipeline operation reports `{:ok, _}`/`{:error, _}`; the exceptions are in `priv/reference/creating-things.md`.
 
 ---
 
 ## README Update Protocol
 
-After any task that changes architecture, module boundaries, conventions, or tooling:
-1. Review this file and README.md for now-stale sections.
-2. Propose specific edits: "I changed X → section Y should update; here's the diff."
-3. Make approved edits before closing.
-4. Unsure whether a change warrants a doc update? Ask.
+After a task that changes architecture, module boundaries, conventions or tooling:
+1. Review this file, the README and the files under `docs/architecture/` for stale sections.
+2. Propose the specific edits: "I changed X → section Y should say Z."
+3. Make the approved edits before closing.
 
-**Enumeration rule:** if the README lists things (behaviours, protocols, structs, implementations, pipeline implementations) and you create a new instance of that kind, add it to the list. Every new issue cut must include, as its **final checkbox**, a documentation update that applies this rule — in particular, adding any custom structs the work introduces to the README's struct inventory.
+**Enumeration rule:** when those files list things of a kind (behaviours, protocols, structs, implementations, pipelines, boundaries, config keys) and you create another, add it. The inventories are in `docs/architecture/inventories.md`. Every issue cut ends with a **final checkbox** for a documentation update that applies this rule, naming any custom struct the work introduces.
+
+**Issue numbers** in this file, the README, `docs/architecture/`, `.claude/rules/` and `lawspec/README.md`: never for a schedule (state the rule and the exception, not who will fix it). For an open defect or a deferred item, yes, in one place, and it leaves when the issue closes. For provenance, only where the reader needs it to act.
 
 ---
 
 ## Known Defects and Deferred Work
 
-If your task touches these, flag rather than silently resolving or ignoring. One line each; the detail lives in the linked issue.
-- **Post-demo formats** (README "Roadmap"): Word, Excel, CSV, JPG pipelines are explicitly deferred.
-- **xref coupling ratchet (#208):** `--fail-above 3` baseline comes from `Conversation.State`'s defstruct DI defaults; ratchets to 0 once those are decoupled.
-- **Book status after a sweep (#305, found by #248):** `Books.Pipeline.ingest_with_sweep/5` leaves `embedding_status` at `:failed` after `retry_from_chunk` resolves a book's last failing chunk.
-- **Hexdocs sources with several top-level forms (#291, found by #248):** `Hexdoc.to_parsed_docs/1` accepts only a bare `defmodule` AST, so `enum.ex`, `kernel.ex`, `string.ex` and the like yield no `ParsedDocument` and no `FailedIngest`.
+An entry belongs here when you would otherwise fix the defect in passing, or trust code that is known to be wrong. One line each; the detail is in the issue.
+
+- **xref coupling ratchet (#208):** the `--fail-above 3` baseline comes from `Conversation.State`'s defstruct DI defaults; it ratchets to 0 once those are decoupled.
+- **Book status after a sweep (#305):** `Books.Pipeline.ingest_with_sweep/5` leaves `embedding_status` at `:failed` after `retry_from_chunk` resolves a book's last failing chunk.
+- **Hexdocs sources with several top-level forms (#291):** `Hexdoc.to_parsed_docs/1` accepts only a bare `defmodule` AST, so `enum.ex`, `kernel.ex`, `string.ex` and the like yield no `ParsedDocument` and no `FailedIngest`.
+- **Post-demo formats (#418):** Word, Excel, CSV and JPG pipelines are deferred.

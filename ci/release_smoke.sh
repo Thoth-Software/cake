@@ -8,9 +8,10 @@
 # gates the image that is deployed: a `mix release` built in a builder stage
 # and copied into a runner stage that has no Mix, no compiler and no Rust.
 #
-# Booting the app is NOT asserted here. The release cannot boot in prod until
-# the production runtime config lands (#362: the search node, the object
-# store and the endpoint are not configurable at runtime yet). What is
+# Booting the app is NOT asserted here. The release cannot boot in prod while
+# the search node has no runtime configuration (#362: its address is fixed at
+# build time; the object store and the web endpoint are read from the
+# environment in config/runtime.exs already). What is
 # asserted is everything short of boot, through one-shot commands that load
 # the release's code and runtime config without starting the application.
 #

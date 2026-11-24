@@ -1,19 +1,19 @@
 # Cake laws (LawSpec)
 
 This directory holds [LawSpec](https://github.com/brain-fuel/lawspec)
-specifications for Cake modules (#323). LawSpec states the laws a module must
+specifications for Cake modules. LawSpec states the laws a module must
 obey, with pinned examples, and compiles them into native property tests. For
 Elixir these are StreamData properties inside ExUnit.
 
 | Specification | Covers |
 | --- | --- |
-| `laws/decomposition.lawspec` | `Cake.Decomposition.Result`: `new/2` and `topological_order/1` |
+| `laws/decomposition.lawspec` | `Cake.Decomposition.Result`: `new/2` and `topological_order/1`: string normalization, the dense positional `question_index`, the strategy derivation, rejection of cycles and of out-of-range or self dependencies, and the resolution order (every index once, dependencies first, and the smallest ready index next) against a reference model written in the spec |
 | `laws/citations.lawspec` | `Cake.Citations.extract/2`: valid citations and hallucinated indices, each in first-appearance order against a reference model; totality; leading zeros; and `[0]`, which is always hallucinated because `Cake.Prompt` numbers from 1 |
 | `laws/responses.lawspec` | `Cake.Responses.process/3` and `build_citation_map/1`: the chunk map; one citation per retrieval unit, numbered `1..K` by first appearance; the final text against a reference model of marker rewriting and whitespace tidying; warnings, download actions, and the untouched `raw_text` and empty `media` |
 | `laws/candidates.lawspec` | `Cake.Candidates`: `group_by_document/1` against a reference model (one group per document id, in first-seen order, candidates in input order, text keys) and as a permutation of its input; `all_chunk_ids/1` and `expand_to_chunk_ids/2` against a reference model of a selection, with expansion distributing over appended selections; `document_metadata/1`'s title, 100-character preview and page label, which counts distinct pages; and a group for every candidate whatever its `Cake.Citable` id |
 | `laws/prompt_context.lawspec` | `Cake.Prompt`'s context assembly: `prepare_context/2` against a reference model (the first `max_chunks` results at or above the relevance floor, in input order, numbered from 1), its bounds, dense numbering and context quality, its defaults (ten chunks, a floor of 0.30), and a result with no relevance score, which never passes the floor; `format_chunk/1`; `history_messages/1` as the last five complete exchanges; `build/4` as the system message, the recent history, then the question; and the context block that ends `system_message_with_context/1` |
 | `laws/prompt_drivers.lawspec` | `Cake.Prompt`'s token budgets and driver protocols: `estimate_tokens/1` as the length over four, rounded up; `fit_answer_pairs/2` against a reference model (the longest run of the newest pairs that fits the budget, and none on a budget of zero); `build_with_prior_answers/5`, which is `build/4` when no pair survives and otherwise folds in the survivors and no others; `self_ask_prompt/3` and `ircot_prompt/3`, which fold in the pairs or steps that survive the same eviction, the IRCoT context without a `[N]` marker; `parse_self_ask_response/1` against a reference model of replies built from lines (the final-answer marker wins, then the last follow-up); and `parse_ircot_response/1`, where a null or blank retrieval query means done |
-| `laws/search_query.lawspec` | The `Cake.Search.Query` builders and `Cake.Search.Backend.OpenSearch.to_query_map/1`: clause builders are additive, a clause equal to one the query already holds included; `size` and `min_score` are last-write-wins over `new/2`'s options, and `nil` clears a minimum score; calls in any other order build the same clauses; a knn clause carries `method_parameters.ef_search` only when the call gives one; the query map keeps the query's size, clauses and `min_score`, with a `:min_score` key exactly when it is not `nil`; and the map lists each clause list in call order, against a reference model that folds the calls |
+| `laws/search_query.lawspec` | The `Cake.Search.Query` builders and `Cake.Search.Backend.OpenSearch.to_query_map/1`: clause builders are additive, a clause equal to one the query already holds included; `size` and `min_score` are last-write-wins over `new/2`'s options, and `nil` clears a minimum score; calls in any other order build the same clauses; a knn clause carries `method_parameters.ef_search` only when the call gives one; the query map keeps the query's size, clauses and `min_score`, with a `:min_score` key exactly when it is not `nil`; and the map lists each clause list in call order, against a reference model that folds the calls (the clause order is a law about the map, not about the struct, which holds each list newest first) |
 | `laws/generation.lawspec` | The `Cake.Generation` contract as an ability, `Generation` (`complete`, `completeJson`), with four laws every handler owes, whatever the provider behind it says: a successful completion never has empty text, its token counts are never negative, its finish reason is one of the four documented ones, and the parsed JSON of a successful `complete_json/3` fits the schema asked for (the decomposition object or the IRCoT step). The laws run under `Cake.Generation.OpenAI` and under `scripted`, the fake other specifications import, and six more laws pin what `scripted` answers (see "Abilities and handlers" below) |
 | `laws/fakes.lawspec` | `Cake.Laws.FakeUnit`, the test retrieval unit: it carries generated data through `Cake.Citable` and `Cake.Promptable` unchanged, and meets the five-key `Citable` contract |
 | `laws/shared.lawspec` | no laws: types and checked definitions other specifications import (see "Shared types" below) |
@@ -28,8 +28,8 @@ Elixir these are StreamData properties inside ExUnit.
   dialyzer or coverage gates, and it should not be.
 
 So this project compiles only the Cake source files listed in `@cake_sources`
-in `mix.exs`, never the application (#326 chose this over depending on all of
-Cake as a path dependency). It runs in the `laws` job of
+in `mix.exs`, never the application (the alternative, depending on all of
+Cake as a path dependency, was rejected). It runs in the `laws` job of
 `.github/workflows/quality.yml`. A covered module that gains a dependency on
 another Cake module needs that module added to `@cake_sources`.
 
@@ -69,7 +69,7 @@ same way as in Cake, by Cake's bump being moved here: Cake's audits are
 blocking (`.claude/rules/security-gate.md`), and this project, which is
 test-only and never deployed, has no audit of its own.
 
-**Why `snap` (#332).** The search query unit takes `snap` and `finch` for
+**Why `snap`.** The search query unit takes `snap` and `finch` for
 one pure function, `to_query_map/1`. The alternative was to leave
 `open_search.ex` out and state the clause-order law on `Cake.Search.Query`'s
 own struct fields. That law would pin the wrong thing. The struct holds each
@@ -83,7 +83,7 @@ cost is eight more packages in `mix.lock` (`snap`, `finch`, `castore`,
 `mint`, `hpax`, `mime`, `nimble_options`, `nimble_pool`), each at Cake's
 locked version, and about three seconds on a cold dependency compile.
 
-**Why `Cake.Generation.OpenAI` is bound (#333).** The generation unit could
+**Why `Cake.Generation.OpenAI` is bound.** The generation unit could
 have stated its laws over spec handlers only. Then the one handler under
 test would be `scripted`, which is written in the specification to keep
 those laws, and nothing would tie the fake to the code production runs.
@@ -153,8 +153,8 @@ are copied into the importer. Adapter signatures and laws can't be imported;
 each unit states its own.
 
 Add a type here once a second specification needs it. `CitableMeta` and
-`Segment` are here already because the citations and responses units (#327,
-#328) both build on them.
+`Segment` are here already because the citations and responses units
+both build on them.
 
 **Importing another unit.** Any unit's types and checked definitions can be
 imported the same way, not only the shared unit's: `laws/responses.lawspec`
@@ -291,7 +291,7 @@ end law
 - By LawSpec's handler reference, an adapter whose signature ends `uses
   Generation` receives the handler before its other arguments and calls an
   operation as `handler.complete.(messages, model)`. No unit here has such
-  an adapter yet; #334 will be the first.
+  an adapter yet.
 
 **Most generated replies are failures.** `GenerationError` has ten
 constructors and most carry little, so the generator favours them (see
@@ -346,10 +346,10 @@ rejects it in `NODE_OPTIONS`, so it goes on the command line.
 
 LawSpec 0.32.0 fixes this in its own compiler host, which now turns those
 fast calls off itself. Upstream verified the fix only under x64 emulation.
-On native x64 (#349), 0.31.3 without the flag segfaulted in 3 of 5
+On native x64, 0.31.3 without the flag segfaulted in 3 of 5
 warm-cache runs, and 0.32.0 without it ran clean in 25 of 25. The scripts
-keep the flag until a follow-up drops it from them, from this section, from
-the `laws` job's comment in `quality.yml` and from CLAUDE.md together.
+keep the flag until a follow-up drops it from them, from this section and
+from the `laws` job's comment in `quality.yml` together.
 
 | Script | Runs |
 | --- | --- |

@@ -10,6 +10,41 @@ defmodule CakeWeb.ChatLive do
   drops the pid (`convo_pid: nil`), keeps the message history, disables the
   question form, and offers a "Start a new conversation" action that starts
   a fresh `Cake.Conversation` with no memory of the earlier turns.
+
+  ## What the page shows
+
+  The screen takes the wide column and has three parts: the heading, the
+  messages, and a bar that stays at the bottom of the screen while the
+  messages scroll above it. A question and its answer are daisyUI chat bubbles
+  on opposite sides, each under its label ("You", "Cake"); the answer is plain
+  text with its line breaks kept (Markdown is not rendered). The sources an
+  answer cites are chips under it, numbered as the `[N]` markers in its text
+  are: a chip's label opens the source's preview on hover, from the keyboard
+  and by tap, and its arrow links to the download. The previews are placed
+  against the row of chips, not centred on their own chip, so one for a narrow
+  chip cannot run off the edge of a phone. The two replies ChatLive adds
+  itself (a failed turn, a conversation that ended) are `notice/1` errors, not
+  bubbles. The messages are a log (`role="log"`), so a screen reader announces
+  each one as it arrives. Before the first question the messages are an
+  `empty_state/1` with a link to Upload. The bar holds whichever of four
+  things the conversation's state calls for: the composer (the question box,
+  Send, and the "Manual selection" toggle with a line saying what it does;
+  Enter sends, and Send is disabled until there is a question and while there
+  is no conversation); a `working/1` line while the conversation works,
+  "Searching the documents..." for `:retrieving` and "Working on an answer..."
+  for `:generating` (an auto turn reports `:generating` for the whole of it,
+  the search included); "Use selected" and "Use all" while documents are being
+  chosen, the candidates themselves being cards above it, one per document,
+  with a checkbox, the title, the chunk count, the page label and the preview
+  ("Use selected" is disabled while none is ticked; a retrieval that found no
+  candidates still shows this panel, with nothing in it, #411); and, once the
+  conversation has ended, a warning `notice/1` and "Start a new conversation"
+  above the disabled composer. One JavaScript hook, `FollowNewest`
+  (`assets/js/follow_newest.js`), keeps the newest message in view as the page
+  grows, and stops while the reader has scrolled up; a list of candidates
+  taller than half the screen opens at its heading instead of its end. Where
+  there is a mouse, it also puts the cursor back in the question box when the
+  box returns after an answer.
   """
 
   use CakeWeb, :live_view

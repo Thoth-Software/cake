@@ -2,9 +2,10 @@ defmodule Cake.Search.Backend.OpenSearch do
   @moduledoc """
   OpenSearch implementation of the `Cake.Search.Backend` behaviour.
 
-  Wraps the Snap library for all OpenSearch communication. Snap is an
-  implementation detail — no other module should reference Snap types
-  directly.
+  Wraps the Snap library for all OpenSearch communication. Snap is not
+  confined to this module, though: `Cake.Search.Deployment` is the Snap
+  cluster, and the behaviour's `t:Cake.Search.Backend.search_error/0` is
+  a union of two Snap error types and `Jason.DecodeError`.
 
   Owns the translation of `%Cake.Search.Query{}` into the OpenSearch
   bool-query DSL via `to_query_map/1`.

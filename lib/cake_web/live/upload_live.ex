@@ -6,7 +6,8 @@ defmodule CakeWeb.UploadLive do
   (`Cake.Books.Pipeline.ingest/4` with `Cake.Books.Pdf.Pipeline`) as an
   async task.
 
-  The upload limits (20 archives of up to 100 MB each) bound compressed
+  The upload limits (20 files, PDF or ZIP, through the drop zone and 200 PDFs
+  through the folder option, each file up to 100 MB) bound compressed
   bytes only; how far an archive may expand is bounded by
   `Cake.Books.ZipExtractor` (`config :cake, :max_zip_expanded_bytes` and
   `:max_zip_entries`), and an archive it rejects is reported with the
@@ -19,6 +20,26 @@ defmodule CakeWeb.UploadLive do
   to show, and to keep the tab open on this page. The screen is built from
   the shared pieces (`Layouts.app`, `header/1`, `working/1`, `notice/1`);
   `.claude/rules/front-end.md`, "Look and feel".
+
+  ## What the page shows
+
+  A drop zone that is also the file picker (a plain button at phone width)
+  stating what is accepted and the limits, and a separate folder option; a
+  queue where each file has its name, size, upload progress, a remove button
+  and its own error, with the submit button disabled while any queued file is
+  refused; while ingesting, a `working/1` line that says there is no progress
+  to show and to keep the tab open on the page, because ingestion runs in a
+  task the LiveView owns and stops when the page is left; and when it
+  finishes, a `notice/1` with the figures (indexed, failed, non-PDF files
+  skipped: a success, a warning when something failed, an error when nothing
+  was ingested, and plain information when nothing was indexed and nothing
+  failed, as when every file was already in the library), "Upload more", a
+  link to the documents list unless nothing was ingested (a file that fails
+  before it is stored is not listed there) and, when something was indexed, a
+  link to the chat. The figures are the pipeline's: sections indexed, not
+  files.
+
+  The rejected-archives warning and the page's error are `notice/1`s too.
   """
 
   use CakeWeb, :live_view

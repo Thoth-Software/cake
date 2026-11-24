@@ -26,8 +26,11 @@ defmodule Cake.Books.Pipeline do
   ## Stage functions
 
   `persist_books_and_chunks/2,3` and `munge_persisted_stream/1` are public
-  so tests can drive a single stage directly. They are `@doc false`: not
-  part of the API, and free to change with `ingest/4`.
+  so tests can drive a single stage directly. `load_all_binaries/3`,
+  `parse_all_binaries/3` and `embed_all_chunks/4` are stages of `ingest/4`
+  as well, and public though nothing outside this module calls them, its
+  tests included. All five are `@doc false`: not part of the API, and free
+  to change with `ingest/4`.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -200,8 +203,9 @@ defmodule Cake.Books.Pipeline do
   persisted chunk. A file that turns out to be a duplicate of an already
   ingested book resolves the failure without embedding or indexing anything.
 
-  A retry never writes a vector under a model other than the one its book
-  already carries: before embedding a chunk it reads the `embedding_model`
+  A chunk-step retry (`"books.embed"`, `"search_backend.index"`) never writes
+  a vector under a model other than the one its book already carries:
+  before embedding a chunk it reads the `embedding_model`
   of that chunk and its siblings, and if any is set to another model, or
   holds a vector with no recorded model (a row embedded before the column
   existed), it refuses with `{:error, {:embedding_model_mismatch, chunk_id,
@@ -211,9 +215,24 @@ defmodule Cake.Books.Pipeline do
   model is exactly how a book ends up half one model and half another.
   Moving a book to a new model is a re-ingest of its bytes, which
   `Persistence` resumes as a whole (clearing the old vectors first).
+
+  A file-step retry (`"books.load_binary"`, `"books.parse"`,
+  `"books.persist"`) is that re-ingest. It loads and parses the file again
+  and persists it through `Persistence.persist_books_and_chunks/2`. If the
+  bytes are a book that exists but is not complete under `embedding_model`,
+  `Persistence` resumes the whole book and clears every vector another
+  model produced, before the check above runs. So a file-step retry called
+  with another model re-embeds the book under that model, and the book is
+  never mixed, because the other model's vectors are already gone.
+
+  A file-step retry is not the run's own ingest of that file in two
+  respects. It embeds chunk by chunk and stops at the first one that fails,
+  leaving the rest unembedded and recording no row per chunk. And it never
+  writes the book's `embedding_status`: only `ingest/4`'s stages do.
+
   Within `ingest_with_sweep/5` the sweep's model is the run's own, so the
-  check only refuses a retry called with a model the book was not
-  embedded under.
+  check only refuses a retry called with a model the book was not embedded
+  under.
   """
   @spec retry(Cake.FailedIngests.FailedIngest.t(), atom(), atom(), String.t()) ::
           {:ok, :retried} | {:error, retry_error()}
@@ -265,6 +284,7 @@ defmodule Cake.Books.Pipeline do
       String.trim(path) != ""
   end
 
+  @doc false
   @spec load_all_binaries([String.t()], atom(), Pipelines.Context.t()) :: {:ok, Enumerable.t()}
   def load_all_binaries(paths, format_pipeline, ctx) do
     binary_stream =
@@ -277,6 +297,7 @@ defmodule Cake.Books.Pipeline do
     {:ok, binary_stream}
   end
 
+  @doc false
   @spec parse_all_binaries(atom(), Enumerable.t(), Pipelines.Context.t()) :: {:ok, Enumerable.t()}
   def parse_all_binaries(format_pipeline, binary_stream, ctx) do
     books_and_chunks_stream =
@@ -367,6 +388,7 @@ defmodule Cake.Books.Pipeline do
 
   defp skip_duplicate?(_result), do: false
 
+  @doc false
   @spec embed_all_chunks(Enumerable.t(), atom(), String.t(), Pipelines.Context.t()) ::
           {:ok, Enumerable.t()}
   def embed_all_chunks(persisted_stream, embedding_service, embedding_model, ctx) do

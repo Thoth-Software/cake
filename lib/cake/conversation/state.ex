@@ -99,9 +99,10 @@ defmodule Cake.Conversation.State do
     responses: Cake.Responses,
     generation: Cake.Generation.OpenAI,
     decomposition: nil,
-    # nil is the uninitialized sentinel: no retrieval has completed yet.
-    # Any list — [] included — is a completed retrieval to be reused, so
-    # "searched, found nothing" is distinguishable from "never searched".
+    # nil is the uninitialized sentinel: no turn has completed yet (the
+    # field is written only when a whole turn succeeds). Any list — []
+    # included — is a completed turn's retrieval to be reused, so "searched,
+    # found nothing" is distinguishable from "no completed turn".
     search_results: nil,
     message_history: [],
     chunk_map: %{},

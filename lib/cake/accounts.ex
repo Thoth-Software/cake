@@ -185,8 +185,8 @@ defmodule Cake.Accounts do
   history and shown in the process list. With `mix run -e` it can come from
   the environment. Through `rpc` it has to come from standard input: the
   expression is evaluated on the running node, which does not have the
-  environment of the shell that ran `rpc`. The README has both commands
-  ("Roles and the First Admin").
+  environment of the shell that ran `rpc`. `docs/runbooks/first-admin.md` has
+  both commands.
 
   ## Examples
 
@@ -256,8 +256,8 @@ defmodule Cake.Accounts do
 
   Confirming is never refused here, and does not take that lock: it can
   only add a confirmed admin. So it is the way out, from the command line,
-  for a database where no admin is confirmed (the README has the command,
-  under "Roles and the First Admin").
+  for a database where no admin is confirmed (`docs/runbooks/first-admin.md`
+  has the command, under "When no admin can log in").
 
   Confirming also drops the user's pending confirmation links. A user who
   is already as asked is returned as they are. Taking a confirmation back

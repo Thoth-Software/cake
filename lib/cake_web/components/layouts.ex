@@ -20,7 +20,9 @@ defmodule CakeWeb.Layouts do
   The top bar shows the product name, the links the user may follow, the
   theme toggle and either the user menu or the links to log in and register.
   The links are rendered twice, in `#main-nav` for wide screens and in
-  `#mobile-nav`, a menu they collapse into on narrow ones.
+  `#mobile-nav`, a menu they collapse into on narrow ones. The page links collapse
+  below the `lg` breakpoint, and below `sm` the username becomes an icon, so
+  the bar fits a phone.
 
   Every template calls it and passes the user, `nil` for a visitor:
 
