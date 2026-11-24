@@ -263,9 +263,10 @@ defmodule Cake.Accounts do
   is already as asked is returned as they are. Taking a confirmation back
   does not end the sessions the user already has (#401).
 
-  Raises `Ecto.NoResultsError` if the user no longer exists, and
-  `Ecto.StaleEntryError` if they are deleted between this function's read
-  and its write.
+  Raises `Ecto.NoResultsError` if the user no longer exists. Confirming
+  raises `Ecto.StaleEntryError` if the user is deleted between its read and
+  its write (#427). Taking a confirmation back cannot be caught that way:
+  it reads the user under the lock a deletion takes, with their row locked.
 
   ## Examples
 
