@@ -155,7 +155,7 @@ defmodule Cake.MixProject do
       {:excoveralls, "~> 0.18", only: :test},
       {:ex_aws, "~> 2.5"},
       {:ex_aws_s3, "~> 2.5"},
-      {:configparser_ex, "~> 4.0", optional: true}
+      {:configparser_ex, "~> 5.0", optional: true}
     ]
   end
 

@@ -329,8 +329,18 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
 
-      - name: Compile
-        run: mix compile --warnings-as-errors
+      # --force, because this job loads the parsebooks NIF and the cache
+      # above does not carry it. Rustler builds priv/native/parsebooks.so
+      # only when Cake.ParseBooks compiles, and priv/native is not cached
+      # (it is not under _build). A restored _build in which that module is
+      # already compiled therefore leaves the checkout without the library,
+      # and every NIF test fails with "cannot open shared object file". The
+      # cache key is shared by every job, and which job saves a new key
+      # first decides whether it holds a compiled Cake, so a plain compile
+      # passes or fails by that race. --force recompiles the project, not
+      # the deps, and the Cargo cache keeps the crate build short.
+      - name: Compile (forced, so the NIF is built)
+        run: mix compile --force --warnings-as-errors
 
       - name: Run integration tests (with the network group)
         run: mix test --only integration --include network
