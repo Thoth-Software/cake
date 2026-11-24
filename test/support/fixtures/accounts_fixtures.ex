@@ -64,6 +64,14 @@ defmodule Cake.AccountsFixtures do
   # An admin who cannot log in: registered and not yet confirmed, then
   # promoted, which is how the panel makes one (a promotion confirms
   # nothing). They are an admin by role, and no help to anyone locked out.
+  #
+  # The promotion takes the advisory lock that every change under the
+  # last-admin rule takes, and the sandbox keeps a test's transaction open
+  # until the test ends. So a test that calls this holds that lock until it
+  # ends, as does any test that makes such a change and is not refused. In
+  # an `async: true` module, give such a test usernames and emails of its
+  # own (the defaults are), or it can wait on another test's uncommitted
+  # name while that test waits on the lock.
   @spec unconfirmed_admin_fixture(map()) :: Cake.Accounts.User.t()
   def unconfirmed_admin_fixture(attrs \\ %{}) do
     {:ok, admin} =

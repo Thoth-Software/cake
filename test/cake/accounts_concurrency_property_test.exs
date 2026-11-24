@@ -335,7 +335,11 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
     count
   end
 
-  # Returns once `task` is waiting on a lock, or has already answered.
+  # Returns `:blocked` once a session is waiting on a lock, and fails the
+  # test if `task` answers first. It does not say which session waits, or on
+  # which lock: a request that decided on what it could see and then waits
+  # to write is `:blocked` too. What the request answers, and what the
+  # database holds afterwards, are what each test goes by.
   defp await_blocked_or_done(task, polls_left \\ 20_000) do
     cond do
       sessions_waiting_on_a_lock() > 0 -> :blocked
@@ -391,6 +395,13 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   # likely to be the operator's. The removal has to see it: these tests hold
   # the confirmation open until the removal is waiting on a lock, then let
   # it commit first.
+  #
+  # Three things confirm a user, and none takes the lock: an admin or the
+  # operator by hand, the mailed confirmation link, and the link mailed to a
+  # changed email address (`update_user_email/2`), which an admin whose
+  # confirmation was taken back can still follow from a session they kept
+  # (#401). A fix that only taught the first two about the lock would pass
+  # without the third.
 
   defp create_two_unconfirmed_admins do
     unboxed(fn ->
@@ -408,8 +419,20 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
     end)
   end
 
-  # `confirm` is given the admin and answers the confirmation to make: the
-  # mailed link's token is made first, outside the transaction held open.
+  defp changed_email_token(user) do
+    unboxed(fn ->
+      Cake.AccountsFixtures.extract_user_token(
+        &Accounts.deliver_user_update_email_instructions(
+          %{user | email: "new-" <> user.email},
+          user.email,
+          &1
+        )
+      )
+    end)
+  end
+
+  # `confirm` is given the admin and answers the confirmation to make: a
+  # link's token is made first, outside the transaction held open.
   for {way, confirm} <- [
         {"by hand",
          quote do
@@ -420,6 +443,17 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
            fn user ->
              token = confirmation_token(user)
              fn -> Accounts.confirm_user(token) end
+           end
+         end},
+        {"by the changed email's link",
+         quote do
+           fn user ->
+             token = changed_email_token(user)
+
+             fn ->
+               :ok = Accounts.update_user_email(user, token)
+               {:ok, Repo.get!(User, user.id)}
+             end
            end
          end}
       ],

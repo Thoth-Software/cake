@@ -462,7 +462,8 @@ defmodule Cake.Accounts do
   touches another user: logging in, registering, changing a password.
 
   `create_user/1` does not take the lock, and neither does confirming a
-  user, by the mailed link or by hand. Each can only add a confirmed admin,
+  user: by hand, by the mailed link, or by the link mailed to a changed
+  email address (`update_user_email/2`). Each can only add a confirmed admin,
   never remove one. For another user, the worst a race with one does is
   refuse a change that would have been allowed a moment later. For the user
   the change is about, a confirmation matters more: read as unconfirmed,
@@ -515,10 +516,21 @@ defmodule Cake.Accounts do
   # this user still in flight is waited for, and seen; one that comes later
   # waits for this change. Without it, a user read as unconfirmed could be
   # confirmed before the change is written, and the only confirmed admin
-  # demoted or deleted. `FOR NO KEY UPDATE` is the lock an update of the row
-  # takes anyway; it holds up nobody who only refers to the user, as logging
-  # in does when it stores a session. Nothing that locks a user's row takes
-  # the advisory lock afterwards, so the two cannot wait on each other.
+  # demoted or deleted.
+  #
+  # `FOR NO KEY UPDATE` is the lock a change of role or of confirmation
+  # takes anyway, and it holds up nobody who only refers to the user, as
+  # logging in does when it stores a session. A rename, a changed email and
+  # a deletion take the stronger lock when they write, as they did before
+  # the row was locked here, and wait then for anyone storing a session for
+  # the user.
+  #
+  # Nothing that locks a user's row takes the advisory lock afterwards, so
+  # the two cannot wait on each other. And everything else that writes both
+  # a user and their tokens writes the user first, so none can hold what a
+  # deletion or a rename waits for while waiting for the row. A transaction
+  # that stored a token for a user and then updated that user would: it
+  # would deadlock with a deletion or a rename of them.
   defp under_last_admin_rule(%User{id: id}, change) do
     Repo.transaction(fn ->
       _ = Repo.query!("SELECT pg_advisory_xact_lock($1)", [@role_changes_lock])
