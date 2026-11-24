@@ -446,25 +446,149 @@ defmodule Cake.AccountsTest do
       assert same.confirmed_at == admin.confirmed_at
     end
 
-    # There is no last-admin rule here: one admin may take it back from
-    # another, the only other one included.
-    test "lets an admin take the confirmation back from the only other admin", %{admin: admin} do
+    # An admin may take it back from another, the only other one included,
+    # while they stay confirmed themselves: a confirmed admin remains.
+    test "lets a confirmed admin take the confirmation back from the only other admin", %{
+      admin: admin
+    } do
       other = admin_fixture()
 
       assert {:ok, %User{confirmed_at: nil}} = Accounts.set_user_confirmed(admin, other, false)
+      assert Repo.get!(User, admin.id).confirmed_at
     end
 
-    # Nobody is logged in at the command line or in the seed, so there is
-    # no "oneself" to protect.
-    test "lets the operator confirm anyone and take it back from anyone, the only admin included",
+    # #405. A user who is not confirmed cannot log in, so an admin who is not
+    # confirmed is no admin to anyone locked out. One admin takes back the
+    # other's confirmation; the other keeps the sessions they have (#401) and
+    # asks the same in return, with a struct that still says they are
+    # confirmed. Were it allowed, both would be admins and neither could log
+    # in again.
+    test "refuses to take the confirmation back from the last confirmed admin, and changes nothing",
+         %{admin: admin} do
+      other = admin_fixture()
+      {:ok, _unconfirmed} = Accounts.set_user_confirmed(admin, other, false)
+
+      assert Accounts.set_user_confirmed(other, admin, false) ==
+               {:error, :last_confirmed_admin}
+
+      assert Repo.get!(User, admin.id) == admin
+    end
+
+    # Only a confirmed admin counts as another: not a confirmed member, and
+    # not an admin who is not confirmed.
+    test "refuses it whoever else there is, short of another confirmed admin", %{admin: admin} do
+      actor = unconfirmed_admin_fixture()
+      user_fixture()
+
+      assert Accounts.set_user_confirmed(actor, admin, false) == {:error, :last_confirmed_admin}
+      assert Repo.get!(User, admin.id).confirmed_at
+    end
+
+    # The struct says a member; the database says the last confirmed admin.
+    test "goes by the role in the database, not the role on the struct it is given", %{
+      admin: admin
+    } do
+      other = admin_fixture()
+      {:ok, _unconfirmed} = Accounts.set_user_confirmed(admin, other, false)
+      stale = %{admin | role: :member}
+
+      assert Accounts.set_user_confirmed(other, stale, false) == {:error, :last_confirmed_admin}
+      assert Repo.get!(User, admin.id).confirmed_at
+    end
+
+    # Nobody is logged in at the command line or in the seed, so there is no
+    # "oneself" to protect. The rule is about what the database is left
+    # with, not about who asks, so the operator is held to it too (#405):
+    # the command line's way out of a lockout is to confirm, which nothing
+    # refuses.
+    test "lets the operator confirm anyone, and take it back from anyone but the last confirmed admin",
          %{admin: admin} do
       user = unconfirmed_user_fixture()
 
       assert {:ok, %User{confirmed_at: %DateTime{}}} =
                Accounts.set_user_confirmed(:operator, user, true)
 
+      assert {:ok, %User{confirmed_at: nil}} = Accounts.set_user_confirmed(:operator, user, false)
+
+      assert Accounts.set_user_confirmed(:operator, admin, false) ==
+               {:error, :last_confirmed_admin}
+
+      other = admin_fixture()
+
       assert {:ok, %User{confirmed_at: nil}} =
                Accounts.set_user_confirmed(:operator, admin, false)
+
+      assert Repo.get!(User, other.id).confirmed_at
+    end
+
+    # A database where no admin is confirmed: one from before the rule, or
+    # one changed behind the context's back. The rule has nothing left to
+    # keep there, and must not stand in the way of the recovery.
+    test "where no admin is confirmed, the operator confirms one, and taking back what is not there is still no change",
+         %{admin: admin} do
+      Repo.update_all(User, set: [confirmed_at: nil])
+
+      assert {:ok, %User{confirmed_at: nil}} =
+               Accounts.set_user_confirmed(:operator, admin, false)
+
+      assert {:ok, %User{confirmed_at: %DateTime{}}} =
+               Accounts.set_user_confirmed(:operator, admin, true)
+
+      assert Repo.get!(User, admin.id).confirmed_at
+    end
+  end
+
+  # #405. The last-admin rule (#373) counted admins by role. An admin who is
+  # not confirmed cannot log in, so the three functions that take an admin
+  # away are also refused when the admin they would take is confirmed and no
+  # other confirmed admin would remain: `{:error, :last_confirmed_admin}`.
+  # Taking away the only admin there is stays `{:error, :last_admin}`, in
+  # the describes for each function.
+  describe "the last confirmed admin" do
+    for {name, take_away} <- [
+          {"update_user_role/2", quote(do: &Accounts.update_user_role(&1, :member))},
+          {"update_user/2", quote(do: &Accounts.update_user(&1, %{role: :member}))},
+          {"delete_user/1", quote(do: &Accounts.delete_user/1)}
+        ] do
+      test "#{name} refuses to take away the last confirmed admin while only unconfirmed admins would remain, and changes nothing" do
+        admin = admin_fixture()
+        unconfirmed_admin_fixture()
+        user_fixture()
+
+        assert unquote(take_away).(admin) == {:error, :last_confirmed_admin}
+        assert Repo.get!(User, admin.id) == admin
+      end
+
+      test "#{name} goes by the confirmation in the database, not the one on the struct it is given" do
+        admin = admin_fixture()
+        unconfirmed_admin_fixture()
+        stale = %{admin | confirmed_at: nil}
+
+        assert unquote(take_away).(stale) == {:error, :last_confirmed_admin}
+        assert Repo.get!(User, admin.id) == admin
+      end
+
+      # An unconfirmed admin is not what keeps the panel reachable, so
+      # taking one away is held only to the rule that an admin remains.
+      test "#{name} takes away an unconfirmed admin while another admin remains, confirmed or not" do
+        [first, second] = [unconfirmed_admin_fixture(), unconfirmed_admin_fixture()]
+
+        assert {:ok, %User{}} = unquote(take_away).(first)
+        assert Repo.get!(User, second.id).role == :admin
+
+        admin_fixture()
+        third = unconfirmed_admin_fixture()
+
+        assert {:ok, %User{}} = unquote(take_away).(third)
+      end
+
+      test "#{name} refuses to take away the only admin there is when they are unconfirmed, as the last admin" do
+        only = unconfirmed_admin_fixture()
+        user_fixture()
+
+        assert unquote(take_away).(only) == {:error, :last_admin}
+        assert Repo.get!(User, only.id).role == :admin
+      end
     end
   end
 
