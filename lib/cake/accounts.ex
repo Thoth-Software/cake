@@ -244,13 +244,29 @@ defmodule Cake.Accounts do
   ids. Whether `actor` may do this at all is not decided here: the admin
   routes are what keep a member out.
 
+  There is always a confirmed admin, once there is one, since an admin who
+  is not confirmed cannot log in to the admin panel. Taking back the
+  confirmation of the last one is refused with
+  `{:error, :last_confirmed_admin}`, and nothing changes. That is so whoever
+  asks, `:operator` included: the rule is about what the database is left
+  with. It goes by the role and the confirmation in the database, and is
+  safe when requests race: it is decided under the lock that a demotion and
+  a deletion are decided under (see `delete_user/1`), so two admins cannot
+  each take back the other's.
+
+  Confirming is never refused here, and does not take that lock: it can
+  only add a confirmed admin. So it is the way out, from the command line,
+  for a database where no admin is confirmed (the README has the command,
+  under "Roles and the First Admin").
+
   Confirming also drops the user's pending confirmation links. A user who
   is already as asked is returned as they are. Taking a confirmation back
   does not end the sessions the user already has (#401).
 
-  Raises `Ecto.NoResultsError` if the user no longer exists, and
-  `Ecto.StaleEntryError` if they are deleted between this function's read
-  and its write.
+  Raises `Ecto.NoResultsError` if the user no longer exists. Confirming
+  raises `Ecto.StaleEntryError` if the user is deleted between its read and
+  its write (#427). Taking a confirmation back cannot be caught that way:
+  it reads the user under the lock a deletion takes, with their row locked.
 
   ## Examples
 
@@ -263,29 +279,40 @@ defmodule Cake.Accounts do
       iex> set_user_confirmed(:operator, user, false)
       {:ok, %User{confirmed_at: nil}}
 
+      iex> set_user_confirmed(:operator, the_only_confirmed_admin, false)
+      {:error, :last_confirmed_admin}
+
   """
   @spec set_user_confirmed(User.t() | :operator, User.t(), boolean()) ::
-          {:ok, User.t()} | {:error, :own_account}
+          {:ok, User.t()} | {:error, :own_account | :last_confirmed_admin}
   def set_user_confirmed(%User{id: id}, %User{id: id}, false), do: {:error, :own_account}
 
-  def set_user_confirmed(actor, %User{id: id}, confirmed?)
-      when (is_struct(actor, User) or actor == :operator) and is_boolean(confirmed?) do
-    current = Repo.get!(User, id)
-
-    case {confirmed?, current.confirmed_at} do
-      {true, nil} ->
+  def set_user_confirmed(actor, %User{id: id}, true)
+      when is_struct(actor, User) or actor == :operator do
+    case Repo.get!(User, id) do
+      %User{confirmed_at: nil} = current ->
         {:ok, %{user: user}} = Repo.transaction(confirm_user_multi(current))
         {:ok, user}
 
-      {false, %DateTime{}} ->
-        Repo.update(Ecto.Changeset.change(current, confirmed_at: nil))
-
-      {_as_asked, _confirmed_at} ->
+      %User{confirmed_at: %DateTime{}} = current ->
         {:ok, current}
     end
   end
 
-  ## Roles and the last admin
+  def set_user_confirmed(actor, %User{} = user, false)
+      when is_struct(actor, User) or actor == :operator do
+    under_last_admin_rule(user, fn
+      %User{confirmed_at: nil} = current ->
+        {:ok, current}
+
+      %User{confirmed_at: %DateTime{}} = current ->
+        with :ok <- may_lose_confirmation(current) do
+          Repo.update(Ecto.Changeset.change(current, confirmed_at: nil))
+        end
+    end)
+  end
+
+  ## Roles, the last admin and the last confirmed admin
 
   @doc """
   Changes a user's username, email and role, as an admin does from the panel.
@@ -299,8 +326,10 @@ defmodule Cake.Accounts do
 
   The role is changed under the rule `update_user_role/2` keeps, in the same
   way: demoting the last admin is refused with `{:error, :last_admin}`, and
-  then nothing changes, the username included. The decision goes by the role
-  in the database, and is safe when requests race (see `delete_user/1`).
+  demoting the last confirmed admin with `{:error, :last_confirmed_admin}`,
+  and then nothing changes, the username included. The decision goes by the
+  role and the confirmation in the database, and is safe when requests race
+  (see `delete_user/1`).
 
   A username or an email that breaks a rule or is already taken, a missing
   email, or a role that is neither `:member` nor `:admin`, is
@@ -321,16 +350,13 @@ defmodule Cake.Accounts do
 
   """
   @spec update_user(User.t(), map()) ::
-          {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
+          {:ok, User.t()}
+          | {:error, :last_admin | :last_confirmed_admin | Ecto.Changeset.t()}
   def update_user(%User{} = user, attrs) do
-    under_last_admin_rule(user, fn current, last_admin? ->
+    under_last_admin_rule(user, fn current ->
       changeset = User.update_changeset(current, attrs)
 
-      if last_admin? and steps_down?(changeset) do
-        {:error, :last_admin}
-      else
-        Repo.update(changeset)
-      end
+      with :ok <- may_make(changeset), do: Repo.update(changeset)
     end)
   end
 
@@ -357,13 +383,21 @@ defmodule Cake.Accounts do
   Changes a user's role.
 
   There is always at least one admin: demoting the last one is refused with
-  `{:error, :last_admin}`, and nothing changes. Every other change is
-  allowed, a promotion included. A role that is neither `:member` nor
-  `:admin` is `{:error, changeset}`.
+  `{:error, :last_admin}`, and nothing changes.
 
-  The decision goes by the user's role in the database, read inside the same
-  transaction as the change, not by the role on the struct passed in. It is
-  safe when requests race: see `delete_user/1` for how.
+  There is also always a confirmed admin, once there is one: an admin who
+  is not confirmed cannot log in, so they are no admin to fall back on.
+  Demoting a confirmed admin while every other admin is unconfirmed is
+  refused with `{:error, :last_confirmed_admin}`, and nothing changes. An
+  admin who is not confirmed is not what that rule keeps, so they can be
+  demoted while any other admin remains.
+
+  Every other change is allowed, a promotion included. A role that is
+  neither `:member` nor `:admin` is `{:error, changeset}`.
+
+  The decision goes by the user's role and confirmation in the database,
+  read inside the same transaction as the change, not by those on the struct
+  passed in. It is safe when requests race: see `delete_user/1` for how.
 
   A change that would not be allowed if it came second may be allowed if it
   comes first: asked to promote one user and demote the only admin at the
@@ -380,52 +414,76 @@ defmodule Cake.Accounts do
       iex> update_user_role(the_only_admin, :member)
       {:error, :last_admin}
 
+      iex> update_user_role(the_only_confirmed_admin, :member)
+      {:error, :last_confirmed_admin}
+
   """
   @spec update_user_role(User.t(), atom() | String.t()) ::
-          {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
+          {:ok, User.t()}
+          | {:error, :last_admin | :last_confirmed_admin | Ecto.Changeset.t()}
   def update_user_role(%User{} = user, role) do
-    under_last_admin_rule(user, fn current, last_admin? ->
+    under_last_admin_rule(user, fn current ->
       changeset = User.role_changeset(current, %{role: role})
 
-      if last_admin? and steps_down?(changeset) do
-        {:error, :last_admin}
-      else
-        Repo.update(changeset)
-      end
+      with :ok <- may_make(changeset), do: Repo.update(changeset)
     end)
   end
 
-  # A valid change to a role other than admin. An invalid one steps nowhere:
-  # it is refused as invalid, by `Repo.update/1`.
-  defp steps_down?(%Ecto.Changeset{valid?: valid?} = changeset) do
-    valid? and Ecto.Changeset.get_field(changeset, :role) != :admin
+  # Whether the rule allows the change in `changeset`. Only a demotion is
+  # its business: a valid change to a role other than admin. An invalid one
+  # steps nowhere: it is refused as invalid, by `Repo.update/1`.
+  defp may_make(%Ecto.Changeset{valid?: valid?, data: %User{} = current} = changeset) do
+    if valid? and Ecto.Changeset.get_field(changeset, :role) != :admin,
+      do: may_stop_being_admin(current),
+      else: :ok
   end
 
   @doc """
   Deletes a user, and with them their sessions and other tokens.
 
-  There is always at least one admin: deleting the last one is refused with
-  `{:error, :last_admin}`, and nothing is deleted. As in
-  `update_user_role/2`, the decision goes by the role in the database.
+  There is always at least one admin, and always a confirmed one once there
+  is one: deleting the last admin is refused with `{:error, :last_admin}`,
+  and deleting a confirmed admin while every other admin is unconfirmed with
+  `{:error, :last_confirmed_admin}`, and nothing is deleted. As in
+  `update_user_role/2`, the decision goes by the role and the confirmation
+  in the database.
 
   ## Concurrency
 
   Two requests can each see two admins and each remove one; or one can
   demote a user whose promotion, still uncommitted when it looked, made
-  them the only admin. Both come from deciding on what was true a moment
-  ago. So this function, `update_user_role/2` and `update_user/2` are
-  decided one at a time: each takes the same transaction-level advisory lock
-  before it reads anything, and holds it until it commits or rolls back.
-  Whatever it then reads (the user's role, whether another admin exists)
-  cannot be changed under it by another call to any of the three.
+  them the only admin; or two admins can each take back the other's
+  confirmation. All come from deciding on what was true a moment ago. So
+  this function, `update_user_role/2`, `update_user/2` and the taking back
+  of a confirmation (`set_user_confirmed/3`) are decided one at a time: each
+  takes the same transaction-level advisory lock before it reads anything,
+  and holds it until it commits or rolls back. Whatever it then reads
+  (whether another admin exists, whether another confirmed one does) cannot
+  be changed under it by another call to any of the four.
 
   It is one lock for all users, not a lock on rows, so two calls cannot wait
   on each other in a circle, and a call does not hold up anything else that
-  touches a user: logging in, registering, changing a password.
+  touches another user: logging in, registering, changing a password.
 
-  `create_user/1` does not take the lock. It can only add an admin, never
-  remove one, so the worst a race with it does is refuse a demotion that
-  would have been allowed a moment later.
+  `create_user/1` does not take the lock, and neither does confirming a
+  user: by hand, by the mailed link, or by the link mailed to a changed
+  email address (`update_user_email/2`). Each can only add a confirmed admin,
+  never remove one. For another user, the worst a race with one does is
+  refuse a change that would have been allowed a moment later. For the user
+  the change is about, a confirmation matters more: read as unconfirmed,
+  they could be confirmed before the change is written, and the only
+  confirmed admin demoted or deleted. So each of the four also locks the
+  user's own row when it reads them, after the advisory lock: a confirmation
+  in flight is waited for and seen, and a later one waits its turn.
+
+  All of this relies on two things, both true of every caller there is. The
+  database runs at READ COMMITTED, Postgres's default: at REPEATABLE READ a
+  call would decide on what was true before it waited for the lock, and the
+  rule would not hold. And a call is not made inside a transaction of the
+  caller's: one that had already read would decide the same stale way, one
+  that confirmed a user and then removed another could deadlock with a
+  removal of the first, and a refusal would roll the caller's transaction
+  back, which then answers `{:error, :rollback}` and not the reason.
 
   Raises `Ecto.NoResultsError` if the user no longer exists.
 
@@ -437,41 +495,108 @@ defmodule Cake.Accounts do
       iex> delete_user(the_only_admin)
       {:error, :last_admin}
 
+      iex> delete_user(the_only_confirmed_admin)
+      {:error, :last_confirmed_admin}
+
   """
-  @spec delete_user(User.t()) :: {:ok, User.t()} | {:error, :last_admin}
+  @spec delete_user(User.t()) ::
+          {:ok, User.t()} | {:error, :last_admin | :last_confirmed_admin}
   def delete_user(%User{} = user) do
-    under_last_admin_rule(user, fn current, last_admin? ->
-      if last_admin?, do: {:error, :last_admin}, else: Repo.delete(current)
+    under_last_admin_rule(user, fn current ->
+      with :ok <- may_stop_being_admin(current), do: Repo.delete(current)
     end)
   end
 
-  # The advisory lock every change of role and every deletion takes. Any
-  # number will do, as long as nothing else in the database uses it; this one
-  # is derived from a name so that it says what it is for.
+  # The advisory lock taken by every change that can take an admin, or a
+  # confirmed admin, away: a change of role, a deletion, a confirmation
+  # taken back. Any number will do, as long as nothing else in the database
+  # uses it; this one is derived from a name so that it says what it is
+  # for. The name is from when role changes were all it covered.
   @role_changes_lock :erlang.phash2("cake:accounts:role_changes")
 
   # Runs `change` in a transaction that holds the role-changes lock, so that
   # it is the only such change in flight. `change` gets the user as the
-  # database has them now and whether they are the only admin, and answers
-  # `{:ok, user}` to keep what it did or `{:error, reason}` to roll it back.
+  # database has them now, and answers `{:ok, user}` to keep what it did or
+  # `{:error, reason}` to roll it back. What it asks of the rule
+  # (`may_stop_being_admin/1`, `may_lose_confirmation/1`) it has to ask in
+  # here, where the answer cannot change under it.
   #
   # The lock comes first, before anything is read: a statement run after it
-  # is granted sees every role change that committed while this call waited.
+  # is granted sees every such change that committed while this call waited.
+  # That is so at READ COMMITTED, which Postgres defaults to and `Cake.Repo`
+  # runs at, where each statement sees what had committed when it began. At
+  # REPEATABLE READ a transaction's view is fixed by its first statement,
+  # here the one that waits for the lock, and the rule would decide on what
+  # was true before it waited. So would a caller's own transaction that had
+  # read anything before calling in. Nothing does either.
+  #
+  # The user is then read with their row locked, because one change that
+  # matters takes no part in the lock: a confirmation. A confirmation of
+  # this user still in flight is waited for, and seen; one that comes later
+  # waits for this change. Without it, a user read as unconfirmed could be
+  # confirmed before the change is written, and the only confirmed admin
+  # demoted or deleted.
+  #
+  # `FOR NO KEY UPDATE` is the lock a change of role or of confirmation
+  # takes anyway, and it holds up nobody who only refers to the user, as
+  # logging in does when it stores a session. A rename, a changed email and
+  # a deletion take the stronger lock when they write, as they did before
+  # the row was locked here, and wait then for anyone storing a session for
+  # the user.
+  #
+  # Nothing that locks a user's row takes the advisory lock afterwards, so
+  # the two cannot wait on each other. And everything else that writes both
+  # a user and their tokens writes the user first, so none can hold what a
+  # deletion or a rename waits for while waiting for the row. A transaction
+  # that stored a token for a user and then updated that user would: it
+  # would deadlock with a deletion or a rename of them.
   defp under_last_admin_rule(%User{id: id}, change) do
     Repo.transaction(fn ->
       _ = Repo.query!("SELECT pg_advisory_xact_lock($1)", [@role_changes_lock])
 
-      current = Repo.get!(User, id)
-
-      case change.(current, current.role == :admin and not other_admin?(id)) do
+      case change.(User |> lock("FOR NO KEY UPDATE") |> Repo.get!(id)) do
         {:ok, user} -> user
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
   end
 
+  # Whether `user` may be demoted or deleted: not when that leaves no admin,
+  # and not when it leaves no confirmed admin where there was one. A member
+  # is no admin to lose.
+  defp may_stop_being_admin(%User{role: :admin, id: id} = user) do
+    cond do
+      not other_admin?(id) -> {:error, :last_admin}
+      last_confirmed_admin?(user) -> {:error, :last_confirmed_admin}
+      true -> :ok
+    end
+  end
+
+  defp may_stop_being_admin(%User{}), do: :ok
+
+  # Whether `user`'s confirmation may be taken back: they stay an admin, so
+  # only the second half of the rule is asked.
+  defp may_lose_confirmation(%User{} = user) do
+    if last_confirmed_admin?(user), do: {:error, :last_confirmed_admin}, else: :ok
+  end
+
+  # An admin who is not confirmed is not what keeps the panel reachable, so
+  # they are never the last confirmed admin, whoever else there is.
+  defp last_confirmed_admin?(%User{role: :admin, confirmed_at: %DateTime{}, id: id}) do
+    not other_confirmed_admin?(id)
+  end
+
+  defp last_confirmed_admin?(%User{}), do: false
+
   defp other_admin?(id) do
     Repo.exists?(from u in User, where: u.role == :admin and u.id != ^id)
+  end
+
+  defp other_confirmed_admin?(id) do
+    Repo.exists?(
+      from u in User,
+        where: u.role == :admin and u.id != ^id and not is_nil(u.confirmed_at)
+    )
   end
 
   @doc """

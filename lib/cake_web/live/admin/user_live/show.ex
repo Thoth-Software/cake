@@ -15,6 +15,11 @@ defmodule CakeWeb.Admin.UserLive.Show do
   refuses the confirming too. Taking a confirmation
   back stops the next log-in; it does not end the sessions the login
   already has (#401).
+
+  The last confirmed admin's confirmation cannot be taken back
+  (`{:error, :last_confirmed_admin}`), or no admin could log in. The button
+  is there all the same, since whether a login is the last one is decided
+  when it is asked; the refusal is a notice, as for the admin's own.
   """
 
   use CakeWeb, :live_view
@@ -137,6 +142,12 @@ defmodule CakeWeb.Admin.UserLive.Show do
          socket
          |> clear_flash()
          |> assign(:refusal, "You cannot take back your own confirmation.")}
+
+      {:error, :last_confirmed_admin} ->
+        {:noreply,
+         socket
+         |> clear_flash()
+         |> assign(:refusal, "You cannot take back the last confirmed admin's confirmation.")}
     end
   rescue
     # The login was deleted while its page was open: before the read, or
