@@ -472,6 +472,15 @@ defmodule Cake.Accounts do
   user's own row when it reads them, after the advisory lock: a confirmation
   in flight is waited for and seen, and a later one waits its turn.
 
+  All of this relies on two things, both true of every caller there is. The
+  database runs at READ COMMITTED, Postgres's default: at REPEATABLE READ a
+  call would decide on what was true before it waited for the lock, and the
+  rule would not hold. And a call is not made inside a transaction of the
+  caller's: one that had already read would decide the same stale way, one
+  that confirmed a user and then removed another could deadlock with a
+  removal of the first, and a refusal would roll the caller's transaction
+  back, which then answers `{:error, :rollback}` and not the reason.
+
   Raises `Ecto.NoResultsError` if the user no longer exists.
 
   ## Examples
@@ -510,6 +519,12 @@ defmodule Cake.Accounts do
   #
   # The lock comes first, before anything is read: a statement run after it
   # is granted sees every such change that committed while this call waited.
+  # That is so at READ COMMITTED, which Postgres defaults to and `Cake.Repo`
+  # runs at, where each statement sees what had committed when it began. At
+  # REPEATABLE READ a transaction's view is fixed by its first statement,
+  # here the one that waits for the lock, and the rule would decide on what
+  # was true before it waited. So would a caller's own transaction that had
+  # read anything before calling in. Nothing does either.
   #
   # The user is then read with their row locked, because one change that
   # matters takes no part in the lock: a confirmation. A confirmation of
