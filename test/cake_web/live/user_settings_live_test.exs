@@ -3,8 +3,14 @@ defmodule CakeWeb.UserSettingsLiveTest do
 
   import Phoenix.LiveViewTest
   import Cake.AccountsFixtures
+  import Swoosh.TestAssertions
 
   alias Cake.Accounts
+  alias Cake.Repo
+
+  # What a user's open pages are told when an admin deletes them
+  # (`CakeWeb.UserAuth.end_live_sessions/1`).
+  @session_ended "Your session has ended. Log in again to go on."
 
   describe "Settings page" do
     test "renders settings page", %{conn: conn} do
@@ -102,6 +108,32 @@ defmodule CakeWeb.UserSettingsLiveTest do
     end
   end
 
+  # #427. A user deleted while the page is open is sent where the deletion
+  # sends their open pages, a moment later: to the log-in page, told that
+  # their session has ended. Deleted here behind the context's back, so that
+  # no such message gets there first. The same goes for the password form.
+  describe "the email form, for a user deleted while the page is open" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "sends them to the log-in page, and mails nothing", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      Repo.delete!(user)
+
+      lv
+      |> form("#email_form", %{
+        "current_password" => valid_user_password(),
+        "user" => %{"email" => unique_user_email()}
+      })
+      |> render_submit()
+
+      assert assert_redirect(lv, ~p"/users/log_in") == %{"error" => @session_ended}
+      assert_no_email_sent()
+    end
+  end
+
   describe "update password form" do
     setup %{conn: conn} do
       password = valid_user_password()
@@ -175,6 +207,28 @@ defmodule CakeWeb.UserSettingsLiveTest do
       assert result =~ "should be at least 12 character(s)"
       assert result =~ "does not match password"
       assert result =~ "is not valid"
+    end
+
+    # #427, as for the email form above.
+    test "sends a user deleted while the page is open to the log-in page", %{
+      conn: conn,
+      user: user,
+      password: password
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      Repo.delete!(user)
+
+      lv
+      |> form("#password_form", %{
+        "current_password" => password,
+        "user" => %{
+          "password" => "new valid password",
+          "password_confirmation" => "new valid password"
+        }
+      })
+      |> render_submit()
+
+      assert assert_redirect(lv, ~p"/users/log_in") == %{"error" => @session_ended}
     end
   end
 

@@ -31,6 +31,8 @@ defmodule CakeWeb.UserAuthTest do
     ]
 
   alias Cake.Accounts
+  alias Cake.Accounts.UserToken
+  alias Cake.Repo
   alias CakeWeb.UserAuth
   alias Phoenix.LiveView
 
@@ -45,9 +47,12 @@ defmodule CakeWeb.UserAuthTest do
     %{user: user_fixture(), conn: conn}
   end
 
+  # Storing the session can fail: the user can be deleted after log-in
+  # checked their password (#427). So the conn comes in `{:ok, conn}`, and
+  # the caller answers `{:error, :gone}` as it answers a wrong password.
   describe "log_in_user/3" do
     test "stores the user token in the session", %{conn: conn, user: user} do
-      conn = UserAuth.log_in_user(conn, user)
+      assert {:ok, conn} = UserAuth.log_in_user(conn, user)
       assert token = get_session(conn, :user_token)
       assert get_session(conn, :live_socket_id) == "users_sessions:#{Base.url_encode64(token)}"
       assert redirected_to(conn) == ~p"/"
@@ -55,22 +60,37 @@ defmodule CakeWeb.UserAuthTest do
     end
 
     test "clears everything previously stored in the session", %{conn: conn, user: user} do
-      conn = conn |> put_session(:to_be_removed, "value") |> UserAuth.log_in_user(user)
+      assert {:ok, conn} =
+               conn |> put_session(:to_be_removed, "value") |> UserAuth.log_in_user(user)
+
       refute get_session(conn, :to_be_removed)
     end
 
     test "redirects to the configured path", %{conn: conn, user: user} do
-      conn = conn |> put_session(:user_return_to, "/hello") |> UserAuth.log_in_user(user)
+      assert {:ok, conn} =
+               conn |> put_session(:user_return_to, "/hello") |> UserAuth.log_in_user(user)
+
       assert redirected_to(conn) == "/hello"
     end
 
     test "writes a cookie if remember_me is configured", %{conn: conn, user: user} do
-      conn = conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+      assert {:ok, conn} =
+               conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
       assert get_session(conn, :user_token) == conn.cookies[@remember_me_cookie]
 
       assert %{value: signed_token, max_age: max_age} = conn.resp_cookies[@remember_me_cookie]
       assert signed_token != get_session(conn, :user_token)
       assert max_age == 5_184_000
+    end
+
+    # Deleted here behind the context's back, as a deletion that commits
+    # between the password check and this call leaves them.
+    test "stores nothing for a user who no longer exists, and says so", %{conn: conn, user: user} do
+      Repo.delete!(user)
+
+      assert UserAuth.log_in_user(conn, user, %{"remember_me" => "true"}) == {:error, :gone}
+      refute Repo.get_by(UserToken, user_id: user.id)
     end
   end
 

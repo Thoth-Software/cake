@@ -1,7 +1,8 @@
 defmodule Cake.AccountsConcurrencyPropertyTest do
   @moduledoc """
   The last-admin rule under concurrent requests (#373), and its second half,
-  the last confirmed admin (#405).
+  the last confirmed admin (#405); and what a request about a user answers
+  when that user is deleted, or demoted, while it is under way (#427).
 
   An admin who is not confirmed cannot log in. So what a database must keep
   is a confirmed admin, and three things can take one away: a demotion, a
@@ -52,9 +53,19 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   where no admin is confirmed, an admin's confirmation is held uncommitted
   while a request takes that same admin away.
 
+  #427 is the other side of a deletion. A request about a user reads them,
+  or is handed them by a page that read them earlier, and then writes them
+  or a row that refers to them: a confirmation, a password change or reset,
+  a session stored at log-in, a link mailed. A deletion can commit in
+  between. Tests hold the deletion open until each request waits on the
+  user, and a fourth property races a deletion against several requests
+  about the same user, as the stress run that found it did. And a
+  confirmation that waits on a demotion of the same admin must answer with
+  the role the demotion left.
+
   The SQL sandbox gives a test one connection, on which nothing can race. So
   this module does not use it: every database call runs through
-  `Ecto.Adapters.SQL.Sandbox.unboxed_run/2`, on a connection of its own, and
+  `Cake.ConcurrencyHelpers.unboxed/1`, on a connection of its own, and
   commits. That is why the module is `async: false` (no sandboxed test is
   running to see the committed rows), why each run deletes its users, and why
   it first deletes any a killed run left behind. No property asks for more
@@ -73,18 +84,20 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   use ExUnit.Case, async: false
   use ExUnitProperties
 
+  import Cake.ConcurrencyHelpers
   import Ecto.Query
 
   alias Cake.Accounts
   alias Cake.Accounts.User
+  alias Cake.Accounts.UserToken
   alias Cake.Repo
-  alias Ecto.Adapters.SQL.Sandbox
 
   # Each run commits users and races real connections.
   @max_runs 30
 
   @username_prefix "racer-"
   @password "hello world!"
+  @new_password "another long password"
 
   # ---------------------------------------------------------------------------
   # Generators
@@ -128,8 +141,6 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   # ---------------------------------------------------------------------------
   # Running a population
   # ---------------------------------------------------------------------------
-
-  defp unboxed(fun), do: Sandbox.unboxed_run(Repo, fun)
 
   defp racers, do: from(u in User, where: like(u.username, ^"#{@username_prefix}%"))
 
@@ -304,49 +315,6 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
 
   defp create_member do
     unboxed(fn -> create_user("#{@username_prefix}solo", :member, true) end)
-  end
-
-  # Makes `change` in a transaction that stays open until it is sent
-  # `:commit`, and tells `test` once the change is made and uncommitted.
-  defp change_and_hold(change, test) do
-    Task.async(fn ->
-      unboxed(fn ->
-        Repo.transaction(fn ->
-          {:ok, changed} = change.()
-          send(test, :change_uncommitted)
-
-          receive do
-            :commit -> changed
-          end
-        end)
-      end)
-    end)
-  end
-
-  defp sessions_waiting_on_a_lock do
-    %{rows: [[count]]} =
-      unboxed(fn ->
-        Repo.query!("""
-        SELECT count(*) FROM pg_stat_activity
-        WHERE datname = current_database() AND wait_event_type = 'Lock'
-        """)
-      end)
-
-    count
-  end
-
-  # Returns `:blocked` once a session is waiting on a lock, and fails the
-  # test if `task` answers first. It does not say which session waits, or on
-  # which lock: a request that decided on what it could see and then waits
-  # to write is `:blocked` too. What the request answers, and what the
-  # database holds afterwards, are what each test goes by.
-  defp await_blocked_or_done(task, polls_left \\ 20_000) do
-    cond do
-      sessions_waiting_on_a_lock() > 0 -> :blocked
-      Task.yield(task, 0) != nil -> flunk("the request answered while the first change was open")
-      polls_left == 0 -> flunk("the request neither answered nor waited on a lock")
-      true -> await_blocked_or_done(task, polls_left - 1)
-    end
   end
 
   # A confirmation taken back is the fourth way to undo the promotion of a
@@ -573,6 +541,165 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
   end
 
   # ---------------------------------------------------------------------------
+  # One user, two requests: a deletion still uncommitted, and a request about them
+  # ---------------------------------------------------------------------------
+
+  # #427, found by the reviews of #416. Each request below reads a user, or
+  # is handed one that a page read earlier, and then writes them, or writes
+  # a row that refers to them. A deletion can commit in between: the request
+  # waits on the user's row, or on the reference to it, and finds it gone.
+  # It answers as it answers for a user deleted before the call (in
+  # `Cake.AccountsTest`, "a user deleted before the call"), never with the
+  # exception of a write that found nothing: an `Ecto.StaleEntryError` for
+  # an update, an `Ecto.ConstraintError` for a token's reference.
+  #
+  # The deletion is held open until the request waits on it, as above.
+
+  # Each request, by what it is to a user: the first three confirm, the
+  # next two set a password, one stores a session at log-in, and the last
+  # three mail a link.
+  @requests_about_a_user [
+    confirm_by_hand: "a confirmation by hand",
+    confirm_by_link: "a confirmation by the mailed link",
+    change_email_by_link: "an email change by the mailed link",
+    change_password: "a password change",
+    reset_password: "a password reset",
+    store_session: "storing a session at log-in",
+    send_confirmation: "mailing confirmation instructions",
+    send_email_change: "mailing an email change's link",
+    send_password_reset: "mailing password reset instructions"
+  ]
+
+  # An unconfirmed member: a confirmation, and its instructions, then have
+  # something to do.
+  defp create_unconfirmed_member do
+    unboxed(fn ->
+      {:ok, user} = Accounts.register_user(racer("#{@username_prefix}solo"))
+      user
+    end)
+  end
+
+  defp tokens_left?(%User{id: id}) do
+    unboxed(fn -> Repo.exists?(from t in UserToken, where: t.user_id == ^id) end)
+  end
+
+  # The request to make about `user`, made ready while they exist: a link's
+  # token is made first.
+  defp prepare(user, :confirm_by_hand),
+    do: fn -> Accounts.set_user_confirmed(:operator, user, true) end
+
+  defp prepare(user, :confirm_by_link) do
+    token = confirmation_token(user)
+    fn -> Accounts.confirm_user(token) end
+  end
+
+  defp prepare(user, :change_email_by_link) do
+    token = changed_email_token(user)
+    fn -> Accounts.update_user_email(user, token) end
+  end
+
+  defp prepare(user, :change_password),
+    do: fn -> Accounts.update_user_password(user, @password, %{password: @new_password}) end
+
+  defp prepare(user, :reset_password),
+    do: fn -> Accounts.reset_user_password(user, %{password: @new_password}) end
+
+  defp prepare(user, :store_session), do: fn -> Accounts.generate_user_session_token(user) end
+
+  defp prepare(user, :send_confirmation),
+    do: fn -> Accounts.deliver_user_confirmation_instructions(user, &link/1) end
+
+  defp prepare(user, :send_email_change) do
+    changed = %{user | email: "new-" <> user.email}
+    fn -> Accounts.deliver_user_update_email_instructions(changed, user.email, &link/1) end
+  end
+
+  defp prepare(user, :send_password_reset),
+    do: fn -> Accounts.deliver_user_reset_password_instructions(user, &link/1) end
+
+  defp link(token), do: "/#{token}"
+
+  # What each request answers for a user who is gone. A link is no longer
+  # good, as for a link that never was. Confirming by hand raises, as the
+  # admin panel's other changes to a login do, and its page rescues. A
+  # change or a token has nobody to be for.
+  defp gone_answer(:confirm_by_hand), do: {:raised, Ecto.NoResultsError}
+  defp gone_answer(request) when request in [:confirm_by_link, :change_email_by_link], do: :error
+  defp gone_answer(_request), do: {:error, :gone}
+
+  # What a request answers, or the exception it raised, so that one table
+  # can give either as the answer it expects.
+  defp answer(request) do
+    request.()
+  rescue
+    exception -> {:raised, exception.__struct__}
+  end
+
+  for {request, name} <- @requests_about_a_user do
+    test "#{name} that waits on the same user's deletion answers as for a user who is gone" do
+      user = create_unconfirmed_member()
+      request = prepare(user, unquote(request))
+
+      deletion = change_and_hold(fn -> Accounts.delete_user(user) end, self())
+      assert_receive :change_uncommitted
+
+      asked = Task.async(fn -> unboxed(fn -> answer(request) end) end)
+      assert await_blocked_or_done(asked) == :blocked
+
+      send(deletion.pid, :commit)
+      assert {:ok, %User{}} = Task.await(deletion, 15_000)
+
+      assert Task.await(asked, 15_000) == gone_answer(unquote(request))
+      assert stored() == %{}
+      refute tokens_left?(user)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # One admin, two requests: a demotion still uncommitted, and a confirmation
+  # ---------------------------------------------------------------------------
+
+  # #427. A confirmation reads the user, writes their confirmation, and
+  # answers with the user. A demotion of the same admin can commit in
+  # between, and the answer then says `role: :admin` of a member: the admin
+  # panel shows the answer, and so the old role, until the page is reloaded.
+  # The rule is not misled, since it goes by the database. The answer has to
+  # be the user as the database has them once the confirmation is written.
+  #
+  # The demotion is held open until the confirmation waits on it. Of the two
+  # admins, the first is not confirmed, so demoting them takes no confirmed
+  # admin away and is allowed; the second is.
+
+  defp create_unconfirmed_and_confirmed_admin do
+    unboxed(fn ->
+      [
+        create_user("#{@username_prefix}first", :admin, false),
+        create_user("#{@username_prefix}second", :admin, true)
+      ]
+    end)
+  end
+
+  for request <- [:confirm_by_hand, :confirm_by_link] do
+    test "#{Keyword.fetch!(@requests_about_a_user, request)} that waits on the same admin's demotion answers with the role the demotion left" do
+      [first, second] = create_unconfirmed_and_confirmed_admin()
+      confirmation = prepare(first, unquote(request))
+
+      demotion = change_and_hold(fn -> Accounts.update_user_role(first, :member) end, self())
+      assert_receive :change_uncommitted
+
+      confirming = Task.async(fn -> unboxed(confirmation) end)
+      assert await_blocked_or_done(confirming) == :blocked
+
+      send(demotion.pid, :commit)
+      assert {:ok, %User{role: :member}} = Task.await(demotion, 15_000)
+
+      assert {:ok, %User{role: :member} = confirmed} = Task.await(confirming, 15_000)
+      assert confirmed == unboxed(fn -> Repo.get!(User, first.id) end)
+      assert stored() == %{first.id => {:member, true}, second.id => {:admin, true}}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Properties
   # ---------------------------------------------------------------------------
 
@@ -647,4 +774,58 @@ defmodule Cake.AccountsConcurrencyPropertyTest do
       assert admin_left? == promoted?
     end
   end
+
+  # #427, as the stress run that found it: a user is deleted at the moment
+  # any of the requests about them are made. Whichever goes first, each
+  # request is answered as for a user who exists, or as for one who is gone,
+  # and nothing is left of the user. It reaches what the tests above do not
+  # fix: a deletion that commits between a request's read and its write
+  # without the request ever waiting on it.
+  property "whatever is asked about a user in the instant they are deleted, each request is answered as for a user who exists or one who is gone" do
+    check all(
+            requests <-
+              list_of(member_of(Keyword.keys(@requests_about_a_user)),
+                min_length: 1,
+                max_length: most_users() - 1
+              ),
+            max_runs: @max_runs
+          ) do
+      delete_racers()
+      user = create_unconfirmed_member()
+      asked = Enum.map(requests, &prepare(user, &1))
+
+      [deletion | answers] =
+        race([
+          fn -> Accounts.delete_user(user) end
+          | Enum.map(asked, fn request -> fn -> answer(request) end end)
+        ])
+
+      assert {:ok, %User{}} = deletion
+
+      for {request, answer} <- Enum.zip(requests, answers) do
+        assert answer == gone_answer(request) or answered_for_user?(request, answer),
+               "#{inspect(request)} was answered #{inspect(answer)}"
+      end
+
+      assert stored() == %{}
+      refute tokens_left?(user)
+    end
+  end
+
+  # What each request answers for a user who still exists when it is made.
+  # A link can also be used up in the same instant, by another confirmation
+  # or by a password change, which deletes the user's tokens: that is
+  # `:error`, as for a user who is gone.
+  defp answered_for_user?(request, answer) when request in [:confirm_by_hand, :confirm_by_link],
+    do: match?({:ok, %User{confirmed_at: %DateTime{}}}, answer)
+
+  defp answered_for_user?(:change_email_by_link, answer), do: answer == :ok
+
+  defp answered_for_user?(request, answer) when request in [:change_password, :reset_password],
+    do: match?({:ok, %User{}}, answer)
+
+  defp answered_for_user?(:store_session, answer),
+    do: match?({:ok, token} when is_binary(token), answer)
+
+  defp answered_for_user?(_mailing, answer), do: match?({:ok, %Swoosh.Email{}}, answer)
 end

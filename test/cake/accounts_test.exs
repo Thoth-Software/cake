@@ -914,8 +914,10 @@ defmodule Cake.AccountsTest do
       %{user: user_fixture()}
     end
 
+    # Storing a token can fail: the user can be gone by then (#427, in "a
+    # user deleted before the call"). So the token comes in `{:ok, token}`.
     test "generates a token", %{user: user} do
-      token = Accounts.generate_user_session_token(user)
+      assert {:ok, token} = Accounts.generate_user_session_token(user)
       assert user_token = Repo.get_by(UserToken, token: token)
       assert user_token.context == "session"
 
@@ -1097,6 +1099,116 @@ defmodule Cake.AccountsTest do
       {:ok, _} = Accounts.reset_user_password(user, %{password: "new valid password"})
       refute Repo.get_by(UserToken, user_id: user.id)
     end
+  end
+
+  # #427. Each of these reads a user, or is handed one that a page read
+  # earlier, and then writes them, or writes a row that refers to them. A
+  # user deleted before the write is answered as one who no longer exists,
+  # never with the exception of a write that found nothing (an
+  # `Ecto.StaleEntryError` for an update, an `Ecto.ConstraintError` for a
+  # token's reference to the user):
+  #
+  #   * a link is no longer good: `:error`, as for a link that never was;
+  #   * a change, or a token, has nobody to be for: `{:error, :gone}`;
+  #   * confirming by hand raises `Ecto.NoResultsError`, as the admin
+  #     panel's other changes to a login do (`update_user/2`,
+  #     `delete_user/1`), and its page rescues.
+  #
+  # The same deletion committing while the call waits on the user is in
+  # `Cake.AccountsConcurrencyPropertyTest`.
+  describe "a user deleted before the call" do
+    for {name, request, gone} <- [
+          {"set_user_confirmed/3, confirming",
+           quote(do: fn user -> fn -> Accounts.set_user_confirmed(:operator, user, true) end end),
+           {:raised, Ecto.NoResultsError}},
+          {"confirm_user/1",
+           quote do
+             fn user ->
+               token =
+                 extract_user_token(&Accounts.deliver_user_confirmation_instructions(user, &1))
+
+               fn -> Accounts.confirm_user(token) end
+             end
+           end, :error},
+          {"update_user_email/2",
+           quote do
+             fn user ->
+               token =
+                 extract_user_token(
+                   &Accounts.deliver_user_update_email_instructions(
+                     %{user | email: unique_user_email()},
+                     user.email,
+                     &1
+                   )
+                 )
+
+               fn -> Accounts.update_user_email(user, token) end
+             end
+           end, :error},
+          {"update_user_password/3",
+           quote do
+             fn user ->
+               fn ->
+                 Accounts.update_user_password(user, valid_user_password(), %{
+                   password: "new valid password"
+                 })
+               end
+             end
+           end, {:error, :gone}},
+          {"reset_user_password/2",
+           quote do
+             fn user ->
+               fn -> Accounts.reset_user_password(user, %{password: "new valid password"}) end
+             end
+           end, {:error, :gone}},
+          {"generate_user_session_token/1",
+           quote(do: fn user -> fn -> Accounts.generate_user_session_token(user) end end),
+           {:error, :gone}},
+          {"deliver_user_confirmation_instructions/2",
+           quote do
+             fn user ->
+               fn -> Accounts.deliver_user_confirmation_instructions(user, &"/#{&1}") end
+             end
+           end, {:error, :gone}},
+          {"deliver_user_update_email_instructions/3",
+           quote do
+             fn user ->
+               fn ->
+                 Accounts.deliver_user_update_email_instructions(
+                   %{user | email: unique_user_email()},
+                   user.email,
+                   &"/#{&1}"
+                 )
+               end
+             end
+           end, {:error, :gone}},
+          {"deliver_user_reset_password_instructions/2",
+           quote do
+             fn user ->
+               fn -> Accounts.deliver_user_reset_password_instructions(user, &"/#{&1}") end
+             end
+           end, {:error, :gone}}
+        ] do
+      test "#{name} answers as for a user who no longer exists, and leaves nothing behind" do
+        # Unconfirmed, so that a confirmation and its instructions have
+        # something to do. A link's token is made while the user exists.
+        user = unconfirmed_user_fixture()
+        request = unquote(request).(user)
+        {:ok, _deleted} = Accounts.delete_user(user)
+
+        assert answer(request) == unquote(Macro.escape(gone))
+        refute Repo.get(User, user.id)
+        refute Repo.get_by(UserToken, user_id: user.id)
+      end
+    end
+  end
+
+  # What a request answers, or the exception it raised, so that one table can
+  # give either as the answer it expects.
+  defp answer(request) do
+    request.()
+  rescue
+    exception -> {:raised, exception.__struct__}
   end
 
   describe "inspect/2 for the User module" do
