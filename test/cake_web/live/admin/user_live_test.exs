@@ -144,6 +144,16 @@ defmodule CakeWeb.Admin.UserLiveTest do
     |> Enum.map(&String.trim(Floki.text(&1)))
   end
 
+  # The value a form's input shows, by the input's id.
+  defp input_value(html, input_id) do
+    html |> Floki.parse_document!() |> Floki.attribute("##{input_id}", "value") |> List.first()
+  end
+
+  # Makes the logged-in admin the one whose demotion is refused for `refusal`:
+  # the only admin, or the only one whose email is confirmed.
+  defp leave_admin_last(:last_admin), do: :ok
+  defp leave_admin_last(:last_confirmed_admin), do: unconfirmed_admin_fixture()
+
   defp created_on(%User{inserted_at: inserted_at}), do: Calendar.strftime(inserted_at, "%Y-%m-%d")
 
   # Whether the log-in form, in a browser of its own, logs this username in:
@@ -420,6 +430,28 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
       # The page is still there, and still works.
       assert has_element?(lv, "#unconfirm-login")
+    end
+
+    # #426. A refusal is decided on the login as it is now, so the page shows
+    # it as it is now. Here the login became an admin after the page was
+    # opened, which is what makes it the last confirmed one.
+    test "shows the login as it is now beside a refusal to take back the last confirmed admin's confirmation",
+         %{admin: last} do
+      %{conn: conn} = log_in_unconfirmed_admin(last)
+      member = login_fixture(:member)
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{member}")
+      assert text_of(lv, "#login") =~ "Role member"
+
+      # Meanwhile the member is made an admin, and the only other confirmed
+      # admin a member.
+      {:ok, _promoted} = Accounts.update_user_role(member, :admin)
+      {:ok, _demoted} = Accounts.update_user_role(last, :member)
+
+      lv |> element("#unconfirm-login") |> render_click()
+
+      assert text_of(lv, "#login-refusal [data-part=body]") == @last_confirmed_admin_confirmation
+      assert text_of(lv, "#login") =~ "Role admin"
+      assert text_of(lv, "#login") =~ "Confirmed yes"
     end
 
     test "takes back an admin's confirmation while another confirmed admin remains", %{
@@ -1090,6 +1122,87 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert has_element?(lv, "#user-form")
     end
 
+    # #426. A refused demotion shows the login as it is now, with what the
+    # admin changed on the form over it, and that is what the next save is
+    # measured against. So a refusal does not turn what someone else changed
+    # meanwhile into a change of the admin's, for the next save to put back.
+    for {refusal, message} <- [
+          {:last_admin, @last_admin},
+          {:last_confirmed_admin, @last_confirmed_admin_role}
+        ] do
+      test "after refusing a demotion as #{refusal}, the form shows the login as it is now, and the next save keeps a username and an email changed elsewhere meanwhile",
+           %{conn: conn, admin: admin} do
+        leave_admin_last(unquote(refusal))
+        {:ok, lv, _html} = live(conn, ~p"/admin/users/#{admin}/edit")
+
+        renamed = unique_user_username()
+        new_email = unique_user_email()
+        {:ok, _changed} = Accounts.update_user(admin, %{username: renamed, email: new_email})
+
+        refused = lv |> form("#user-form", user: %{role: "member"}) |> render_submit()
+
+        assert field_errors(refused, "user_role") == [unquote(message)]
+        assert input_value(refused, "user_username") == renamed
+        assert input_value(refused, "user_email") == new_email
+
+        lv |> form("#user-form", user: %{role: "admin"}) |> render_submit()
+
+        assert %User{username: ^renamed, email: ^new_email, role: :admin} =
+                 Accounts.get_user!(admin.id)
+      end
+
+      test "after refusing a demotion as #{refusal}, the next save keeps both a username changed on the form and an email changed elsewhere meanwhile",
+           %{conn: conn, admin: admin} do
+        leave_admin_last(unquote(refusal))
+        {:ok, lv, _html} = live(conn, ~p"/admin/users/#{admin}/edit")
+
+        new_email = unique_user_email()
+        {:ok, _changed} = Accounts.update_user(admin, %{email: new_email})
+
+        typed = unique_user_username()
+
+        refused =
+          lv |> form("#user-form", user: %{username: typed, role: "member"}) |> render_submit()
+
+        assert field_errors(refused, "user_role") == [unquote(message)]
+        assert input_value(refused, "user_username") == typed
+        assert input_value(refused, "user_email") == new_email
+
+        lv |> form("#user-form", user: %{role: "admin"}) |> render_submit()
+
+        assert %User{username: ^typed, email: ^new_email, role: :admin} =
+                 Accounts.get_user!(admin.id)
+      end
+
+      # The role the admin was refused is still the one selected, so the
+      # refusal still applies to it, whatever else they type.
+      test "after refusing a demotion as #{refusal}, the error stays on the role while the refused role is still selected",
+           %{conn: conn, admin: admin} do
+        leave_admin_last(unquote(refusal))
+        {:ok, lv, _html} = live(conn, ~p"/admin/users/#{admin}/edit")
+
+        lv |> form("#user-form", user: %{role: "member"}) |> render_submit()
+
+        typing = lv |> form("#user-form", user: %{email: unique_user_email()}) |> render_change()
+        assert field_errors(typing, "user_role") == [unquote(message)]
+
+        another_role = lv |> form("#user-form", user: %{role: "admin"}) |> render_change()
+        assert field_errors(another_role, "user_role") == []
+      end
+    end
+
+    # A browser never sends `_unused_` for a field once the form has been
+    # submitted. A request that does is still told why nothing changed.
+    test "shows a refused demotion's error even when the request says the role was never touched",
+         %{conn: conn, admin: admin} do
+      {:ok, lv, _html} = live(conn, ~p"/admin/users/#{admin}/edit")
+
+      html = render_submit(lv, "save", %{"user" => %{"role" => "member", "_unused_role" => ""}})
+
+      assert field_errors(html, "user_role") == [@last_admin]
+      assert Accounts.get_user!(admin.id).role == :admin
+    end
+
     test "demotes an admin while another remains", %{conn: conn} do
       other = login_fixture(:admin)
       {:ok, lv, _html} = live(conn, ~p"/admin/users/#{other}/edit")
@@ -1242,6 +1355,31 @@ defmodule CakeWeb.Admin.UserLiveTest do
       assert Repo.get(User, last.id)
       assert has_element?(lv, "#users-#{last.id}")
       assert can_log_in?(last.username, valid_user_password())
+    end
+
+    # #426. A refusal is decided on the logins as they are now, so the list
+    # shows them as they are now. Here the login became the last confirmed
+    # admin after the list was opened. (`:last_admin` cannot be met here: the
+    # admin asking is an admin too, so the login is never the last one but
+    # when it is their own, which is refused first.)
+    test "shows the list as it is now beside a refusal to delete the last confirmed admin",
+         %{admin: last} do
+      %{conn: conn} = log_in_unconfirmed_admin(last)
+      target = unconfirmed_admin_fixture()
+      {:ok, lv, _html} = live(conn, ~p"/admin/users")
+      assert text_of(lv, "#users-#{target.id}") =~ "Not confirmed"
+
+      # Meanwhile the target's email is confirmed, and the only other
+      # confirmed admin deleted.
+      {:ok, _confirmed} = Accounts.set_user_confirmed(:operator, target, true)
+      {:ok, _deleted} = Accounts.delete_user(last)
+
+      lv |> element("#delete-#{target.id}") |> render_click()
+
+      assert text_of(lv, "#users-refusal [data-part=body]") == @last_confirmed_admin_login
+      assert has_element?(lv, "#users-#{target.id}")
+      refute text_of(lv, "#users-#{target.id}") =~ "Not confirmed"
+      refute has_element?(lv, "#users-#{last.id}")
     end
 
     test "deletes another admin while one remains", %{conn: conn} do
