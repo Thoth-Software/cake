@@ -23,9 +23,11 @@ defmodule CakeWeb.ChatLive do
   and by tap, and its arrow links to the download. The arrow is there when
   the answer carries a `:download` action for the chip's file (the `actions`
   of `t:Cake.Conversation.Events.response_ready/0`). Under an answer whose
-  processing raised warnings is a warning `notice/1`: it says how many of the
-  answer's `[N]` markers named no retrieved passage and were removed, and, for
-  a warning of any other kind, that something else went wrong. The previews are placed
+  processing raised warnings is a warning `notice/1`: it says how many
+  sources the answer referred to that were not retrieved (the distinct numbers
+  among its `[N]` markers that named no passage; every such marker is removed,
+  and one written three times counts once), and, for a warning of any other
+  kind, that something else went wrong. The previews are placed
   against the row of chips, not centred on their own chip, so one for a narrow
   chip cannot run off the edge of a phone. The two replies ChatLive adds
   itself (a failed turn, a conversation that ended) are `notice/1` errors, not
@@ -352,8 +354,9 @@ defmodule CakeWeb.ChatLive do
     </div>
     <%!-- What `Cake.Responses` had to say about the answer above. A marker
     that named no retrieved passage is already gone from the text, so the
-    notice gives the count and not the number the model wrote, which names
-    nothing the reader can see. A warning of a kind this page has no wording
+    notice gives the count of such numbers (each once, however often it was
+    written) and not the numbers themselves, which name nothing the reader
+    can see. A warning of a kind this page has no wording
     for is still reported, in general terms: what it carries is not shown. --%>
     <.notice
       :if={@hallucinated > 0 or @other_warnings?}

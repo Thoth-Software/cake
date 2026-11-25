@@ -8,8 +8,9 @@ defmodule Cake.Conversation.Events do
   @typedoc """
   A finished turn, as `Cake.Responses` processed it: the final response text
   (`Cake.Responses.Result`'s `final_text`), its citations, the actions derived
-  from them (one `:download` per cited file) and the warnings (a
-  `{:hallucinated_citation, n}` for each `[n]` marker that named no chunk).
+  from them (one `:download` per cited file) and the warnings (one
+  `{:hallucinated_citation, n}` for each distinct number `n` whose `[n]`
+  markers named no chunk, however many times the answer wrote it).
   All four keys are always present; a turn with nothing to download or to
   warn about carries empty lists.
   """
