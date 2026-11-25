@@ -116,11 +116,15 @@ defmodule CakeWeb.ChatLivePropertyTest do
       other = length(warnings) - hallucinated
 
       assert has_element?(view, "##{id}-warning") == (warnings != [])
+      assert has_element?(view, ~s(##{id}-warning[role="note"])) == (warnings != [])
       assert has_element?(view, "##{id}-warning-hallucinated") == hallucinated > 0
       assert has_element?(view, "##{id}-warning-other") == other > 0
 
       if hallucinated > 0 do
-        noun = if hallucinated == 1, do: "source that", else: "sources that"
+        noun =
+          if hallucinated == 1,
+            do: "bracketed reference matched",
+            else: "bracketed references matched"
 
         assert has_element?(
                  view,

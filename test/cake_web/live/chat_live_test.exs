@@ -443,10 +443,20 @@ defmodule CakeWeb.ChatLiveTest do
       assert has_element?(view, "#chat-log #msg-0-warning.alert-warning")
       assert has_element?(view, "#msg-0 ~ #msg-0-warning, #msg-0 #msg-0-warning")
 
-      # It says how many references were removed, not which number the model
-      # wrote: that number names nothing the reader can see.
-      assert has_element?(view, "#msg-0-warning #msg-0-warning-hallucinated", "1 source")
+      # It says what was removed and how many, not which number the model
+      # wrote, and not that a source was cited: a bracketed number that
+      # matches no passage may never have been a citation.
+      assert has_element?(
+               view,
+               "#msg-0-warning #msg-0-warning-hallucinated",
+               "1 bracketed reference matched"
+             )
+
       refute has_element?(view, "#msg-0-warning", "7")
+
+      # A note, not an alert: it arrives with its answer, inside the log,
+      # and an alert would be spoken ahead of the answer it is about.
+      assert has_element?(view, ~s(#msg-0-warning[role="note"]))
       refute has_element?(view, "#msg-0-warning-other")
     end
 
@@ -464,7 +474,7 @@ defmodule CakeWeb.ChatLiveTest do
         {:response_ready, %{response: "Hm.", citations: [], actions: [], warnings: warnings}}
       )
 
-      assert has_element?(view, "#msg-0-warning-hallucinated", "3 sources")
+      assert has_element?(view, "#msg-0-warning-hallucinated", "3 bracketed references matched")
       # Every marker was hallucinated: no sources, and still the warning.
       refute has_element?(view, "#msg-0-sources")
     end
@@ -516,7 +526,12 @@ defmodule CakeWeb.ChatLiveTest do
         {:response_ready, %{response: "Hm.", citations: [], actions: [], warnings: warnings}}
       )
 
-      assert has_element?(view, "#msg-0-warning #msg-0-warning-hallucinated", "1 source")
+      assert has_element?(
+               view,
+               "#msg-0-warning #msg-0-warning-hallucinated",
+               "1 bracketed reference matched"
+             )
+
       assert has_element?(view, "#msg-0-warning #msg-0-warning-other")
     end
 
