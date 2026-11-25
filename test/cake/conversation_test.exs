@@ -1152,6 +1152,43 @@ defmodule Cake.ConversationTest do
       assert_receive {:response_ready, %{actions: [], warnings: []}}
     end
 
+    # The payload is built from the struct's fields in the GenServer, so a
+    # collaborator that breaks `Cake.Responses.Behaviour` must be caught in
+    # the turn's task, where a crash is a turn error, and not in the callback,
+    # where it would take the conversation down.
+    @tag :capture_log
+    test "a responses collaborator that returns something other than a Result fails the turn, not the conversation" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query -> {:ok, [build_search_hit()]} end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts ->
+        %{final_text: "answer", citations: [], chunk_map: %{}}
+      end)
+
+      pid = start_subscribed()
+      ref = Process.monitor(pid)
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      Conversation.autoask(pid, "q")
+
+      assert_receive {:error, _reason}
+      assert_receive {:state_change, :idle}
+      refute_received {:response_ready, _}
+      refute_received {:DOWN, ^ref, :process, ^pid, _}
+      assert :sys.get_state(pid).state == :idle
+    end
+
     # Through the real `Cake.Responses`, so the pin is on what the page will
     # actually be handed: the marker that names no chunk is gone from the
     # text and reported, and the cited unit's file is offered once.

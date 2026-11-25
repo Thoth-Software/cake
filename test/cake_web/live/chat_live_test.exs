@@ -349,6 +349,32 @@ defmodule CakeWeb.ChatLiveTest do
              )
     end
 
+    # A storage key is not a URL: its segments are encoded one by one, as
+    # the documents pages and the search screen do, or a `#` in a file's name
+    # would cut the link short.
+    test "the arrow's link encodes the source_ref's segments", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      source_ref = "books/Q3 report #2?.pdf"
+
+      citations = [
+        %{new_index: 1, label: "Q3 report", source_ref: source_ref, preview: "A preview snippet"}
+      ]
+
+      actions = [%{kind: :download, label: "Q3 report", source_ref: source_ref}]
+
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "See [1].", citations: citations, actions: actions, warnings: []}}
+      )
+
+      assert has_element?(
+               view,
+               ~s(#msg-0-source-1 a[href="/books/download/books/Q3%20report%20%232%3F.pdf"])
+             )
+    end
+
     test "a source with no download action has no arrow, whatever its source_ref",
          %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
