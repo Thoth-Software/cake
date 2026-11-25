@@ -308,8 +308,8 @@ defmodule Cake.Conversation do
 
     new_state =
       case result do
-        {:ok, {response, citations, returned_state}} ->
-          _ = emit_response(s, response, citations)
+        {:ok, {%Cake.Responses.Result{} = processed, returned_state}} ->
+          _ = emit_response(s, processed)
           finished = %{s | state: :idle, turn_ref: nil, turn_pid: nil, pending: nil}
           apply_turn_result(finished, returned_state)
 
@@ -481,7 +481,7 @@ defmodule Cake.Conversation do
 
   defp finalize_turn(%State{} = s, scored_results, question, response, result) do
     new_state = update_state(s, scored_results, question, response, result)
-    {:ok, {result.final_text, result.citations, new_state}}
+    {:ok, {result, new_state}}
   end
 
   # --- Stage 0: resolve search results (search on first turn, reuse on subsequent) ---
@@ -952,7 +952,11 @@ defmodule Cake.Conversation do
   @spec process_response(String.t(), [Cake.Prompt.indexed_chunk()], State.t()) ::
           {:ok, Cake.Responses.Result.t()}
   def process_response(response, indexed_chunks, %State{} = s) do
-    {:ok, s.responses.process(response, indexed_chunks, [])}
+    # Matched here, inside the turn's task: the broadcast is built from the
+    # struct's fields in a GenServer callback, where a collaborator that
+    # returned something else would take the conversation down with it.
+    %Cake.Responses.Result{} = result = s.responses.process(response, indexed_chunks, [])
+    {:ok, result}
   end
 
   # --- State update ---
@@ -1108,8 +1112,17 @@ defmodule Cake.Conversation do
     {:noreply, spawn_turn(question, %{s | queued_question: nil})}
   end
 
-  defp emit_response(%State{} = s, response, citations) do
-    _ = broadcast(s, {:response_ready, %{response: response, citations: citations}})
+  # The page is handed what `Cake.Responses` made of the answer: its text,
+  # its citations, the actions derived from them and the warnings.
+  defp emit_response(%State{} = s, %Cake.Responses.Result{} = result) do
+    payload = %{
+      response: result.final_text,
+      citations: result.citations,
+      actions: result.actions,
+      warnings: result.warnings
+    }
+
+    _ = broadcast(s, {:response_ready, payload})
     broadcast(s, {:state_change, :idle})
   end
 

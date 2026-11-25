@@ -66,6 +66,15 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
     String.replace(Citable.metadata(chunk).label, ~r/, p\. (\d+)/, ", PDF page \\1")
   end
 
+  # The link to a stored book: the storage key's segments are encoded one by
+  # one, so a space or a `#` in a file's name does not cut the link short.
+  defp download_href(source_file_path) do
+    "/books/download/" <>
+      (source_file_path
+       |> String.split("/")
+       |> Enum.map_join("/", &URI.encode(&1, fn char -> URI.char_unreserved?(char) end)))
+  end
+
   describe "auto mode" do
     test "mount → submit → real retrieval → PubSub round trip → answer and sources rendered",
          %{conn: conn, corpus: corpus, pump: pump, warranty: warranty} do
@@ -93,7 +102,7 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
       assert html =~ "Sources:"
       assert html =~ "[1] " <> rendered_label(pump)
       assert html =~ "[2] " <> rendered_label(warranty)
-      assert html =~ "/books/download/" <> corpus.book.source_file_path
+      assert html =~ download_href(corpus.book.source_file_path)
       assert html =~ Citable.metadata(pump).preview
 
       # The same, as the page lays it out: the question is #msg-0 and the
@@ -107,7 +116,7 @@ defmodule CakeWeb.ChatLiveIntegrationTest do
 
       assert has_element?(
                view,
-               ~s(#msg-1-source-1 a[href="/books/download/#{corpus.book.source_file_path}"])
+               ~s(#msg-1-source-1 a[href="#{download_href(corpus.book.source_file_path)}"])
              )
 
       refute has_element?(view, "#chat-retrieving")

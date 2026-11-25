@@ -132,6 +132,26 @@ defmodule CakeWeb.CoreComponentsTest do
       end
     end
 
+    # A notice that arrives together with what it is about (the chat's
+    # warning under an answer) must not be spoken ahead of it.
+    for kind <- [:info, :success, :warning, :error], role <- ["note", "status", "alert"] do
+      test "kind #{kind} with role #{role}: the role given replaces the kind's, and nothing else changes" do
+        assigns = %{kind: unquote(kind), role: unquote(role)}
+
+        html =
+          parse(~H"""
+          <CoreComponents.notice id="notice" kind={@kind} role={@role}>
+            Something to know.
+          </CoreComponents.notice>
+          """)
+
+        assert [root] = Floki.find(html, "#notice")
+        assert Floki.attribute(root, "role") == [unquote(role)]
+        assert "alert-#{unquote(kind)}" in classes(root)
+        assert [_icon] = Floki.find(root, ~s|span[class*="hero-"]|)
+      end
+    end
+
     test "is an info notice unless told otherwise" do
       assigns = %{}
 

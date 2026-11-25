@@ -20,7 +20,15 @@ defmodule CakeWeb.ChatLive do
   text with its line breaks kept (Markdown is not rendered). The sources an
   answer cites are chips under it, numbered as the `[N]` markers in its text
   are: a chip's label opens the source's preview on hover, from the keyboard
-  and by tap, and its arrow links to the download. The previews are placed
+  and by tap, and its arrow links to the download. The arrow is there when
+  the answer carries a `:download` action for the chip's file (the `actions`
+  of `t:Cake.Conversation.Events.response_ready/0`). Under an answer whose
+  processing raised warnings is a warning `notice/1`: it says how many
+  bracketed references in the answer matched no retrieved passage (the
+  distinct numbers among its `[N]` markers that named none; every such marker
+  is removed, and one written three times counts once), and, for a warning of
+  any other kind, that something else went wrong. It is a note
+  (`role="note"`), not an alert, so the log announces the answer first. The previews are placed
   against the row of chips, not centred on their own chip, so one for a narrow
   chip cannot run off the edge of a phone. The two replies ChatLive adds
   itself (a failed turn, a conversation that ended) are `notice/1` errors, not
@@ -172,10 +180,20 @@ defmodule CakeWeb.ChatLive do
      )}
   end
 
-  def handle_info({:response_ready, %{response: response, citations: citations}}, socket) do
+  def handle_info(
+        {:response_ready,
+         %{response: response, citations: citations, actions: actions, warnings: warnings}},
+        socket
+      ) do
     {:noreply,
      socket
-     |> append_message(%{role: :assistant, text: response, citations: citations})
+     |> append_message(%{
+       role: :assistant,
+       text: response,
+       citations: citations,
+       actions: actions,
+       warnings: warnings
+     })
      |> reset_to_idle()}
   end
 
@@ -305,6 +323,18 @@ defmodule CakeWeb.ChatLive do
   end
 
   defp message(assigns) do
+    {hallucinated, other} =
+      assigns.message
+      |> Map.get(:warnings, [])
+      |> Enum.split_with(&match?({:hallucinated_citation, _}, &1))
+
+    assigns =
+      assign(assigns,
+        hallucinated: length(hallucinated),
+        other_warnings?: other != [],
+        download_refs: download_refs(Map.get(assigns.message, :actions, []))
+      )
+
     ~H"""
     <div id={@id} class={["chat", if(@message.role == :user, do: "chat-end", else: "chat-start")]}>
       <div class="chat-header text-base-content/70">
@@ -316,9 +346,56 @@ defmodule CakeWeb.ChatLive do
         be one long unbroken word: it wraps anywhere. --%>
         <p class="whitespace-pre-wrap wrap-anywhere" phx-no-format>{@message.text}</p>
       </div>
-      <.sources :if={@message[:citations] not in [nil, []]} id={@id} citations={@message.citations} />
+      <.sources
+        :if={@message[:citations] not in [nil, []]}
+        id={@id}
+        citations={@message.citations}
+        download_refs={@download_refs}
+      />
     </div>
+    <%!-- What `Cake.Responses` had to say about the answer above. The title
+    does not send the reader to the sources: an answer whose every marker
+    was removed has none on the page. A marker
+    that named no retrieved passage is already gone from the text, so the
+    notice gives the count of such numbers (each once, however often it was
+    written) and not the numbers themselves, which name nothing the reader
+    can see. It does not say a source was cited: every `[digits]` in an
+    answer is taken for a marker, so one that matched nothing may never have
+    been a citation. It is a note and not an alert, which would be spoken
+    ahead of the answer it arrives with. A warning of a kind this page has no wording
+    for is still reported, in general terms: what it carries is not shown. --%>
+    <.notice
+      :if={@hallucinated > 0 or @other_warnings?}
+      id={"#{@id}-warning"}
+      kind={:warning}
+      role="note"
+      title="Check this answer"
+    >
+      <p :if={@hallucinated > 0} id={"#{@id}-warning-hallucinated"}>
+        {hallucinated_text(@hallucinated)}
+      </p>
+      <p :if={@other_warnings?} id={"#{@id}-warning-other"}>
+        Something else went wrong while this answer was being prepared, so it may be
+        less reliable than usual.
+      </p>
+    </.notice>
     """
+  end
+
+  @spec hallucinated_text(pos_integer()) :: String.t()
+  defp hallucinated_text(1) do
+    "1 bracketed reference matched no retrieved passage and was removed."
+  end
+
+  defp hallucinated_text(count) do
+    "#{count} bracketed references matched no retrieved passage and were removed."
+  end
+
+  # The files an answer offers for download: the `source_ref` of each of its
+  # `:download` actions. An action of another kind is not a download.
+  @spec download_refs([Cake.Responses.Result.action()]) :: MapSet.t(String.t())
+  defp download_refs(actions) when is_list(actions) do
+    for %{kind: :download, source_ref: source_ref} <- actions, into: MapSet.new(), do: source_ref
   end
 
   # The sources an answer cites, as chips under it: each carries the number
@@ -327,6 +404,10 @@ defmodule CakeWeb.ChatLive do
   # hover, from the keyboard and by tap, as the search screen's page chips
   # do. Its arrow is the link to the source: a label that was itself the
   # link would start the download on the tap meant to open the preview.
+  # A chip has the arrow when the answer has a download action for its
+  # `source_ref` (`download_refs`), and the arrow is named after the chip: an
+  # action's own label is that of the first citation of its file, which for
+  # another chip of the same file is another page.
   #
   # daisyUI centres a tooltip on what it is around, and a preview centred on
   # a narrow chip ran off the edge of a phone. So the row is the positioned
@@ -337,6 +418,7 @@ defmodule CakeWeb.ChatLive do
   # gives it (Tailwind applies `hover` only where the device can hover).
   attr :id, :string, required: true
   attr :citations, :list, required: true
+  attr :download_refs, MapSet, required: true
 
   defp sources(assigns) do
     ~H"""
@@ -366,8 +448,8 @@ defmodule CakeWeb.ChatLive do
           </span>
           <%!-- A target a finger can hit: 32px, where the icon alone is 16. --%>
           <a
-            :if={cite.source_ref}
-            href={"/books/download/#{cite.source_ref}"}
+            :if={cite.source_ref in @download_refs}
+            href={~p"/books/download/#{String.split(cite.source_ref, "/")}"}
             aria-label={"Download #{sanitize_title(cite.label)}"}
             class="-mr-2 flex size-8 flex-none items-center justify-center rounded-full"
           >

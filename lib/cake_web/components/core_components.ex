@@ -557,6 +557,12 @@ defmodule CakeWeb.CoreComponents do
   information and success are marked as a status, with the caveat `working/1`
   describes.
 
+  `role` replaces the role the kind gives. A notice that is added to the page
+  together with what it is about, inside a region that is already announced
+  (the chat's warning under an answer, in the message log), passes
+  `role="note"`: as an alert it would be spoken ahead of the answer, or
+  instead of it. The colour and the icon stay the kind's.
+
   ## Examples
 
       <.notice :if={@error} id="search-error" kind={:error}>{@error}</.notice>
@@ -564,17 +570,24 @@ defmodule CakeWeb.CoreComponents do
       <.notice id="rejected-archives" kind={:warning} title="These archives were not ingested">
         ...
       </.notice>
+
+      <.notice id="answer-warning" kind={:warning} role="note">...</.notice>
   """
   attr :id, :string, default: nil
   attr :kind, :atom, values: [:info, :success, :warning, :error], default: :info
   attr :title, :string, default: nil
+
+  attr :role, :string,
+    values: [nil, "alert", "status", "note"],
+    default: nil,
+    doc: "the ARIA role, when it is not the one the kind gives"
 
   slot :inner_block, required: true, doc: "the message"
 
   @spec notice(map()) :: Phoenix.LiveView.Rendered.t()
   def notice(assigns) do
     ~H"""
-    <div id={@id} role={notice_role(@kind)} class={["alert", notice_class(@kind)]}>
+    <div id={@id} role={@role || notice_role(@kind)} class={["alert", notice_class(@kind)]}>
       <.icon name={notice_icon(@kind)} class="size-5 shrink-0" />
       <div class="min-w-0">
         <p :if={@title} data-part="title" class="font-semibold">{@title}</p>

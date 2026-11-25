@@ -16,11 +16,13 @@ defmodule Cake.Responses.Result do
     * `media` — image items selected for display. `select_media` is
       currently a stub, so this is always empty today.
     * `actions` — download buttons, external links, etc. Currently one
-      `:download` action per unique citation `source_ref`.
+      `:download` action per unique citation `source_ref`. The chat gives a
+      source chip its download arrow when one matches the chip's `source_ref`.
     * `assigns` — passthrough map for tenant-specific or view-specific
       data that doesn't fit the typed fields.
     * `warnings` — non-fatal issues, structured as `{atom, term}` tuples
-      for pattern-matchability.
+      for pattern-matchability. The chat reports them under the answer: the
+      hallucinated citations by their count, any other kind in general terms.
   """
 
   @typedoc """
