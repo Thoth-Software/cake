@@ -1046,6 +1046,161 @@ defmodule Cake.ConversationTest do
     end
   end
 
+  describe "actions and warnings in the response_ready broadcast" do
+    # What `Cake.Responses` derived for the turn is the page's to render:
+    # the download actions and the warnings travel with the answer, exactly
+    # as the processed result holds them.
+    defp result_with_actions_and_warnings do
+      %Cake.Responses.Result{
+        raw_text: "answer [1] and [9]",
+        final_text: "answer [1] and",
+        chunk_map: %{},
+        citations: [],
+        actions: [
+          %{kind: :download, label: "Book A, p. 1", source_ref: "books/a.pdf"},
+          %{kind: :download, label: "Book B, p. 4", source_ref: "books/b.pdf"}
+        ],
+        warnings: [{:hallucinated_citation, 9}]
+      }
+    end
+
+    test "an auto turn's payload carries the processed result's actions and warnings" do
+      result = result_with_actions_and_warnings()
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query -> {:ok, [build_search_hit()]} end)
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts -> result end)
+
+      pid = start_subscribed()
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer [1] and [9]", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      Conversation.autoask(pid, "q")
+
+      assert_receive {:response_ready, payload}
+
+      assert payload == %{
+               response: result.final_text,
+               citations: result.citations,
+               actions: result.actions,
+               warnings: result.warnings
+             }
+    end
+
+    test "a manual turn's payload carries them too" do
+      result = result_with_actions_and_warnings()
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query ->
+        {:ok, [build_search_hit(id: "c1")]}
+      end)
+
+      expect(Cake.Responses.Mock, :process, fn _raw, _indexed, _opts -> result end)
+
+      pid = start_subscribed()
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer [1] and [9]", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Responses.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      assert :ok = Conversation.manualask(pid, "q")
+      assert_receive {:candidates_ready, _candidates}
+      assert :ok = Conversation.select_docs(pid, ["c1"])
+
+      assert_receive {:response_ready, %{actions: actions, warnings: warnings}}
+      assert actions == result.actions
+      assert warnings == result.warnings
+    end
+
+    test "a turn with nothing to download and nothing to warn about carries two empty lists" do
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query -> {:ok, [build_search_hit()]} end)
+
+      pid = start_subscribed(%{responses: Cake.Responses})
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "answer with no citation markers", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      Conversation.autoask(pid, "q")
+
+      assert_receive {:response_ready, %{actions: [], warnings: []}}
+    end
+
+    # Through the real `Cake.Responses`, so the pin is on what the page will
+    # actually be handed: the marker that names no chunk is gone from the
+    # text and reported, and the cited unit's file is offered once.
+    @tag :capture_log
+    test "with the real Responses, a hallucinated marker arrives as a warning and a cited source_ref as a download action" do
+      hit =
+        build_search_hit(
+          id: "c1",
+          body: "chunk one",
+          metadata: %{
+            id: "c1",
+            label: "Book A, p. 1",
+            preview: "preview",
+            source_ref: "books/a.pdf",
+            extras: %{}
+          }
+        )
+
+      expect(Cake.Embeddings.Mock, :embed, fn _, _, _ ->
+        {:ok, %{attrs: %{embedding: [0.1, 0.2, 0.3]}}}
+      end)
+
+      expect(Cake.Search.Backend.Mock, :search, fn _query -> {:ok, [hit]} end)
+
+      pid = start_subscribed(%{responses: Cake.Responses})
+
+      stub(Cake.Generation.Mock, :complete, fn _messages, _model, _opts ->
+        {:ok, %{text: "Yes [1], and more [7].", usage: %{}}}
+      end)
+
+      allow(Cake.Embeddings.Mock, self(), pid)
+      allow(Cake.Search.Backend.Mock, self(), pid)
+      allow(Cake.Generation.Mock, self(), pid)
+
+      Conversation.autoask(pid, "q")
+
+      assert_receive {:response_ready, payload}
+
+      assert [%{new_index: 1, source_ref: "books/a.pdf"}] = payload.citations
+
+      assert payload.actions == [
+               %{kind: :download, label: "Book A, p. 1", source_ref: "books/a.pdf"}
+             ]
+
+      assert payload.warnings == [{:hallucinated_citation, 7}]
+      refute payload.response =~ "[7]"
+    end
+  end
+
   describe "uncited LLM output" do
     test "LLM text with no [N] markers yields citations: [] in the response_ready broadcast" do
       hit = build_search_hit()
