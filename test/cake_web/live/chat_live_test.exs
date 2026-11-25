@@ -81,7 +81,11 @@ defmodule CakeWeb.ChatLiveTest do
     test "the messages are a log, and the candidate panel is outside it", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
-      broadcast_to_view(view, {:response_ready, %{response: "An answer.", citations: []}})
+      broadcast_to_view(
+        view,
+        {:response_ready, %{response: "An answer.", citations: [], actions: [], warnings: []}}
+      )
+
       assert has_element?(view, ~s(#chat-log[role="log"] #msg-0), "An answer.")
 
       broadcast_to_view(view, {:candidates_ready, build_candidates()})
@@ -138,7 +142,11 @@ defmodule CakeWeb.ChatLiveTest do
       |> form("#question-form", question_form: %{question: "What is Cake?", mode: "auto"})
       |> render_submit()
 
-      broadcast_to_view(view, {:response_ready, %{response: "A RAG framework.", citations: []}})
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "A RAG framework.", citations: [], actions: [], warnings: []}}
+      )
 
       # Selected by side, not by position: the submitted question starts a
       # real turn, which may add a reply of its own in between.
@@ -242,7 +250,7 @@ defmodule CakeWeb.ChatLiveTest do
       broadcast_to_view(view, {:state_change, :generating})
       assert has_element?(view, "#chat-generating")
 
-      payload = %{response: "Here is the answer.", citations: []}
+      payload = %{response: "Here is the answer.", citations: [], actions: [], warnings: []}
       broadcast_to_view(view, {:response_ready, payload})
 
       assert has_element?(view, "#msg-0", "Here is the answer.")
@@ -259,7 +267,7 @@ defmodule CakeWeb.ChatLiveTest do
         %{new_index: 2, label: "Other Book", source_ref: "def456", preview: "Another snippet"}
       ]
 
-      payload = %{response: "See [1] and [2].", citations: citations}
+      payload = %{response: "See [1] and [2].", citations: citations, actions: [], warnings: []}
       broadcast_to_view(view, {:response_ready, payload})
 
       # The chip carries the number its [N] marker has in the answer.
@@ -279,7 +287,11 @@ defmodule CakeWeb.ChatLiveTest do
         %{new_index: 1, label: "Test Book", source_ref: "abc123", preview: "A preview snippet"}
       ]
 
-      broadcast_to_view(view, {:response_ready, %{response: "See [1].", citations: citations}})
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "See [1].", citations: citations, actions: [], warnings: []}}
+      )
 
       assert has_element?(view, "#msg-0-preview-1[role=tooltip]", "A preview snippet")
 
@@ -301,30 +313,204 @@ defmodule CakeWeb.ChatLiveTest do
         %{new_index: 1, label: "FAQ", source_ref: "abc123", preview: "A preview snippet"}
       ]
 
-      broadcast_to_view(view, {:response_ready, %{response: "See [1].", citations: citations}})
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "See [1].", citations: citations, actions: [], warnings: []}}
+      )
 
       assert has_element?(view, "#msg-0-sources #msg-0-preview-1[role=tooltip]")
     end
 
-    test "a source's chip still links to the download, by name", %{conn: conn} do
+    # The arrow is the answer's download action for the chip's source, not
+    # something the chip works out from its own citation: `Cake.Responses`
+    # decides what can be downloaded, once.
+    test "a source's arrow is the download action for its source_ref, by the action's name",
+         %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
       citations = [
         %{new_index: 1, label: "Test Book", source_ref: "abc123", preview: "A preview snippet"}
       ]
 
-      broadcast_to_view(view, {:response_ready, %{response: "See [1].", citations: citations}})
+      actions = [%{kind: :download, label: "The Action's Label", source_ref: "abc123"}]
+
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "See [1].", citations: citations, actions: actions, warnings: []}}
+      )
 
       assert has_element?(
                view,
-               ~s(#msg-0-source-1 a[href="/books/download/abc123"][aria-label="Download Test Book"])
+               ~s(#msg-0-source-1 a[href="/books/download/abc123"][aria-label="Download The Action's Label"])
              )
+    end
+
+    test "a source with no download action has no arrow, whatever its source_ref",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      citations = [
+        %{new_index: 1, label: "Test Book", source_ref: "abc123", preview: "A preview snippet"},
+        %{new_index: 2, label: "Other Book", source_ref: "def456", preview: "Another snippet"}
+      ]
+
+      actions = [%{kind: :download, label: "Other Book", source_ref: "def456"}]
+
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "See [1] and [2].", citations: citations, actions: actions, warnings: []}}
+      )
+
+      assert has_element?(view, "#msg-0-source-1", "[1] Test Book")
+      refute has_element?(view, "#msg-0-source-1 a")
+      assert has_element?(view, ~s(#msg-0-source-2 a[href="/books/download/def456"]))
+    end
+
+    # One action per file, and a file can be cited at several places: each
+    # of its chips carries the arrow.
+    test "two sources in one file share its one download action", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      citations = [
+        %{new_index: 1, label: "Test Book, p. 3", source_ref: "abc123", preview: "First"},
+        %{new_index: 2, label: "Test Book, p. 9", source_ref: "abc123", preview: "Second"}
+      ]
+
+      actions = [%{kind: :download, label: "Test Book, p. 3", source_ref: "abc123"}]
+
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "See [1] and [2].", citations: citations, actions: actions, warnings: []}}
+      )
+
+      assert has_element?(view, ~s(#msg-0-source-1 a[href="/books/download/abc123"]))
+      assert has_element?(view, ~s(#msg-0-source-2 a[href="/books/download/abc123"]))
+    end
+
+    # The arrow is a download. An action of another kind for the same
+    # source_ref is not one, and must not be served from the download route.
+    test "an action that is not a download puts no arrow on a chip", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      citations = [
+        %{new_index: 1, label: "Test Book", source_ref: "abc123", preview: "A preview snippet"}
+      ]
+
+      actions = [%{kind: :external_link, label: "Test Book", source_ref: "abc123"}]
+
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "See [1].", citations: citations, actions: actions, warnings: []}}
+      )
+
+      refute has_element?(view, "#msg-0-source-1 a")
+    end
+
+    test "a hallucinated citation is reported in a warning notice under its answer",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      citations = [
+        %{new_index: 1, label: "Test Book", source_ref: "abc123", preview: "A preview snippet"}
+      ]
+
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{
+           response: "See [1].",
+           citations: citations,
+           actions: [],
+           warnings: [{:hallucinated_citation, 7}]
+         }}
+      )
+
+      # A warning, in the log with the answer it is about, and after it.
+      assert has_element?(view, "#chat-log #msg-0-warning.alert-warning")
+      assert has_element?(view, "#msg-0 ~ #msg-0-warning, #msg-0 #msg-0-warning")
+
+      # It says how many references were removed, not which number the model
+      # wrote: that number names nothing the reader can see.
+      assert has_element?(view, "#msg-0-warning", "1 source")
+      refute has_element?(view, "#msg-0-warning", "7")
+    end
+
+    test "several hallucinated citations are one notice, with their count", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      warnings = [
+        {:hallucinated_citation, 7},
+        {:hallucinated_citation, 0},
+        {:hallucinated_citation, 12}
+      ]
+
+      broadcast_to_view(
+        view,
+        {:response_ready, %{response: "Hm.", citations: [], actions: [], warnings: warnings}}
+      )
+
+      assert has_element?(view, "#msg-0-warning", "3 sources")
+      # Every marker was hallucinated: no sources, and still the warning.
+      refute has_element?(view, "#msg-0-sources")
+    end
+
+    test "an answer with no warnings has no warning notice", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(
+        view,
+        {:response_ready, %{response: "Fine.", citations: [], actions: [], warnings: []}}
+      )
+
+      assert has_element?(view, "#msg-0", "Fine.")
+      refute has_element?(view, "#msg-0-warning")
+    end
+
+    # `t:Cake.Responses.Result.warning/0` is open (`{atom, term}`): a kind
+    # the page has no wording for is not shown as a hallucinated citation.
+    test "a warning of a kind the page does not know is not shown", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "Fine.", citations: [], actions: [], warnings: [{:something_else, "x"}]}}
+      )
+
+      assert has_element?(view, "#msg-0", "Fine.")
+      refute has_element?(view, "#msg-0-warning")
+    end
+
+    test "each answer keeps its own warning", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "One.", citations: [], actions: [], warnings: [{:hallucinated_citation, 4}]}}
+      )
+
+      broadcast_to_view(
+        view,
+        {:response_ready, %{response: "Two.", citations: [], actions: [], warnings: []}}
+      )
+
+      assert has_element?(view, "#msg-0-warning")
+      refute has_element?(view, "#msg-1-warning")
     end
 
     test "an answer that cites nothing has no sources", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
-      broadcast_to_view(view, {:response_ready, %{response: "No idea.", citations: []}})
+      broadcast_to_view(
+        view,
+        {:response_ready, %{response: "No idea.", citations: [], actions: [], warnings: []}}
+      )
 
       assert has_element?(view, "#msg-0", "No idea.")
       refute has_element?(view, "#msg-0-sources")
@@ -545,7 +731,12 @@ defmodule CakeWeb.ChatLiveTest do
          %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
-      broadcast_to_view(view, {:response_ready, %{response: "An earlier answer.", citations: []}})
+      broadcast_to_view(
+        view,
+        {:response_ready,
+         %{response: "An earlier answer.", citations: [], actions: [], warnings: []}}
+      )
+
       refute has_element?(view, "#chat-ended")
 
       kill_conversation(view)
