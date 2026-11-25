@@ -353,7 +353,9 @@ defmodule CakeWeb.ChatLive do
         download_refs={@download_refs}
       />
     </div>
-    <%!-- What `Cake.Responses` had to say about the answer above. A marker
+    <%!-- What `Cake.Responses` had to say about the answer above. The title
+    does not send the reader to the sources: an answer whose every marker
+    was removed has none on the page. A marker
     that named no retrieved passage is already gone from the text, so the
     notice gives the count of such numbers (each once, however often it was
     written) and not the numbers themselves, which name nothing the reader
@@ -367,7 +369,7 @@ defmodule CakeWeb.ChatLive do
       id={"#{@id}-warning"}
       kind={:warning}
       role="note"
-      title="Check this answer against its sources"
+      title="Check this answer"
     >
       <p :if={@hallucinated > 0} id={"#{@id}-warning-hallucinated"}>
         {hallucinated_text(@hallucinated)}
@@ -447,7 +449,7 @@ defmodule CakeWeb.ChatLive do
           <%!-- A target a finger can hit: 32px, where the icon alone is 16. --%>
           <a
             :if={cite.source_ref in @download_refs}
-            href={"/books/download/#{cite.source_ref}"}
+            href={~p"/books/download/#{String.split(cite.source_ref, "/")}"}
             aria-label={"Download #{sanitize_title(cite.label)}"}
             class="-mr-2 flex size-8 flex-none items-center justify-center rounded-full"
           >

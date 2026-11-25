@@ -952,7 +952,11 @@ defmodule Cake.Conversation do
   @spec process_response(String.t(), [Cake.Prompt.indexed_chunk()], State.t()) ::
           {:ok, Cake.Responses.Result.t()}
   def process_response(response, indexed_chunks, %State{} = s) do
-    {:ok, s.responses.process(response, indexed_chunks, [])}
+    # Matched here, inside the turn's task: the broadcast is built from the
+    # struct's fields in a GenServer callback, where a collaborator that
+    # returned something else would take the conversation down with it.
+    %Cake.Responses.Result{} = result = s.responses.process(response, indexed_chunks, [])
+    {:ok, result}
   end
 
   # --- State update ---
