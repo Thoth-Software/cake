@@ -24,10 +24,11 @@ defmodule CakeWeb.ChatLive do
   the answer carries a `:download` action for the chip's file (the `actions`
   of `t:Cake.Conversation.Events.response_ready/0`). Under an answer whose
   processing raised warnings is a warning `notice/1`: it says how many
-  sources the answer referred to that were not retrieved (the distinct numbers
-  among its `[N]` markers that named no passage; every such marker is removed,
-  and one written three times counts once), and, for a warning of any other
-  kind, that something else went wrong. The previews are placed
+  bracketed references in the answer matched no retrieved passage (the
+  distinct numbers among its `[N]` markers that named none; every such marker
+  is removed, and one written three times counts once), and, for a warning of
+  any other kind, that something else went wrong. It is a note
+  (`role="note"`), not an alert, so the log announces the answer first. The previews are placed
   against the row of chips, not centred on their own chip, so one for a narrow
   chip cannot run off the edge of a phone. The two replies ChatLive adds
   itself (a failed turn, a conversation that ended) are `notice/1` errors, not
@@ -356,12 +357,16 @@ defmodule CakeWeb.ChatLive do
     that named no retrieved passage is already gone from the text, so the
     notice gives the count of such numbers (each once, however often it was
     written) and not the numbers themselves, which name nothing the reader
-    can see. A warning of a kind this page has no wording
+    can see. It does not say a source was cited: every `[digits]` in an
+    answer is taken for a marker, so one that matched nothing may never have
+    been a citation. It is a note and not an alert, which would be spoken
+    ahead of the answer it arrives with. A warning of a kind this page has no wording
     for is still reported, in general terms: what it carries is not shown. --%>
     <.notice
       :if={@hallucinated > 0 or @other_warnings?}
       id={"#{@id}-warning"}
       kind={:warning}
+      role="note"
       title="Check this answer against its sources"
     >
       <p :if={@hallucinated > 0} id={"#{@id}-warning-hallucinated"}>
@@ -377,13 +382,11 @@ defmodule CakeWeb.ChatLive do
 
   @spec hallucinated_text(pos_integer()) :: String.t()
   defp hallucinated_text(1) do
-    "It referred to 1 source that was not among the passages retrieved. " <>
-      "The reference was removed."
+    "1 bracketed reference matched no retrieved passage and was removed."
   end
 
   defp hallucinated_text(count) do
-    "It referred to #{count} sources that were not among the passages retrieved. " <>
-      "The references were removed."
+    "#{count} bracketed references matched no retrieved passage and were removed."
   end
 
   # The files an answer offers for download: the `source_ref` of each of its
