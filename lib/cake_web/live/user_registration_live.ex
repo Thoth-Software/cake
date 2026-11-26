@@ -7,14 +7,18 @@ defmodule CakeWeb.UserRegistrationLive do
   refused registration shows its errors on the form.
 
   The delivery (`Cake.Accounts.deliver_user_confirmation_instructions/2`)
-  is hard-matched on `{:ok, _}` after the user row is inserted, so a
-  delivery that answered anything else would crash the LiveView with the
+  comes after the user row is inserted, and two of its answers are handled.
+  `{:ok, _}` is the registration above. `{:error, :gone}` is an account an
+  admin deleted before its link could be stored: the page says that the
+  account no longer exists and keeps the form as it was typed, so the
+  visitor can register again.
+
+  A delivery that answered anything else would crash the LiveView with the
   user stored and no flash or redirect for the visitor. The adapter
-  `config/config.exs` sets, `Swoosh.Adapters.Local`, answers only
-  `{:ok, _}`, so the match cannot fail today. In a release that adapter's
-  store is switched off (`config :swoosh, local: false` in
-  `config/prod.exs`), and a delivery is expected to exit instead, with the
-  same result (#367).
+  `config/config.exs` sets, `Swoosh.Adapters.Local`, delivers every mail,
+  so that cannot happen today. In a release that adapter's store is
+  switched off (`config :swoosh, local: false` in `config/prod.exs`), and
+  a delivery is expected to exit instead, with the same result (#367).
   """
 
   use CakeWeb, :live_view

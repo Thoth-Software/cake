@@ -263,10 +263,14 @@ defmodule Cake.Accounts do
   is already as asked is returned as they are. Taking a confirmation back
   does not end the sessions the user already has (#401).
 
-  Raises `Ecto.NoResultsError` if the user no longer exists. Confirming
-  raises `Ecto.StaleEntryError` if the user is deleted between its read and
-  its write (#427). Taking a confirmation back cannot be caught that way:
-  it reads the user under the lock a deletion takes, with their row locked.
+  The answer is the user as the database has them once the change is made.
+  Their role is the one they have now: a demotion that committed after the
+  struct passed in was read shows in it.
+
+  Raises `Ecto.NoResultsError` if the user no longer exists, whenever they
+  went. Confirming or taking back, the user is read with their row locked,
+  in the transaction that changes them, so a deletion cannot come between
+  the read and the write (see `delete_user/1`, "Concurrency").
 
   ## Examples
 
@@ -473,6 +477,20 @@ defmodule Cake.Accounts do
   confirmed admin demoted or deleted. So each of the four also locks the
   user's own row when it reads them, after the advisory lock: a confirmation
   in flight is waited for and seen, and a later one waits its turn.
+
+  A deletion can also come while something else is being done for the user
+  it deletes, by a caller that read them a moment ago or a page that read
+  them when it opened. None of what follows takes the advisory lock, and
+  none of it raises for finding the user gone. What writes the user reads
+  them first with their row locked, in the same transaction, so the
+  deletion waits for the change or the change for the deletion: a
+  confirmation (by hand, or by `confirm_user/1`), a changed email
+  (`update_user_email/2`), a new password (`update_user_password/3`,
+  `reset_user_password/2`). What stores a token for the user has its
+  reference to them refused: a session at log-in
+  (`generate_user_session_token/1`), a mailed link (the three `deliver_*`
+  functions). Each answers as it does for a user who was deleted before the
+  call, which its own documentation gives.
 
   All of this relies on two things, both true of every caller there is. The
   database runs at READ COMMITTED, Postgres's default: at REPEATABLE READ a
@@ -691,6 +709,10 @@ defmodule Cake.Accounts do
 
   If the token matches, the user email is updated and the token is deleted.
   The confirmed_at date is also updated to the current time.
+
+  A token that does not match is `:error`. So is a user who no longer
+  exists, whether they were deleted before the call or while it was under
+  way (see `delete_user/1`, "Concurrency"): the link is no longer good.
   """
   @spec update_user_email(User.t(), String.t()) :: :ok | :error
   def update_user_email(user, token) do
@@ -722,10 +744,16 @@ defmodule Cake.Accounts do
   @doc ~S"""
   Delivers the update email instructions to the given user.
 
+  The link's token is stored first. A user who no longer exists is
+  `{:error, :gone}`: nothing is stored and nothing is mailed.
+
   ## Examples
 
       iex> deliver_user_update_email_instructions(user, current_email, &url(~p"/users/settings/confirm_email/#{&1}"))
       {:ok, %Swoosh.Email{}}
+
+      iex> deliver_user_update_email_instructions(deleted_user, current_email, &url(~p"/users/settings/confirm_email/#{&1}"))
+      {:error, :gone}
 
   """
   @spec deliver_user_update_email_instructions(User.t(), String.t(), (String.t() -> String.t())) ::
@@ -754,7 +782,12 @@ defmodule Cake.Accounts do
   end
 
   @doc """
-  Updates the user password.
+  Updates the user password, and deletes the user's sessions and other
+  tokens with it.
+
+  A user who no longer exists is `{:error, :gone}`, whether they were
+  deleted before the call or while it was under way (see `delete_user/1`,
+  "Concurrency").
 
   ## Examples
 
@@ -763,6 +796,9 @@ defmodule Cake.Accounts do
 
       iex> update_user_password(user, "invalid password", %{password: ...})
       {:error, %Ecto.Changeset{}}
+
+      iex> update_user_password(deleted_user, "valid password", %{password: ...})
+      {:error, :gone}
 
   """
   @spec update_user_password(User.t(), String.t(), map()) ::
@@ -797,7 +833,20 @@ defmodule Cake.Accounts do
   ## Session
 
   @doc """
-  Generates a session token.
+  Generates a session token for the user, and stores it.
+
+  A user who no longer exists is `{:error, :gone}`, and nothing is stored.
+  They can have been deleted since the caller read them, as a log-in reads
+  them to check the password, or while the token waited on their deletion.
+
+  ## Examples
+
+      iex> generate_user_session_token(user)
+      {:ok, token}
+
+      iex> generate_user_session_token(deleted_user)
+      {:error, :gone}
+
   """
   @spec generate_user_session_token(User.t()) :: {:ok, binary()} | {:error, :gone}
   def generate_user_session_token(user) do
@@ -844,6 +893,11 @@ defmodule Cake.Accounts do
   @doc ~S"""
   Delivers the confirmation email instructions to the given user.
 
+  A user whose struct says they are confirmed is sent nothing:
+  `{:error, :already_confirmed}`. Otherwise the link's token is stored
+  first. A user who no longer exists is `{:error, :gone}`: nothing is
+  stored and nothing is mailed.
+
   ## Examples
 
       iex> deliver_user_confirmation_instructions(user, &url(~p"/users/confirm/#{&1}"))
@@ -851,6 +905,9 @@ defmodule Cake.Accounts do
 
       iex> deliver_user_confirmation_instructions(confirmed_user, &url(~p"/users/confirm/#{&1}"))
       {:error, :already_confirmed}
+
+      iex> deliver_user_confirmation_instructions(deleted_user, &url(~p"/users/confirm/#{&1}"))
+      {:error, :gone}
 
   """
   @spec deliver_user_confirmation_instructions(User.t(), (String.t() -> String.t())) ::
@@ -872,7 +929,12 @@ defmodule Cake.Accounts do
   Confirms a user by the given token.
 
   If the token matches, the user account is marked as confirmed
-  and the token is deleted.
+  and the token is deleted. The answer is the user as the database has
+  them once confirmed: their role is the one they have now.
+
+  A token that does not match is `:error`. So is a user who no longer
+  exists, whether they were deleted before the call or while it was under
+  way (see `delete_user/1`, "Concurrency"): the link is no longer good.
   """
   @spec confirm_user(binary()) :: {:ok, User.t()} | :error
   def confirm_user(token) do
@@ -901,10 +963,16 @@ defmodule Cake.Accounts do
   @doc ~S"""
   Delivers the reset password email to the given user.
 
+  The link's token is stored first. A user who no longer exists is
+  `{:error, :gone}`: nothing is stored and nothing is mailed.
+
   ## Examples
 
       iex> deliver_user_reset_password_instructions(user, &url(~p"/users/reset_password/#{&1}"))
       {:ok, %Swoosh.Email{}}
+
+      iex> deliver_user_reset_password_instructions(deleted_user, &url(~p"/users/reset_password/#{&1}"))
+      {:error, :gone}
 
   """
   @spec deliver_user_reset_password_instructions(User.t(), (String.t() -> String.t())) ::
@@ -944,7 +1012,12 @@ defmodule Cake.Accounts do
   end
 
   @doc """
-  Resets the user password.
+  Resets the user password, and deletes the user's sessions and other
+  tokens with it.
+
+  A user who no longer exists is `{:error, :gone}`, whether they were
+  deleted before the call or while it was under way (see `delete_user/1`,
+  "Concurrency").
 
   ## Examples
 
@@ -953,6 +1026,9 @@ defmodule Cake.Accounts do
 
       iex> reset_user_password(user, %{password: "valid", password_confirmation: "not the same"})
       {:error, %Ecto.Changeset{}}
+
+      iex> reset_user_password(deleted_user, %{password: "new long password"})
+      {:error, :gone}
 
   """
   @spec reset_user_password(User.t(), map()) ::

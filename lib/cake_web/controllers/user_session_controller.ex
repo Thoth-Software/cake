@@ -6,7 +6,10 @@ defmodule CakeWeb.UserSessionController do
   a wrong password get the same answer. A user whose email is unconfirmed
   is refused too and told why, an answer only a right password gets. Both
   refusals redirect to the log-in page; otherwise
-  `CakeWeb.UserAuth.log_in_user/3` starts the session.
+  `CakeWeb.UserAuth.log_in_user/3` starts the session. It can find the user
+  gone, deleted since their password was checked: that log-in gets the
+  answer a wrong username or password gets, which is the answer it would
+  get a moment later.
 
   The settings page posts to the same action with
   `_action=password_updated` after a password change, which has deleted the

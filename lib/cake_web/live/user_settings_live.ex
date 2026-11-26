@@ -15,6 +15,15 @@ defmodule CakeWeb.UserSettingsLive do
   sessions, this one included, so the browser then posts the form to
   `CakeWeb.UserSessionController` with `_action=password_updated`, which
   logs the user in again and returns them here.
+
+  The user can be deleted while the page is open. Either form then finds
+  them gone when it is submitted, and the page calls
+  `CakeWeb.UserAuth.end_live_sessions/1`: this page and every other the
+  user has open go to the log-in page, told that the session has ended.
+  That is what the admin panel does when it deletes a login; a deletion
+  from anywhere else has told nobody. The link mailed for an email change,
+  opened as its user is deleted, is refused as a token it does not accept
+  is.
   """
 
   use CakeWeb, :live_view

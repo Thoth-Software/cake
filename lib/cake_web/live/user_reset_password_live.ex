@@ -7,7 +7,9 @@ defmodule CakeWeb.UserResetPasswordLive do
   sets the password and deletes the user's sessions, or refuses with errors
   shown on the form. A reset redirects to the log-in page and logs nobody
   in, and it does not confirm the email (#402): a user who was unconfirmed
-  is still refused at log-in.
+  is still refused at log-in. A user deleted while the page is open has a
+  token that is no longer good: submitting the form gets the answer a
+  refused token gets when the page opens.
   """
 
   use CakeWeb, :live_view
