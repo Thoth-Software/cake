@@ -20,6 +20,7 @@ defmodule CakeWeb.UserSettingsLive do
   use CakeWeb, :live_view
 
   alias Cake.Accounts
+  alias CakeWeb.UserAuth
 
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
@@ -179,15 +180,7 @@ defmodule CakeWeb.UserSettingsLive do
 
     case Accounts.apply_user_email(user, password, user_params) do
       {:ok, applied_user} ->
-        _ =
-          Accounts.deliver_user_update_email_instructions(
-            applied_user,
-            user.email,
-            &url(~p"/users/settings/confirm_email/#{&1}")
-          )
-
-        info = "A link to confirm your email change has been sent to the new address."
-        {:noreply, socket |> put_flash(:info, info) |> assign(email_form_current_password: nil)}
+        {:noreply, mail_email_change_link(socket, applied_user)}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :email_form, to_form(Map.put(changeset, :action, :insert)))}
@@ -219,8 +212,40 @@ defmodule CakeWeb.UserSettingsLive do
 
         {:noreply, assign(socket, trigger_submit: true, password_form: password_form)}
 
-      {:error, changeset} ->
+      {:error, :gone} ->
+        {:noreply, end_sessions(socket)}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, password_form: to_form(changeset))}
     end
+  end
+
+  defp mail_email_change_link(socket, applied_user) do
+    delivery =
+      Accounts.deliver_user_update_email_instructions(
+        applied_user,
+        socket.assigns.current_user.email,
+        &url(~p"/users/settings/confirm_email/#{&1}")
+      )
+
+    case delivery do
+      {:error, :gone} ->
+        end_sessions(socket)
+
+      # Mailed or not: the page says the same, as it always has.
+      _mailed_or_not ->
+        info = "A link to confirm your email change has been sent to the new address."
+        socket |> put_flash(:info, info) |> assign(email_form_current_password: nil)
+    end
+  end
+
+  # The user was deleted while this page was open. An admin who deletes a
+  # login from the panel sends the login's open pages away; a deletion from
+  # anywhere else does not. So the page asks for the same itself: it hears
+  # it with the user's other open pages, and each goes to the log-in page,
+  # told that its session has ended.
+  defp end_sessions(socket) do
+    :ok = UserAuth.end_live_sessions(socket.assigns.current_user)
+    socket
   end
 end

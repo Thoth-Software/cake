@@ -88,17 +88,7 @@ defmodule CakeWeb.UserRegistrationLive do
       # Log-in waits on the email being confirmed, so registering logs
       # nobody in: it sends the link and says where to go next.
       {:ok, user} ->
-        # A hard match, left as it is until there is a real mailer (#367):
-        # the Local Swoosh adapter answers only {:ok, _}. Any other answer
-        # would crash here with the user row already stored (see the
-        # moduledoc).
-        {:ok, _} =
-          Accounts.deliver_user_confirmation_instructions(user, &url(~p"/users/confirm/#{&1}"))
-
-        info =
-          "Account created. We sent a link to #{user.email}: follow it to confirm your email, then log in."
-
-        {:noreply, socket |> put_flash(:info, info) |> redirect(to: ~p"/users/log_in")}
+        {:noreply, mail_confirmation_link(socket, user)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, socket |> assign(check_errors: true) |> assign_form(changeset)}
@@ -108,6 +98,25 @@ defmodule CakeWeb.UserRegistrationLive do
   def handle_event("validate", %{"user" => user_params}, socket) do
     changeset = Accounts.change_user_registration(%User{}, user_params)
     {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+  end
+
+  # Two answers are handled, and no other, left so until there is a real
+  # mailer (#367): the Local Swoosh adapter delivers every mail. A delivery
+  # that failed would crash here with the user row already stored (see the
+  # moduledoc).
+  defp mail_confirmation_link(socket, user) do
+    case Accounts.deliver_user_confirmation_instructions(user, &url(~p"/users/confirm/#{&1}")) do
+      {:ok, _email} ->
+        info =
+          "Account created. We sent a link to #{user.email}: follow it to confirm your email, then log in."
+
+        socket |> put_flash(:info, info) |> redirect(to: ~p"/users/log_in")
+
+      # An admin deleted the account before the link was stored. The form
+      # stays as it was typed, so the visitor can register again.
+      {:error, :gone} ->
+        put_flash(socket, :error, "That account no longer exists.")
+    end
   end
 
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do

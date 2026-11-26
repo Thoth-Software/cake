@@ -681,7 +681,7 @@ defmodule Cake.AccountsTest do
 
     test "ends the deleted user's sessions" do
       member = user_fixture()
-      token = Accounts.generate_user_session_token(member)
+      {:ok, token} = Accounts.generate_user_session_token(member)
       assert Accounts.get_user_by_session_token(token)
 
       assert {:ok, _deleted} = Accounts.delete_user(member)
@@ -898,7 +898,7 @@ defmodule Cake.AccountsTest do
     end
 
     test "deletes all tokens for the given user", %{user: user} do
-      _ = Accounts.generate_user_session_token(user)
+      {:ok, _token} = Accounts.generate_user_session_token(user)
 
       {:ok, _} =
         Accounts.update_user_password(user, valid_user_password(), %{
@@ -935,7 +935,7 @@ defmodule Cake.AccountsTest do
   describe "get_user_by_session_token/1" do
     setup do
       user = user_fixture()
-      token = Accounts.generate_user_session_token(user)
+      {:ok, token} = Accounts.generate_user_session_token(user)
       %{user: user, token: token}
     end
 
@@ -957,7 +957,7 @@ defmodule Cake.AccountsTest do
   describe "delete_user_session_token/1" do
     test "deletes the token" do
       user = user_fixture()
-      token = Accounts.generate_user_session_token(user)
+      {:ok, token} = Accounts.generate_user_session_token(user)
       assert Accounts.delete_user_session_token(token) == :ok
       refute Accounts.get_user_by_session_token(token)
     end
@@ -1095,7 +1095,7 @@ defmodule Cake.AccountsTest do
     end
 
     test "deletes all tokens for the given user", %{user: user} do
-      _ = Accounts.generate_user_session_token(user)
+      {:ok, _token} = Accounts.generate_user_session_token(user)
       {:ok, _} = Accounts.reset_user_password(user, %{password: "new valid password"})
       refute Repo.get_by(UserToken, user_id: user.id)
     end

@@ -39,16 +39,18 @@ defmodule CakeWeb.UserAuth do
   disconnected on log out. The line can be safely removed
   if you are not using LiveView.
   """
-  @spec log_in_user(map(), map(), map()) :: map()
+  @spec log_in_user(Plug.Conn.t(), User.t(), map()) :: {:ok, Plug.Conn.t()} | {:error, :gone}
   def log_in_user(conn, user, params \\ %{}) do
-    token = Accounts.generate_user_session_token(user)
-    user_return_to = get_session(conn, :user_return_to)
+    with {:ok, token} <- Accounts.generate_user_session_token(user) do
+      user_return_to = get_session(conn, :user_return_to)
 
-    conn
-    |> renew_session()
-    |> put_token_in_session(token)
-    |> maybe_write_remember_me_cookie(token, params)
-    |> redirect(to: user_return_to || signed_in_path(conn))
+      {:ok,
+       conn
+       |> renew_session()
+       |> put_token_in_session(token)
+       |> maybe_write_remember_me_cookie(token, params)
+       |> redirect(to: user_return_to || signed_in_path(conn))}
+    end
   end
 
   defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}) do

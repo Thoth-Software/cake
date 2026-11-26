@@ -51,19 +51,19 @@ defmodule CakeWeb.UserRegistrationLiveGoneTest do
     {:ok, lv, _html} = live(conn, ~p"/users/register")
     delete_users_as_their_tokens_are_stored()
 
-    answer =
-      lv
-      |> form("#registration_form",
-        user: %{
-          username: unique_user_username(),
-          email: unique_user_email(),
-          password: valid_user_password()
-        }
-      )
-      |> render_submit()
+    lv
+    |> form("#registration_form",
+      user: %{
+        username: unique_user_username(),
+        email: unique_user_email(),
+        password: valid_user_password()
+      }
+    )
+    |> render_submit()
 
-    # Not a redirect: the visitor is still on the form.
-    assert is_binary(answer)
+    # Not sent on to the log-in page, as a registration is: the visitor is
+    # still on the form.
+    refute_redirected(lv, ~p"/users/log_in")
     assert has_element?(lv, "#flash-error", "That account no longer exists.")
     assert has_element?(lv, "#registration_form")
 

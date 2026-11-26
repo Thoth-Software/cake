@@ -131,11 +131,15 @@ defmodule CakeWeb.Admin.UserLive.Form do
          |> assign_form(change(action, user, %{}))}
 
       nil ->
-        {:ok,
-         socket
-         |> put_flash(:error, @gone)
-         |> push_navigate(to: ~p"/admin/users")}
+        {:ok, gone(socket)}
     end
+  end
+
+  # The login no longer exists: the admin is told so, on the list.
+  defp gone(socket) do
+    socket
+    |> put_flash(:error, @gone)
+    |> push_navigate(to: ~p"/admin/users")
   end
 
   # The login a form is for: a new one, or the one the address names, which
@@ -193,12 +197,9 @@ defmodule CakeWeb.Admin.UserLive.Form do
     action = socket.assigns.live_action
     save_user(socket, action, text_fields(action, user_params))
   rescue
-    # The login was deleted while its form was open.
-    _gone in [Ecto.NoResultsError, Ecto.StaleEntryError] ->
-      {:noreply,
-       socket
-       |> put_flash(:error, @gone)
-       |> push_navigate(to: ~p"/admin/users")}
+    # The login was deleted while its edit form was open.
+    _gone in Ecto.NoResultsError ->
+      {:noreply, gone(socket)}
 
     # Anything else. The message being handled may hold a password, and a
     # crash would print it, so the page stays up and the log gets the
@@ -274,6 +275,10 @@ defmodule CakeWeb.Admin.UserLive.Form do
          socket
          |> put_flash(:info, "Password set")
          |> push_navigate(to: ~p"/admin/users/#{user}")}
+
+      # The login was deleted while its password form was open.
+      {:error, :gone} ->
+        {:noreply, gone(socket)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign_form(socket, changeset)}

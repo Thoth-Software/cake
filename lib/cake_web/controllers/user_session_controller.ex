@@ -21,6 +21,8 @@ defmodule CakeWeb.UserSessionController do
   alias Cake.Accounts.User
   alias CakeWeb.UserAuth
 
+  @invalid "Invalid username or password"
+
   @spec create(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def create(conn, %{"_action" => "password_updated"} = params) do
     conn
@@ -46,13 +48,17 @@ defmodule CakeWeb.UserSessionController do
         )
 
       %User{} = user ->
-        conn
-        |> put_flash(:info, info)
-        |> UserAuth.log_in_user(user, user_params)
+        case conn |> put_flash(:info, info) |> UserAuth.log_in_user(user, user_params) do
+          {:ok, logged_in} -> logged_in
+          # Deleted since the password was checked. Whoever tries a moment
+          # later is told the username or the password is wrong, so this
+          # log-in is told the same.
+          {:error, :gone} -> refuse(conn, username, @invalid)
+        end
 
       # In order to prevent user enumeration attacks, don't disclose whether the username is registered.
       nil ->
-        refuse(conn, username, "Invalid username or password")
+        refuse(conn, username, @invalid)
     end
   end
 

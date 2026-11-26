@@ -95,7 +95,12 @@ defmodule CakeWeb.UserResetPasswordLive do
          |> put_flash(:info, "Password reset successfully.")
          |> redirect(to: ~p"/users/log_in")}
 
-      {:error, changeset} ->
+      # Deleted since the page opened: the link is no better than one that
+      # was never good.
+      {:error, :gone} ->
+        {:noreply, refuse_link(socket)}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
          socket
          |> assign(check_errors: true)
@@ -116,10 +121,14 @@ defmodule CakeWeb.UserResetPasswordLive do
     if user = Accounts.get_user_by_reset_password_token(token) do
       assign(socket, user: user)
     else
-      socket
-      |> put_flash(:error, "Reset password link is invalid or it has expired.")
-      |> redirect(to: ~p"/")
+      refuse_link(socket)
     end
+  end
+
+  defp refuse_link(socket) do
+    socket
+    |> put_flash(:error, "Reset password link is invalid or it has expired.")
+    |> redirect(to: ~p"/")
   end
 
   defp assign_form(socket, %{} = source) do

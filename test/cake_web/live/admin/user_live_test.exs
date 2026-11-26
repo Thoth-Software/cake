@@ -168,7 +168,7 @@ defmodule CakeWeb.Admin.UserLiveTest do
 
   # A second browser: `user`, logged in, with a live page open.
   defp open_page_as(user) do
-    token = Accounts.generate_user_session_token(user)
+    {:ok, token} = Accounts.generate_user_session_token(user)
 
     conn =
       Phoenix.ConnTest.build_conn()
