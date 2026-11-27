@@ -86,7 +86,10 @@ defmodule CakeWeb.UserConfirmationLiveTest do
 
     # #427. Deleted while the page is open, behind the context's back: the
     # link is no longer good, and the page answers as it answers any link
-    # it does not accept.
+    # it does not accept. The link's token went with the user, so this is
+    # the answer the page always gave: it is kept beside the other pages'.
+    # What pins `confirm_user/1` against a deletion still under way is in
+    # `Cake.AccountsConcurrencyPropertyTest`.
     test "answers a link whose user was deleted while the page was open as one it does not accept",
          %{conn: conn, user: user} do
       token = extract_user_token(&Accounts.deliver_user_confirmation_instructions(user, &1))

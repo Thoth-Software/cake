@@ -1115,7 +1115,14 @@ defmodule Cake.AccountsTest do
   #     `delete_user/1`), and its page rescues.
   #
   # The same deletion committing while the call waits on the user is in
-  # `Cake.AccountsConcurrencyPropertyTest`.
+  # `Cake.AccountsConcurrencyPropertyTest`, and for the two link functions
+  # (`confirm_user/1`, `update_user_email/2`) that is the test that pins
+  # the change: here their link's token goes with the user, so the link is
+  # refused when it is looked up, as it always was. Their rows are kept so
+  # that the table says what every function answers. Likewise the last two
+  # lines of each test hold whatever the function did, since a deletion
+  # takes the user's tokens with it: they say what the database is left
+  # with, not what the function left.
   describe "a user deleted before the call" do
     for {name, request, gone} <- [
           {"set_user_confirmed/3, confirming",

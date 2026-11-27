@@ -481,7 +481,8 @@ defmodule Cake.Accounts do
   A deletion can also come while something else is being done for the user
   it deletes, by a caller that read them a moment ago or a page that read
   them when it opened. None of what follows takes the advisory lock, and
-  none of it raises for finding the user gone. What writes the user reads
+  none of it fails on a write that finds nothing to write. What writes the
+  user reads
   them first with their row locked, in the same transaction, so the
   deletion waits for the change or the change for the deletion: a
   confirmation (by hand, or by `confirm_user/1`), a changed email
@@ -490,7 +491,8 @@ defmodule Cake.Accounts do
   reference to them refused: a session at log-in
   (`generate_user_session_token/1`), a mailed link (the three `deliver_*`
   functions). Each answers as it does for a user who was deleted before the
-  call, which its own documentation gives.
+  call, which its own documentation gives: for confirming by hand, that is
+  to raise `Ecto.NoResultsError`.
 
   All of this relies on two things, both true of every caller there is. The
   database runs at READ COMMITTED, Postgres's default: at REPEATABLE READ a
@@ -813,8 +815,9 @@ defmodule Cake.Accounts do
   end
 
   # Stores the password a changeset holds, already hashed, and deletes the
-  # user's sessions and other tokens with it, so that nothing the old
-  # password opened stays open.
+  # user's sessions and other tokens with it: what the old password opened
+  # and the database knew of when this ran. A session being stored at that
+  # moment is not waited for, and outlives the change.
   #
   # The changeset is made, and the password hashed, before the transaction
   # opens: hashing is slow on purpose, and the user's row stays locked for

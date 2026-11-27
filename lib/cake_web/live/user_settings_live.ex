@@ -16,12 +16,15 @@ defmodule CakeWeb.UserSettingsLive do
   `CakeWeb.UserSessionController` with `_action=password_updated`, which
   logs the user in again and returns them here.
 
-  The user can be deleted while the page is open. Either form then finds
-  them gone when it is submitted, and the page calls
-  `CakeWeb.UserAuth.end_live_sessions/1`: this page and every other the
-  user has open go to the log-in page, told that the session has ended.
-  That is what the admin panel does when it deletes a login; a deletion
-  from anywhere else has told nobody. The link mailed for an email change,
+  The user can be deleted while the page is open. A form finds them gone
+  when it reaches the database: the password form whenever it is
+  submitted, the email form once the new email and the current password
+  are accepted (one it refuses shows its error, as for anyone). The page
+  then calls `CakeWeb.UserAuth.end_live_sessions/1`: this page and every
+  other the user has open go to the log-in page, told that the session has
+  ended. That is what the admin panel does when it deletes a login; a
+  deletion from anywhere else has told nobody. The link mailed for an email
+  change,
   opened as its user is deleted, is refused as a token it does not accept
   is.
   """
