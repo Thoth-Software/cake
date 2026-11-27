@@ -31,6 +31,8 @@ defmodule CakeWeb.UserAuthTest do
     ]
 
   alias Cake.Accounts
+  alias Cake.Accounts.UserToken
+  alias Cake.Repo
   alias CakeWeb.UserAuth
   alias Phoenix.LiveView
 
@@ -45,9 +47,12 @@ defmodule CakeWeb.UserAuthTest do
     %{user: user_fixture(), conn: conn}
   end
 
+  # Storing the session can fail: the user can be deleted after log-in
+  # checked their password (#427). So the conn comes in `{:ok, conn}`, and
+  # the caller answers `{:error, :gone}` as it answers a wrong password.
   describe "log_in_user/3" do
     test "stores the user token in the session", %{conn: conn, user: user} do
-      conn = UserAuth.log_in_user(conn, user)
+      assert {:ok, conn} = UserAuth.log_in_user(conn, user)
       assert token = get_session(conn, :user_token)
       assert get_session(conn, :live_socket_id) == "users_sessions:#{Base.url_encode64(token)}"
       assert redirected_to(conn) == ~p"/"
@@ -55,28 +60,43 @@ defmodule CakeWeb.UserAuthTest do
     end
 
     test "clears everything previously stored in the session", %{conn: conn, user: user} do
-      conn = conn |> put_session(:to_be_removed, "value") |> UserAuth.log_in_user(user)
+      assert {:ok, conn} =
+               conn |> put_session(:to_be_removed, "value") |> UserAuth.log_in_user(user)
+
       refute get_session(conn, :to_be_removed)
     end
 
     test "redirects to the configured path", %{conn: conn, user: user} do
-      conn = conn |> put_session(:user_return_to, "/hello") |> UserAuth.log_in_user(user)
+      assert {:ok, conn} =
+               conn |> put_session(:user_return_to, "/hello") |> UserAuth.log_in_user(user)
+
       assert redirected_to(conn) == "/hello"
     end
 
     test "writes a cookie if remember_me is configured", %{conn: conn, user: user} do
-      conn = conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+      assert {:ok, conn} =
+               conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
       assert get_session(conn, :user_token) == conn.cookies[@remember_me_cookie]
 
       assert %{value: signed_token, max_age: max_age} = conn.resp_cookies[@remember_me_cookie]
       assert signed_token != get_session(conn, :user_token)
       assert max_age == 5_184_000
     end
+
+    # Deleted here behind the context's back, as a deletion that commits
+    # between the password check and this call leaves them.
+    test "stores nothing for a user who no longer exists, and says so", %{conn: conn, user: user} do
+      Repo.delete!(user)
+
+      assert UserAuth.log_in_user(conn, user, %{"remember_me" => "true"}) == {:error, :gone}
+      refute Repo.get_by(UserToken, user_id: user.id)
+    end
   end
 
   describe "logout_user/1" do
     test "erases session and cookies", %{conn: conn, user: user} do
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
 
       conn =
         conn
@@ -113,13 +133,13 @@ defmodule CakeWeb.UserAuthTest do
 
   describe "fetch_current_user/2" do
     test "authenticates user from session", %{conn: conn, user: user} do
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
       conn = conn |> put_session(:user_token, user_token) |> UserAuth.fetch_current_user([])
       assert conn.assigns.current_user.id == user.id
     end
 
     test "authenticates user from cookies", %{conn: conn, user: user} do
-      logged_in_conn =
+      {:ok, logged_in_conn} =
         conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
 
       user_token = logged_in_conn.cookies[@remember_me_cookie]
@@ -138,7 +158,7 @@ defmodule CakeWeb.UserAuthTest do
     end
 
     test "does not authenticate if data is missing", %{conn: conn, user: user} do
-      _ = Accounts.generate_user_session_token(user)
+      {:ok, _token} = Accounts.generate_user_session_token(user)
       conn = UserAuth.fetch_current_user(conn, [])
       refute get_session(conn, :user_token)
       refute conn.assigns.current_user
@@ -149,7 +169,7 @@ defmodule CakeWeb.UserAuthTest do
   # end_live_sessions/1 can send the page away (#376).
   describe "a connected page whose user's sessions are ended" do
     test "mounts and is sent away once, with two of UserAuth's hooks stacked", %{user: user} do
-      token = Accounts.generate_user_session_token(user)
+      {:ok, token} = Accounts.generate_user_session_token(user)
 
       {:ok, lv, _html} =
         live_isolated(build_conn(), CakeWeb.UserAuthTest.TwoHooksLive,
@@ -180,7 +200,7 @@ defmodule CakeWeb.UserAuthTest do
 
   describe "on_mount :mount_current_user" do
     test "assigns current_user based on a valid user_token", %{conn: conn, user: user} do
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
       session = conn |> put_session(:user_token, user_token) |> get_session()
 
       {:cont, updated_socket} =
@@ -211,7 +231,7 @@ defmodule CakeWeb.UserAuthTest do
 
   describe "on_mount :ensure_authenticated" do
     test "authenticates current_user based on a valid user_token", %{conn: conn, user: user} do
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
       session = conn |> put_session(:user_token, user_token) |> get_session()
 
       {:cont, updated_socket} =
@@ -248,7 +268,7 @@ defmodule CakeWeb.UserAuthTest do
 
   describe "on_mount :redirect_if_user_is_authenticated" do
     test "redirects if there is an authenticated  user ", %{conn: conn, user: user} do
-      user_token = Accounts.generate_user_session_token(user)
+      {:ok, user_token} = Accounts.generate_user_session_token(user)
       session = conn |> put_session(:user_token, user_token) |> get_session()
 
       assert {:halt, _updated_socket} =
@@ -338,7 +358,8 @@ defmodule CakeWeb.UserAuthTest do
   end
 
   defp session_for(conn, user) do
-    conn |> put_session(:user_token, Accounts.generate_user_session_token(user)) |> get_session()
+    {:ok, token} = Accounts.generate_user_session_token(user)
+    conn |> put_session(:user_token, token) |> get_session()
   end
 
   describe "on_mount :ensure_admin" do

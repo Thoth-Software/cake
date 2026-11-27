@@ -263,10 +263,14 @@ defmodule Cake.Accounts do
   is already as asked is returned as they are. Taking a confirmation back
   does not end the sessions the user already has (#401).
 
-  Raises `Ecto.NoResultsError` if the user no longer exists. Confirming
-  raises `Ecto.StaleEntryError` if the user is deleted between its read and
-  its write (#427). Taking a confirmation back cannot be caught that way:
-  it reads the user under the lock a deletion takes, with their row locked.
+  The answer is the user as the database has them once the change is made.
+  Their role is the one they have now: a demotion that committed after the
+  struct passed in was read shows in it.
+
+  Raises `Ecto.NoResultsError` if the user no longer exists, whenever they
+  went. Confirming or taking back, the user is read with their row locked,
+  in the transaction that changes them, so a deletion cannot come between
+  the read and the write (see `delete_user/1`, "Concurrency").
 
   ## Examples
 
@@ -289,14 +293,12 @@ defmodule Cake.Accounts do
 
   def set_user_confirmed(actor, %User{id: id}, true)
       when is_struct(actor, User) or actor == :operator do
-    case Repo.get!(User, id) do
-      %User{confirmed_at: nil} = current ->
-        {:ok, %{user: user}} = Repo.transaction(confirm_user_multi(current))
-        {:ok, user}
-
-      %User{confirmed_at: %DateTime{}} = current ->
-        {:ok, current}
-    end
+    Repo.transaction(fn ->
+      case Repo.get!(users_for_change(), id) do
+        %User{confirmed_at: nil} = current -> keep_or_roll_back(confirm(current))
+        %User{confirmed_at: %DateTime{}} = current -> current
+      end
+    end)
   end
 
   def set_user_confirmed(actor, %User{} = user, false)
@@ -476,6 +478,22 @@ defmodule Cake.Accounts do
   user's own row when it reads them, after the advisory lock: a confirmation
   in flight is waited for and seen, and a later one waits its turn.
 
+  A deletion can also come while something else is being done for the user
+  it deletes, by a caller that read them a moment ago or a page that read
+  them when it opened. None of what follows takes the advisory lock, and
+  none of it fails on a write that finds nothing to write. What writes the
+  user reads
+  them first with their row locked, in the same transaction, so the
+  deletion waits for the change or the change for the deletion: a
+  confirmation (by hand, or by `confirm_user/1`), a changed email
+  (`update_user_email/2`), a new password (`update_user_password/3`,
+  `reset_user_password/2`). What stores a token for the user has its
+  reference to them refused: a session at log-in
+  (`generate_user_session_token/1`), a mailed link (the three `deliver_*`
+  functions). Each answers as it does for a user who was deleted before the
+  call, which its own documentation gives: for confirming by hand, that is
+  to raise `Ecto.NoResultsError`.
+
   All of this relies on two things, both true of every caller there is. The
   database runs at READ COMMITTED, Postgres's default: at REPEATABLE READ a
   call would decide on what was true before it waited for the lock, and the
@@ -554,12 +572,45 @@ defmodule Cake.Accounts do
     Repo.transaction(fn ->
       _ = Repo.query!("SELECT pg_advisory_xact_lock($1)", [@role_changes_lock])
 
-      case change.(User |> lock("FOR NO KEY UPDATE") |> Repo.get!(id)) do
-        {:ok, user} -> user
-        {:error, reason} -> Repo.rollback(reason)
+      keep_or_roll_back(change.(Repo.get!(users_for_change(), id)))
+    end)
+  end
+
+  # Runs `change` in a transaction, on the user as the database has them
+  # now, with their row locked: for a change to one user that the rule has
+  # no say in, and so takes no part in its lock. A confirmation by the
+  # mailed link, a new password and a changed email are such changes. As
+  # under the rule, `change` answers `{:ok, user}` to keep what it did or
+  # `{:error, reason}` to roll it back. A user who no longer exists is
+  # `{:error, :gone}`, and `change` is not run.
+  #
+  # Such a change is asked for with a user who was read earlier: by a page
+  # when it opened, or from a link's token a moment ago. A deletion can
+  # commit between that read and the write, and a write that finds no row
+  # to write raises. With the row locked there is no in between: the
+  # deletion waits for this change, or this change waits for the deletion
+  # and finds the user gone.
+  #
+  # The lock is the one the rule's changes read the user under, for the
+  # reasons given there. And as there, it is taken before any of the user's
+  # tokens is touched.
+  defp with_user_locked(%User{id: id}, change) do
+    Repo.transaction(fn ->
+      case Repo.get(users_for_change(), id) do
+        %User{} = current -> keep_or_roll_back(change.(current))
+        nil -> Repo.rollback(:gone)
       end
     end)
   end
+
+  # Users as a change reads them: with their rows locked until the
+  # transaction ends. `under_last_admin_rule/2` says why with this lock.
+  defp users_for_change, do: lock(User, "FOR NO KEY UPDATE")
+
+  # Inside a transaction: keeps what a change did and answers with its
+  # user, or rolls the transaction back with the change's reason.
+  defp keep_or_roll_back({:ok, user}), do: user
+  defp keep_or_roll_back({:error, reason}), do: Repo.rollback(reason)
 
   # Whether `user` may be demoted or deleted: not when that leaves no admin,
   # and not when it leaves no confirmed admin where there was one. A member
@@ -660,6 +711,10 @@ defmodule Cake.Accounts do
 
   If the token matches, the user email is updated and the token is deleted.
   The confirmed_at date is also updated to the current time.
+
+  A token that does not match is `:error`. So is a user who no longer
+  exists, whether they were deleted before the call or while it was under
+  way (see `delete_user/1`, "Concurrency"): the link is no longer good.
   """
   @spec update_user_email(User.t(), String.t()) :: :ok | :error
   def update_user_email(user, token) do
@@ -667,41 +722,51 @@ defmodule Cake.Accounts do
 
     with {:ok, query} <- UserToken.verify_change_email_token_query(token, context),
          %UserToken{sent_to: email} <- Repo.one(query),
-         {:ok, _} <- Repo.transaction(user_email_multi(user, email, context)) do
+         {:ok, _changed} <- with_user_locked(user, &change_email(&1, email, context)) do
       :ok
     else
       _ -> :error
     end
   end
 
-  defp user_email_multi(user, email, context) do
+  # Changes and confirms the email of a user read with their row locked, and
+  # uses up the links mailed for a change from the old address.
+  defp change_email(%User{} = current, email, context) do
     changeset =
-      user
+      current
       |> User.email_changeset(%{email: email})
       |> User.confirm_changeset()
 
-    Ecto.Multi.new()
-    |> Ecto.Multi.update(:user, changeset)
-    |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, [context]))
+    with {:ok, changed} <- Repo.update(changeset) do
+      _ = Repo.delete_all(UserToken.by_user_and_contexts_query(current, [context]))
+      {:ok, changed}
+    end
   end
 
   @doc ~S"""
   Delivers the update email instructions to the given user.
+
+  The link's token is stored first. A user who no longer exists is
+  `{:error, :gone}`: nothing is stored and nothing is mailed.
 
   ## Examples
 
       iex> deliver_user_update_email_instructions(user, current_email, &url(~p"/users/settings/confirm_email/#{&1}"))
       {:ok, %Swoosh.Email{}}
 
+      iex> deliver_user_update_email_instructions(deleted_user, current_email, &url(~p"/users/settings/confirm_email/#{&1}"))
+      {:error, :gone}
+
   """
   @spec deliver_user_update_email_instructions(User.t(), String.t(), (String.t() -> String.t())) ::
-          {:ok, map()}
+          {:ok, map()} | {:error, :gone}
   def deliver_user_update_email_instructions(%User{} = user, current_email, update_email_url_fun)
       when is_function(update_email_url_fun, 1) do
     {encoded_token, user_token} = UserToken.build_email_token(user, "change:#{current_email}")
 
-    Repo.insert!(user_token)
-    UserNotifier.deliver_update_email_instructions(user, update_email_url_fun.(encoded_token))
+    with :ok <- store_token(user_token) do
+      UserNotifier.deliver_update_email_instructions(user, update_email_url_fun.(encoded_token))
+    end
   end
 
   @doc """
@@ -719,7 +784,12 @@ defmodule Cake.Accounts do
   end
 
   @doc """
-  Updates the user password.
+  Updates the user password, and deletes the user's sessions and other
+  tokens with it.
+
+  A user who no longer exists is `{:error, :gone}`, whether they were
+  deleted before the call or while it was under way (see `delete_user/1`,
+  "Concurrency").
 
   ## Examples
 
@@ -729,37 +799,78 @@ defmodule Cake.Accounts do
       iex> update_user_password(user, "invalid password", %{password: ...})
       {:error, %Ecto.Changeset{}}
 
+      iex> update_user_password(deleted_user, "valid password", %{password: ...})
+      {:error, :gone}
+
   """
   @spec update_user_password(User.t(), String.t(), map()) ::
-          {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+          {:ok, User.t()} | {:error, :gone | Ecto.Changeset.t()}
   def update_user_password(user, password, attrs) do
     changeset =
       user
       |> User.password_changeset(attrs)
       |> User.validate_current_password(password)
 
-    result =
-      Ecto.Multi.new()
-      |> Ecto.Multi.update(:user, changeset)
-      |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
-      |> Repo.transaction()
+    set_password(user, changeset)
+  end
 
-    case result do
-      {:ok, %{user: user}} -> {:ok, user}
-      {:error, :user, changeset, _} -> {:error, changeset}
-    end
+  # Stores the password a changeset holds, already hashed, and deletes the
+  # user's sessions and other tokens with it: what the old password opened
+  # and the database knew of when this ran. A session being stored at that
+  # moment is not waited for, and outlives the change.
+  #
+  # The changeset is made, and the password hashed, before the transaction
+  # opens: hashing is slow on purpose, and the user's row stays locked for
+  # as long as the transaction does. So what is written is a change to the
+  # user as the caller handed them in, and the lock is there only so that
+  # the row cannot go before it is written.
+  defp set_password(%User{} = user, %Ecto.Changeset{} = changeset) do
+    with_user_locked(user, fn %User{} ->
+      with {:ok, changed} <- Repo.update(changeset) do
+        _ = Repo.delete_all(UserToken.by_user_and_contexts_query(user, :all))
+        {:ok, changed}
+      end
+    end)
   end
 
   ## Session
 
   @doc """
-  Generates a session token.
+  Generates a session token for the user, and stores it.
+
+  A user who no longer exists is `{:error, :gone}`, and nothing is stored.
+  They can have been deleted since the caller read them, as a log-in reads
+  them to check the password, or while the token waited on their deletion.
+
+  ## Examples
+
+      iex> generate_user_session_token(user)
+      {:ok, token}
+
+      iex> generate_user_session_token(deleted_user)
+      {:error, :gone}
+
   """
-  @spec generate_user_session_token(User.t()) :: binary()
+  @spec generate_user_session_token(User.t()) :: {:ok, binary()} | {:error, :gone}
   def generate_user_session_token(user) do
     {token, user_token} = UserToken.build_session_token(user)
-    Repo.insert!(user_token)
-    token
+
+    with :ok <- store_token(user_token), do: {:ok, token}
+  end
+
+  # Stores a token for a user, who can be gone by now: deleted since the
+  # caller read them, or while this waited on their deletion. The token's
+  # reference to them then finds nobody, and that is `{:error, :gone}`.
+  defp store_token(%UserToken{} = user_token) do
+    changeset =
+      user_token
+      |> Ecto.Changeset.change()
+      |> Ecto.Changeset.foreign_key_constraint(:user_id)
+
+    case Repo.insert(changeset) do
+      {:ok, %UserToken{}} -> :ok
+      {:error, %Ecto.Changeset{}} -> {:error, :gone}
+    end
   end
 
   @doc """
@@ -785,6 +896,11 @@ defmodule Cake.Accounts do
   @doc ~S"""
   Delivers the confirmation email instructions to the given user.
 
+  A user whose struct says they are confirmed is sent nothing:
+  `{:error, :already_confirmed}`. Otherwise the link's token is stored
+  first. A user who no longer exists is `{:error, :gone}`: nothing is
+  stored and nothing is mailed.
+
   ## Examples
 
       iex> deliver_user_confirmation_instructions(user, &url(~p"/users/confirm/#{&1}"))
@@ -793,17 +909,22 @@ defmodule Cake.Accounts do
       iex> deliver_user_confirmation_instructions(confirmed_user, &url(~p"/users/confirm/#{&1}"))
       {:error, :already_confirmed}
 
+      iex> deliver_user_confirmation_instructions(deleted_user, &url(~p"/users/confirm/#{&1}"))
+      {:error, :gone}
+
   """
   @spec deliver_user_confirmation_instructions(User.t(), (String.t() -> String.t())) ::
-          {:ok, map()} | {:error, :already_confirmed}
+          {:ok, map()} | {:error, :already_confirmed | :gone}
   def deliver_user_confirmation_instructions(%User{} = user, confirmation_url_fun)
       when is_function(confirmation_url_fun, 1) do
     if user.confirmed_at do
       {:error, :already_confirmed}
     else
       {encoded_token, user_token} = UserToken.build_email_token(user, "confirm")
-      Repo.insert!(user_token)
-      UserNotifier.deliver_confirmation_instructions(user, confirmation_url_fun.(encoded_token))
+
+      with :ok <- store_token(user_token) do
+        UserNotifier.deliver_confirmation_instructions(user, confirmation_url_fun.(encoded_token))
+      end
     end
   end
 
@@ -811,23 +932,33 @@ defmodule Cake.Accounts do
   Confirms a user by the given token.
 
   If the token matches, the user account is marked as confirmed
-  and the token is deleted.
+  and the token is deleted. The answer is the user as the database has
+  them once confirmed: their role is the one they have now.
+
+  A token that does not match is `:error`. So is a user who no longer
+  exists, whether they were deleted before the call or while it was under
+  way (see `delete_user/1`, "Concurrency"): the link is no longer good.
   """
   @spec confirm_user(binary()) :: {:ok, User.t()} | :error
   def confirm_user(token) do
     with {:ok, query} <- UserToken.verify_email_token_query(token, "confirm"),
          %User{} = user <- Repo.one(query),
-         {:ok, %{user: user}} <- Repo.transaction(confirm_user_multi(user)) do
-      {:ok, user}
+         {:ok, confirmed} <- with_user_locked(user, &confirm/1) do
+      {:ok, confirmed}
     else
       _ -> :error
     end
   end
 
-  defp confirm_user_multi(user) do
-    Ecto.Multi.new()
-    |> Ecto.Multi.update(:user, User.confirm_changeset(user))
-    |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, ["confirm"]))
+  # Confirms a user read with their row locked, in the transaction that
+  # holds the lock, and drops their pending confirmation links. It answers
+  # with the user as the database then has them: their role is the one they
+  # have now, whatever it was when the caller read them.
+  defp confirm(%User{} = current) do
+    with {:ok, confirmed} <- Repo.update(User.confirm_changeset(current)) do
+      _ = Repo.delete_all(UserToken.by_user_and_contexts_query(current, ["confirm"]))
+      {:ok, confirmed}
+    end
   end
 
   ## Reset password
@@ -835,19 +966,30 @@ defmodule Cake.Accounts do
   @doc ~S"""
   Delivers the reset password email to the given user.
 
+  The link's token is stored first. A user who no longer exists is
+  `{:error, :gone}`: nothing is stored and nothing is mailed.
+
   ## Examples
 
       iex> deliver_user_reset_password_instructions(user, &url(~p"/users/reset_password/#{&1}"))
       {:ok, %Swoosh.Email{}}
 
+      iex> deliver_user_reset_password_instructions(deleted_user, &url(~p"/users/reset_password/#{&1}"))
+      {:error, :gone}
+
   """
   @spec deliver_user_reset_password_instructions(User.t(), (String.t() -> String.t())) ::
-          {:ok, map()}
+          {:ok, map()} | {:error, :gone}
   def deliver_user_reset_password_instructions(%User{} = user, reset_password_url_fun)
       when is_function(reset_password_url_fun, 1) do
     {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
-    Repo.insert!(user_token)
-    UserNotifier.deliver_reset_password_instructions(user, reset_password_url_fun.(encoded_token))
+
+    with :ok <- store_token(user_token) do
+      UserNotifier.deliver_reset_password_instructions(
+        user,
+        reset_password_url_fun.(encoded_token)
+      )
+    end
   end
 
   @doc """
@@ -873,7 +1015,12 @@ defmodule Cake.Accounts do
   end
 
   @doc """
-  Resets the user password.
+  Resets the user password, and deletes the user's sessions and other
+  tokens with it.
+
+  A user who no longer exists is `{:error, :gone}`, whether they were
+  deleted before the call or while it was under way (see `delete_user/1`,
+  "Concurrency").
 
   ## Examples
 
@@ -883,18 +1030,13 @@ defmodule Cake.Accounts do
       iex> reset_user_password(user, %{password: "valid", password_confirmation: "not the same"})
       {:error, %Ecto.Changeset{}}
 
-  """
-  @spec reset_user_password(User.t(), map()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
-  def reset_user_password(user, attrs) do
-    result =
-      Ecto.Multi.new()
-      |> Ecto.Multi.update(:user, User.password_changeset(user, attrs))
-      |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
-      |> Repo.transaction()
+      iex> reset_user_password(deleted_user, %{password: "new long password"})
+      {:error, :gone}
 
-    case result do
-      {:ok, %{user: user}} -> {:ok, user}
-      {:error, :user, changeset, _} -> {:error, changeset}
-    end
+  """
+  @spec reset_user_password(User.t(), map()) ::
+          {:ok, User.t()} | {:error, :gone | Ecto.Changeset.t()}
+  def reset_user_password(user, attrs) do
+    set_password(user, User.password_changeset(user, attrs))
   end
 end

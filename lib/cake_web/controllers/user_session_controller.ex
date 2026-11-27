@@ -6,7 +6,10 @@ defmodule CakeWeb.UserSessionController do
   a wrong password get the same answer. A user whose email is unconfirmed
   is refused too and told why, an answer only a right password gets. Both
   refusals redirect to the log-in page; otherwise
-  `CakeWeb.UserAuth.log_in_user/3` starts the session.
+  `CakeWeb.UserAuth.log_in_user/3` starts the session. It can find the user
+  gone, deleted since their password was checked: that log-in gets the
+  answer a wrong username or password gets, which is the answer it would
+  get a moment later.
 
   The settings page posts to the same action with
   `_action=password_updated` after a password change, which has deleted the
@@ -20,6 +23,8 @@ defmodule CakeWeb.UserSessionController do
   alias Cake.Accounts
   alias Cake.Accounts.User
   alias CakeWeb.UserAuth
+
+  @invalid "Invalid username or password"
 
   @spec create(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def create(conn, %{"_action" => "password_updated"} = params) do
@@ -46,13 +51,17 @@ defmodule CakeWeb.UserSessionController do
         )
 
       %User{} = user ->
-        conn
-        |> put_flash(:info, info)
-        |> UserAuth.log_in_user(user, user_params)
+        case conn |> put_flash(:info, info) |> UserAuth.log_in_user(user, user_params) do
+          {:ok, logged_in} -> logged_in
+          # Deleted since the password was checked. Whoever tries a moment
+          # later is told the username or the password is wrong, so this
+          # log-in is told the same.
+          {:error, :gone} -> refuse(conn, username, @invalid)
+        end
 
       # In order to prevent user enumeration attacks, don't disclose whether the username is registered.
       nil ->
-        refuse(conn, username, "Invalid username or password")
+        refuse(conn, username, @invalid)
     end
   end
 

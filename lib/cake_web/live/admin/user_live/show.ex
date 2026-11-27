@@ -150,9 +150,8 @@ defmodule CakeWeb.Admin.UserLive.Show do
          |> assign(:refusal, "You cannot take back the last confirmed admin's confirmation.")}
     end
   rescue
-    # The login was deleted while its page was open: before the read, or
-    # between the read and the write.
-    _gone in [Ecto.NoResultsError, Ecto.StaleEntryError] ->
+    # The login was deleted while its page was open.
+    _gone in Ecto.NoResultsError ->
       {:noreply,
        socket
        |> put_flash(:error, @gone)

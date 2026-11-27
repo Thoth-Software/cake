@@ -5,6 +5,7 @@ defmodule CakeWeb.UserResetPasswordLiveTest do
   import Cake.AccountsFixtures
 
   alias Cake.Accounts
+  alias Cake.Repo
 
   setup do
     user = user_fixture()
@@ -84,6 +85,28 @@ defmodule CakeWeb.UserResetPasswordLiveTest do
       assert result =~ "Reset password"
       assert result =~ "should be at least 12 character(s)"
       assert result =~ "does not match password"
+    end
+
+    # #427. Deleted while the page is open, behind the context's back: the
+    # link is no longer good, and the page answers as it answers a link it
+    # does not accept when it opens.
+    test "answers a link whose user was deleted while the page was open as one it does not accept",
+         %{conn: conn, token: token, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/users/reset_password/#{token}")
+      Repo.delete!(user)
+
+      lv
+      |> form("#reset_password_form",
+        user: %{
+          "password" => "new valid password",
+          "password_confirmation" => "new valid password"
+        }
+      )
+      |> render_submit()
+
+      assert assert_redirect(lv, ~p"/") == %{
+               "error" => "Reset password link is invalid or it has expired."
+             }
     end
   end
 

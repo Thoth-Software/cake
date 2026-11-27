@@ -57,7 +57,7 @@ defmodule CakeWeb.ConnCase do
   """
   @spec log_in_user(Plug.Conn.t(), Cake.Accounts.User.t()) :: Plug.Conn.t()
   def log_in_user(conn, user) do
-    token = Cake.Accounts.generate_user_session_token(user)
+    {:ok, token} = Cake.Accounts.generate_user_session_token(user)
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})

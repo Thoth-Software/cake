@@ -7,7 +7,9 @@ defmodule CakeWeb.UserResetPasswordLive do
   sets the password and deletes the user's sessions, or refuses with errors
   shown on the form. A reset redirects to the log-in page and logs nobody
   in, and it does not confirm the email (#402): a user who was unconfirmed
-  is still refused at log-in.
+  is still refused at log-in. A user deleted while the page is open has a
+  token that is no longer good: submitting the form gets the answer a
+  refused token gets when the page opens.
   """
 
   use CakeWeb, :live_view
@@ -95,7 +97,12 @@ defmodule CakeWeb.UserResetPasswordLive do
          |> put_flash(:info, "Password reset successfully.")
          |> redirect(to: ~p"/users/log_in")}
 
-      {:error, changeset} ->
+      # Deleted since the page opened: the link is no better than one that
+      # was never good.
+      {:error, :gone} ->
+        {:noreply, refuse_link(socket)}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
          socket
          |> assign(check_errors: true)
@@ -116,10 +123,14 @@ defmodule CakeWeb.UserResetPasswordLive do
     if user = Accounts.get_user_by_reset_password_token(token) do
       assign(socket, user: user)
     else
-      socket
-      |> put_flash(:error, "Reset password link is invalid or it has expired.")
-      |> redirect(to: ~p"/")
+      refuse_link(socket)
     end
+  end
+
+  defp refuse_link(socket) do
+    socket
+    |> put_flash(:error, "Reset password link is invalid or it has expired.")
+    |> redirect(to: ~p"/")
   end
 
   defp assign_form(socket, %{} = source) do

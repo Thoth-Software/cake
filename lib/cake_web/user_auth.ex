@@ -38,17 +38,27 @@ defmodule CakeWeb.UserAuth do
   so LiveView sessions are identified and automatically
   disconnected on log out. The line can be safely removed
   if you are not using LiveView.
-  """
-  @spec log_in_user(map(), map(), map()) :: map()
-  def log_in_user(conn, user, params \\ %{}) do
-    token = Accounts.generate_user_session_token(user)
-    user_return_to = get_session(conn, :user_return_to)
 
-    conn
-    |> renew_session()
-    |> put_token_in_session(token)
-    |> maybe_write_remember_me_cookie(token, params)
-    |> redirect(to: user_return_to || signed_in_path(conn))
+  The session is stored for the user first
+  (`Cake.Accounts.generate_user_session_token/1`), and that can find them
+  gone: deleted since the caller checked their password. That is
+  `{:error, :gone}`, and nothing has been done to the conn: no session is
+  renewed, no cookie written, no redirect sent. What to answer is the
+  caller's: `CakeWeb.UserSessionController` answers as for a wrong
+  username or password.
+  """
+  @spec log_in_user(Plug.Conn.t(), User.t(), map()) :: {:ok, Plug.Conn.t()} | {:error, :gone}
+  def log_in_user(conn, user, params \\ %{}) do
+    with {:ok, token} <- Accounts.generate_user_session_token(user) do
+      user_return_to = get_session(conn, :user_return_to)
+
+      {:ok,
+       conn
+       |> renew_session()
+       |> put_token_in_session(token)
+       |> maybe_write_remember_me_cookie(token, params)
+       |> redirect(to: user_return_to || signed_in_path(conn))}
+    end
   end
 
   defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}) do
@@ -315,6 +325,11 @@ defmodule CakeWeb.UserAuth do
   (`Cake.Accounts.delete_user/1`). Deleting the session rows stops the next
   request and the next mount; this stops the pages that are already open,
   which would otherwise go on working until they were next navigated.
+
+  A page that finds its own user deleted calls it too, as the settings page
+  does: the deletion need not have come from the admin panel, and then
+  nothing has told the user's open pages. The page that calls it is one of
+  them, and leaves with the rest.
 
   It goes by the user, not by their session tokens, so the caller needs
   nothing back from the function that deleted them. A page that mounted
